@@ -1,0 +1,1 @@
+[latest](dist/latest.html)
