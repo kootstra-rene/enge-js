@@ -1,1 +1,1 @@
-[latest](dist/latest.html)
+[latest](https://raw.githubusercontent.com/kootstra-rene/enge-js/main/dist/latest.html)
