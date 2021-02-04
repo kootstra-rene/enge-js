@@ -18,16 +18,16 @@ Same as with the BIOS drag and drop the .bin file on the emulator page and it wi
 
 ## Controls
 
-q = L2
-w = L1
-e = triangle
-r = R1
-t = R2
-s = square
-d = circle
-x = x
-space = select
-enter = start
+q = L2  
+w = L1  
+e = triangle  
+r = R1  
+t = R2  
+s = square  
+d = circle  
+x = x  
+space = select  
+enter = start  
 
 ## Handy info
 Double clicking the emulator page will stop/resume the emulator. This can be handy when the sound is really crappy.
