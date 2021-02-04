@@ -1,0 +1,129 @@
+:root {
+  --display-width: calc((100vh / 3 * 4) - 32px);
+  --display-height: calc(100vh - 32px);
+
+  --display-left: calc((100vw - var(--display-width)) / 2);
+  --display-top: 16px;
+}
+
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+  user-select: none;
+}
+
+body {
+  position: absolute;
+  left    : 0px;
+  right   : 0px;
+  top     : 0px;
+  bottom  : 0px;
+  margin  : 0px;
+  overflow: hidden;
+  background-color: rgb(32,32,32);
+}
+
+canvas {
+  position: absolute;
+  width   : var(--display-width);
+  height  : var(--display-height);
+  z-index : 1;
+  left    : var(--display-left);
+  top     : var(--display-top);
+  right   : 16px;
+  border  : solid 1px rgb(24,24,24);
+}
+
+header {
+  position: absolute;
+  font-size: 100px;
+  font-weight: 900;
+  z-index: 2;
+  left: 16px;
+  top: var(--display-top);
+  bottom: 16px;
+  width: calc(var(--display-left) - 32px);
+}
+
+header > span {
+  top: 50%;
+  right: 50%;
+  position: absolute;
+  transform: scale(-1) translate(-50%, 50%) rotate(90deg);
+  font-size: calc(var(--display-left) - 32px);
+  text-shadow: -2px 1px 2px rgba(80,80,80,0.75), 2px -1px 2px rgba(0,0,0,0.75);
+  color: rgba(24,24,24,1);
+  background: transparent;
+}
+
+nav {
+  position: absolute;
+  z-index: 2;
+  color:red;
+  right: 16px;
+  top: 16px;
+  bottom: 16px;
+  width: calc(var(--display-left) - 32px);
+  background-color: transparent;
+}
+
+/* overrides for developper view */
+@media screen and (max-width: 133.34vh) {
+  :root {
+    --display-width: calc((100vw) - 32px);
+    --display-height: calc((100vw / 4 * 3) - 32px);
+    --display-left: 16px;
+    --display-top: calc((100vh - var(--display-height)) / 2);
+  }
+
+  canvas {
+  }
+
+  header {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    height: calc(var(--display-top) - 32px);
+    bottom: unset;
+    width: unset;
+    line-height: calc(var(--display-top) - 32px);
+  }
+
+  header > span {
+    transform: scale(1) translate(50%, -50%);
+    font-size: calc(var(--display-top) - 32px);
+    text-shadow: 2px 1px 2px rgba(80,80,80,0.75), -2px -1px 2px rgba(0,0,0,0.75);
+  }
+
+  nav {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+    height: calc(var(--display-top) - 32px);
+    width: unset;
+    top: unset;
+  }
+}
+
+span.nobios {
+  animation-name: color;
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+}
+
+@keyframes color {
+  0% {
+    color: rgb(96,24,24);
+  }
+  33% {
+    color: rgb(24,24,24);
+  }
+  67% {
+    color: rgb(24,24,24);
+  }
+  100% {
+    color: rgb(96,24,24);
+  }
+}
