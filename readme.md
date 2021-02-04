@@ -1,8 +1,10 @@
-[latest](dist/)
+# Why this emulator
+Everybody said you can't run a PSXone emulator in JavaScript at full speed in the browser. It's too slow...
+You have the emscriptem based ones but that is not plain JavScript and also those emulators don't run at full speed. So to learn JavaScript and further my programming knowledge I decided to build a PSOne emulator in JavaScript. Keep in mind it is a work in progress but at this point it is good enough to publish.
 
 # How to run
 
-First clone or download the repo then open the index.html in the distfolder.
+First clone or download the repo then open the index.html in the distfolder. or visit [latest](https://kootstra-rene.github.io/enge-js/)
 Note you'll need chrome for running this emulator.
 
 ## Loading the BIOS
@@ -34,3 +36,7 @@ Double clicking the emulator page will stop/resume the emulator. This can be han
 
 ## Memory Card
 Totally not supported at this time
+
+# Which game run
+
+I haven't extensivly tested but SCARS, Spyro, Final Fantasy VII seem te be running just fine.
