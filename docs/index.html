@@ -7,12 +7,10 @@
     <script type="text/javascript" src="psx-renderers/webgl2-utils.js"></script>
     <script type="text/javascript" src="psx-renderers/webGlHQ-old.js"></script>
 
-    <script type="text/javascript" src="index.js"></script>
     <script type="text/javascript" src="base64.js"></script>
 
     <script type="text/javascript" src="psx-core/memory.js"></script>
     <script type="text/javascript" src="psx-core/enge.js"></script>
-    <script type="text/javascript" src="psx-core/numbers.js"></script>
     <script type="text/javascript" src="psx-core/cdrom.js"></script>
     <script type="text/javascript" src="psx-core/recompiler.js"></script>
     <script type="text/javascript" src="psx-core/directMemoryAccess.js"></script>
@@ -22,6 +20,8 @@
     <script type="text/javascript" src="psx-core/serialPorts.js"></script>
     <script type="text/javascript" src="psx-core/soundProcessingUnit.js"></script>
     <script type="text/javascript" src="psx-core/rootCounters.js"></script>
+
+    <script type="text/javascript" src="index.js"></script>
 
     <script id="vertex" type="x-shader/x-vertex">#version 300 es
       precision highp float;
@@ -33,8 +33,8 @@
 
       void main() {
         gl_Position = vec4(a_position, 0.0, 1.0);
-        gl_Position.x = (gl_Position.x - 512.0 + 0.5) / +512.0;
-        gl_Position.y = (gl_Position.y - 256.0 + 0.5) / -256.0;
+        gl_Position.x = (gl_Position.x - 512.0) / +512.0;
+        gl_Position.y = (gl_Position.y - 256.0) / -256.0;
         v_texcoord = a_texcoord;
       }
     </script>
@@ -68,20 +68,35 @@
        
       uniform sampler2D u_texture;
       uniform ivec4     u_disp;
+      uniform ivec4     u_draw;
 
       in vec2 v_texcoord;
 
       out vec4 outColor;
  
-      float InterleavedGradientNoise(vec2 uv) { return 0.0;
+      vec4 InterleavedGradientNoise(vec2 uv) {
         const vec3 magic = vec3( 0.06711056, 0.00583715, 52.9829189 );
-        return fract( magic.z * fract( dot( uv, magic.xy ) ) );
+        float rnd = fract( magic.z * fract( dot( uv, magic.xy ) ) ) / 64.0;
+        return vec4(rnd, rnd, rnd, 0.0);
       }
 
       void main() {
-        float rnd = InterleavedGradientNoise(floor(v_texcoord)) / 64.0;
+        vec4 noise = InterleavedGradientNoise(floor(v_texcoord));
 
-        outColor = texture(u_texture, v_texcoord / vec2(1024.0, 512.0)) + vec4(rnd, rnd, rnd, 0.0);
+        ivec2 texel = ivec2(v_texcoord.xy);
+        
+/*      if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
+          outColor = vec4(1.0, 0.0, 0.0, 1.0);
+          return;
+        }
+        if (texel.x >= u_disp.x && texel.y >= u_disp.y && texel.x < (u_disp.x+u_disp.z) && texel.y < (u_disp.y+u_disp.w)) {
+          outColor = vec4(0.0, 0.0, 1.0, 1.0);
+          return;
+        }
+*/        
+
+        vec4 c = texelFetch(u_texture, texel, 0);
+        outColor = c + noise;
       }
     </script>
 
@@ -105,9 +120,10 @@
         return sbgr;
       }
 
-      float InterleavedGradientNoise(vec2 uv) { return 0.0;
+      vec4 InterleavedGradientNoise(vec2 uv) {
         const vec3 magic = vec3( 0.06711056, 0.00583715, 52.9829189 );
-        return fract( magic.z * fract( dot( uv, magic.xy ) ) );
+        float rnd = fract( magic.z * fract( dot( uv, magic.xy ) ) ) / 64.0;
+        return vec4(rnd, rnd, rnd, 0.0);
       }
 
       void main() {
@@ -117,26 +133,26 @@
         float tx = float(u_disp.x) + floor(float(dsx) * 1.5);
         float ty = floor(v_texcoord.y);
 
-        vec4 c1 = texture(u_texture, vec2((tx + 0.0) / 1024.0, ty / 512.0));
+        vec4 c1 = texelFetch(u_texture, ivec2(tx + 0.0,ty), 0);
         int  sbgr1 = getSBGRfromRGBA(c1);
-        vec4 c2 = texture(u_texture, vec2((tx + 1.0) / 1024.0, ty / 512.0));
+        vec4 c2 = texelFetch(u_texture, ivec2(tx + 1.0,ty), 0);
         int  sbgr2 = getSBGRfromRGBA(c2);
 
-        float rnd = InterleavedGradientNoise( vec2(dsx,dsy) ) / 64.0;
+        vec4 noise = InterleavedGradientNoise( vec2(dsx,dsy) );
 
         if ((dsx & 1) == 1) {
           float r = float((sbgr1 >> 8) & 255) / 256.0;
           float g = float((sbgr2 >> 0) & 255) / 256.0;
           float b = float((sbgr2 >> 8) & 255) / 256.0;
 
-          outColor = vec4(r, g, b, 1.0) + vec4(rnd, rnd, rnd, 0.0);
+          outColor = vec4(r, g, b, 1.0) + noise;
         }
         else {
           float r = float((sbgr1 >> 0) & 255) / 256.0;
           float g = float((sbgr1 >> 8) & 255) / 256.0;
           float b = float((sbgr2 >> 0) & 255) / 256.0;
 
-          outColor = vec4(r, g, b, 1.0) + vec4(rnd, rnd, rnd, 0.0);
+          outColor = vec4(r, g, b, 1.0) + noise;
         }
       }
     </script>

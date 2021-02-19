@@ -26,8 +26,7 @@ const gte = {
   zsf4: 0.0,
   regs: new Int32Array(64),
   flag: new Int32Array(32),
-
-  metrics: {},
+  lzcr: 0,
 
   sf  : 0,
   lm  : 0,
@@ -43,11 +42,11 @@ const gte = {
       value ^= 0xFFFFFFFF;
     }
     if (value === 0) {
-      this.regs[0x1f] = 32.0;
+      this.lzcr = 32;
     }
     else {
       for (var idx = 31; (value & (1 << idx)) === 0 && idx >= 0; --idx);
-      this.regs[0x1f] = 31.0 - idx;
+      this.lzcr = 31 - idx;
     }
   },
 
@@ -62,7 +61,7 @@ const gte = {
       case 0x04:  return this.regs[regId];
       case 0x05:  return (this.v2[3] << 16) >> 16;
       case 0x06:  return this.regs[regId];
-      case 0x07:  return this.regs[regId];
+      case 0x07:  return (this.regs[regId] << 16) >>> 16;
       case 0x08:  return (this.ir[0] << 16) >> 16;
       case 0x09:  return (this.ir[1] << 16) >> 16;
       case 0x0a:  return (this.ir[2] << 16) >> 16;
@@ -83,14 +82,14 @@ const gte = {
       case 0x19:  return this.mac[1];
       case 0x1a:  return this.mac[2];
       case 0x1b:  return this.mac[3];
-      case 0x1c:  return this.regs[regId];
+      case 0x1c:  return this.regs[regId] & 0x7fff;
       case 0x1d:  var value = 0;
                   value |= ((this.ir[1] >> 7) <<  0);
                   value |= ((this.ir[2] >> 7) <<  5);
                   value |= ((this.ir[3] >> 7) << 10);
                   return value;
       case 0x1e:  return this.regs[regId];
-      case 0x1f:  return this.regs[regId];
+      case 0x1f:  return this.lzcr;
       case 0x20:  return this.regs[regId];
       case 0x21:  return this.regs[regId];
       case 0x22:  return this.regs[regId];
@@ -129,7 +128,7 @@ const gte = {
 
   set: function(regId, data) {
     var data = data >> 0;
-    this.regs[0x3f] = 0;
+    // this.regs[0x3f] = 0;
     this.regs[regId] = data;
     // console.log('set', hex(regId, 2), hex(data));
 
@@ -177,7 +176,7 @@ const gte = {
       case 0x21:  this.rt[2] = (data << 16) >> 16;  this.rt[3] = (data << 0) >> 16; break;
       case 0x22:  this.rt[4] = (data << 16) >> 16;  this.rt[5] = (data << 0) >> 16; break;
       case 0x23:  this.rt[6] = (data << 16) >> 16;  this.rt[7] = (data << 0) >> 16; break;
-      case 0x24:  this.rt[8] = (data << 16) >> 16;  break;
+      case 0x24:  this.regs[regId] = this.rt[8] = (data << 16) >> 16;  break;
       case 0x25:  this.tr[0] = (data << 0) >> 0;  break;
       case 0x26:  this.tr[1] = (data << 0) >> 0;  break;
       case 0x27:  this.tr[2] = (data << 0) >> 0;  break;
@@ -185,7 +184,7 @@ const gte = {
       case 0x29:  this.ll[2] = (data << 16) >> 16;  this.ll[3] = (data << 0) >> 16; break;
       case 0x2a:  this.ll[4] = (data << 16) >> 16;  this.ll[5] = (data << 0) >> 16; break;
       case 0x2b:  this.ll[6] = (data << 16) >> 16;  this.ll[7] = (data << 0) >> 16; break;
-      case 0x2c:  this.ll[8] = (data << 16) >> 16;  break;
+      case 0x2c:  this.regs[regId] = this.ll[8] = (data << 16) >> 16;  break;
       case 0x2d:  this.bk[0] = (data << 0) >> 0;  break;
       case 0x2e:  this.bk[1] = (data << 0) >> 0;  break;
       case 0x2f:  this.bk[2] = (data << 0) >> 0;  break;
@@ -193,7 +192,7 @@ const gte = {
       case 0x31:  this.lc[2] = (data << 16) >> 16;  this.lc[3] = (data << 0) >> 16; break;
       case 0x32:  this.lc[4] = (data << 16) >> 16;  this.lc[5] = (data << 0) >> 16; break;
       case 0x33:  this.lc[6] = (data << 16) >> 16;  this.lc[7] = (data << 0) >> 16; break;
-      case 0x34:  this.lc[8] = (data << 16) >> 16;  break;
+      case 0x34:  this.regs[regId] = this.lc[8] = (data << 16) >> 16;  break;
       case 0x35:  this.fc[0] = (data << 0) >> 0;  break;
       case 0x36:  this.fc[1] = (data << 0) >> 0;  break;
       case 0x37:  this.fc[2] = (data << 0) >> 0;  break;
@@ -207,9 +206,13 @@ const gte = {
       case 0x3a:  this.regs[regId] = (data << 16) >>> 16;   break;
       case 0x3b:  this.regs[regId] = (data << 16) >> 16;    break;
       case 0x3c:  this.regs[regId] = (data << 0) >> 0;      break;
-      case 0x3d:  this.zsf3 = (data << 16) >> 16;    break;
-      case 0x3e:  this.zsf4 = (data << 16) >> 16;    break;
-      case 0x3f:  this.regs[regId] = data & 0x7ffff000;    break;
+      case 0x3d:  this.regs[regId] = this.zsf3 = (data << 16) >> 16;    break;
+      case 0x3e:  this.regs[regId] = this.zsf4 = (data << 16) >> 16;    break;
+      case 0x3f:  this.regs[regId] = data & 0x7ffff000;    
+                  if (this.regs[regId] & 0x7f87e000) {
+                    this.regs[regId] |= 0x80000000;
+                  }
+                  break;
       default  :  abort('gte.set(r'+hex(regId,2)+', '+hex(data)+') not yet implemented')
     }
   },
@@ -296,8 +299,8 @@ const gte = {
 
     // MAC0 = ZSF3*(SZ1+SZ2+SZ3)
     mac[0] = zsf3 * (sz[1] + sz[2] + sz[3]);
-    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 16));
-    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 15));
+    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= this.flag[16];
+    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= this.flag[15];
     // OTZ  =  MAC0/1000h
     this.regs[0x07] = gte.lim(mac[0] / 4096.0, 0.0, 18, 65535.0, 18);
   },
@@ -309,8 +312,8 @@ const gte = {
 
     // MAC0 =  ZSF4*(SZ0+SZ1+SZ2+SZ3)
     mac[0] = zsf4 * (sz[0] + sz[1] + sz[2] + sz[3]);
-    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 16));
-    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 15));
+    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= this.flag[16];
+    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= this.flag[15];
     // OTZ  =  MAC0/1000h
     this.regs[0x07] = gte.lim(mac[0] / 4096.0, 0.0, 18, 65535.0, 18);
   },
@@ -583,8 +586,8 @@ const gte = {
 
     // MAC0 = SX0*SY1 + SX1*SY2 + SX2*SY0 - SX0*SY2 - SX1*SY0 - SX2*SY1
     mac[0] = sx[0] * (sy[1] - sy[2]) + sx[1] * (sy[2] - sy[0]) + sx[2] * (sy[0] - sy[1]);
-    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 16));
-    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 15));
+    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= this.flag[16];
+    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= this.flag[15];
   },
 
   ncs: function(vec) {
@@ -640,14 +643,14 @@ const gte = {
 
     // [MAC1,MAC2,MAC3] = (TR*1000h + RT*Vx) SAR (sf*12)
     mac[1] = ((tr[0] * 4096.0) + (rt[0] * vec[1]) + (rt[1] * vec[2]) + (rt[2] * vec[3])) / sf;
-    if (mac[1] > 8796093022207) this.regs[0x3f] |= ((1 << 31) | (1 << 30));
-    if (mac[1] < -8796093022208) this.regs[0x3f] |= ((1 << 31) | (1 << 27));
+    if (mac[1] > 8796093022207) this.regs[0x3f] |= this.flag[30];
+    if (mac[1] < -8796093022208) this.regs[0x3f] |= this.flag[27];
     mac[2] = ((tr[1] * 4096.0) + (rt[3] * vec[1]) + (rt[4] * vec[2]) + (rt[5] * vec[3])) / sf;
-    if (mac[2] > 8796093022207) this.regs[0x3f] |= ((1 << 31) | (1 << 29));
-    if (mac[2] < -8796093022208) this.regs[0x3f] |= ((1 << 31) | (1 << 26));
+    if (mac[2] > 8796093022207) this.regs[0x3f] |= this.flag[29];
+    if (mac[2] < -8796093022208) this.regs[0x3f] |= this.flag[26];
     mac[3] = ((tr[2] * 4096.0) + (rt[6] * vec[1]) + (rt[7] * vec[2]) + (rt[8] * vec[3])) / sf;
-    if (mac[3] > 8796093022207) this.regs[0x3f] |= ((1 << 31) | (1 << 28));
-    if (mac[3] < -8796093022208) this.regs[0x3f] |= ((1 << 31) | (1 << 25));
+    if (mac[3] > 8796093022207) this.regs[0x3f] |= this.flag[28];
+    if (mac[3] < -8796093022208) this.regs[0x3f] |= this.flag[25];
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     this.limit(0);
@@ -671,14 +674,14 @@ const gte = {
       hsz3 = 131071.0;
     }
     mac[0] = (hsz3 * ir[1]) + ofx; sx[2] = mac[0] / 65536.0;
-    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 16));
-    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 15));
+    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= this.flag[16];
+    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= this.flag[15];
     mac[0] = (hsz3 * ir[2]) + ofy; sy[2] = mac[0] / 65536.0;
-    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 16));
-    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 15));
+    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= this.flag[16];
+    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= this.flag[15];
     mac[0] = (hsz3 * dqa) + dqb;   ir[0] = mac[0] / 4096.0;
-    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 16));
-    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= ((1 << 31) | (1 << 15));
+    if (mac[0] > (0x7fffffff >> 0)) this.regs[0x3f] |= this.flag[16];
+    if (mac[0] < (0x80000000 >> 0)) this.regs[0x3f] |= this.flag[15];
 
     sx[2] = this.lim(sx[2], -1024.0, 14, 1023.0, 14);
     sy[2] = this.lim(sy[2], -1024.0, 13, 1023.0, 13);
@@ -703,10 +706,7 @@ const gte = {
     this.sf = (commandId >> 19) & 0x1;
     this.lm = (commandId >> 10) & 0x1;
 
-    gte.metrics[commandId] = gte.metrics[commandId] || 0;
-    gte.metrics[commandId]++;
     this.regs[0x3f] = 0;
-// console.log(hex(commandId & 0x3f,2), hex(commandId));
 
     switch (commandId & 0x3f) {
       case 0x01:  this.rtps(this.v0);     break;
@@ -770,12 +770,16 @@ for (var i = 0; i <= 31; ++i) {
   gte.flag[i] = (1 << i);
 }
 
+let bit31flag = 0;
 for (var i = 23; i <= 30; ++i) {
+  bit31flag |= gte.flag[i];
   gte.flag[i] |= 0x80000000;
 }
 
 for (var i = 13; i <= 18; ++i) {
+  bit31flag |= gte.flag[i];
   gte.flag[i] |= 0x80000000;
 }
 
+console.log(hex(bit31flag))
 Object.seal(gte);

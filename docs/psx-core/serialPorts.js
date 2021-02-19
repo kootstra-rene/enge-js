@@ -27,7 +27,7 @@ var joy = {
       },
       buildMemCardResponse: function(byte) {
         this.mode = byte;
-        log(`subCommand: $${hex(byte,2)}`)
+        // log(`subCommand: $${hex(byte,2)}`)
         switch (byte) {
           case 0x52:  // read
                       this.response.push(0x00, 0x5a, 0x5d, 0x00, -1, 0x5c, -1, -1, -1);
@@ -54,7 +54,7 @@ var joy = {
       },
       buildControllerResponse: function(byte) {
         this.mode = byte;
-        log(`subCommand: $${hex(byte,2)}`)
+        // log(`subCommand: $${hex(byte,2)}`)
         switch (byte) {
           case 0x42:  this.response.push(0x41, 0x5a, this.lo, this.hi/*, 0x00, 0x00, 0x00, 0x00*/);
                       break;
@@ -96,7 +96,7 @@ var joy = {
                 debugger;
             }
           }
-          console.log(`R${hex(this.received.length,2)}`, hex(byte,2), hex(data,2));
+          // console.log(`R${hex(this.received.length,2)}`, hex(byte,2), hex(data,2));
         }
         if (this.mode === 0x57) {
           if (data === -1) {
@@ -114,7 +114,7 @@ var joy = {
               default:  debugger;
             }
           }
-          console.log(`W${hex(this.received.length,2)}`, hex(byte,2), hex(data,2));
+          // console.log(`W${hex(this.received.length,2)}`, hex(byte,2), hex(data,2));
         }
 
         this.received.push(byte);
@@ -126,23 +126,22 @@ var joy = {
     },
     { id:1, lo: 0xff, hi: 0xff, data: new Uint8Array(128*1024), addr: 0, checkSum:0 },
   ],
-  cyclesPerByte: -1,
 
   rd08r1040: function() {
     if (this.r1044 & 0x0002) {
-      log('rd08r1040(data):', hex(this.data, 2))
+      // log('rd08r1040(data):', hex(this.data, 2))
       this.r1044 &= ~0x0002; // JOY_STAT.yRX = 0
     }
     return this.data;
   },
 
   rd16r1044: function() {
-    log('rd16r1044(stat):', hex(this.r1044, 4))
+    // log('rd16r1044(stat):', hex(this.r1044, 4))
     return this.r1044;
   },
 
   rd16r104a: function() {
-    log('rd16r104a(ctrl):', hex(this.r104a, 4))
+    // log('rd16r104a(ctrl):', hex(this.r104a, 4))
     return this.r104a;
   },
 
@@ -159,7 +158,7 @@ var joy = {
       device = (this.r104a & 0x2000) ? null/*this.devices[1]*/ : this.devices[0];
     }
 
-    log('wr08r1040(data):', hex(data, 4), ' cmd:', hex(this.command, 2), ' JOY:', device ? device.id : 'N/A')
+    // log('wr08r1040(data):', hex(data, 4), ' cmd:', hex(this.command, 2), ' JOY:', device ? device.id : 'N/A')
 
     switch (this.command) {
       case 0x00:  if (!device) {
@@ -186,7 +185,9 @@ var joy = {
                   this.setResult(byte, !more);
                 } break;
 
-      default:    abort('unknown command state:', hex(this.command, 4), ' device:', device.id);
+      case 0x83:  return this.setResult(0xff, true); // no memcard for now
+
+      default:    //abort('unknown command state:', hex(this.command, 4), ' device:', device.id);
                   break;
     }
   },
@@ -197,7 +198,7 @@ var joy = {
   },
 
   wr16r104a: function(data) {
-    log('wr16r104a(ctrl):', hex(data, 4))
+    // log('wr16r104a(ctrl):', hex(data, 4))
     this.r104a = data & ~(0x0010 | 0x0040); //  mask out write-only bits
 
     if ((data & 0x0040) || !(this.r104a & 0x0002)) {
@@ -209,7 +210,7 @@ var joy = {
         device.initMemCard();
       }
 
-      this.cyclesPerByte = -1;
+      this.eventIRQ.active = false;
       this.command = 0;
       this.r1044 = 0x0005;
     }
@@ -231,21 +232,17 @@ var joy = {
     this.data = data & 0xff;
 
     if (!last) {
-      this.cyclesPerByte += (this.baud * 8 / 2);
+      psx.updateEvent(this.eventIRQ, (this.baud * 8) >>> 0);
     }
   },
 
-  update: function(cycles) {
-    if (this.cyclesPerByte > 0) {
-      this.cyclesPerByte -= cycles;
-      if (this.cyclesPerByte <= 0) {
-        this.cyclesPerByte = 0; // stop IRQ generation
+  eventIRQ: null,
 
-        this.r1044 |= 0x0200; // JOY_STAT.IRQ = 1;
-        cpu.istat |= 0x0080; // todo: should take care of edge triggering
-        log('joy-irq');
-      }
-    }
+  completeIRQ: function(self, clock) {
+    this.r1044 |= 0x0200; // JOY_STAT.IRQ = 1;
+    cpu.istat |= 0x0080; // todo: should take care of edge triggering
+
+    self.active = false;
   },
 }
 

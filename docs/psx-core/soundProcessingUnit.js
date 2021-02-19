@@ -21,8 +21,6 @@ var right = myArrayBuffer.getChannelData(1)
 
 var spu = {
   totalSamples: 0,
-  cyclesPerSample: 33868800 / 44100,
-  cycleCounter: 0,
   voices: [],
   index: 0,
   writeIndex: 0,
@@ -67,7 +65,8 @@ var spu = {
 
                       return voice.getRegister(addr);
                     }
-                    return map.getInt16(0x01800000 + addr);
+                    return map16[((0x01800000 + addr) & 0x01ffffff) >>> 1];
+                    // return map.getInt16(0x01800000 + addr);
     }
   },
 
@@ -159,6 +158,7 @@ var spu = {
       case 0x1daa:  this.SPUCNT = data;
                     if (!source.$started && this.SPUCNT & 0x8000) {
                       source.$started = true;
+                      audioCtx.resume();
                       source.start(0);
                     }
                     if (this.SPUCNT & (1 << 6)) {
@@ -212,7 +212,7 @@ var spu = {
       var data = 0;
       data |= (this.data[this.ramOffset + 0] >>> 0) << 0;
       data |= (this.data[this.ramOffset + 1] >>> 0) << 8;
-      map.setInt16(addr & 0x1fffff, data);
+      map16[(addr & 0x001fffff) >>> 1] = data;
       this.ramOffset += 2;
       transferSize -= 2;
       addr += 2;
@@ -225,7 +225,7 @@ var spu = {
     var transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
 
     while (transferSize > 0) {
-      var data = map.getInt16(addr & 0x1fffff)
+      const data = map16[(addr & 0x001fffff) >>> 1];
       this.data[this.ramOffset + 0] = (data >> 0) & 0xff;
       this.data[this.ramOffset + 1] = (data >> 8) & 0xff;
       this.checkIrq();
@@ -269,102 +269,88 @@ var spu = {
     }
   },
 
-  advance: function(cycles) {
-    let oneSample = false;
+  event: function (self, clock) {
+    self.clock += (33868800 / 44100);
 
-    this.cycleCounter -= cycles;
-    while (this.cycleCounter <= 0) {
-      this.SPUSTAT &= ~(0x003F);
-      this.SPUSTAT |= (this.SPUSTATm & 0x003F);
+    this.SPUSTAT &= ~(0x003F);
+    this.SPUSTAT |= (this.SPUSTATm & 0x003F);
 
-      this.cycleCounter += this.cyclesPerSample;
-      oneSample = true;
+    let l = 0, r = 0;
 
-      let l = 0, r = 0;
+    const captureIndex = (this.totalSamples % 0x200) << 1;
+    this.checkIrq();
 
-      const captureIndex = (this.totalSamples % 0x200) << 1;
-      this.checkIrq();
+    for (let i = 23; i >= 0; --i) {
+      let voice = this.voices[i];
+      if (!voice.adsrState) continue;
 
-      for (let i = 23; i >= 0; --i) {
-        let voice = this.voices[i];
+// voice begin
+      voice.pitchCounter += voice.pitchStep;
 
-  // voice begin
-        voice.pitchCounter += voice.pitchStep
+      if (voice.pitchCounter >= BLOCKSIZE) {
+        voice.pitchCounter -= BLOCKSIZE;
 
-        if (voice.pitchCounter >= BLOCKSIZE) {
-          voice.pitchCounter -= BLOCKSIZE;
-
-          voice.decodeBlock();
-          this.checkIrq(voice);
-        }
-
-        if (/*false &&*/ voice.adsrState === 4 && voice.adsrLevel <= 0) {
-          var sampleL = 0;
-          var sampleR = 0;
-        }
-        else {
-          const sampleIndex = voice.pitchCounter >>> 12;
-          const sample = voice.buffer[sampleIndex];
-
-          let adsrVolume = voice.mixADSR();
-          var sampleL = (sample * adsrVolume * voice.volumeLeft);
-          var sampleR = (sample * adsrVolume * voice.volumeRight);
-        }
-        if (i === 3) {
-          const mono = (sampleL * 0x8000) >>> 0;
-          this.data[0x0C00 + captureIndex] = mono & 0xff;
-          this.data[0x0C01 + captureIndex] = mono >> 8;
-        }
-        if (i === 1) {
-          const mono = (sampleL * 0x8000) >>> 0;
-          this.data[0x0800 + captureIndex] = mono & 0xff;
-          this.data[0x0801 + captureIndex] = mono >> 8;
-        }
-
-        l += sampleL;
-        r += sampleR;
-  // voice end
+        voice.decodeBlock();
+        this.checkIrq(voice);
       }
 
-      var cdxa = [0.0, 0.0];
-      cdr.nextpcm(cdxa);
+      const sampleIndex = voice.pitchCounter >>> 12;
+      const sample = voice.buffer[sampleIndex];
 
-      let cdSampleL = (cdxa[0] * this.cdVolumeLeft);
-      let cdSampleR = (cdxa[1] * this.cdVolumeRight);
-      {
-        const mono = (cdSampleL * 0x8000) >>> 0;
-        this.data[0x0000 + captureIndex] = mono & 0xff;
-        this.data[0x0001 + captureIndex] = mono >> 8;
+      const adsrVolume = voice.mixADSR();
+      const sampleL = (sample * adsrVolume * voice.volumeLeft);
+      const sampleR = (sample * adsrVolume * voice.volumeRight);
+
+      if (i === 3) {
+        const mono = (sampleL * 0x8000) >>> 0;
+        this.data[0x0C00 + captureIndex] = mono & 0xff;
+        this.data[0x0C01 + captureIndex] = mono >> 8;
       }
-      {
-        const mono = (cdSampleR * 0x8000) >>> 0;
-        this.data[0x0400 + captureIndex] = mono & 0xff;
-        this.data[0x0401 + captureIndex] = mono >> 8;
+      if (i === 1) {
+        const mono = (sampleL * 0x8000) >>> 0;
+        this.data[0x0800 + captureIndex] = mono & 0xff;
+        this.data[0x0801 + captureIndex] = mono >> 8;
       }
-      l += cdSampleL;
-      r += cdSampleR;
-      //- todo: capture cd audio
 
-      l = (l * this.mainVolumeLeft);
-      r = (r * this.mainVolumeRight);
-
-      l = Math.max(Math.min(l, 1.0), -1.0);
-      r = Math.max(Math.min(r, 1.0), -1.0);
-
-      left[this.writeIndex] = l;
-      right[this.writeIndex] = r;
-      this.writeIndex = (this.writeIndex + 1) % frameCount;
-
-      if (captureIndex === 0x000) {
-        this.SPUSTAT &= ~0x0800;
-      }
-      if (captureIndex === 0x200) {
-        this.SPUSTAT |= 0x0800;
-      }
-      ++this.totalSamples;
+      l += sampleL;
+      r += sampleR;
+// voice end
     }
-    return oneSample;
+
+    var cdxa = [0.0, 0.0];
+    cdr.nextpcm(cdxa);
+
+    let cdSampleL = (cdxa[0] * this.cdVolumeLeft);
+    let cdSampleR = (cdxa[1] * this.cdVolumeRight);
+    {
+      const mono = (cdSampleL * 0x8000) >>> 0;
+      this.data[0x0000 + captureIndex] = mono & 0xff;
+      this.data[0x0001 + captureIndex] = mono >> 8;
+    }
+    {
+      const mono = (cdSampleR * 0x8000) >>> 0;
+      this.data[0x0400 + captureIndex] = mono & 0xff;
+      this.data[0x0401 + captureIndex] = mono >> 8;
+    }
+    l += cdSampleL;
+    r += cdSampleR;
+
+    l = (l * this.mainVolumeLeft);
+    r = (r * this.mainVolumeRight);
+
+    left[this.writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
+    right[this.writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
+    this.writeIndex = (this.writeIndex + 1) % frameCount;
+
+    if (captureIndex === 0x000) {
+      this.SPUSTAT &= ~0x0800;
+    }
+    if (captureIndex === 0x200) {
+      this.SPUSTAT |= 0x0800;
+    }
+    ++this.totalSamples;
   }
+
 }
 
 function Voice(id) {
@@ -381,7 +367,7 @@ function Voice(id) {
   this.pitchStep = 0
 
   this.adsrLevel = 0;
-  this.adsrState = 4;
+  this.adsrState = 0;
 
   this.r1Cx0 = 0;
   this.r1Cx2 = 0;
@@ -402,8 +388,8 @@ Voice.prototype.startAdsrRelease = function() {
 }
 
 Voice.prototype.keyOn = function () {
-  this.s0 = 0.0
-  this.s1 = 0.0
+  this.s0 = 0.0;
+  this.s1 = 0.0;
   this.pitchCounter = BLOCKSIZE;
   this.blockAddress = this.r1Cx6 << 3;
   this.repeatAddress = this.r1CxE << 3;
@@ -431,20 +417,19 @@ Voice.prototype.decodeBlock = function () {
   let shiftFilter = spu.data[blockAddress + 0];
   let flags       = spu.data[blockAddress + 1];
 
-  var shift  = (shiftFilter & 0x0f) >>> 0
-  var filter = (shiftFilter & 0xf0) >>> 3
+  var shift  = (shiftFilter & 0x0f) >>> 0;
+  var filter = (shiftFilter & 0xf0) >>> 3;
 
-  var k0 = xa2flt[filter + 0]
-  var k1 = xa2flt[filter + 1]
-  var s0 = this.s0
-  var s1 = this.s1
+  var k0 = xa2flt[filter + 0];
+  var k1 = xa2flt[filter + 1];
+  var s0 = this.s0;
+  var s1 = this.s1;
 
   var sample = 0;
   var output = this.buffer;
-  var memory = spu.data;
-  let value
+  let value;
   for (var offset = 2 ; offset < 16; ++offset) {
-    var data = memory[blockAddress + offset]
+    var data = spu.data[blockAddress + offset]
     var index = ((shift << 8) + data) << 1;
 
     output[sample++] = value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 0];
@@ -475,7 +460,7 @@ Voice.prototype.decodeBlock = function () {
 Voice.prototype.mixADSR = function () {
   switch (this.adsrState) {
     case 0x0: // silence
-              break;
+              return 0.0;
     case 0x1: this.adsrAttack();
               break;
     case 0x2: this.adsrDecay();
@@ -487,7 +472,14 @@ Voice.prototype.mixADSR = function () {
     default: abort('not implemented');
   }
   if (this.adsrLevel > 0x7FFFFFFF) this.adsrLevel = 0x7FFFFFFF;
-  if (this.adsrLevel < 0) this.adsrLevel = 0;
+  if (this.adsrLevel < 0) {
+    if (this.adsrState === 4) {
+      if (this.id !== 1 && this.id !== 3) {
+        this.adsrState = 0;
+      }
+    }
+    this.adsrLevel = 0;
+  }
   return (this.adsrLevel >> 16) / 0x8000;
 }
 
@@ -512,7 +504,7 @@ Voice.prototype.adsrAttack = function () {
 
 Voice.prototype.adsrDecay = function () {
   if (this.adsrDecayMode) {
-    // exponential attack
+    // exponential decay
     switch((this.adsrLevel >> 29) & 0x7) {
       case 0: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 +  0 + 32]; break;
       case 1: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 +  4 + 32]; break;
@@ -530,53 +522,46 @@ Voice.prototype.adsrDecay = function () {
 }
 
 Voice.prototype.adsrSustain = function () {
+  if (!this.adsrSustainMode) {
+    this.adsrLevel += this.adsrLinearSustainRate;
+    return;    
+  }
+
   if (this.adsrSustainDirection == 0) {
-    if (this.adsrSustainMode) {
-      if (this.adsrLevel < 0x60000000) 
-        this.adsrLevel += rateTable[this.adsrSustainRate - 0x10 + 32];
-      else
-        this.adsrLevel += rateTable[this.adsrSustainRate - 0x18 + 32];
-    }
-    else {
+    if (this.adsrLevel < 0x60000000) 
       this.adsrLevel += rateTable[this.adsrSustainRate - 0x10 + 32];
-    }
+    else
+      this.adsrLevel += rateTable[this.adsrSustainRate - 0x18 + 32];
   }
   else {
-    if (this.adsrSustainMode) {
-      switch ((this.adsrLevel >> 29) & 0x7) {
-      case 0: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  0 + 32]; break;
-      case 1: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  4 + 32]; break;
-      case 2: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  6 + 32]; break;
-      case 3: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  8 + 32]; break;
-      case 4: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  9 + 32]; break;
-      case 5: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 10 + 32]; break;
-      case 6: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 11 + 32]; break;
-      case 7: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 12 + 32]; break;
-      }
-    }
-    else {
-      this.adsrLevel -= rateTable[this.adsrSustainRate - 0x0F + 32];
+    switch ((this.adsrLevel >> 29) & 0x7) {
+    case 0: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  0 + 32]; break;
+    case 1: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  4 + 32]; break;
+    case 2: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  6 + 32]; break;
+    case 3: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  8 + 32]; break;
+    case 4: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B +  9 + 32]; break;
+    case 5: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 10 + 32]; break;
+    case 6: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 11 + 32]; break;
+    case 7: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 12 + 32]; break;
     }
   }
 }
 
 Voice.prototype.adsrRelease = function () {
-  if (this.adsrReleaseMode) {
-    // exponential release
-    switch ((this.adsrLevel >> 29) & 0x7) {
-      case 0: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  0 + 32]; break;
-      case 1: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  4 + 32]; break;
-      case 2: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  6 + 32]; break;
-      case 3: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  8 + 32]; break;
-      case 4: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  9 + 32]; break;
-      case 5: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 10 + 32]; break;
-      case 6: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 11 + 32]; break;
-      case 7: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 12 + 32]; break;
-    }
+  if (!this.adsrReleaseMode) {
+    this.adsrLevel -= this.adsrLinearReleaseRate;
+    return;
   }
-  else {
-    // linear release
-    this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x0C + 32];
+
+  switch ((this.adsrLevel >> 29) & 0x7) {
+    case 0: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  0 + 32]; break;
+    case 1: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  4 + 32]; break;
+    case 2: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  6 + 32]; break;
+    case 3: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  8 + 32]; break;
+    case 4: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 +  9 + 32]; break;
+    case 5: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 10 + 32]; break;
+    case 6: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 11 + 32]; break;
+    case 7: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 12 + 32]; break;
   }
 }
 
@@ -622,6 +607,14 @@ Voice.prototype.setRegister = function(addr, data) {
                   this.adsrReleaseMode      = (data & 0x0020) >>> 5;
                   this.adsrReleaseRate      = (((data & 0x001F) >>> 0) ^ 0x1F) << 2;
                   this.r1CxA = data;
+                  // optimisations
+                  this.adsrLinearReleaseRate = rateTable[this.adsrReleaseRate - 0x0C + 32];
+                  if (this.adsrSustainDirection == 0) {
+                    this.adsrLinearSustainRate = rateTable[this.adsrSustainRate - 0x10 + 32];
+                  }
+                  else {
+                    this.adsrLinearSustainRate = -rateTable[this.adsrSustainRate - 0x0F + 32];
+                  }
                   break
     case 0x000c:  //this.adsrLevel = ((data << 16) >> 16) * 65536.0;
                   this.adsrLevel = data << 16;
@@ -640,7 +633,7 @@ for (var i = 0; i < 24; ++i) {
 }
 
 //- lookup tables
-var xa2flt = new Float32Array(16*2);
+const xa2flt = new Float32Array(16*2);
 xa2flt.fill(0.0);
 
 xa2flt[2] =  60/64; xa2flt[3] =   0/64; //- [K0:+0.953125][K1:+0.000000]
@@ -648,13 +641,13 @@ xa2flt[4] = 115/64; xa2flt[5] = -52/64; //- [K0:+1.796875][K1:-0.812500]
 xa2flt[6] =  98/64; xa2flt[7] = -55/64; //- [K0:+1.531250][K1:-0.859375]
 xa2flt[8] = 122/64; xa2flt[9] = -60/64; //- [K0:+1.906250][K1:-0.937500]
 
-var xa2pcm = new Float32Array(16*256*2);
+const xa2pcm = new Float32Array(16*256*2);
 
-var factor = 32768.0;
+const factor = 32768.0;
 
-for (var shift = 0; shift < 16; ++shift) {
-  for (var index = 0; index < 256; ++index) {
-    var offset = ((shift << 8) + index) << 1;
+for (let shift = 0; shift < 16; ++shift) {
+  for (let index = 0; index < 256; ++index) {
+    const offset = ((shift << 8) + index) << 1;
 
     var sample = (index & 0xF0) << 8;
     if (sample & 0x8000) { sample |= 0xFFFF0000 };
@@ -680,9 +673,9 @@ function InitADSR() {
     if (r < 0x7FFFFFFF) {
       r += rs;
       rd++;
-      if (rd === 5) { rd=1; rs *= 2; }
+      if (rd === 5) { rd = 1; rs *= 2; }
     }
-   if (r>0x7FFFFFFF) r=0x7FFFFFFF;
+   if (r > 0x7FFFFFFF) r = 0x7FFFFFFF;
 
    rateTable[i] = r;
   }

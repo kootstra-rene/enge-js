@@ -18,13 +18,11 @@ var cdr = {
   mode      : 0,
   ncmdctrl  : 0,
   ncmdread  : 0,
-  nevtctrl  : -1,
-  nevtread  : -1,
-  params    : [],
+  params    : new Array(16),
   pcm       : new Float32Array(8064*44100/18900),
   pcmidx    : 0,
   pcmmax    : 0,
-  results   : [],
+  results   : new Array(16),
   sectorEnd : 0,
   sectorIndex : 0,
   sectorOffset : 0,
@@ -143,19 +141,20 @@ var cdr = {
   },
 
   resetparams: function() {
-    cdr.params = [];
+    cdr.params.length = 0;// = [];
   },
 
   command: function(data) {
+    let nevtctrl = 0x0200;
+
     cdr.setIrq(0);
-    cdr.results  = [];
+    cdr.results.length = 0;
     cdr.status  |= 0x80;
-    cdr.nevtctrl = 0x0200;//0x1000;
     cdr.ncmdctrl = data;
 // console.log('cd-cmd', data.toString(16))
     switch (data) {
       case 0x01:  //- CdlNop
-                  cdr.nevtctrl = 0xc4e1;
+                  nevtctrl = 0xc4e1;
                   break;
       case 0x03:  //- CdlPlay
       case 0x0b:  //- CdlMute
@@ -172,7 +171,7 @@ var cdr = {
       case 0x1e:  //- CdlReadTOC
                   break;
       case 0x0a:  //- CdlInit
-                  cdr.nevtctrl = 0x13cce;
+                  nevtctrl = 0x13cce;
       case 0x02:  //- CdlSetloc
       case 0x06:  //- CdlReadN
       case 0x07:  //- CdlStandby
@@ -188,6 +187,8 @@ var cdr = {
 
       default:  abort('unimplemented command: $' + hex(data, 2));
     }
+
+    psx.updateEvent(this.eventCmd, nevtctrl >>> 0);
   },
 
   setIrq: function(data) {
@@ -195,11 +196,6 @@ var cdr = {
     if (cdr.irq & (0x1F & cdr.irqEnable)) {
       cpu.istat |= 0x0004;
     }
-  },
-
-  advance: function(cycles) {
-    this.updateCommand(cycles);
-    this.updateRead(cycles);
   },
 
   enqueueEvent: function(irq, ...params) {
@@ -210,342 +206,333 @@ var cdr = {
     this.setIrq(irq);
   },
 
-  updateCommand: function(cycles) {
-    if (cdr.nevtctrl > 0) {
-      if ((cdr.nevtctrl -= cycles) <= 0) {
-        if (cdr.irq & 0x1F) {
-            cdr.nevtctrl += cycles;
-            return;
-        }
-        var currentCommand = cdr.ncmdctrl;
-        cdr.ncmdctrl = 0;
-        switch (currentCommand) {
-          case 0x01:  if (!cdr.hasCdFile) {
-                        this.enqueueEvent(5, 0x01);
-                      }
-                      else {
-                        this.enqueueEvent(3, 0x02);
-                      }
-                      break;
+  eventCmd: null,
+  completeCmd: function(self, clock) {
+    self.active = false;
+    // if (cdr.irq & 0x1F) {
+    //     cdr.nevtctrl += cycles;
+    //     return;
+    // }
+    const readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
 
-          case 0x02:  if (!((cdr.params[0] === 0) && (cdr.params[1] === 0) && (cdr.params[2] === 0))) {
-                        cdr.seekLoc = (btoi(cdr.params[0]) * (60 * 75)) +
-                                      (btoi(cdr.params[1]) * (75)) +
-                                      (btoi(cdr.params[2]));
-                      }
-                      else {
-                        cdr.seekLoc = cdr.currLoc;
-                      }
-                      this.enqueueEvent(3, 0x02);
-                      break;
+    var currentCommand = cdr.ncmdctrl;
+    cdr.ncmdctrl = 0;
+    switch (currentCommand) {
+      case 0x00:  break;
+      case 0x01:  if (!cdr.hasCdFile) {
+                    this.enqueueEvent(5, 0x01);
+                  }
+                  else {
+                    this.enqueueEvent(3, 0x02);
+                  }
+                  break;
 
-          case 0x03:  if (cdr.params.length === 0 || cdr.params[0] === 0) {
-                        cdr.currLoc = cdr.seekLoc;
-                      }
-                      if (cdr.params.length === 1) {
-                        cdr.currTrack = cdr.tracks[btoi(cdr.params[0])];
-                        cdr.currLoc = cdr.seekLoc = cdr.currTrack.begin + 150;
-                        console.log(`CdlPlay: ${btoi(cdr.params[0])} : ${cdr.currLoc}`)
-                      }
-                      cdr.nevtread = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
-                      cdr.ncmdread = 0x03;
-                      this.enqueueEvent(3, 0x82);
-                      break;
+      case 0x02:  if (!((cdr.params[0] === 0) && (cdr.params[1] === 0) && (cdr.params[2] === 0))) {
+                    cdr.seekLoc = (btoi(cdr.params[0]) * (60 * 75)) +
+                                  (btoi(cdr.params[1]) * (75)) +
+                                  (btoi(cdr.params[2]));
+                  }
+                  else {
+                    cdr.seekLoc = cdr.currLoc;
+                  }
+                  this.enqueueEvent(3, 0x02);
+                  break;
 
-          case 0x06:  cdr.nevtread = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
-                      cdr.ncmdread = 0x06;
-                      // if (cdr.lastCommand !== currentCommand) {
-                        this.enqueueEvent(3, 0x42);
-                      // }
-                      // else {
-                      //   this.enqueueEvent(1, 0x42);
-                      // }
-                      cdr.currLoc = cdr.seekLoc;
-                      break;
+      case 0x03:  if (cdr.params.length === 0 || cdr.params[0] === 0) {
+                    cdr.currLoc = cdr.seekLoc;
+                  }
+                  if (cdr.params.length === 1) {
+                    cdr.currTrack = cdr.tracks[btoi(cdr.params[0])];
+                    cdr.currLoc = cdr.seekLoc = cdr.currTrack.begin + 150;
+                    console.log(`CdlPlay: ${btoi(cdr.params[0])} : ${cdr.currLoc}`)
+                  }
+                  psx.updateEvent(this.eventRead, readCycles >>> 0);
+                  cdr.ncmdread = 0x03;
+                  this.enqueueEvent(3, 0x82);
+                  break;
 
-          case 0x07:  this.enqueueEvent(3, 0x00);
-                      cdr.ncmdctrl = 0x70;
-                      cdr.status |= 0x80;
-                      break
+      case 0x06:  psx.updateEvent(this.eventRead, readCycles >>> 0);
+                  cdr.ncmdread = 0x06;
+                  this.enqueueEvent(3, 0x42);
+                  cdr.currLoc = cdr.seekLoc;
+                  break;
 
-          case 0x70:  this.enqueueEvent(2, 0x02);
-                      break;
+      case 0x07:  this.enqueueEvent(3, 0x00);
+                  cdr.ncmdctrl = 0x70;
+                  cdr.status |= 0x80;
+                  break
 
-          case 0x08:  this.enqueueEvent(3, 0x02);
-                      cdr.nevtctrl = (cdr.mode & 0x80) ? 0x18a6076 : 0xd38aca;
-                      cdr.ncmdctrl = 0x80;
-                      cdr.status |= 0x80;
-                      break;
-          case 0x80:  this.enqueueEvent(2, 0x00);
-                      break;
+      case 0x70:  this.enqueueEvent(2, 0x02);
+                  break;
 
-          case 0x09:  cdr.results.push(cdr.statusCode | 0x20); // reading data sectors
-                      cdr.nevtctrl = (cdr.mode & 0x80) ? 0x10bd93 : 0x21181c;
-                      cdr.ncmdctrl = 0x90;
-                      cdr.status |= 0x80;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(3);
-                      break;
-          case 0x90:  cdr.statusCode = (cdr.statusCode & ~ 0x20) | 0x02; // not reading data sectors
-                      cdr.results.push(cdr.statusCode);
-                      cdr.status &= ~0x80;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(2);
-                      break;
+      case 0x08:  this.enqueueEvent(3, 0x02);
+                  psx.updateEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x18a6076 : 0xd38aca) >>> 0);
+                  cdr.ncmdctrl = 0x80;
+                  cdr.status |= 0x80;
+                  break;
+      case 0x80:  this.enqueueEvent(2, 0x00);
+                  break;
 
-          case 0x0A:  this.enqueueEvent(3, 0x02);
-                      cdr.nevtctrl = 0x1000;
-                      cdr.ncmdctrl = 0xA0;
-                      cdr.status |= 0x80;
-                      break;
-          case 0xA0:  this.enqueueEvent(2, 0x02);
-                      break;
+      case 0x09:  cdr.results.push(cdr.statusCode | 0x20); // reading data sectors
+                  psx.updateEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0);
+                  cdr.ncmdctrl = 0x90;
+                  cdr.status |= 0x80;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(3);
+                  break;
+      case 0x90:  cdr.statusCode = (cdr.statusCode & ~ 0x20) | 0x02; // not reading data sectors
+                  cdr.results.push(cdr.statusCode);
+                  cdr.status &= ~0x80;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(2);
+                  break;
 
-          case 0x0B:  this.enqueueEvent(3, 0x02);
-                      this.mute = true;
-                      break;
+      case 0x0A:  this.enqueueEvent(3, 0x02);
+                  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+                  cdr.ncmdctrl = 0xA0;
+                  cdr.status |= 0x80;
+                  break;
+      case 0xA0:  this.enqueueEvent(2, 0x02);
+                  break;
 
-          case 0x0C:  this.enqueueEvent(3, 0x02);
-                      this.mute = false;
-                      break;
+      case 0x0B:  this.enqueueEvent(3, 0x02);
+                  this.mute = true;
+                  break;
 
-          case 0x0D:  this.filter = {file:cdr.params[0], chan:cdr.params[1]};
-                      this.enqueueEvent(3, 0x02);
-                      break;
+      case 0x0C:  this.enqueueEvent(3, 0x02);
+                  this.mute = false;
+                  break;
 
-          case 0x0E:  this.enqueueEvent(3, 0x02);
-                      this.mode = cdr.params[0];
-                      break;
+      case 0x0D:  this.filter = {file:cdr.params[0], chan:cdr.params[1]};
+                  this.enqueueEvent(3, 0x02);
+                  break;
 
-          case 0x0F:  this.enqueueEvent(3, 0x02, cdr.mode, 0, cdr.filter.file, cdr.filter.chan);
-                      break;
+      case 0x0E:  this.enqueueEvent(3, 0x02);
+                  this.mode = cdr.params[0];
+                  break;
 
-          case 0x10:  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+0));
-                      cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+1));
-                      cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+2));
-                      cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+3));
-                      cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+4));
-                      cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+5));
-                      cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+6));
-                      cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+7));
-                      cdr.status &= ~0x80;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(3);
-                      break;
+      case 0x0F:  this.enqueueEvent(3, 0x02, cdr.mode, 0, cdr.filter.file, cdr.filter.chan);
+                  break;
 
-          case 0x11:{ let loc = (cdr.currLoc - 150 - cdr.currTrack.begin);
-                      let mm = (loc / (60*75)) >> 0;
-                      let ss = ((loc / (75)) >> 0) % 60;
-                      let st = loc % 75;
-                      cdr.results.push(itob(cdr.currTrack.id));
-                      cdr.results.push(0x01);
-                      cdr.results.push(itob(mm));
-                      cdr.results.push(itob(ss));
-                      cdr.results.push(itob(st));
-                      cdr.results.push(itob((((cdr.currLoc-150) / 75) / 60) % 60));
-                      cdr.results.push(itob((((cdr.currLoc-150) / 75) % 60)));
-                      cdr.results.push(itob((((cdr.currLoc-150) % 75))));
-                      cdr.status &= ~0x80;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(3);
-                    } break;
+      case 0x10:  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+0));
+                  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+1));
+                  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+2));
+                  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+3));
+                  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+4));
+                  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+5));
+                  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+6));
+                  cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12+7));
+                  cdr.status &= ~0x80;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(3);
+                  break;
 
-          case 0x13:  console.log(`CdlGetTN`);
-                      cdr.statusCode |= 0x02;
-                      cdr.results.push(cdr.statusCode);
-                      cdr.results.push(0x01);
-                      cdr.results.push(itob(this.tracks.length-1));
-                      cdr.status &= ~0x80;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(3);
-                      break;
+      case 0x11:{ let loc = (cdr.currLoc - 150 - cdr.currTrack.begin);
+                  let mm = (loc / (60*75)) >> 0;
+                  let ss = ((loc / (75)) >> 0) % 60;
+                  let st = loc % 75;
+                  cdr.results.push(itob(cdr.currTrack.id));
+                  cdr.results.push(0x01);
+                  cdr.results.push(itob(mm));
+                  cdr.results.push(itob(ss));
+                  cdr.results.push(itob(st));
+                  cdr.results.push(itob((((cdr.currLoc-150) / 75) / 60) % 60));
+                  cdr.results.push(itob((((cdr.currLoc-150) / 75) % 60)));
+                  cdr.results.push(itob((((cdr.currLoc-150) % 75))));
+                  cdr.status &= ~0x80;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(3);
+                } break;
 
-          case 0x14:{ let mmss = 0;
-                      let track = this.tracks[btoi(cdr.params[0])];
-                      if (!track) {
-                        // door open
-                        cdr.statusCode |= 0x10;
-                        cdr.results.push(0x11);
-                        cdr.results.push(0x80);
-                        cdr.status &= ~0x80;
-                        cdr.status |= 0x20;
-                        cdr.setIrq(5);
-                        break;
-                      }
-                      if (cdr.params[0] === 0) {
-                        mmss = Math.floor((track.end + 150) / 75);
-                      }
-                      else {
-                        mmss = Math.floor((track.begin + 150) / 75);
-                      }
-                      console.log(`CdlGetTD: ${cdr.params[0]}`, track);
-                      cdr.statusCode |= 0x02;
-                      cdr.results.push(cdr.statusCode);
-                      cdr.results.push(itob(Math.floor(mmss / 60)));
-                      cdr.results.push(itob(Math.floor(mmss % 60)));
-                      cdr.status &= ~0x80;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(3);
-                    } break;
+      case 0x13:  console.log(`CdlGetTN`);
+                  cdr.statusCode |= 0x02;
+                  cdr.results.push(cdr.statusCode);
+                  cdr.results.push(0x01);
+                  cdr.results.push(itob(this.tracks.length-1));
+                  cdr.status &= ~0x80;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(3);
+                  break;
 
-          case 0x15:  cdr.nevtctrl = 0x1000;
-                      cdr.ncmdctrl = 0x150;
-                      this.enqueueEvent(3, 0x42); // SEEKING
-                      cdr.status |= 0x80;
-                      break;
-          case 0x150: this.enqueueEvent(2, 0x2); // done
-                      cdr.currLoc = cdr.seekLoc;
-                      break;
+      case 0x14:{ let mmss = 0;
+                  let track = this.tracks[btoi(cdr.params[0])];
+                  if (!track) {
+                    // door open
+                    cdr.statusCode |= 0x10;
+                    cdr.results.push(0x11);
+                    cdr.results.push(0x80);
+                    cdr.status &= ~0x80;
+                    cdr.status |= 0x20;
+                    cdr.setIrq(5);
+                    break;
+                  }
+                  if (cdr.params[0] === 0) {
+                    mmss = Math.floor((track.end + 150) / 75);
+                  }
+                  else {
+                    mmss = Math.floor((track.begin + 150) / 75);
+                  }
+                  console.log(`CdlGetTD: ${cdr.params[0]}`, track);
+                  cdr.statusCode |= 0x02;
+                  cdr.results.push(cdr.statusCode);
+                  cdr.results.push(itob(Math.floor(mmss / 60)));
+                  cdr.results.push(itob(Math.floor(mmss % 60)));
+                  cdr.status &= ~0x80;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(3);
+                } break;
 
-          case 0x16:  cdr.nevtctrl = 0x1000;
-                      cdr.ncmdctrl = 0x160;
-                      this.enqueueEvent(3, 0x42); // SEEKING
-                      cdr.status |= 0x80;
-                      break;
-          case 0x160: this.enqueueEvent(2, 0x2); // done
-                      cdr.currLoc = cdr.seekLoc;
-                      break;
+      case 0x15:  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+                  cdr.ncmdctrl = 0x150;
+                  this.enqueueEvent(3, 0x42); // SEEKING
+                  cdr.status |= 0x80;
+                  break;
+      case 0x150: this.enqueueEvent(2, 0x2); // done
+                  cdr.currLoc = cdr.seekLoc;
+                  break;
 
-          case 0x19:  cdr.results.push(0x99);
-                      cdr.results.push(0x02);
-                      cdr.results.push(0x01);
-                      cdr.results.push(0xC3);
-                      cdr.status &= ~0x80;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(3);
-                      break;
+      case 0x16:  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+                  cdr.ncmdctrl = 0x160;
+                  this.enqueueEvent(3, 0x42); // SEEKING
+                  cdr.status |= 0x80;
+                  break;
+      case 0x160: this.enqueueEvent(2, 0x2); // done
+                  cdr.currLoc = cdr.seekLoc;
+                  break;
 
-          case 0x1A:  cdr.results.push(cdr.statusCode);
-                      cdr.nevtctrl = 0x4a00;
-                      cdr.ncmdctrl = 0x1A0;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(3);
-                      break;
-          case 0x1A0: 
-                      if (cdr.hasCdFile) {
-                        cdr.results.push(0x02);
-                        cdr.results.push(0x00);
-                        cdr.results.push(0x20);
-                        cdr.results.push(0x00);
-                        cdr.results.push('e'.charCodeAt(0));
-                        cdr.results.push('N'.charCodeAt(0));
-                        cdr.results.push('G'.charCodeAt(0));
-                        cdr.results.push('E'.charCodeAt(0));
-                        cdr.status &= ~0x80;
-                        cdr.status |= 0x20;
-                        cdr.setIrq(2);
-                      }
-                      else {
-                        // door open
-                        cdr.statusCode |= 0x10;
-                        cdr.results.push(0x11);
-                        cdr.results.push(0x80);
-                        cdr.status &= ~0x80;
-                        cdr.status |= 0x20;
-                        cdr.setIrq(5);
-                      }
-                      //- audio
-                      // cdr.results.push(0x0A);
-                      // cdr.results.push(0x90);
-                      // cdr.results.push(0x00);
-                      // cdr.results.push(0x00);
-                      // cdr.results.push(0x00);
-                      // cdr.results.push(0x00);
-                      // cdr.results.push(0x00);
-                      // cdr.results.push(0x00);
-                      // cdr.status &= ~0x80;
-                      // cdr.status |= 0x20;
-                      // cdr.setIrq(5);
-                      break;
+      case 0x19:  cdr.results.push(0x99);
+                  cdr.results.push(0x02);
+                  cdr.results.push(0x01);
+                  cdr.results.push(0xC3);
+                  cdr.status &= ~0x80;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(3);
+                  break;
 
-          case 0x1B:  cdr.nevtread = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
-                      cdr.ncmdread = 0x1B;
-                      // if (cdr.lastCommand !== currentCommand) {
-                        this.enqueueEvent(3, 0x42);
-                      // }
-                      // else {
-                      //   this.enqueueEvent(1, 0x42);
-                      // }
-                      cdr.currLoc = cdr.seekLoc;
-                      break;
+      case 0x1A:  psx.updateEvent(this.eventCmd, 0x4a00 >>> 0);
+                  cdr.results.push(cdr.statusCode);
+                  cdr.ncmdctrl = 0x1A0;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(3);
+                  break;
+      case 0x1A0: 
+                  if (cdr.hasCdFile) {
+                    cdr.results.push(0x02);
+                    cdr.results.push(0x00);
+                    cdr.results.push(0x20);
+                    cdr.results.push(0x00);
+                    cdr.results.push('e'.charCodeAt(0));
+                    cdr.results.push('N'.charCodeAt(0));
+                    cdr.results.push('G'.charCodeAt(0));
+                    cdr.results.push('E'.charCodeAt(0));
+                    cdr.status &= ~0x80;
+                    cdr.status |= 0x20;
+                    cdr.setIrq(2);
+                  }
+                  else {
+                    // door open
+                    cdr.statusCode |= 0x10;
+                    cdr.results.push(0x11);
+                    cdr.results.push(0x80);
+                    cdr.status &= ~0x80;
+                    cdr.status |= 0x20;
+                    cdr.setIrq(5);
+                  }
+                  //- audio
+                  // cdr.results.push(0x0A);
+                  // cdr.results.push(0x90);
+                  // cdr.results.push(0x00);
+                  // cdr.results.push(0x00);
+                  // cdr.results.push(0x00);
+                  // cdr.results.push(0x00);
+                  // cdr.results.push(0x00);
+                  // cdr.results.push(0x00);
+                  // cdr.status &= ~0x80;
+                  // cdr.status |= 0x20;
+                  // cdr.setIrq(5);
+                  break;
 
-          case 0x1E:  cdr.nevtctrl = 0x1000;
-                      cdr.ncmdctrl = 0x1E0;
-                      this.enqueueEvent(3, 0x02);
-                      break;
-          case 0x1E0: this.enqueueEvent(2, 0x02);
-                      break;
+      case 0x1B:  psx.updateEvent(this.eventRead, readCycles >>> 0);
+                  cdr.ncmdread = 0x1B;
+                  this.enqueueEvent(3, 0x42);
+                  cdr.currLoc = cdr.seekLoc;
+                  break;
 
-          default:  abort('unimplemented async command: $' + hex(cdr.ncmdctrl, 2));
-        }
-        cdr.lastCommand = currentCommand;
-        cdr.params = [];
-      }
+      case 0x1E:  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+                  cdr.ncmdctrl = 0x1E0;
+                  this.enqueueEvent(3, 0x02);
+                  break;
+      case 0x1E0: this.enqueueEvent(2, 0x02);
+      se
+                  break;
+
+      default:  abort('unimplemented async command: $' + hex(cdr.ncmdctrl, 2));
     }
+    cdr.lastCommand = currentCommand;
+    cdr.resetparams();
   },
 
-  updateRead: function(cycles) {
-    if (cdr.nevtread > 0) {
-      if ((cdr.nevtread -= cycles) <= 0) {
-        if (cdr.irq & 0x1F) {
-            cdr.nevtread += cycles;
-            return;
-        }
-        var readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
-        switch (cdr.ncmdread) {
-          case 0x03:  cdr.playIndex = 0;
-                      if ((cdr.mode & 0x05) == 0x05) {
-                        let loc = cdr.currLoc - 150;
-                        // playing CDDA and reporting is on
-                        switch(loc % 75) {
-                          case  0:
-                          case 20:
-                          case 40:
-                          case 60:{
-                            let amm = (loc / (60*75)) >> 0;
-                            let ass = ((loc / (75)) >> 0) % 60;
-                            let ast = loc % 75;
-                            cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
-                            cdr.status &= ~0x80;
-                            cdr.status |= 0x40;
-                            cdr.status |= 0x20;
-                            cdr.setIrq(1);
-                          } break;
+  eventRead: null,
+  completeRead: function (self, clock) {
+    // if (cdr.irq & 0x1F) {
+    //     cdr.nevtread += cycles;
+    //     return;
+    // }
 
-                          case 10:
-                          case 30:
-                          case 50:
-                          case 70: {
-                            let loc = (cdr.currLoc - cdr.currTrack.begin);
-                            let amm = (loc / (60*75)) >> 0;
-                            let ass = ((loc / (75)) >> 0) % 60;
-                            let ast = loc % 75;
-                            cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), 0x80 | itob(ass), itob(ast), 0, 0);
-                            cdr.status &= ~0x80;
-                            cdr.status |= 0x40;
-                            cdr.status |= 0x20;
-                            cdr.setIrq(1);
-                          } break;
-                        }
-                        cdr.nevtread += readCycles;
-                        cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
-                        cdr.currLoc++;
-                        break;
-                      }
-          case 0x06:
-          case 0x1b:  cdr.results.push(0x22);
-                      cdr.status &= ~0x80;
-                      cdr.status |= 0x40;
-                      cdr.status |= 0x20;
-                      cdr.setIrq(1);
-                      cdr.nevtread += readCycles;
-                      cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
-                      cdr.currLoc++;
-                      break;
+    var readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
+    switch (cdr.ncmdread) {
+      case 0x03:  cdr.playIndex = 0;
+                  if ((cdr.mode & 0x05) == 0x05) {
+                    let loc = cdr.currLoc - 150;
+                    // playing CDDA and reporting is on
+                    switch(loc % 75) {
+                      case  0:
+                      case 20:
+                      case 40:
+                      case 60:{
+                        let amm = (loc / (60*75)) >> 0;
+                        let ass = ((loc / (75)) >> 0) % 60;
+                        let ast = loc % 75;
+                        cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
+                        cdr.status &= ~0x80;
+                        cdr.status |= 0x40;
+                        cdr.status |= 0x20;
+                        cdr.setIrq(1);
+                      } break;
 
-          default:  abort('unimplemented async read: $' + hex(cdr.ncmdread, 2));
-        }
-      }
+                      case 10:
+                      case 30:
+                      case 50:
+                      case 70: {
+                        let loc = (cdr.currLoc - cdr.currTrack.begin);
+                        let amm = (loc / (60*75)) >> 0;
+                        let ass = ((loc / (75)) >> 0) % 60;
+                        let ast = loc % 75;
+                        cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), 0x80 | itob(ass), itob(ast), 0, 0);
+                        cdr.status &= ~0x80;
+                        cdr.status |= 0x40;
+                        cdr.status |= 0x20;
+                        cdr.setIrq(1);
+                      } break;
+                    }
+                    cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
+                    self.clock += readCycles;
+                    cdr.currLoc++;
+                    break;
+                  }
+      case 0x06:
+      case 0x1b:  cdr.results.push(0x22);
+                  cdr.status &= ~0x80;
+                  cdr.status |= 0x40;
+                  cdr.status |= 0x20;
+                  cdr.setIrq(1);
+                  cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
+                  self.clock += readCycles;
+                  cdr.currLoc++;
+                  break;
+
+      default:  //abort('unimplemented async read: $' + hex(cdr.ncmdread, 2));
+                this.eventRead.active = false;
     }
   },
 
@@ -668,10 +655,6 @@ nextpcm: function(buf) {
     buf[1] = sR;
     cdr.pcmidx += 2;
   }
-  else {
-    buf[0] = 0.0;
-    buf[1] = 0.0;
-  }
 },
 
 decodeMono: function() {
@@ -760,8 +743,8 @@ decodeStereo: function() {
 },
 
   stopReading: function() {
+    cdr.eventRead.active = false;
     cdr.statusCode &= ~0x20;
-    cdr.nevtread = -1;
     cdr.ncmdread = 0;
   },
 

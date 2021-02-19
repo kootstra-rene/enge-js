@@ -14,8 +14,8 @@
 //      load image at higher resolutions
 
 "use strict"
-var qwf = 4;
-var qhf = 4;
+var qwf = 1;
+var qhf = 1;
 var qwidth = 1024*qwf;
 var qheight = 512*qhf;
 
@@ -68,6 +68,10 @@ Uint32Array.prototype.canHold = function(cnt) {
 
 Uint32Array.prototype.reset = function() {
   this.index = 0;
+}
+
+Uint32Array.prototype.view = function() {
+  return new Uint32Array(this.buffer, 0, this.index >> 2);
 }
 
 var vertexShaderDisplay =
@@ -258,7 +262,7 @@ var fragmentShaderDraw =
 function WebGLRenderer(canvas) {
   this.gl = null
   this.programDisplay = null
-  this.vertexBuffer = new Uint32Array(36*256)// // 4.5 Kb, 192 vertices vertices, 64 triangles
+  this.vertexBuffer = new Uint32Array(18*1024 >> 2)// // 18.0 Kb, 768 vertices vertices, 256 triangles
 
   this.drawOffsetX = 0
   this.drawOffsetY = 0
@@ -307,10 +311,8 @@ function WebGLRenderer(canvas) {
     alert( "Error: Your browser does not appear to support WebGL.");
   }
 
-  this.metrics = {vertices:[],switches:0, triangles:0};
-  for (var i = 0; i < 256; ++i) {
-    this.metrics.vertices[i] = 0;
-  }
+  // this.metrics = {vertices:new Array(256),switches:0, triangles:0};
+  // this.metrics.vertices.fill(0);
 }
 
 WebGLRenderer.prototype.outsideDrawArea = function(x1,y1,x2,y2,x3,y3) {
@@ -337,6 +339,11 @@ WebGLRenderer.prototype.setupWebGL = function(canvas) {
   gl.disable(gl.STENCIL_TEST);
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.BLEND);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.DITHER);
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+  gl.disable(gl.SAMPLE_COVERAGE);
+  gl.disable(gl.SCISSOR_TEST);
 
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT);
@@ -491,7 +498,8 @@ WebGLRenderer.prototype.loadImage = function(x, y, w, h, buffer) {
   var o = 0;
   for (var j = 0; j < h; ++j) {
     for (var i = 0; i < w; ++i) {
-      buffer[o++] = this.vram[(1024*(y+j)) + ((x+i)%1024)]
+      var offsetY = ((y + j) % 512) * 1024;
+      buffer[o++] = this.vram[offsetY + ((x+i)%1024)]
     }
   }
   console.log('loadImage', x, y, w, h)
@@ -511,7 +519,7 @@ WebGLRenderer.prototype.moveImage = function(sx, sy, dx, dy, w, h) {
   var vram = this.vram;
   for (var j = h; j > 0; --j) {
     var x = sx;
-    var oy = ((sy++) % 1024) * 1024;
+    var oy = ((sy++) % 512) * 1024;
     for (var i = w; i > 0; --i) {
       copy[o++] = vram[oy + ((x++) % 1024)];
     }
@@ -526,12 +534,12 @@ WebGLRenderer.prototype.storeImage = function(img) {
   var o = 0;
   var data = img.buffer;
   var vram = this.vram;
-  for (var j = 0, jl = img.h; j < jl; ++j) {
-    var y = (img.y + j) << 10;
+  for (var j = 0; j < img.h; ++j) {
+    const offsetY = ((img.y + j) % 512) * 1024;
     var x = img.x;
     // for (var i = 0, il = img.w; i < il; ++i) {
     for (var i = img.w; i > 0; --i) {
-      vram[y + ((x++)%1024)] = data[o++];
+      vram[offsetY + ((x++)%1024)] = data[o++];
     }
   }
 
@@ -544,7 +552,7 @@ WebGLRenderer.prototype.storeImage = function(img) {
 //   this[index+1] = value >> 8;
 // }
 
-var tex = new Uint8Array(1024*512*4*2);
+var tex = new Uint8Array(2048*512*4*2);
 var xet = new Uint8Array(1024*512*4*2);
 WebGLRenderer.prototype.storeImageInTexture = function(img) {
   var gl = this.gl;
@@ -554,18 +562,8 @@ WebGLRenderer.prototype.storeImageInTexture = function(img) {
   if ((img.y + img.h) >  512) outsidebounds = true;
   if (outsidebounds) {
     console.log('image out of bounds:', img.x, img.y, img.w, img.h);
-    var orgw = img.w;
-    var orgy = img.y;
-    img.w = 1024 - img.x;
-    img.h = 512 - img.y;
-
-    var writeoffs =0;
-    for (var j = 0; j < img.h; ++j) {
-      var readoffs = j * orgw;
-      for (var i = 0; i < img.w; ++i) {
-        img.buffer[writeoffs++] = img.buffer[readoffs++];
-      }
-    }
+    // todo: implement proper vram wrapping
+    return;
   }
   // mode 8-bit
   for (var i = 0, l = img.pixelCount; i < l; ++i) {
@@ -730,7 +728,10 @@ WebGLRenderer.prototype.setupProgramDraw = function() {
 WebGLRenderer.prototype.flushVertexBuffer = function(clip) {
   var gl = this.gl;
 
-  if (this.vertexBuffer.index <= 0) return;
+  if (this.vertexBuffer.index <= 0) {
+    // ++this.metrics.vertices[0];
+    return;
+  }
 
   gl.bindTexture(gl.TEXTURE_2D, this.tex16rgba);
 
@@ -744,21 +745,23 @@ WebGLRenderer.prototype.flushVertexBuffer = function(clip) {
     gl.scissor(0, 0, 1024*qwf, 512*qhf);
 
 
-  var drawBuffer = this.vertexBuffer.subarray(0, this.vertexBuffer.index / 4);
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawBuffer);
+  var drawBuffer = this.vertexBuffer.view();//.subarray(0, this.vertexBuffer.index / 4);
+  // gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, drawBuffer, gl.STREAM_DRAW);
   var vertices = this.vertexBuffer.getNumberOfVertices();
   gl.drawArrays(gl.TRIANGLES, 0, vertices);
-  ++this.metrics.vertices[vertices/3];
-  this.metrics.triangles += vertices/3;
+  // ++this.metrics.vertices[vertices/3];
+  // this.metrics.triangles += vertices/3;
 
   this.vertexBuffer.reset();
 }
 
 WebGLRenderer.prototype.setBlendMode = function(mode) {
   if (this.renderMode === mode) return;
+  this.flushVertexBuffer(true);
+  this.renderMode = mode;
 
   var gl = this.gl;
-  this.flushVertexBuffer(true);
 
   switch (mode) {
     case 0: gl.enable(gl.BLEND);
@@ -785,11 +788,10 @@ WebGLRenderer.prototype.setBlendMode = function(mode) {
             // gl.uniform1f(this.programDraw.blendAlpha, 0.00);
             break;
   }
-  ++this.metrics.switches;
-  this.renderMode = mode;
+  // ++this.metrics.switches;
 }
 
-WebGLRenderer.prototype.getVertexBuffer = function(cnt,pid) {
+WebGLRenderer.prototype.getVertexBuffer = function(cnt, pid) {
   var select = ((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
 
   if (!this.vertexBuffer.canHold(cnt)) {
@@ -1089,10 +1091,10 @@ WebGLRenderer.prototype.setDrawAreaBR = function(x, y) {
   this.drawAreaR = x;
 }
 
-WebGLRenderer.prototype.onVBlankEnd = function() {
+WebGLRenderer.prototype.onVBlankBegin = function() {
 }
 
-WebGLRenderer.prototype.onVBlankBegin = function() {
+WebGLRenderer.prototype.onVBlankEnd = function() {
   var gl = this.gl;
 
   this.flushVertexBuffer(true);

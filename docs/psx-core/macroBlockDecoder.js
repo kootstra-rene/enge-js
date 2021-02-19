@@ -3,7 +3,7 @@
 var video = {
 
   iq: new Int32Array(64*4),
-  decoded: new Uint8Array(64*6*4),
+  scale: new Uint8Array(3*256),
 
   zscan: [
      0 , 1 , 8, 16,  9,  2,  3, 10,
@@ -28,8 +28,7 @@ var video = {
   ],
 
   SCALERC256: function(y, x) {
-    var c = 128 + y + (x >> 10);
-    return (c < 0) ? 0 : ((c > 255) ? 255 : c) >>> 0;
+    return this.scale[256 + 128 + y + x];
   },
 
   iqtab_reset: function() {
@@ -37,9 +36,8 @@ var video = {
   },
 
   iqtab_init: function(tab, addr, size) {
-    addr = addr & 0x001fffff; // ram always
     for (let i = 0; i < size; ++i) {
-      let q = map.getInt8(addr + i) & 0xff;
+      let q = map8[((addr + i) & 0x001fffff) >>> 0] & 0xff;
       tab[i] = (q * this.aanscales[ this.zscan[i] ]) >> 12;
     }
   },
@@ -47,118 +45,111 @@ var video = {
   icdt: function (blk, o) {
     let z10, z11, z12, z13;
 
-    var oo = o;
-    for (let i = 0; i < 8; ++i, ++o) {
-      z10 = blk[o +  0] + blk[o + 32];
-      z11 = blk[o +  0] - blk[o + 32];
-      z13 = blk[o + 16] + blk[o + 48];
-      z12 = blk[o + 16] - blk[o + 48];
-      z12 = ((z12 * 362) >> 8) - z13;
+    let oo = o;
+    for (let i = 8; i > 0; --i, o += 8) {
+      z10 = (blk[o + 0] + blk[o + 4]) >> 0;
+      z11 = (blk[o + 0] - blk[o + 4]) >> 0;
+      z13 = (blk[o + 2] + blk[o + 6]) >> 0;
+      z12 = (blk[o + 2] - blk[o + 6]) >> 0;
+      z12 = (((z12 * 362) >> 8) - z13) >> 0;
 
-      let tmp0 = z10 + z13;
-      let tmp3 = z10 - z13;
-      let tmp1 = z11 + z12;
-      let tmp2 = z11 - z12;
-
-      z13 = blk[o + 24] + blk[o + 40];
-      z10 = blk[o + 24] - blk[o + 40]; 
-      z11 = blk[o +  8] + blk[o + 56];
-      z12 = blk[o +  8] - blk[o + 56];
-      let z5 = ((z12 - z10) * 473) >> 8; 
-
-      let tmp7 = z11 + z13; 
-      let tmp6 = (((z10 * 669) >> 8) + z5) - tmp7;
-      let tmp5 = (((z11 - z13) * 362) >> 8) - tmp6;
-      let tmp4 = (((z12 * 277) >> 8) - z5) + tmp5; 
-
-      blk[o +  0] = (tmp0 + tmp7) >> 0; 
-      blk[o + 56] = (tmp0 - tmp7) >> 0;
-      blk[o +  8] = (tmp1 + tmp6) >> 0;
-      blk[o + 48] = (tmp1 - tmp6) >> 0;
-      blk[o + 16] = (tmp2 + tmp5) >> 0;
-      blk[o + 40] = (tmp2 - tmp5) >> 0;
-      blk[o + 32] = (tmp3 + tmp4) >> 0;
-      blk[o + 24] = (tmp3 - tmp4) >> 0;
-    }
-
-    o = oo;
-    for (i = 0; i < 8; i++, o += 8) {
-      z10 = blk[o + 0] + blk[o + 4];
-      z11 = blk[o + 0] - blk[o + 4];
-      z13 = blk[o + 2] + blk[o + 6];
-      z12 = blk[o + 2] - blk[o + 6];
-      z12 = ((z12 * 362) >> 8) - z13;
-
-      let tmp0 = z10 + z13;
-      let tmp3 = z10 - z13;
-      let tmp1 = z11 + z12;
-      let tmp2 = z11 - z12;
+      let tmp0 = (z10 + z13) >> 0;
+      let tmp3 = (z10 - z13) >> 0;
+      let tmp1 = (z11 + z12) >> 0;
+      let tmp2 = (z11 - z12) >> 0;
       
-      z13 = blk[o + 3] + blk[o + 5];
-      z10 = blk[o + 3] - blk[o + 5];
-      z11 = blk[o + 1] + blk[o + 7];
-      z12 = blk[o + 1] - blk[o + 7];
+      z13 = (blk[o + 3] + blk[o + 5]) >> 0;
+      z10 = (blk[o + 3] - blk[o + 5]) >> 0;
+      z11 = (blk[o + 1] + blk[o + 7]) >> 0;
+      z12 = (blk[o + 1] - blk[o + 7]) >> 0;
       let z5 = ((z12 - z10) * 473) >> 8; 
 
-      let tmp7 = z11 + z13; 
-      let tmp6 = (((z10 * 669) >> 8) + z5) - tmp7;
-      let tmp5 = (((z11 - z13) * 362) >> 8) - tmp6;
-      let tmp4 = (((z12 * 277) >> 8) - z5) + tmp5; 
+      let tmp7 = (z11 + z13) >> 0;
+      let tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
+      let tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
+      let tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0; 
 
       blk[o + 0] = (tmp0 + tmp7) >> 5;
-      blk[o + 7] = (tmp0 - tmp7) >> 5;
       blk[o + 1] = (tmp1 + tmp6) >> 5;
-      blk[o + 6] = (tmp1 - tmp6) >> 5;
       blk[o + 2] = (tmp2 + tmp5) >> 5;
-      blk[o + 5] = (tmp2 - tmp5) >> 5;
-      blk[o + 4] = (tmp3 + tmp4) >> 5;
       blk[o + 3] = (tmp3 - tmp4) >> 5;
+      blk[o + 4] = (tmp3 + tmp4) >> 5;
+      blk[o + 5] = (tmp2 - tmp5) >> 5;
+      blk[o + 6] = (tmp1 - tmp6) >> 5;
+      blk[o + 7] = (tmp0 - tmp7) >> 5;
+    }
+  
+    o = oo;
+    for (let i = 8; i > 0; --i, ++o) {
+      z10 = (blk[o +  0] + blk[o + 32]) >> 0;
+      z11 = (blk[o +  0] - blk[o + 32]) >> 0;
+      z13 = (blk[o + 16] + blk[o + 48]) >> 0;
+      z12 = (blk[o + 16] - blk[o + 48]) >> 0;
+      z12 = (((z12 * 362) >> 8) - z13) >> 0;
+
+      let tmp0 = (z10 + z13) >> 0;
+      let tmp3 = (z10 - z13) >> 0;
+      let tmp1 = (z11 + z12) >> 0;
+      let tmp2 = (z11 - z12) >> 0;
+
+      z13 = (blk[o + 24] + blk[o + 40]) >> 0;
+      z10 = (blk[o + 24] - blk[o + 40]) >> 0; 
+      z11 = (blk[o +  8] + blk[o + 56]) >> 0;
+      z12 = (blk[o +  8] - blk[o + 56]) >> 0;
+      let z5 = ((z12 - z10) * 473) >> 8; 
+
+      let tmp7 = (z11 + z13) >> 0; 
+      let tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
+      let tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
+      let tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0; 
+
+      blk[o +  0] = (tmp0 + tmp7) >> 0; 
+      blk[o +  8] = (tmp1 + tmp6) >> 0;
+      blk[o + 16] = (tmp2 + tmp5) >> 0;
+      blk[o + 24] = (tmp3 - tmp4) >> 0;
+      blk[o + 32] = (tmp3 + tmp4) >> 0;
+      blk[o + 40] = (tmp2 - tmp5) >> 0;
+      blk[o + 48] = (tmp1 - tmp6) >> 0;
+      blk[o + 56] = (tmp0 - tmp7) >> 0;
     }
   },
 
   rl2blk: function(blk, addr) {
-    var rl;
     var iqtab = this.iq;
 
     blk.fill(0);
 
+    let base = (addr & 0x001fffff) >>> 1;
+
     for (let i = 0; i < 6; i++) {
-      var o = 64 * i;
+      const o = 64 * i;
 
-      rl = map.getInt16(addr) & 0xffff;
-      addr += 2;
-
-      blk[o] = iqtab[0] * ((rl << 22) >> 22);
+      let rl = map16[base++] & 0xffff;
 
       let k = 0;
-      const q_scale = rl >> 10;
+      const q = rl >> 10;
+      let dc = ((rl << 22) >> 22);
+      blk[o] = iqtab[0] * dc;
 
       for (;;) {
-        rl =  map.getInt16(addr) & 0xffff;
-        addr += 2;
+        let rl = map16[base++] & 0xffff;
 
         if (rl === 0xfe00) break;
         k += ((rl >> 10) + 1); 
         if (k >= 64) break;
 
-        let val = (iqtab[k] * q_scale * ((rl << 22) >> 22)) >> 3;
+        let dc = ((rl << 22) >> 22);
+        let val = (iqtab[k] * q * dc) >> 3;
         blk[o + this.zscan[k]] = val;
-      }
-
-      if ((k + 1) == 0) {
-        for (let i = 0; i < MDEC_BLOCK_NUM; ++i) {
-          blk.raw[o + i] = blk.raw[o] >> 5;
-        }
-        continue;
       }
 
       this.icdt(blk, o);
     }
-    return addr;
+    return base << 1;
   },
 
   putquadrgb15: function(addr, blk, o, Cr, Cb) {
-    var Y, R, G, B, r, g, b, a = mdc.STP;
+    let Y, r, g, b, a = mdc.STP;
 
     // PSX
     // R = (1433 * Cr) >> 0;
@@ -166,33 +157,35 @@ var video = {
     // B = (1807 * Cb) >> 0; 
 
     // // JPEG
-    R = (1436 * Cr) >> 0;
-    G = ((-352 * Cb) - (731 * Cr)) >> 0;
-    B = (1815 * Cb) >> 0; 
+    const R = ((1436 * Cr)             ) >> 10;
+    const G = ((-352 * Cb) - (731 * Cr)) >> 10;
+    const B = ((1815 * Cb)             ) >> 10; 
 
-    Y = blk[o+0] << 0;
+    const base = (addr & 0x001fffff) >>> 0;
+
+    Y = blk[o + 0] << 0;
     r = this.SCALERC256(Y, R) >>> 3;
     g = this.SCALERC256(Y, G) >>> 3;
     b = this.SCALERC256(Y, B) >>> 3;
-    map.setInt16(addr +  0, a | (b << 10) | (g << 5) | r);
+    map16[(base + 0) >>> 1] = a | (b << 10) | (g << 5) | r;
 
-    Y = blk[o+1] << 0;
+    Y = blk[o + 1] << 0;
     r = this.SCALERC256(Y, R) >>> 3;
     g = this.SCALERC256(Y, G) >>> 3;
     b = this.SCALERC256(Y, B) >>> 3;
-    map.setInt16(addr +  2, a | (b << 10) | (g << 5) | r);
+    map16[(base + 2) >>> 1] = a | (b << 10) | (g << 5) | r;
 
-    Y = blk[o+8] << 0;
+    Y = blk[o + 8] << 0;
     r = this.SCALERC256(Y, R) >>> 3;
     g = this.SCALERC256(Y, G) >>> 3;
     b = this.SCALERC256(Y, B) >>> 3;
-    map.setInt16(addr + 32, a | (b << 10) | (g << 5) | r);
+    map16[(base + 32) >>> 1] = a | (b << 10) | (g << 5) | r;
 
-    Y = blk[o+9] << 0;
+    Y = blk[o + 9] << 0;
     r = this.SCALERC256(Y, R) >>> 3;
     g = this.SCALERC256(Y, G) >>> 3;
     b = this.SCALERC256(Y, B) >>> 3;
-    map.setInt16(addr + 34, a | (b << 10) | (g << 5) | r);
+    map16[(base + 34) >>> 1] = a | (b << 10) | (g << 5) | r;
   },
 
   yuv2rgb15: function(blk, addr) {
@@ -215,8 +208,8 @@ var video = {
     }
   },
 
-  putquadrgb24: function(map, addr, blk, o, Cr, Cb) {
-    var Y, R, G, B;
+  putquadrgb24: function(addr, blk, o, Cr, Cb) {
+    let Y;
 
     // PSX
     // R = (1433 * Cr) >> 0;
@@ -224,33 +217,34 @@ var video = {
     // B = (1807 * Cb) >> 0; 
 
     // JPEG
-    R = (1436 * Cr) >> 0;
-    G = ((-352 * Cb) - (731 * Cr)) >> 0;
-    B = (1815 * Cb) >> 0; 
+    const R = ((1436 * Cr)             ) >> 10;
+    const G = ((-352 * Cb) - (731 * Cr)) >> 10;
+    const B = ((1815 * Cb)             ) >> 10; 
 
+    const base = (addr & 0x001fffff) >>> 0;
     // if ((addr + 0) >= mdc.end) return;
-    Y = blk[o+0] << 0;
-    map[addr +  0] = this.SCALERC256(Y, R);
-    map[addr +  1] = this.SCALERC256(Y, G);
-    map[addr +  2] = this.SCALERC256(Y, B);
+    Y = blk[o + 0] << 0;
+    map8[base + 0] = this.SCALERC256(Y, R);
+    map8[base + 1] = this.SCALERC256(Y, G);
+    map8[base + 2] = this.SCALERC256(Y, B);
 
     // if ((addr + 3) >= mdc.end) return;
-    Y = blk[o+1] << 0;
-    map[addr +  3] = this.SCALERC256(Y, R);
-    map[addr +  4] = this.SCALERC256(Y, G);
-    map[addr +  5] = this.SCALERC256(Y, B);
+    Y = blk[o + 1] << 0;
+    map8[base + 3] = this.SCALERC256(Y, R);
+    map8[base + 4] = this.SCALERC256(Y, G);
+    map8[base + 5] = this.SCALERC256(Y, B);
 
     // if ((addr + 48) >= mdc.end) return;
-    Y = blk[o+8] << 0;
-    map[addr + 48] = this.SCALERC256(Y, R);
-    map[addr + 49] = this.SCALERC256(Y, G);
-    map[addr + 50] = this.SCALERC256(Y, B);
+    Y = blk[o + 8] << 0;
+    map8[base + 48] = this.SCALERC256(Y, R);
+    map8[base + 49] = this.SCALERC256(Y, G);
+    map8[base + 50] = this.SCALERC256(Y, B);
 
     // if ((addr + 51) >= mdc.end) return;
-    Y = blk[o+9] << 0;
-    map[addr + 51] = this.SCALERC256(Y, R);
-    map[addr + 52] = this.SCALERC256(Y, G);
-    map[addr + 53] = this.SCALERC256(Y, B);
+    Y = blk[o + 9] << 0;
+    map8[base + 51] = this.SCALERC256(Y, R);
+    map8[base + 52] = this.SCALERC256(Y, G);
+    map8[base + 53] = this.SCALERC256(Y, B);
   },
 
   yuv2rgb24: function(blk, addr) {
@@ -261,26 +255,17 @@ var video = {
     var bo = 64;
     var yo = 64 * 2;
   
-    var buf = this.decoded;
-    // buf.fill(0);
-    var base = addr;
-    addr = 0;
     for (y = 0; y < 16; y += 2, ro += 8, bo += 8, yo += 16, addr += 96) {
       if (y == 8) yo += 64;
 
-      this.putquadrgb24(buf, addr +  0, blk, yo +  0, blk[ro + 0], blk[bo + 0]);
-      this.putquadrgb24(buf, addr +  6, blk, yo +  2, blk[ro + 1], blk[bo + 1]);
-      this.putquadrgb24(buf, addr + 12, blk, yo +  4, blk[ro + 2], blk[bo + 2]);
-      this.putquadrgb24(buf, addr + 18, blk, yo +  6, blk[ro + 3], blk[bo + 3]);
-      this.putquadrgb24(buf, addr + 24, blk, yo + 64, blk[ro + 4], blk[bo + 4]);
-      this.putquadrgb24(buf, addr + 30, blk, yo + 66, blk[ro + 5], blk[bo + 5]);
-      this.putquadrgb24(buf, addr + 36, blk, yo + 68, blk[ro + 6], blk[bo + 6]);
-      this.putquadrgb24(buf, addr + 42, blk, yo + 70, blk[ro + 7], blk[bo + 7]);
-    }
-    for (var i = 0; i < 768; i += 4) {
-      // if ((base + i) >= mdc.end) break;
-      var v = buf[i+0] | (buf[i+1] << 8) | (buf[i+2] << 16) | (buf[i+3] << 24);
-      map[((base + i) & 0x001fffff) >> 2] = v;
+      this.putquadrgb24(addr +  0, blk, yo +  0, blk[ro + 0], blk[bo + 0]);
+      this.putquadrgb24(addr +  6, blk, yo +  2, blk[ro + 1], blk[bo + 1]);
+      this.putquadrgb24(addr + 12, blk, yo +  4, blk[ro + 2], blk[bo + 2]);
+      this.putquadrgb24(addr + 18, blk, yo +  6, blk[ro + 3], blk[bo + 3]);
+      this.putquadrgb24(addr + 24, blk, yo + 64, blk[ro + 4], blk[bo + 4]);
+      this.putquadrgb24(addr + 30, blk, yo + 66, blk[ro + 5], blk[bo + 5]);
+      this.putquadrgb24(addr + 36, blk, yo + 68, blk[ro + 6], blk[bo + 6]);
+      this.putquadrgb24(addr + 42, blk, yo + 70, blk[ro + 7], blk[bo + 7]);
     }
   },
 }
@@ -288,7 +273,6 @@ var video = {
 var mdc = {
   r1820: 0,
   r1824: 0x80040000,
-  decodingCyclesRemaining: -1,
   rl: 0,
   STP: 0,
   end: 0,
@@ -313,7 +297,7 @@ var mdc = {
     if (data & 0x80000000) {
       mdc.r1820 = 0;
       mdc.r1824 = 0x80040000;
-      mdc.decodingCyclesRemaining = -1;
+      mdc.event.active = false;
     }
   },
 
@@ -346,8 +330,7 @@ var mdc = {
 
   dmaTransferMode0200: function(addr, blck) {
     addr = addr & 0x001fffff; // ram always
-    var numberOfWords = (blck >>> 16) * (blck & 0xffff);
-    var blockSize = ((mdc.r1820 & 0x08000000) ? 16*16 : 24*16) << 1;
+    const numberOfWords = (blck >>> 16) * (blck & 0xffff);
     clearCodeCache( addr, numberOfWords << 2);
 
     var blk = mdc.block;
@@ -359,38 +342,47 @@ var mdc = {
       mdc.STP = (mdc.r1820 & (1 << 25)) ? 0x8000 : 0x0000;
       mdc.rl = video.rl2blk(blk, mdc.rl);
       switch (depth) {
+        case 0: //console.error('unsupported depth', depth);
+                addr += (4 * 16) << 1;
+                break;
+        case 1: //console.error('unsupported depth', depth);
+                addr += (8 * 16) << 1;
+                break;
         case 2: video.yuv2rgb24(blk, addr);
+                addr += (24 * 16) << 1;
                 break;
         case 3: video.yuv2rgb15(blk, addr);
-                break;
-        default://console.error('unsupported depth', depth);
+                addr += (16 * 16) << 1;
                 break;
       }
       decodedMacroBlocks += 6;
-      addr += blockSize;
+      // addr += blockSize;
     }
 
+    let decodingCyclesRemaining = (numberOfWords * 0x110) / 0x100;
     if (mdc.r1820 & 0x08000000) {
-      mdc.decodingCyclesRemaining += ((33868800 / 9000) * decodedMacroBlocks);
+      decodingCyclesRemaining += ((33868800 / 9000) * decodedMacroBlocks);
     }
     else {
-      mdc.decodingCyclesRemaining += ((33868800 / 6000) * decodedMacroBlocks);
+      decodingCyclesRemaining += ((33868800 / 6000) * decodedMacroBlocks);
     }
-    mdc.decodingCyclesRemaining += (numberOfWords * 0x110) / 0x100;
 
+    psx.updateEvent(this.event, decodingCyclesRemaining >>> 0);
     return numberOfWords;
   },
 
-  update: function(cycles) {
-    if (mdc.decodingCyclesRemaining > 0) {
-      mdc.decodingCyclesRemaining -= cycles;
-      if (mdc.decodingCyclesRemaining <= 0) {
-        mdc.decodingCyclesRemaining = -1;
-        mdc.r1824 &= ~(1 << 29);
-      }
-    }
+  event: null,
+  complete: function(self, clock) {
+    mdc.r1824 &= ~(1 << 29);
+    self.active = false;
   }
 }
 
 Object.seal(video);
 Object.seal(mdc);
+
+for (let i = 0; i < 256; ++i) {
+  video.scale[  0 + i]  = 0;
+  video.scale[256 + i]  = i;
+  video.scale[512 + i]  = 255;
+}

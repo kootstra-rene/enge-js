@@ -10,12 +10,12 @@ String.prototype.endsWith = function(suffix) {
 
 
 var log = function () { 
-  console.log.call(console, ('000000000000'+(cpu.totalCycles+cpu.cycles)).substr(-12)+']', Array.prototype.slice.call(arguments).join(''));
+  console.log.call(console, ('000000000000'+(psx.clock)).substr(-12)+']', Array.prototype.slice.call(arguments).join(''));
 }
 
 var cpu = {
   'cause' : 0,
-  'cop': new Uint32Array(32),
+  'cop': new Int32Array(32),
   'cycles': 0,
   'epc' : 0,
   'gpr': new Int32Array(32),
@@ -26,20 +26,19 @@ var cpu = {
   'lo' : 0,
   'pc' : 0,
   'sr' : 0,
-  'totalCycles': 0,
 
   getCtrl: function(reg) {
     switch (reg) {
-      case 12:  return this.sr;
-      case 13:  return this.cause;
-      case 14:  return this.epc;
-      case 15:  return 2;
+      case 12:  return this.sr >> 0;
+      case 13:  return this.cause >> 0;
+      case 14:  return this.epc >> 0;
+      case 15:  return 2 >> 0;
       default:  //abort('getCtrl:' + reg);
     }
   },
 
   setCtrl: function(reg, value) {
-    this.cop[reg] = value >>> 0
+    this.cop[reg] = value >> 0;
     switch (reg) {
       case  3:  break;
       case  5:  break;
@@ -106,7 +105,7 @@ var cpu = {
     var a00 = (a >>  0) & 0xffff;
     var a16 = (a >> 16) & 0xffff;
 
-    var v = (~a00 & 0xFFFF ) + 1;
+    var v = (~a00 & 0xFFFF) + 1;
     a00 = v & 0xFFFF;
     v = (~a16 & 0xFFFF) + (v >>> 16);
     a16 = v & 0xFFFF;
@@ -205,7 +204,7 @@ var cpu = {
 const cache = new Array(0x02000000 >> 2);
 cache.fill(null);
 
-var cpuException = function(id, pc) {
+function cpuException(id, pc) {
   cpu.sr    = (cpu.sr & ~0x3F) | ((cpu.sr << 2) & 0x3F);
   cpu.cause = (cpu.cause & ~0x7C) | id;
   cpu.epc   = pc;
@@ -213,7 +212,7 @@ var cpuException = function(id, pc) {
   cpu.pc    = 0x80000080;// & 0x01ffffff;
 }
 
-var cpuInterrupt = function() {
+function cpuInterrupt() {
   if ((cpu.sr & 1) === 1) {
     let ip = cpu.cause & 0x300;
     let im = cpu.sr & 0x300;
@@ -233,53 +232,51 @@ var cpuInterrupt = function() {
   return false;
 }
 
-var getCacheIndex = function(pc) {
+function getCacheIndex(pc) {
   pc = pc & 0x01ffffff;
   if (pc < 0x800000) pc &= 0x1fffff;
   return pc >>> 2;
 }
 
-var clearCodeCache = function(addr, size) {
+function clearCodeCache(addr, size) {
   addr = addr & 0x01ffffff;
   const base = (addr < 0x800000) ?  (addr & 0x1fffff) >>> 2 : addr >>> 2;
-  const words = !size ? 1 : size >>> 2;
+  const words = !size ? 1 >>> 0 : size >>> 2;
 
-  for (let i = 0; i < words; ++i) {
-    // if (cache[base + i]) console.warn(`cache-clean: $${((base + i) << 2).toString(16)}`)
-    cache[base + i] = null;
+  for (let i = 0 >>> 0; i < words; ++i) {
+    const block = cache[base + i];
+    if (block) {
+      // console.warn(`cache-clean: $${((base + i) << 2).toString(16)}`);
+      block.code = null;
+    }
   }
 }
 
-var recompile = function(pc) {
-  var lutIndex = getCacheIndex(pc)
-  if (cache[lutIndex]) {
-    return cache[lutIndex];
+function recompile(pc) {
+  const lutIndex = getCacheIndex(pc);
+  let entry = cache[lutIndex];
+
+  if (!entry) {
+    entry = cache[lutIndex] = {
+      called: 0,
+      loop: false,
+      pc: hex(pc),
+      code: null,
+    };
   }
-
-  var dynamic = compileBlock(pc);
-  cache[lutIndex] = dynamic; // comment out for testing recompiler faults (dead slow though)
-  return dynamic;
+  if (!entry.code) {
+    entry.code = compileBlock(pc, entry);
+    entry.called = 0;
+  }
+  return entry;
 }
 
-function update(cycles) {
-  var endOfFrame = false;
+const CYCLES_PER_BLOCK = 128; // ~4 us
 
-  cdr.advance(cycles);
-  mdc.update(cycles);
-  spu.advance(cycles);
-  joy.update(cycles);
-  endOfFrame = gpu.advance(cycles);
+function update(self, clock) {
+  self.clock += CYCLES_PER_BLOCK;
 
-  rc0.advance(cycles);
-  rc1.advance(cycles);
-  rc2.advance(cycles);
-
-  dma.advance(cycles);
-
-  return endOfFrame;
+  rc0.advance(CYCLES_PER_BLOCK);
+  rc1.advance(CYCLES_PER_BLOCK);
+  rc2.advance(CYCLES_PER_BLOCK);
 }
-
-let statsCycles = 33868800;
-let statInts = 0;
-
-const CYCLES_PER_BLOCK = 128; // ~3.78 us

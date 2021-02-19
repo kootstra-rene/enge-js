@@ -3,12 +3,23 @@
 const $gpu = {
 };
 
+const xet = new Uint32Array(1024 * 512);
+const view = new Uint8Array(xet.buffer);
+const sbgr2rgba = new Uint32Array(65536);
+for (let i = 0; i < 65536; ++i) {
+  sbgr2rgba[i]  = ((i >>>  0) & 0x1f) <<  3;      // r
+  sbgr2rgba[i] |= ((i >>>  5) & 0x1f) << 11;      // g
+  sbgr2rgba[i] |= ((i >>> 10) & 0x1f) << 19;      // b
+  sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
+}
+
 function WebGLRenderer(canvas) {
+  let gl = null;
   this.gl = null;
-  this.mode = 'vram';
+  this.mode = 'disp';
 
   try {
-    this.gl = canvas.getContext("webgl2", {
+    this.gl = gl = canvas.getContext("webgl2", {
       alpha: false, 
       antialias: false, 
       preserveDrawingBuffer: true, 
@@ -22,8 +33,15 @@ function WebGLRenderer(canvas) {
     return;
   }
 
-  if(this.gl) {
-    this.gl.enable(this.gl.SCISSOR_TEST);
+  if (this.gl) {
+    gl.disable(gl.STENCIL_TEST);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.CULL_FACE);
+    gl.disable(gl.DITHER);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.disable(gl.SAMPLE_COVERAGE);
+    gl.disable(gl.SCISSOR_TEST);
 
     this.gl.enableVertexAttribArray(0);
 
@@ -68,8 +86,8 @@ function WebGLRenderer(canvas) {
     // this.gl.generateMipmap(this.gl.TEXTURE_2D);
 
     // create texture
-    this.disp = this.gl.createTexture();
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.disp);
+    this.cache = this.gl.createTexture();
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.cache);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
@@ -89,7 +107,6 @@ function WebGLRenderer(canvas) {
 const rgba = new Uint32Array(1024 * 512);
 WebGLRenderer.prototype.loadImage = function(x, y, w, h, buffer) {
   const gl = this.gl;
-  // const rgba = new Uint32Array(w * h);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   
@@ -128,14 +145,14 @@ WebGLRenderer.prototype.moveImage = function(sx, sy, dx, dy, w, h) {
 
   let read_fb = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, read_fb);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.disp, 0);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
 
-  // blit from vram -> disp
+  // blit from vram -> cache
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, read_fb);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, draw_fb);
-  gl.blitFramebuffer(sx, sy, sx+w, sy+h, dx, dy, dx+w, dy+h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.blitFramebuffer(sx, sy, sx+w, sy+h, sx, sy, sx+w, sy+h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
-  // blit from disp -> vram
+  // blit from cache -> vram
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, draw_fb);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read_fb);
   gl.blitFramebuffer(sx, sy, sx+w, sy+h, dx, dy, dx+w, dy+h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
@@ -145,28 +162,13 @@ WebGLRenderer.prototype.moveImage = function(sx, sy, dx, dy, w, h) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
-const xet = new Uint32Array(1024 * 512);
-const sbgr2rgba = new Uint32Array(65536);
-for (let i = 0; i < 65536; ++i) {
-  sbgr2rgba[i]  = ((i >>>  0) & 0x1f) <<  3;      // r
-  sbgr2rgba[i] |= ((i >>>  5) & 0x1f) << 11;      // g
-  sbgr2rgba[i] |= ((i >>> 10) & 0x1f) << 19;      // b
-  sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
-}
-
 WebGLRenderer.prototype.storeImage = function(img) {
   let gl = this.gl;
 
-  for (var i = 0, l = img.pixelCount; i < l; ++i) {
+  for (let i = 0, l = img.pixelCount; i < l; ++i) {
     const sbgr = img.buffer[i] >>> 0;
     xet[i] = sbgr2rgba[sbgr];
   }
-
-  let view = new Uint8Array(xet.buffer);
-  gl.bindTexture(gl.TEXTURE_2D, this.disp);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, view);
-  // gl.generateMipmap(gl.TEXTURE_2D);
-  gl.bindTexture(gl.TEXTURE_2D, null);
 
   gl.bindTexture(gl.TEXTURE_2D, this.vram);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, view);
@@ -203,9 +205,6 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
 
   xet.fill(c, 0, w*h);
 
-  let view = new Uint8Array(xet.buffer);
-  gl.bindTexture(gl.TEXTURE_2D, this.disp);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
   gl.bindTexture(gl.TEXTURE_2D, this.vram);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
 
@@ -215,12 +214,9 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
 
 WebGLRenderer.prototype.updateDrawArea = function() {
   if ($gpu.daM) {
-    this.gl.clearColor(1,0,0,1);
-    this.clip($gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
-
-    this.gl.clearColor(0,0,0,1);
-    this.clip($gpu.daL + 1, $gpu.daT + 1, $gpu.daR - 1, $gpu.daB - 1);
-
+    const program = this.programDisplay16bit;
+    this.gl.useProgram(program);
+    this.gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
     $gpu.daM = false;
   }
 }
@@ -244,15 +240,7 @@ WebGLRenderer.prototype.setDrawAreaBR = function(x, y) {
   $gpu.daM = true;
 }
 
-
-WebGLRenderer.prototype.clip = function (l, t, r, b) {
-  let sb = 512 - t;
-  let st = sb - (b - t);
-  // this.gl.scissor(l, st, r - l, (sb - st));
-  // this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-}
-
-WebGLRenderer.prototype.onVBlankEnd = function() {
+WebGLRenderer.prototype.onVBlankBegin = function() {
   const area = gpu.getDisplayArea();
   const gl = this.gl;
 
@@ -260,13 +248,11 @@ WebGLRenderer.prototype.onVBlankEnd = function() {
     case 'vram':  canvas.width = 1024;
                   canvas.height = 512;
                   gl.viewport(0, 0, canvas.width, canvas.height);
-                  gl.scissor(0, 0, canvas.width, canvas.height);
                   showVideoRAM(this, area);
                   break;
-    case 'disp':  canvas.width = area.w * 8;
-                  canvas.height = area.h * 8;
+    case 'disp':  canvas.width = area.w * 1;
+                  canvas.height = area.h * 1;
                   gl.viewport(0, 0, canvas.width, canvas.height);
-                  gl.scissor(0, 0, canvas.width, canvas.height);
                   if (gpu.status & (1 << 23)) {
                     showDisplayOff(this, area);
                   }
@@ -282,7 +268,7 @@ WebGLRenderer.prototype.onVBlankEnd = function() {
   }
 }
 
-WebGLRenderer.prototype.onVBlankBegin = function() {
+WebGLRenderer.prototype.onVBlankEnd = function() {
 }
 
 
@@ -292,6 +278,7 @@ WebGLRenderer.prototype.setMode = function(mode) {
 
 
 function getDisplayTexture(area) {
+  // todo: 'global' structure to minimize allocs
   return new Int16Array([
     area.x +    0.0, area.y +    0.0,
     area.x + area.w, area.y +    0.0,
@@ -303,6 +290,7 @@ function getDisplayTexture(area) {
 }
 
 function getVideoRamTexture() {
+  // todo: 'global' structure to minimize allocs
   return new Int16Array([
          0.0,   0.0,
       1024.0,   0.0,
@@ -319,7 +307,7 @@ function showDisplayOff(renderer, area) {
   gl.useProgram(renderer.programDisplayOff);
 
   gl.activeTexture(gl.TEXTURE0 + 0);
-  gl.bindTexture(gl.TEXTURE_2D, renderer.disp);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, renderer.program.vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
@@ -340,7 +328,7 @@ function showDisplay16Bit(renderer, area) {
   gl.uniform4i(renderer.programDisplay16bit.displayArea, area.x, area.y, area.w, area.h);
 
   gl.activeTexture(gl.TEXTURE0 + 0);
-  gl.bindTexture(gl.TEXTURE_2D, renderer.disp);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, renderer.program.vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
@@ -361,7 +349,7 @@ function showDisplay24Bit(renderer, area) {
   gl.uniform4i(renderer.programDisplay24bit.displayArea, area.x, area.y, area.w, area.h);
                       
   gl.activeTexture(gl.TEXTURE0 + 0);
-  gl.bindTexture(gl.TEXTURE_2D, renderer.disp);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, renderer.program.vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
@@ -407,13 +395,7 @@ function createProgramDisplayOff(gl) {
   gl.enableVertexAttribArray(program.vertexPosition);
   gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 0, 0);
 
-  // fragment shader
-  program.textureBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
-   
-  program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
-  gl.enableVertexAttribArray(program.textureCoord);
-  gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, 0, 0);
+  // fragment shader (not needed)
 
   return program;
 }
@@ -421,6 +403,7 @@ function createProgramDisplayOff(gl) {
 function createProgramDisplay16Bit(gl) {
   const program = utils.createProgramFromScripts(gl, 'vertex', 'display16bit');
   program.displayArea = gl.getUniformLocation(program, "u_disp");
+  program.drawArea = gl.getUniformLocation(program, "u_draw");
 
   // vertex schader
   program.vertexBuffer = gl.createBuffer();

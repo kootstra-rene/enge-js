@@ -24,8 +24,7 @@ var packetSizes = [
 
 var gpu = {
   bbb       : 0,
-  bbbdata   : new Uint32Array(0x200000),
-  cyclesLeft: 0,
+  bbbdata   : new Uint16Array(0x200000),
   dispB     : 256,
   dispL     : 0,
   dispR     : 0,
@@ -95,60 +94,51 @@ var gpu = {
     return {x:gpu.dispX, y:gpu.dispY, w:width, h:height};
   },
 
-  advance: function(cycles) {
-    let irq = false;
-    gpu.cyclesLeft -= cycles;
+  event: function (self, clock) {
+    const linesPerSecond = ((gpu.status >> 20) & 1) ? 15625 : 15733;
+    const cyclesPerLine = 33868800 / linesPerSecond;
+    self.clock += cyclesPerLine;
 
-    // force PAL/NTSC
-    // gpu.status |= (1 << 20); // PAL
-    // gpu.status &= ~(1 << 20); // NTSC
+    let interlaced = gpu.status & (1 << 22);
+	  let PAL = ((gpu.status >> 20) & 1) ? true : false;
+    let vsync = PAL ? 313 : 263;
+    let halfheight = (gpu.dispB - gpu.dispT) >> 1;
+    let center = PAL ? 163 : 136;
+    let vblankend = center - halfheight;
+    let vblankbegin = center + halfheight;
+    if (vblankbegin > vsync) vblankbegin = vsync;
+    if (vblankend < 0) vblankend = 0;
 
-    if (gpu.cyclesLeft <= 0) {
-      let interlaced = gpu.status & (1 << 22);
-  	  let PAL = ((gpu.status >> 20) & 1) ? true : false;
-      let vsync = PAL ? 313 : 263;
-      let halfheight = (gpu.dispB - gpu.dispT) >> 1;
-      let center = PAL ? 163 : 136;
-      let vblankend = center - halfheight;
-      let vblankbegin = center + halfheight;
-      if (vblankbegin > vsync) vblankbegin = vsync;
-      if (vblankend < 0) vblankend = 0;
-
-	    const cyclesPerLine = (44100*768) / (PAL ? 15625 : 15733);
-      gpu.cyclesLeft += cyclesPerLine;
-      if (interlaced) {
-        if ((gpu.frame & 1) === 1) {
-          gpu.status |= 0x80000000;
-        }
-        else {
-          gpu.status &= 0x7fffffff;
-        }
+    if (interlaced) {
+      if ((gpu.frame & 1) === 1) {
+        gpu.status |= 0x80000000;
       }
       else {
-        if ((gpu.hline & 1) === 1) {
-          gpu.status |= 0x80000000;
-        }
-        else {
-          gpu.status &= 0x7fffffff;
-        }
-      }
-      rc1.onHBlank();
-      if (gpu.hline === vblankbegin) {
-        renderer.onVBlankBegin();
-        rc1.onVBlankEnd();
         gpu.status &= 0x7fffffff;
-        irq = true;
-      }
-      if (gpu.hline === vblankend) {
-        renderer.onVBlankEnd();
-      }
-      if (++gpu.hline >= vsync) {
-        cpu.istat |= 0x0001;
-        gpu.hline = 0;
-        ++gpu.frame;
       }
     }
-    return irq;
+    else {
+      if ((gpu.hline & 1) === 1) {
+        gpu.status |= 0x80000000;
+      }
+      else {
+        gpu.status &= 0x7fffffff;
+      }
+    }
+    rc1.onHBlank();
+    if (gpu.hline === vblankbegin) {
+      renderer.onVBlankBegin();
+      rc1.onVBlankEnd();
+      gpu.status &= 0x7fffffff;
+    }
+    if (gpu.hline === vblankend) {
+      renderer.onVBlankEnd();
+    }
+    if (++gpu.hline >= vsync) {
+      cpu.istat |= 0x0001;
+      gpu.hline = 0;
+      ++gpu.frame;
+    }
   },
 
   rd32r1810: function() {
@@ -172,8 +162,6 @@ var gpu = {
 
       if (gpu.dmaIndex === gpu.packetSize) {
         var packetId = gpu.dmaBuffer[0] >>> 24;
-        //metrics.gpu.packets[packetId] = metrics.gpu.packets[packetId] || 0;
-        //metrics.gpu.packets[packetId]++;
         gpu.handlers[packetId].call(this, gpu.dmaBuffer);
         gpu.dmaIndex = 0;
       }
@@ -527,9 +515,11 @@ var gpu = {
     gpu.transferTotal -= transferSize;
 
     while (--transferSize >= 0) {
-      var value = gpu.img.buffer[gpu.img.index];
-      map.setInt16(addr & 0x1fffff, value); addr += 2;
+      const data = gpu.img.buffer[gpu.img.index];
+      map16[(addr & 0x001fffff) >>> 1] = data;
+      // map.setInt16(addr & 0x1fffff, value);
       gpu.img.index++;
+      addr += 2;
     }
 
     if (gpu.transferTotal <= 0) {
@@ -547,9 +537,11 @@ var gpu = {
     gpu.transferTotal -= transferSize;
 
     while (--transferSize >= 0) {
-      var value = map.getInt16(addr & 0x1fffff); addr += 2;
-      gpu.img.buffer[gpu.img.index] = value;
+      const data = map16[(addr & 0x001fffff) >>> 1];
+      // var value = map.getInt16(addr & 0x1fffff);
+      gpu.img.buffer[gpu.img.index] = data;
       gpu.img.index++;
+      addr += 2;
     }
 
     if (gpu.transferTotal <= 0) {
@@ -565,7 +557,8 @@ var gpu = {
       return (blck >> 16) * (blck & 0xFFFF);
     }
   
-    var seq = ++this.bbb;
+    const sequence = (++this.bbb) & 0xffff;
+    const check = this.bbbdata;
     var data = gpu.dmaBuffer;
     let words = 0;
     for(;;) {
@@ -578,8 +571,8 @@ var gpu = {
 
       while (nitem > 0) {
         // check for endless loop.
-        if (this.bbbdata[addr & 0x1fffff] === seq) return;
-        this.bbbdata[addr & 0x1fffff] = seq;
+        if (check[addr] === sequence) return;
+        check[addr] = sequence;
   
         const packetId = map[addr >> 2] >>> 24;
         if (packetSizes[packetId] === 0) {

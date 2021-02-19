@@ -4,13 +4,6 @@ const dma = {
   dpcr: 0,
   dicr: 0,
 
-  cyclesDMA0: -1,
-  cyclesDMA1: -1,
-  cyclesDMA2: -1,
-  cyclesDMA3: -1,
-  cyclesDMA4: -1,
-  cyclesDMA6: -1,
-
   r1080: 0, r1084: 0, r1088: 0,
   r1090: 0, r1094: 0, r1098: 0,
   r10a0: 0, r10a4: 0, r10a8: 0,
@@ -18,72 +11,64 @@ const dma = {
   r10c0: 0, r10c4: 0, r10c8: 0,
   r10e0: 0, r10e4: 0, r10e8: 0,
 
-  advance(cycles) {
-    if (dma.cyclesDMA0 > 0) {
-      dma.cyclesDMA0 -= cycles;
-      if (dma.cyclesDMA0 <= 0) {
-        this.r1088 &= 0xfeffffff;
-        if (dma.dicr & 0x00010000) {
-          dma.dicr  |= 0x81000000;
-          cpu.istat |= 0x0008;
-        }
-      }
+  eventDMA0: null,
+  completeDMA0: function (self, clock) {
+    this.r1088 &= 0xfeffffff;
+    if (dma.dicr & 0x00010000) {
+      dma.dicr  |= 0x81000000;
+      cpu.istat |= 0x0008;
     }
+    self.active = false;
+  },
 
-    if (dma.cyclesDMA1 > 0) {
-      dma.cyclesDMA1 -= cycles;
-      if (dma.cyclesDMA1 <= 0) {
-        this.r1098 &= 0xfeffffff;
-        if (dma.dicr & 0x00020000) {
-          dma.dicr  |= 0x82000000;
-          cpu.istat |= 0x0008;
-        }
-      }
+  eventDMA1: null,
+  completeDMA1: function (self, clock) {
+    this.r1098 &= 0xfeffffff;
+    if (dma.dicr & 0x00020000) {
+      dma.dicr  |= 0x82000000;
+      cpu.istat |= 0x0008;
     }
+    self.active = false;
+  },
 
-    if (dma.cyclesDMA2 > 0) {
-      dma.cyclesDMA2 -= cycles;
-      if (dma.cyclesDMA2 <= 0) {
-        this.r10a8 &= 0xfeffffff;
-        if (dma.dicr & 0x00040000) {
-          dma.dicr  |= 0x84000000;
-          cpu.istat |= 0x0008;
-        }
-      }
+  eventDMA2: null,
+  completeDMA2: function (self, clock) {
+    this.r10a8 &= 0xfeffffff;
+    if (dma.dicr & 0x00040000) {
+      dma.dicr  |= 0x84000000;
+      cpu.istat |= 0x0008;
     }
+    self.active = false;
+  },
 
-    if (dma.cyclesDMA3 > 0) {
-      dma.cyclesDMA3 -= cycles;
-      if (dma.cyclesDMA3 <= 0) {
-        this.r10b8 &= 0xfeffffff;
-        if (dma.dicr & 0x00080000) {
-          dma.dicr  |= 0x88000000;
-          cpu.istat |= 0x0008;
-        }
-      }
+  eventDMA3: null,
+  completeDMA3: function (self, clock) {
+    this.r10b8 &= 0xfeffffff;
+    if (dma.dicr & 0x00080000) {
+      dma.dicr  |= 0x88000000;
+      cpu.istat |= 0x0008;
     }
+    self.active = false;
+  },
 
-    if (dma.cyclesDMA4 > 0) {
-      dma.cyclesDMA4 -= cycles;
-      if (dma.cyclesDMA4 <= 0) {
-        this.r10c8 &= 0xfeffffff;
-        if (dma.dicr & 0x00100000) {
-          dma.dicr  |= 0x90000000;
-          cpu.istat |= 0x0008;
-        }
-      }
+  eventDMA4: null,
+  completeDMA4: function (self, clock) {
+    this.r10c8 &= 0xfeffffff;
+    if (dma.dicr & 0x00100000) {
+      dma.dicr  |= 0x90000000;
+      cpu.istat |= 0x0008;
     }
+    self.active = false;
+  },
 
-    if (dma.cyclesDMA6 > 0) {
-      dma.cyclesDMA6 -= cycles;
-      if (dma.cyclesDMA6 <= 0) {
-        this.r10e8 &= 0xfeffffff;
-        if (dma.dicr & 0x00400000) {
-          dma.dicr  |= 0xC0000000;
-          cpu.istat |= 0x0008;
-        }
-      }
+  eventDMA6: null,
+  completeDMA6: function (self, clock) {
+    this.r10e8 &= 0xfeffffff;
+    if (dma.dicr & 0x00400000) {
+      dma.dicr  |= 0xC0000000;
+      cpu.istat |= 0x0008;
     }
+    self.active = false;
   },
 
   rd08r10f6: function() {
@@ -131,7 +116,7 @@ const dma = {
         default:  abort('mdi-ctrl:'+hex(ctrl));
       }
 
-      dma.cyclesDMA0 = (transferSize * 0x110) / 0x100;
+      psx.updateEvent(this.eventDMA0, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma0 not enabled');
@@ -153,7 +138,7 @@ const dma = {
         default:  abort('mdo-ctrl:'+hex(ctrl));
       }
 
-      dma.cyclesDMA1 = (transferSize * 0x110) / 0x100;
+      psx.updateEvent(this.eventDMA1, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma1 not enabled');
@@ -181,7 +166,7 @@ const dma = {
         default:  abort('gpu-ctrl:'+hex(ctrl));
       }
 
-      dma.cyclesDMA2 = (transferSize * 0x110) / 0x100;
+      psx.updateEvent(this.eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma2 not enabled');
@@ -204,7 +189,7 @@ const dma = {
         default:  abort('cd-ctrl:'+hex(ctrl));
       }
 
-      dma.cyclesDMA3 = (transferSize * 0x2800) / 0x100;
+      psx.updateEvent(this.eventDMA3, ((transferSize * 0x2800) / 0x100) >>> 0);
     }
     else {
       console.log('dma3 not enabled');
@@ -218,9 +203,11 @@ const dma = {
       let transferSize = 10;
 
       switch (ctrl) {
+        case 0x01000000:  
         case 0x01000200:  transferSize = spu.dmaTransferMode0200(this.r10c0, this.r10c4);
                           this.r10c0 += transferSize << 2;
                           break;
+        case 0x01000001:  
         case 0x01000201:  transferSize = spu.dmaTransferMode0201(this.r10c0, this.r10c4);
                           this.r10c0 += transferSize << 2;
                           break;
@@ -228,7 +215,7 @@ const dma = {
         default:  abort('spu-ctrl:'+hex(ctrl));
       }
 
-      dma.cyclesDMA4 = (transferSize * 0x420) / 0x100;
+      psx.updateEvent(this.eventDMA4, ((transferSize * 0x420) / 0x100) >>> 0);
     }
     else {
       console.log('dma4 not enabled');
@@ -243,13 +230,15 @@ const dma = {
 
       switch (ctrl) {
         case 0x00000000:  break;
+        case 0x01000002:  break;
+        case 0x10000002:  break;
         case 0x11000002:  transferSize = gpu.dmaLinkedListMode0002(this.r10e0, this.r10e4);
                           break;
 
         default:  abort('otc-ctrl:'+hex(ctrl));
       }
 
-      dma.cyclesDMA6 = (transferSize * 0x110) / 0x100;
+      psx.updateEvent(this.eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma6 not enabled');

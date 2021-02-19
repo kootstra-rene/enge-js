@@ -22,50 +22,6 @@ function readStorageStream(item, cb) {
   }
 }
 
-window.addEventListener("gamepadconnected", function(e) {
-  var gp = e.gamepad;
-  console.log(e);
-  console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
-  gp.index, gp.id,
-  gp.buttons.length, gp.axes.length);
-});
-
-window.addEventListener("gamepaddisconnected", function(e) {
-  pads = undefined;
-  console.log("Gamepad disconnected");
-});
-
-var gamepad = function() {return;
-  pads = navigator.getGamepads()[0];
-  if (pads !== undefined) {
-    var pad = pads;
-    // if (pad === undefined) return;
-
-    joy.pad0lo = 0xff;
-    if (pad.axes[0] <= -0.5) { joy.pad0lo &= ~0x80 } // left
-    if (pad.axes[0] >= +0.5) { joy.pad0lo &= ~0x20 } // right
-    if (pad.axes[1] <= -0.5) { joy.pad0lo &= ~0x10 } // up
-    if (pad.axes[1] >= +0.5) { joy.pad0lo &= ~0x40 } // down
-
-    if (pad.buttons[8].pressed) { joy.pad0lo &= ~0x01 } // select
-    if (pad.buttons[9].pressed) { joy.pad0lo &= ~0x08 } // start
-    if (joy.pad0lo !== 255) console.log(joy.pad0lo)
-
-    joy.pad0hi = 0xff;
-    if (pad.buttons[0].pressed) { joy.pad0hi  &= ~0x10 } // triangle
-    if (pad.buttons[1].pressed) { joy.pad0hi &= ~0x20 } // circle
-    if (pad.buttons[2].pressed) { joy.pad0hi &= ~0x40 } // cross
-    if (pad.buttons[3].pressed) { joy.pad0hi &= ~0x80 } // square
-
-    if (pad.buttons[4].pressed) { joy.pad0hi &= ~0x04 } // l1
-    if (pad.buttons[6].pressed) { joy.pad0hi &= ~0x01 } // l2
-    if (pad.buttons[5].pressed) { joy.pad0hi &= ~0x08 } // r1
-    if (pad.buttons[7].pressed) { joy.pad0hi &= ~0x02 } // r2
-    if (joy.pad0hi !== 255) console.log(joy.pad0hi)
-
-  }
-}
-
 var abort = function() {
   console.error(Array.prototype.slice.call(arguments).join(' '));
   canvas.style.borderColor = 'red';
@@ -74,12 +30,14 @@ var abort = function() {
   throw 'abort';
 }
 
+let hasFocus = true;
 document.addEventListener("visibilitychange", function() {
   if (document.visibilityState === 'visible') {
     document.title = 'active';
+    hasFocus = true;
   } else {
     document.title = 'paused';
-    running = false;
+    hasFocus = false;
     spu.silence();
   }
 });
@@ -87,61 +45,106 @@ document.addEventListener("visibilitychange", function() {
 var context = window.context= {
   timeStamp: 0,
   realtime: 0,
-  emutime: 0
+  emutime: 0,
+  jstime: 0
 };
+
+const psx = {
+  clock: 0,
+  events:[],
+  eventClock: 0,
+  //  r0: 0,  r1:0,  r2: 0,  r3:0,  r4: 0,  r5:0,  r6: 0,  r7:0,
+  //  r8: 0,  r9:0, r10: 0, r11:0, r12: 0, r13:0, r14: 0, r15:0,
+  // r16: 0, r17:0, r18: 0, r19:0, r20: 0, r21:0, r22: 0, r23:0,
+  // r24: 0, r25:0, r26: 0, r27:0, r28: 0, r29:0, r30: 0, r31:0,
+}
+
+psx.addEvent = (clocks, cb) => {
+  const event = {active: true, clock: psx.clock + clocks, cb};
+  if (psx.eventClock > event.clock) {
+    psx.eventClock = event.clock;
+  }
+  psx.events.push(event);
+  return event;
+}
+
+psx.updateEvent = (event, clocks) => {
+  event.active = true;
+  event.clock = psx.clock + clocks;
+  if (psx.eventClock > event.clock) {
+    psx.eventClock = event.clock;
+  }
+  return event;
+}
+
+psx.handleEvents = () => {
+  let eventClock = Number.MAX_SAFE_INTEGER;
+
+  for (let i = 0, l = psx.events.length; i < l; ++i) {
+    const event = psx.events[i];
+    if (!event.active) continue;
+
+    if (psx.clock >= event.clock) {
+      event.cb(event, psx.clock);
+    }
+    if (event.clock < eventClock && event.active) {
+      eventClock = event.clock;
+    }
+  }
+
+  psx.eventClock = eventClock;
+}
+
+Object.seal(psx);
+
+psx.addEvent(0, spu.event.bind(spu));
+psx.addEvent(0, gpu.event.bind(gpu));
+dma.eventDMA0 = psx.addEvent(0, dma.completeDMA0.bind(dma));
+dma.eventDMA1 = psx.addEvent(0, dma.completeDMA1.bind(dma));
+dma.eventDMA2 = psx.addEvent(0, dma.completeDMA2.bind(dma));
+dma.eventDMA3 = psx.addEvent(0, dma.completeDMA3.bind(dma));
+dma.eventDMA4 = psx.addEvent(0, dma.completeDMA4.bind(dma));
+dma.eventDMA6 = psx.addEvent(0, dma.completeDMA6.bind(dma));
+cdr.eventRead = psx.addEvent(0, cdr.completeRead.bind(cdr));
+cdr.eventCmd = psx.addEvent(0, cdr.completeCmd.bind(cdr));
+joy.eventIRQ = psx.addEvent(0, joy.completeIRQ.bind(joy));
+mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
+
+// pulls rootcounters into eventloop to optimise mainloop
+psx.addEvent(CYCLES_PER_BLOCK, update);
+
+const calls = new Uint32Array(1024);
+calls.fill(0);
+let callIdx = 0;
 
 function mainLoop(stamp) {
   window.requestAnimationFrame(mainLoop);
   const delta = stamp - context.timeStamp;
   context.timeStamp = stamp;
-  if (!running || delta > 50) return;
+  if (!running || !hasFocus || delta > 200) return;
 
   context.realtime += delta;
 
   let diffTime = context.emutime - context.realtime;
-  let timeToEmulate = 10.0 - diffTime;
+  const timeToEmulate = 10.0 - diffTime;
 
-  if (timeToEmulate > 50.0) {
-   console.debug(timeToEmulate);
-   timeToEmulate = 50.0;
-  }
-  
-  let totalCycles = timeToEmulate * (768*44.100);
-  let block = 0;
-  const mmu = map;
-  while (totalCycles > 0) {
-    let pc = cpu.pc & 0x01ffffff;
-    let lutIndex = (pc < 0x800000) ?  (pc & 0x1fffff) >>> 2 : pc >>> 2;
+  const totalCycles = psx.clock + timeToEmulate * (768*44.100);
+  let jstime = performance.now();
+  while (psx.clock < totalCycles) {
+    const block = recompile(cpu.pc >>> 0);
+    block.called++;
+    block.code();
 
-    let dynamic = cache[lutIndex];
-    if (null === dynamic) {
-      dynamic = compileBlock(cpu.pc);
-      cache[lutIndex] = dynamic;
+    if (psx.clock >= psx.eventClock) {
+      psx.handleEvents();
+      cpuInterrupt();
     }
-
-    let cycles = dynamic(mmu, cpu, gte);
-    totalCycles -= cycles;
-    block += cycles;
-
-    while (block >= CYCLES_PER_BLOCK) {
-      // statsCycles -= CYCLES_PER_BLOCK;
-      // if (statsCycles <= 0) {
-      //   statsCycles += 33868800;
-      //   console.debug('stats');
-      //   console.debug(`- #fps: ${(gpu.frame / (cpu.totalCycles / 33868800)).toFixed(2)}`);
-      //   console.debug(`- #ints: ${statInts}`);
-      //   statInts = 0;
-      // }
-      cpu.totalCycles += CYCLES_PER_BLOCK;
-      block -= CYCLES_PER_BLOCK;
-      update(CYCLES_PER_BLOCK);
-    }
-
-    //- do interrupts here incase after an rfe interrupts are still inpending
-    statInts += cpuInterrupt() ? 1 : 0;
   }
-
-  context.emutime += timeToEmulate;
+  jstime = performance.now() - jstime;
+  context.jstime += jstime;
+  // correct the emulation time accourding to the psx.clock
+  context.emutime =  psx.clock / (768*44.100);
+  // console.log(context.jstime/context.emutime);
 }
 
 function bios() {
@@ -149,13 +152,10 @@ function bios() {
   cpu.pc = 0xbfc00000;
 
   while ((cpu.pc|0) !== (0x80030000|0)) {
-    var block = recompile(cpu.pc);
-    block(map, cpu, gte);
-    if (cpu.cycles >= 33868800) {
-      abort('takes too long');
-    }
+    const block = recompile(cpu.pc >>> 0);
+    block.called++;
+    block.code();
   }
-  setTimeout(() => {audioCtx.resume()}, 500);
 }
 
 var openFile = function(file) {
@@ -171,8 +171,7 @@ var openFile = function(file) {
   reader.readAsArrayBuffer(file);
 }
 
-var loadFileData = function(arrayBuffer) {
-
+function loadFileData(arrayBuffer) {
   if ((arrayBuffer.byteLength & 3) !== 0) {
     var copy = new Uint8Array(arrayBuffer);
     var data = new Uint32Array(((copy.length + 3) & ~3) >> 2);
@@ -184,11 +183,13 @@ var loadFileData = function(arrayBuffer) {
     var data = new Uint32Array(arrayBuffer);
   }
 
+  const view8 = new Int8Array(data.buffer);
+
   if ((data[0] & 0xffff) === 0x5350) { // PS
     cpu.pc = data.getInt32(0x10);
     cpu.gpr[28] = data.getInt32(0x14);
-    cpu.gpr[29] = data.getInt32(0x30);
-    cpu.gpr[30] = data.getInt32(0x30);
+    // cpu.gpr[29] = data.getInt32(0x30);
+    // cpu.gpr[30] = data.getInt32(0x30);
     cpu.gpr[31] = cpu.pc;
     console.log('init-pc  : $', hex(cpu.pc >>> 0));
     console.log('init-gp  : $', hex(cpu.gpr[28] >>> 0));
@@ -200,10 +201,15 @@ var loadFileData = function(arrayBuffer) {
     console.log('data-addr: $', hex(data.getInt32(0x20) >>> 0));
     console.log('data-size: $', hex(data.getInt32(0x24) >>> 0));
 
+    // for (let i = 0; i < 0x40;i+=4) {
+    //   console.log(hex(data.getInt32(i) >>> 0))
+    // }
+
     var textSegmentOffset = data.getInt32(0x18);
     var fileContentLength = data.getInt32(0x1C);
     for (var i = 0; i < fileContentLength; ++i) {
-      map.setInt8(textSegmentOffset & 0x1FFFFF, data.getInt8(0x800 + i));
+      map8[(textSegmentOffset & 0x001fffff) >>> 0] = view8[(0x800 + i) >>> 0];
+      // map.setInt8(textSegmentOffset & 0x1FFFFF, data.getInt8(0x800 + i));
       textSegmentOffset++;
     }
     running = true;
@@ -281,7 +287,9 @@ var loadFileData = function(arrayBuffer) {
     const base64text = Base64.encode(arrayBuffer);
     localStorage.setItem('bios', base64text);
     for (var i = 0; i < 0x00080000; i += 4) {
-      map.setInt32(0x01c00000 + i, data.getInt32(i));
+      map[(0x01c00000 + i) >>> 2] = data[i >>> 2];
+      // map[(0x01c00000 + i) >>> 2] = data.getInt32(i);
+      // map.setInt32(0x01c00000 + i, data.getInt32(i));
     }
     bios();
     let header = document.querySelector('span.nobios');
@@ -330,118 +338,65 @@ function init() {
     }
   });
 
-  if (!joy.devices) {
-    window.addEventListener("keydown", function(e) {
-      if (e.keyCode === 69) { /*  [^]  */ joy.pad0hi &= ~0x10; return; }
-      if (e.keyCode === 68) { /*  [O]  */ joy.pad0hi &= ~0x20; return; }
-      if (e.keyCode === 88) { /*  [X]  */ joy.pad0hi &= ~0x40; return; }
-      if (e.keyCode === 83) { /*  [#]  */ joy.pad0hi &= ~0x80; return; }
+  window.addEventListener("keydown", function(e) {
+    if (e.keyCode === 69) { /*  [^]  */ joy.devices[0].hi &= ~0x10; return; }
+    if (e.keyCode === 68) { /*  [O]  */ joy.devices[0].hi &= ~0x20; return; }
+    if (e.keyCode === 88) { /*  [X]  */ joy.devices[0].hi &= ~0x40; return; }
+    if (e.keyCode === 83) { /*  [#]  */ joy.devices[0].hi &= ~0x80; return; }
 
-      if (e.keyCode === 81) { /*  [L2] */ joy.pad0hi &= ~0x01; return; }
-      if (e.keyCode === 84) { /*  [R2] */ joy.pad0hi &= ~0x02; return; }
-      if (e.keyCode === 87) { /*  [L1] */ joy.pad0hi &= ~0x04; return; }
-      if (e.keyCode === 82) { /*  [R1] */ joy.pad0hi &= ~0x08; return; }
+    if (e.keyCode === 81) { /*  [L2] */ joy.devices[0].hi &= ~0x01; return; }
+    if (e.keyCode === 84) { /*  [R2] */ joy.devices[0].hi &= ~0x02; return; }
+    if (e.keyCode === 87) { /*  [L1] */ joy.devices[0].hi &= ~0x04; return; }
+    if (e.keyCode === 82) { /*  [R1] */ joy.devices[0].hi &= ~0x08; return; }
 
-      if (e.keyCode === 38) { /*  [u]  */ joy.pad0lo &= ~0x10; return; }
-      if (e.keyCode === 39) { /*  [r]  */ joy.pad0lo &= ~0x20; return; }
-      if (e.keyCode === 40) { /*  [d]  */ joy.pad0lo &= ~0x40; return; }
-      if (e.keyCode === 37) { /*  [l]  */ joy.pad0lo &= ~0x80; return; }
+    if (e.keyCode === 38) { /*  [u]  */ joy.devices[0].lo &= ~0x10; return; }
+    if (e.keyCode === 39) { /*  [r]  */ joy.devices[0].lo &= ~0x20; return; }
+    if (e.keyCode === 40) { /*  [d]  */ joy.devices[0].lo &= ~0x40; return; }
+    if (e.keyCode === 37) { /*  [l]  */ joy.devices[0].lo &= ~0x80; return; }
 
-      if (e.keyCode === 32) { /*  sel  */ joy.pad0lo &= ~0x01; return; }
-      if (e.keyCode === 13) { /* start */ joy.pad0lo &= ~0x08; return; }
-      if (e.keyCode === 122) return; //f11
-      if (e.keyCode === 123) return; //f12
-      if (e.keyCode === 116) return; //f5
+    if (e.keyCode === 32) { /*  sel  */ joy.devices[0].lo &= ~0x01; return; }
+    if (e.keyCode === 13) { /* start */ joy.devices[0].lo &= ~0x08; return; }
+    if (e.keyCode === 122) return; //f11
+    if (e.keyCode === 123) return; //f12
+    if (e.keyCode === 116) return; //f5
+    e.preventDefault();
+  }, false);
 
-      e.preventDefault();
-    }, false);
+  window.addEventListener("keyup", function(e) {
+    if (e.keyCode === 69) { /*  [^]  */ joy.devices[0].hi |= 0x10; }
+    if (e.keyCode === 68) { /*  [O]  */ joy.devices[0].hi |= 0x20; }
+    if (e.keyCode === 88) { /*  [X]  */ joy.devices[0].hi |= 0x40; }
+    if (e.keyCode === 83) { /*  [#]  */ joy.devices[0].hi |= 0x80; }
 
-    window.addEventListener("keyup", function(e) {
-      if (e.keyCode === 69) { /*  [^]  */ joy.pad0hi |= 0x10; return; }
-      if (e.keyCode === 68) { /*  [O]  */ joy.pad0hi |= 0x20; return; }
-      if (e.keyCode === 88) { /*  [X]  */ joy.pad0hi |= 0x40; return; }
-      if (e.keyCode === 83) { /*  [#]  */ joy.pad0hi |= 0x80; return; }
+    if (e.keyCode === 81) { /*  [L2] */ joy.devices[0].hi |= 0x01; }
+    if (e.keyCode === 84) { /*  [R2] */ joy.devices[0].hi |= 0x02; }
+    if (e.keyCode === 87) { /*  [L1] */ joy.devices[0].hi |= 0x04; }
+    if (e.keyCode === 82) { /*  [R1] */ joy.devices[0].hi |= 0x08; }
 
-      if (e.keyCode === 81) { /*  [L2] */ joy.pad0hi |= 0x01; return; }
-      if (e.keyCode === 84) { /*  [R2] */ joy.pad0hi |= 0x02; return; }
-      if (e.keyCode === 87) { /*  [L1] */ joy.pad0hi |= 0x04; return; }
-      if (e.keyCode === 82) { /*  [R1] */ joy.pad0hi |= 0x08; return; }
+    if (e.keyCode === 38) { /*  [u]  */ joy.devices[0].lo |= 0x10; }
+    if (e.keyCode === 39) { /*  [r]  */ joy.devices[0].lo |= 0x20; }
+    if (e.keyCode === 40) { /*  [d]  */ joy.devices[0].lo |= 0x40; }
+    if (e.keyCode === 37) { /*  [l]  */ joy.devices[0].lo |= 0x80; }
 
-      if (e.keyCode === 38) { /*  [u]  */ joy.pad0lo |= 0x10; return; }
-      if (e.keyCode === 39) { /*  [r]  */ joy.pad0lo |= 0x20; return; }
-      if (e.keyCode === 40) { /*  [d]  */ joy.pad0lo |= 0x40; return; }
-      if (e.keyCode === 37) { /*  [l]  */ joy.pad0lo |= 0x80; return; }
+    if (e.keyCode === 32) { /*  sel  */ joy.devices[0].lo |= 0x01; }
+    if (e.keyCode === 13) { /* start */ joy.devices[0].lo |= 0x08; }
 
-      if (e.keyCode === 32) { /*  sel  */ joy.pad0lo |= 0x01; return; }
-      if (e.keyCode === 13) { /* start */ joy.pad0lo |= 0x08; return; }
+    if (e.keyCode === 122) return;
+    if (e.keyCode === 123) return; //f12
+    if (e.keyCode === 116) return; //f5
 
-      if (e.keyCode === 122) return;
-      if (e.keyCode === 123) return; //f12
-      if (e.keyCode === 116) return; //f5
-      e.preventDefault();
-    }, false);
-  }
-  else {
-    window.addEventListener("keydown", function(e) {
-      if (e.keyCode === 69) { /*  [^]  */ joy.devices[0].hi &= ~0x10; return; }
-      if (e.keyCode === 68) { /*  [O]  */ joy.devices[0].hi &= ~0x20; return; }
-      if (e.keyCode === 88) { /*  [X]  */ joy.devices[0].hi &= ~0x40; return; }
-      if (e.keyCode === 83) { /*  [#]  */ joy.devices[0].hi &= ~0x80; return; }
+    if (e.key === 'F1' && e.ctrlKey) renderer.setMode('disp');
+    if (e.key === 'F2' && e.ctrlKey) renderer.setMode('vram');
 
-      if (e.keyCode === 81) { /*  [L2] */ joy.devices[0].hi &= ~0x01; return; }
-      if (e.keyCode === 84) { /*  [R2] */ joy.devices[0].hi &= ~0x02; return; }
-      if (e.keyCode === 87) { /*  [L1] */ joy.devices[0].hi &= ~0x04; return; }
-      if (e.keyCode === 82) { /*  [R1] */ joy.devices[0].hi &= ~0x08; return; }
-
-      if (e.keyCode === 38) { /*  [u]  */ joy.devices[0].lo &= ~0x10; return; }
-      if (e.keyCode === 39) { /*  [r]  */ joy.devices[0].lo &= ~0x20; return; }
-      if (e.keyCode === 40) { /*  [d]  */ joy.devices[0].lo &= ~0x40; return; }
-      if (e.keyCode === 37) { /*  [l]  */ joy.devices[0].lo &= ~0x80; return; }
-
-      if (e.keyCode === 32) { /*  sel  */ joy.devices[0].lo &= ~0x01; return; }
-      if (e.keyCode === 13) { /* start */ joy.devices[0].lo &= ~0x08; return; }
-      if (e.keyCode === 122) return; //f11
-      if (e.keyCode === 123) return; //f12
-      if (e.keyCode === 116) return; //f5
-      e.preventDefault();
-    }, false);
-
-    window.addEventListener("keyup", function(e) {
-      if (e.keyCode === 69) { /*  [^]  */ joy.devices[0].hi |= 0x10; }
-      if (e.keyCode === 68) { /*  [O]  */ joy.devices[0].hi |= 0x20; }
-      if (e.keyCode === 88) { /*  [X]  */ joy.devices[0].hi |= 0x40; }
-      if (e.keyCode === 83) { /*  [#]  */ joy.devices[0].hi |= 0x80; }
-
-      if (e.keyCode === 81) { /*  [L2] */ joy.devices[0].hi |= 0x01; }
-      if (e.keyCode === 84) { /*  [R2] */ joy.devices[0].hi |= 0x02; }
-      if (e.keyCode === 87) { /*  [L1] */ joy.devices[0].hi |= 0x04; }
-      if (e.keyCode === 82) { /*  [R1] */ joy.devices[0].hi |= 0x08; }
-
-      if (e.keyCode === 38) { /*  [u]  */ joy.devices[0].lo |= 0x10; }
-      if (e.keyCode === 39) { /*  [r]  */ joy.devices[0].lo |= 0x20; }
-      if (e.keyCode === 40) { /*  [d]  */ joy.devices[0].lo |= 0x40; }
-      if (e.keyCode === 37) { /*  [l]  */ joy.devices[0].lo |= 0x80; }
-
-      if (e.keyCode === 32) { /*  sel  */ joy.devices[0].lo |= 0x01; }
-      if (e.keyCode === 13) { /* start */ joy.devices[0].lo |= 0x08; }
-
-      if (e.keyCode === 122) return;
-      if (e.keyCode === 123) return; //f12
-      if (e.keyCode === 116) return; //f5
-
-      if (e.key === 'F1' && e.ctrlKey) renderer.setMode('disp');
-      if (e.key === 'F2' && e.ctrlKey) renderer.setMode('vram');
-
-      console.log(e)
-      e.preventDefault();
-    }, false);
-  }
+    e.preventDefault();
+  }, false);
 
   readStorageStream('bios', data => {
     if (data) {
       let data32 = new Uint32Array(data);
       for (var i = 0; i < 0x80000; i+=4) {
-        map.setInt32(0x01c00000 + i, data32[i>>2]);
+        map[(0x01c00000 + i) >>> 2] = data32[i >>> 2];
+        // map.setInt32(0x01c00000 + i, data32[i>>2]);
       }
       let header = document.querySelector('span.nobios');
       if (header) {

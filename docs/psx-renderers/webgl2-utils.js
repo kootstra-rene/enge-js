@@ -108,7 +108,7 @@ const utils = (function () {
   }
 
   function createVertexBuffer() {
-    let buffer = new Uint32Array(36*256)// // 4.5 Kb, 192 vertices vertices, 64 triangles
+    let buffer = new Uint32Array(18*1024 >> 2)// // 18.0 Kb, 768 vertices vertices, 256 triangles
     buffer.index = 0;
 
     buffer.addDisplayVertex = function(x, y, u, v) {
