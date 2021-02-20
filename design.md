@@ -34,6 +34,7 @@ At the moment of writing this the emulator runs at roughly 50% capacity on my la
 |  **psx.clock += 30;** |} |
 |  **cpu.pc = pc;** ||
 |}||
+
 One can clearly see the 'constant folding' at work producing writes to known memory locations and setting of registers with constants. Though one would expect that this has a huge improvement, it effect is limitted because most of the game code just isn't using a lot of constants.
 ### Analysis of current recompiler
 Running the profiler on 'Crash Bash' for roughly 485 seconds of emulation time we get the following results when sorting on Total Time:
@@ -48,6 +49,7 @@ Running the profiler on 'Crash Bash' for roughly 485 seconds of emulation time w
 | 816.3ms 0.19% | 4333.8ms 1.00% | dyn80153580 |
 | 1135.5ms 0.26% | 3417.1ms 0.79% | dyn80153350 |
 | 2368.2ms 0.55% | 2881.1ms 0.66% | dyn80177228 |
+
 *psx.handleEvents* contains the logic to handle all timing related events. *mainLoop* is called every '*requestAnimationFrame*' and runs the emulation process. It calls the recompiled functions as long as the emulation time matches the 'host' time. The *dynXXXXXXXX* functions are the recompiled pieces of PSX code.  The table clearly shows that most of the time is spent in the *mainLoop* and *psx.handleEvents*.  The conclusion that we can take here is that the recompiled PSX code is not the bottleneck and that the most logical improvement should be in **mainLoop** as 'the Self Time' is over 25%.
 
 Looking at the mainLoop internals most of the time is spent in the following piece of code:
@@ -73,6 +75,7 @@ I decided to let the emulator run for a longer time and see which recompiled fun
 |dyn80048FD0|8970389532|
 |dyn80010614|725471469|
 |dyn80019540|659256048|
+
 This means that the top 3 functions account for 78.8% of the invocations. The definition of these functions are respectively:
 
 ```JavaScript
@@ -138,14 +141,15 @@ Looking at the code we see 2 interesting properties of the functions:
 - *dyn800322D4* jumps to *dyn8003228C* and vice versa.
 If we can optimise the these two conditions in the recompiler we have the largest impact on performance of the emulator. But this is just for one game so lets check another.
 
-Running 'Legend of Mana' for roughly 3 minutes we get **789995231** invocations that is an average of 8 cycles per block.
+Running 'Legend of Mana' for roughly 3 minutes we get **789995231** invocations that is an average of 8 cycles per block.  
 | Function | Invocations |
-|----------|-------------|
+|:--------:|:-----------:|
 |dyn8001FEA8|350993336|
 |dyn80020734|46018725|
 |dyn800206EC|46014609|
 |dyn800191AC|20435345|
 |dyn80019240|20370641|
+
 This means that the top 3 functions account for 56.1% of the invocations. The definition of these functions are respectively:
 
 ```JavaScript
