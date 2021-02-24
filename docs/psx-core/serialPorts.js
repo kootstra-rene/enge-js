@@ -232,7 +232,7 @@ var joy = {
     this.data = data & 0xff;
 
     if (!last) {
-      psx.updateEvent(this.eventIRQ, (this.baud * 8) >>> 0);
+      psx.setEvent(this.eventIRQ, (this.baud * 8) >>> 0);
     }
   },
 

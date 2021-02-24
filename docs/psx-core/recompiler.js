@@ -1,68 +1,65 @@
 'use strict';
 
-var createFunction = function(pc, code) {
-  //return new Function("map", "cpu", "gte", code.replace(/[\r\n]/g, '\n  '));
-  var generator = new Function("return function dyn" + hex(pc).toUpperCase() + "(){ \n  " + code.replace(/[\r\n]/g, '\n  ') + "\n}");
+var createFunction = function(pc, code, rec) {
+  const lines = [
+    rec.branchTarget ? `  const jump = getCacheEntry(0x${hex(rec.branchTarget)});` : '',
+    rec.pc ? `  const next = getCacheEntry(0x${hex(rec.pc)});\n` : '',
+    "  return function $" + hex(pc).toUpperCase() + "() { \n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
+  ];
+  var generator = new Function(lines.join('\n'));
   return generator();
 }
 
 var rec = {
   'compile02' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
-                  return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': j       $' + hex(jmp) + '\n' +
-                         'var pc = 0x' + hex(jmp);
+                  rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
+                  return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': j       $' + hex(rec.branchTarget) + '\n' +
+                         // 'var pc = 0x' + hex(rec.branchTarget) + ';\n' + 
+                         'target = jump;';
                 },
 
   'compile03' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
-                  return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jal     $' + hex(jmp) + '\n' +
-                         'var pc = 0x' + hex(jmp) + '\n' +
+                  rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
+                  return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jal     $' + hex(rec.branchTarget) + '\n' +
+                         'target = jump;\n' + 
                          rec.reg(31) + ' = 0x' + hex(rec.pc + 8);
                 },
 
   'compile04' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': beq     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' === ' + rec.getRT() + ') ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';';
+                         'target = (' + rec.getRS() + ' === ' + rec.getRT() + ') ? jump : next;';
                 },
 
   'compile05' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bne     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' !== ' + rec.getRT() + ') ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';';
+                         'target = (' + rec.getRS() + ' !== ' + rec.getRT() + ') ? jump : next;';
                 },
 
   'compile06' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': blez    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' <= 0) ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';';
+                         'target = (' + rec.getRS() + ' <= 0) ? jump : next;';
                 },
 
   'compile07' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgtz    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' > 0) ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';';
+                         'target = (' + rec.getRS() + ' > 0) ? jump : next;';
                 },
 
   'compile08' : function (rec, opc) { var mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    let value = ((opc << 16) >> 16) + rec.getConstRS();
-                    return rec.setReg(mips, rec.rt, value, true);
-                  }
                   return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
                 },
 
   'compile09' : function (rec, opc) { var mips = 'addiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    let value = ((opc << 16) >> 16) + rec.getConstRS();
-                    return rec.setReg(mips, rec.rt, value, true);
-                  }
                   return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
                 },
 
@@ -75,10 +72,6 @@ var rec = {
                 },
 
   'compile0C' : function (rec, opc) { var mips = 'andi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    let value = ((opc << 16) >>> 16) & rec.getConstRS();
-                    return rec.setReg(mips, rec.rt, value, true);
-                  }
                   return rec.setReg(mips, rec.rt, rec.getRS() + ' & 0x' + hex(opc, 4));
                 },
 
@@ -91,10 +84,6 @@ var rec = {
                 },
 
   'compile0E' : function (rec, opc) { var mips = 'xori    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    let value = ((opc << 16) >>> 16) ^ rec.getConstRS();
-                    return rec.setReg(mips, rec.rt, value, true);
-                  }
                   return rec.setReg(mips, rec.rt, rec.getRS() + ' ^ 0x' + hex(opc, 4));
                 },
 
@@ -103,22 +92,10 @@ var rec = {
                 },
 
   'compile20' : function (rec, opc) { var mips = 'lb      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-                  // if (rec.isConstRS()) {
-                  //   let offset = (((opc << 16) >> 16) + rec.getConstRS()) & 0x01ffffff;
-                  //   if (offset < 0x0080000) {
-                  //     return rec.setReg(mips, rec.rt, `map8[0x${hex(offset >> 0)}] >> 0`);
-                  //   }
-                  // }
                   return rec.setReg(mips, rec.rt, '(memRead8(' + rec.getOF(opc) + ') << 24) >> 24');
                 },
 
   'compile21' : function (rec, opc) { var mips = 'lh      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-                  // if (rec.isConstRS()) {
-                  //   let offset = (((opc << 16) >> 16) + rec.getConstRS()) & 0x01ffffff;
-                  //   if (offset < 0x0080000) {
-                  //     return rec.setReg(mips, rec.rt, `map16[0x${hex(offset >> 1)}] >> 0`);
-                  //   }
-                  // }
                   return rec.setReg(mips, rec.rt, '(memRead16 (' + rec.getOF(opc) + ') << 16) >> 16');
                 },
 
@@ -129,32 +106,14 @@ var rec = {
                 },
 
   'compile23' : function (rec, opc) { var mips = 'lw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-                  // if (rec.isConstRS()) {
-                  //   let offset = (((opc << 16) >> 16) + rec.getConstRS()) & 0x01ffffff;
-                  //   if (offset < 0x0080000) {
-                  //     return rec.setReg(mips, rec.rt, `map[0x${hex(offset >> 2)}] >> 0`);
-                  //   }
-                  // }
                   return rec.setReg(mips, rec.rt, 'memRead32(' + rec.getOF(opc) + ') >> 0');
                 },
 
   'compile24' : function (rec, opc) { var mips = 'lbu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-                  // if (rec.isConstRS()) {
-                  //   let offset = (((opc << 16) >> 16) + rec.getConstRS()) & 0x01ffffff;
-                  //   if (offset < 0x0080000) {
-                  //     return rec.setReg(mips, rec.rt, `(map8[0x${hex(offset >> 0)}] & 0xff) >> 0`);
-                  //   }
-                  // }
                   return rec.setReg(mips, rec.rt, 'memRead8(' + rec.getOF(opc) + ') & 0xff');
                 },
 
   'compile25' : function (rec, opc) { var mips = 'lhu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-                  // if (rec.isConstRS()) {
-                  //   let offset = (((opc << 16) >> 16) + rec.getConstRS()) & 0x01ffffff;
-                  //   if (offset < 0x0080000) {
-                  //     return rec.setReg(mips, rec.rt, `(map16[0x${hex(offset >> 1)}] & 0xffff) >> 0`);
-                  //   }
-                  // }
                   return rec.setReg(mips, rec.rt, 'memRead16(' + rec.getOF(opc) + ') & 0xffff');
                 },
 
@@ -227,28 +186,28 @@ var rec = {
   'compile48' : function (rec, opc) {
                   rec.stop = true;
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jr      r' + rec.rs + '\n' +
-                         'var pc = ' + rec.getRS() + ';';
+                         'target = getCacheEntry(' + rec.getRS() + ');';
                 },
 
   'compile49' : function (rec, opc) {
                   rec.stop = true;
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jalr    r' + rec.rs + ', r' + rec.rd + '\n' +
                          rec.reg(rec.rd) + ' = 0x' + hex(rec.pc + 8) + '\n' +
-                         'var pc = ' + rec.getRS() + ';';
+                         'target = getCacheEntry(' + rec.getRS() + ');';
                 },
 
   'compile4C' : function (rec, opc) {
                   rec.stop = true;
                   rec.syscall = true;
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': syscall\n' +
-                         'cpuException(8 << 2, 0x' + hex(rec.pc) + ');';
+                         'target = cpuException(8 << 2, 0x' + hex(rec.pc) + ');';
                 },
 
   'compile4D' : function (rec, opc) {
                   rec.stop = true;
                   rec.break = true;
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': break\n' +
-                         'cpuException(9 << 2, 0x' + hex(rec.pc) + ');';
+                         'target = cpuException(9 << 2, 0x' + hex(rec.pc) + ');';
                 },
 
   'compile50' : function (rec, opc) { var mips = 'mfhi     r' + rec.rd;
@@ -296,66 +255,34 @@ var rec = {
                 },
 
   'compile60' : function (rec, opc) { var mips = 'add     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = rec.getConstRS() + rec.getConstRT();
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, rec.getRS() + ' + ' + rec.getRT());
                 },
 
   'compile61' : function (rec, opc) { var mips = 'addu    r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = rec.getConstRS() + rec.getConstRT();
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, rec.getRS() + ' + ' + rec.getRT());
                 },
 
   'compile62' : function (rec, opc) { var mips = 'sub     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = rec.getConstRS() - rec.getConstRT();
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, rec.getRS() + ' - ' + rec.getRT());
                 },
 
   'compile63' : function (rec, opc) { var mips = 'subu    r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = rec.getConstRS() - rec.getConstRT();
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, rec.getRS() + ' - ' + rec.getRT());
                 },
 
   'compile64' : function (rec, opc) { var mips = 'and     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = rec.getConstRS() & rec.getConstRT();
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, rec.getRS() + ' & ' + rec.getRT());
                 },
 
   'compile65' : function (rec, opc) { var mips = 'or      r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = rec.getConstRS() | rec.getConstRT();
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, rec.getRS() + ' | ' + rec.getRT());
                 },
 
   'compile66' : function (rec, opc) { var mips = 'xor     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = rec.getConstRS() ^ rec.getConstRT();
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, rec.getRS() + ' ^ ' + rec.getRT());
                 },
 
   'compile67' : function (rec, opc) { var mips = 'nor     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  if (rec.isConstRS() && rec.isConstRT()) {
-                    let value = ~(rec.getConstRS() | rec.getConstRT());
-                    return rec.setReg(mips, rec.rd, value, true);
-                  }
                   return rec.setReg(mips, rec.rd, '~(' + rec.getRS() + ' | ' + rec.getRT() + ')');
                 },
 
@@ -369,31 +296,31 @@ var rec = {
 
   'compile80' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bltz    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' < 0) ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';';
+                         'target = (' + rec.getRS() + ' < 0) ? jump : next;';
                 },
 
   'compile81' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgez    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' >= 0) ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';';
+                         'target = (' + rec.getRS() + ' >= 0) ? jump : next;';
                 },
 
   'compile90' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bltzal  r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' < 0) ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';' +
+                         'target = (' + rec.getRS() + ' < 0) ? jump : next;\n' + 
                          rec.reg(31) + ' = 0x' + hex(rec.pc + 8) + '\n';
                 },
 
   'compile91' : function (rec, opc) {
                   rec.stop = true;
-                  var jmp = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+                  rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgezal  r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'var pc = (' + rec.getRS() + ' >= 0) ? 0x' + hex(jmp) + ' : 0x' + hex(rec.pc + 8) + ';' +
+                         'target = (' + rec.getRS() + ' >= 0) ? jump : next;\n' + 
                          rec.reg(31) + ' = 0x' + hex(rec.pc + 8) + '\n';
                 },
 
@@ -405,17 +332,19 @@ var rec = {
                   if (rec.rd === 12) { // cause requires special handling
                     rec.stop = true;
                     rec.cause = true;
+                    rec.branchTarget = rec.pc + 8;
                     return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
                            'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');\n' + 
-                           'var pc = 0x' + hex(rec.pc + 8) + ';';
+                           'target = jump;';
                   }
                   else
                   if (rec.rd === 13) { // sr requires special handling
                     rec.stop = true;
                     rec.sr = true;
+                    rec.branchTarget = rec.pc + 4;
                     return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
                            'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');\n' + 
-                           'var pc = 0x' + hex(rec.pc + 4) + ';';
+                           'target = jump;';
                   }
                   else {
                     return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
@@ -493,7 +422,7 @@ var compileInstruction = function(state, lines) {
     console.log(compiler);
     console.log(lines.join('\n'));
     console.log(e);
-    // abort('compileInstruction');
+    abort('compileInstruction');
   }
 }
 
@@ -511,6 +440,7 @@ var state = {
   'const' : new Uint8Array(32),
   'cdata' : new Int32Array(32),
   entry: null,
+  branchTarget: 0,
 
   reg: function(r) {
     return r ? 'gpr[' + r + ']' : '0';
@@ -540,15 +470,11 @@ var state = {
   getConstRS: function() {
     return this.cdata[this.rs];
   },
-  isConstRT: function() {
-    return this.const[this.rt];
-  },
-  getConstRT: function() {
-    return this.cdata[this.rt];
-  },
   setReg: function(mips, nr, value, isconst) {
     const iword = map[(this.pc & 0x01ffffff) >>> 2];
-    var command =  '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
+    let command =  '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
+
+    // isconst = false;
 
     if (nr) {
       this.const[nr] = 0;
@@ -558,12 +484,12 @@ var state = {
       }
     }
     if (!isconst) {
-     command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + value + ';');
-
+      command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + value + ';');
     }
     return command;
   },
   clear: function() {
+    this.branchTarget = 0;
     this.stop = false;
     this.break = false;
     this.syscall = false;
@@ -575,6 +501,17 @@ var state = {
     this.const[0] = 1;
   }
 };
+
+const hleIDLE = [
+  '// ........: 8fa20010: lw      r2, $0010(r29)',
+  '// ........: 00000000: nop',
+  '// ........: 2442ffff: addiu   r2, r2, $ffff',
+  '// ........: afa20010: sw      r2, $0010(r29)',
+  '// ........: 8fa20010: lw      r2, $0010(r29)',
+  '// ........: 00000000: nop',
+  'let addr = ((16 + gpr[29]) & 0x001fffff) >> 2;',
+  'gpr[2] = (map[addr] = map[addr] - 1) >> 0;',
+];
 
 function compileBlock(pc, entry) {
   state.clear();
@@ -588,22 +525,34 @@ function compileBlock(pc, entry) {
     state.cycles += 1;
     state.pc += 4;
 
-    if (!state.stop && state.cycles >= CYCLES_PER_BLOCK) {
-      lines.push('var pc = 0x' + hex(state.pc) + ';');
-      console.log('large function at $'+pc.toString(16)+' with '+state.cycles);
-      break;
-    }
+    // if (!state.stop && state.cycles >= 32) {
+    //   lines.push('var pc = 0x' + hex(state.pc) + ';');
+    //   console.log('large function at $'+pc.toString(16)+' with '+state.cycles);
+    //   break;
+    // }
   }
 
   if (state.stop && (!state.break && !state.syscall && !state.sr)) {
     compileInstruction(state, lines);
     state.cycles += 1;
+    state.pc += 4;
+  }
+
+  // check for idle loop
+  if ((lines[0].indexOf('8fa20010: lw') !== -1) 
+   && (lines[1].indexOf('00000000: nop') !== -1)
+   && (lines[2].indexOf('2442ffff: addiu') !== -1)
+   && (lines[3].indexOf('afa20010: sw') !== -1)
+   && (lines[4].indexOf('8fa20010: lw') !== -1)
+   && (lines[5].indexOf('00000000: nop') !== -1)) {
+    console.warn('idle loop detected');
+    lines.splice(0, 6, ...hleIDLE);
+    state.cycles += 11;
   }
 
   if (pc === 0xa0 || pc === 0xb0 || pc === 0xc0) {
     lines.unshift(`trace(${pc}, gpr[9]);`);
   }
-  lines.unshift('const gpr = cpu.gpr;');
 
   let hasConstants = false;
   for (let i = 1; i < 32; ++i) {
@@ -612,14 +561,23 @@ function compileBlock(pc, entry) {
         lines.push('// flush constants');
         hasConstants = true;
       }
-      lines.push(`gpr[${i}] = 0x${hex(state.cdata[i])};`)
+      lines.push(`gpr[${i}] = (0x${hex(state.cdata[i])} >> 0);`)
     }
   }
 
   var cycles = state.cycles;
   lines.push('psx.clock += ' + cycles + ';');
-  if (!state.break && !state.syscall) lines.push('cpu.pc = pc;');
-  return createFunction(pc, lines.filter(a => a).join('\n'));
+
+  if (state.branchTarget === (pc >>> 0)) {
+    lines.unshift(`target = jump;\nwhile ((target === jump) && (psx.clock < psx.eventClock)) {`);
+    lines.push('}');
+  }
+
+  lines.unshift('const gpr = cpu.gpr; let target = null;');
+  // lines.push('if (!target.pc) debugger;');
+  lines.push('return target;');
+
+  return createFunction(pc, lines.filter(a => a).join('\n'), state);
 }
 
 Object.seal(state);

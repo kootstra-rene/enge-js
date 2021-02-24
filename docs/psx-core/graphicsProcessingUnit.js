@@ -73,6 +73,19 @@ var gpu = {
     }
   },
 
+  cyclesToDotClock: function(cycles) {
+    switch ((gpu.status >> 16) & 7) {
+      case 0: return (cycles*11/7/10) >> 0;
+      case 1: return (cycles*11/7/7) >> 0;
+      case 2: return (cycles*11/7/8) >> 0;
+      case 3: return (cycles*11/7/7) >> 0;
+      case 4: return (cycles*11/7/5) >> 0;
+      case 5: return (cycles*11/7/7) >> 0;
+      case 6: return (cycles*11/7/4) >> 0;
+      case 7: return (cycles*11/7/7) >> 0;
+    }
+  },
+
   getDisplayArea: function() {
     if ((gpu.status >> 20) & 1) {
       var t = gpu.dispT % 256;  var b = Math.min(gpu.dispB, 314);
@@ -94,11 +107,7 @@ var gpu = {
     return {x:gpu.dispX, y:gpu.dispY, w:width, h:height};
   },
 
-  event: function (self, clock) {
-    const linesPerSecond = ((gpu.status >> 20) & 1) ? 15625 : 15733;
-    const cyclesPerLine = 33868800 / linesPerSecond;
-    self.clock += cyclesPerLine;
-
+  onScanLine: function () {
     let interlaced = gpu.status & (1 << 22);
 	  let PAL = ((gpu.status >> 20) & 1) ? true : false;
     let vsync = PAL ? 313 : 263;
@@ -125,10 +134,8 @@ var gpu = {
         gpu.status &= 0x7fffffff;
       }
     }
-    rc1.onHBlank();
     if (gpu.hline === vblankbegin) {
       renderer.onVBlankBegin();
-      rc1.onVBlankEnd();
       gpu.status &= 0x7fffffff;
     }
     if (gpu.hline === vblankend) {
@@ -563,6 +570,8 @@ var gpu = {
     let words = 0;
     for(;;) {
       addr = addr & 0x001fffff;
+      // if (check[addr] === sequence) return;
+      // check[addr] = sequence;
       var header = map[addr >> 2];
       var nitem = header >>> 24;
       var nnext = header & 0x00ffffff;

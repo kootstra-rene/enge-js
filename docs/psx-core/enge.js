@@ -201,35 +201,35 @@ var cpu = {
   }
 };
 
-const cache = new Array(0x02000000 >> 2);
-cache.fill(null);
+const cache = new Map();
+// cache.fill(null);
+
+const vector = getCacheEntry(0x80000080);
 
 function cpuException(id, pc) {
   cpu.sr    = (cpu.sr & ~0x3F) | ((cpu.sr << 2) & 0x3F);
   cpu.cause = (cpu.cause & ~0x7C) | id;
   cpu.epc   = pc;
   //console.error(hex(cpu.pc));
-  cpu.pc    = 0x80000080;// & 0x01ffffff;
+  return vector;
 }
 
-function cpuInterrupt() {
+function cpuInterrupt(entry) {
   if ((cpu.sr & 1) === 1) {
     let ip = cpu.cause & 0x300;
     let im = cpu.sr & 0x300;
     if ((ip & im) !== 0) {
-      cpuException((ip & im), cpu.pc);
-      return true;
+      return cpuException((ip & im), entry.pc);
     }
     else
     if ((cpu.sr & 0x400) === 0x400) {
       if (cpu.istat & cpu.imask) {
         // log('cpuInterrupt:', hex(cpu.istat & cpu.imask));
-        cpuException(0x400, cpu.pc);
-        return true;
+        return cpuException(0x400, entry.pc);
       }
     }
   }
-  return false;
+  return entry;
 }
 
 function getCacheIndex(pc) {
@@ -239,44 +239,26 @@ function getCacheIndex(pc) {
 }
 
 function clearCodeCache(addr, size) {
-  addr = addr & 0x01ffffff;
-  const base = (addr < 0x800000) ?  (addr & 0x1fffff) >>> 2 : addr >>> 2;
-  const words = !size ? 1 >>> 0 : size >>> 2;
+  const words = !size ? 4 >>> 0 : size >>> 0;
 
-  for (let i = 0 >>> 0; i < words; ++i) {
-    const block = cache[base + i];
-    if (block) {
-      // console.warn(`cache-clean: $${((base + i) << 2).toString(16)}`);
-      block.code = null;
-    }
+  for (let i = 0 >>> 0; i < words; i += 4) {
+    const lutIndex = getCacheIndex((addr >>> 0) + i);
+    let entry = cache.get(lutIndex);
+    if (entry) entry.code = null;
   }
 }
 
-function recompile(pc) {
+function getCacheEntry(pc) {
   const lutIndex = getCacheIndex(pc);
-  let entry = cache[lutIndex];
+  let entry = cache.get(lutIndex);
 
   if (!entry) {
-    entry = cache[lutIndex] = {
-      called: 0,
-      loop: false,
-      pc: hex(pc),
+    cache.set(lutIndex, entry = {
+      pc: pc >>> 0,
+      addr: hex(pc),
       code: null,
-    };
-  }
-  if (!entry.code) {
-    entry.code = compileBlock(pc, entry);
-    entry.called = 0;
+    });
+    Object.seal(entry);
   }
   return entry;
-}
-
-const CYCLES_PER_BLOCK = 128; // ~4 us
-
-function update(self, clock) {
-  self.clock += CYCLES_PER_BLOCK;
-
-  rc0.advance(CYCLES_PER_BLOCK);
-  rc1.advance(CYCLES_PER_BLOCK);
-  rc2.advance(CYCLES_PER_BLOCK);
 }

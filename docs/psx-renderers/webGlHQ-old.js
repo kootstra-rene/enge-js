@@ -270,6 +270,9 @@ function WebGLRenderer(canvas) {
   this.displaymode = 2
   this.vram = new Uint16Array(512*1024)
 
+  this.vertexClip = false;
+  this.drawAreaChange = false;
+
   try {
     this.gl = canvas.getContext("webgl", {
       alpha: false, 
@@ -432,9 +435,12 @@ WebGLRenderer.prototype.initTextures = function() {
     return
   }
 
+  const buf = new Uint8Array(2048*512*4);
+  buf.fill(0);
+
   // 8-bit video ram
   this.tex8vram = this.createTexture();
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
   this.buf8vram = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf8vram);
@@ -444,7 +450,7 @@ WebGLRenderer.prototype.initTextures = function() {
 
   // Drawing
   this.tex16draw = this.createTexture(gl.NEAREST);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, qwidth, qheight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, qwidth, qheight, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
   this.buf16draw = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
@@ -452,7 +458,7 @@ WebGLRenderer.prototype.initTextures = function() {
 
   // Colour Mapping
   this.tex16rgba = this.createTexture();
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
   this.buf16rgba = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16rgba);
@@ -735,14 +741,18 @@ WebGLRenderer.prototype.flushVertexBuffer = function(clip) {
 
   gl.bindTexture(gl.TEXTURE_2D, this.tex16rgba);
 
-  gl.enable(gl.SCISSOR_TEST);
-  if (clip) {
-    let dah = (this.drawAreaB - this.drawAreaT + 1) * qhf;
-    let dat = this.drawAreaT * qhf;
-    gl.scissor(this.drawAreaL*qwf, dat, (this.drawAreaR-this.drawAreaL+1)*qwf, dah);
+  if (this.vertexClip !== clip || !clip || this.drawAreaChange) {
+    gl.enable(gl.SCISSOR_TEST);
+    if (clip) {
+      let dah = (this.drawAreaB - this.drawAreaT + 1) * qhf;
+      let dat = this.drawAreaT * qhf;
+      gl.scissor(this.drawAreaL*qwf, dat, (this.drawAreaR-this.drawAreaL+1)*qwf, dah);
+    }
+    else
+      gl.scissor(0, 0, 1024*qwf, 512*qhf);
+
+    this.vertexClip = clip;
   }
-  else
-    gl.scissor(0, 0, 1024*qwf, 512*qhf);
 
 
   var drawBuffer = this.vertexBuffer.view();//.subarray(0, this.vertexBuffer.index / 4);
@@ -1080,13 +1090,14 @@ WebGLRenderer.prototype.setDrawAreaOF = function(x, y) {
 
 WebGLRenderer.prototype.setDrawAreaTL = function(x, y) {
   this.flushVertexBuffer(true);
+  this.drawAreaChange = true;
   this.drawAreaT = y;
   this.drawAreaL = x;
 }
 
 WebGLRenderer.prototype.setDrawAreaBR = function(x, y) {
   this.flushVertexBuffer(true);
-
+  this.drawAreaChange = true;
   this.drawAreaB = y;
   this.drawAreaR = x;
 }

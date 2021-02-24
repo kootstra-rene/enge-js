@@ -770,16 +770,12 @@ for (var i = 0; i <= 31; ++i) {
   gte.flag[i] = (1 << i);
 }
 
-let bit31flag = 0;
 for (var i = 23; i <= 30; ++i) {
-  bit31flag |= gte.flag[i];
   gte.flag[i] |= 0x80000000;
 }
 
 for (var i = 13; i <= 18; ++i) {
-  bit31flag |= gte.flag[i];
   gte.flag[i] |= 0x80000000;
 }
 
-console.log(hex(bit31flag))
 Object.seal(gte);

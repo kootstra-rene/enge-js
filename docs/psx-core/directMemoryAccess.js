@@ -116,7 +116,7 @@ const dma = {
         default:  abort('mdi-ctrl:'+hex(ctrl));
       }
 
-      psx.updateEvent(this.eventDMA0, ((transferSize * 0x110) / 0x100) >>> 0);
+      psx.setEvent(this.eventDMA0, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma0 not enabled');
@@ -138,7 +138,7 @@ const dma = {
         default:  abort('mdo-ctrl:'+hex(ctrl));
       }
 
-      psx.updateEvent(this.eventDMA1, ((transferSize * 0x110) / 0x100) >>> 0);
+      psx.setEvent(this.eventDMA1, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma1 not enabled');
@@ -152,6 +152,7 @@ const dma = {
       let transferSize = 10;
 
       switch (ctrl) {
+        case 0x00000000:  break;
         case 0x00000401:  break;
         case 0x01000200:  transferSize = gpu.dmaTransferMode0200(this.r10a0, this.r10a4) || 10;
                           this.r10a0 += transferSize << 2;
@@ -166,7 +167,7 @@ const dma = {
         default:  abort('gpu-ctrl:'+hex(ctrl));
       }
 
-      psx.updateEvent(this.eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
+      psx.setEvent(this.eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma2 not enabled');
@@ -189,7 +190,7 @@ const dma = {
         default:  abort('cd-ctrl:'+hex(ctrl));
       }
 
-      psx.updateEvent(this.eventDMA3, ((transferSize * 0x2800) / 0x100) >>> 0);
+      psx.setEvent(this.eventDMA3, ((transferSize * 0x2800) / 0x100) >>> 0);
     }
     else {
       console.log('dma3 not enabled');
@@ -215,7 +216,7 @@ const dma = {
         default:  abort('spu-ctrl:'+hex(ctrl));
       }
 
-      psx.updateEvent(this.eventDMA4, ((transferSize * 0x420) / 0x100) >>> 0);
+      psx.setEvent(this.eventDMA4, ((transferSize * 0x420) / 0x100) >>> 0);
     }
     else {
       console.log('dma4 not enabled');
@@ -238,7 +239,7 @@ const dma = {
         default:  abort('otc-ctrl:'+hex(ctrl));
       }
 
-      psx.updateEvent(this.eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
+      psx.setEvent(this.eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       console.log('dma6 not enabled');

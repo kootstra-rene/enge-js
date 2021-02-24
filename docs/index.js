@@ -69,15 +69,26 @@ psx.addEvent = (clocks, cb) => {
 }
 
 psx.updateEvent = (event, clocks) => {
+  event.clock += clocks;
   event.active = true;
-  event.clock = psx.clock + clocks;
+
   if (psx.eventClock > event.clock) {
     psx.eventClock = event.clock;
   }
   return event;
 }
 
-psx.handleEvents = () => {
+psx.setEvent = (event, clocks) => {
+  event.clock = psx.clock + clocks;
+  event.active = true;
+
+  if (psx.eventClock > event.clock) {
+    psx.eventClock = event.clock;
+  }
+  return event;
+}
+
+psx.handleEvents = (entry) => {
   let eventClock = Number.MAX_SAFE_INTEGER;
 
   for (let i = 0, l = psx.events.length; i < l; ++i) {
@@ -93,12 +104,13 @@ psx.handleEvents = () => {
   }
 
   psx.eventClock = eventClock;
+
+  return cpuInterrupt(entry);
 }
 
 Object.seal(psx);
 
 psx.addEvent(0, spu.event.bind(spu));
-psx.addEvent(0, gpu.event.bind(gpu));
 dma.eventDMA0 = psx.addEvent(0, dma.completeDMA0.bind(dma));
 dma.eventDMA1 = psx.addEvent(0, dma.completeDMA1.bind(dma));
 dma.eventDMA2 = psx.addEvent(0, dma.completeDMA2.bind(dma));
@@ -109,9 +121,13 @@ cdr.eventRead = psx.addEvent(0, cdr.completeRead.bind(cdr));
 cdr.eventCmd = psx.addEvent(0, cdr.completeCmd.bind(cdr));
 joy.eventIRQ = psx.addEvent(0, joy.completeIRQ.bind(joy));
 mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
+dot.event = psx.addEvent(0, dot.complete.bind(dot));
 
 // pulls rootcounters into eventloop to optimise mainloop
-psx.addEvent(CYCLES_PER_BLOCK, update);
+rc0.event = psx.addEvent(0, rc0.complete.bind(rc0));
+rc1.event = psx.addEvent(0, rc1.complete.bind(rc1));
+rc2.event = psx.addEvent(0, rc2.complete.bind(rc2));
+
 
 const calls = new Uint32Array(1024);
 calls.fill(0);
@@ -130,16 +146,20 @@ function mainLoop(stamp) {
 
   const totalCycles = psx.clock + timeToEmulate * (768*44.100);
   let jstime = performance.now();
-  while (psx.clock < totalCycles) {
-    const block = recompile(cpu.pc >>> 0);
-    block.called++;
-    block.code();
 
-    if (psx.clock >= psx.eventClock) {
-      psx.handleEvents();
-      cpuInterrupt();
+  let entry = getCacheEntry(cpu.pc);
+
+  while (psx.clock < totalCycles) {
+    while (psx.clock < psx.eventClock) {
+      if (!entry.code) {
+        entry.code = compileBlock(entry.pc, entry);
+      }
+      entry = entry.code();
     }
+    entry = psx.handleEvents(entry);
   }
+  cpu.pc = entry.pc;
+
   jstime = performance.now() - jstime;
   context.jstime += jstime;
   // correct the emulation time accourding to the psx.clock
@@ -149,13 +169,22 @@ function mainLoop(stamp) {
 
 function bios() {
   running = false;
-  cpu.pc = 0xbfc00000;
 
-  while ((cpu.pc|0) !== (0x80030000|0)) {
-    const block = recompile(cpu.pc >>> 0);
-    block.called++;
-    block.code();
+  let entry = getCacheEntry(0xbfc00000);
+  while (entry.pc !== 0x80030000) {
+    if (!entry.code) {
+      entry.code = compileBlock(entry.pc, entry);
+    }
+    let next = entry.code();
+    if(!next) debugger;
+    entry = next;
+
+    if (psx.clock >= psx.eventClock) {
+      entry = psx.handleEvents(entry);
+    }
   }
+
+  cpu.pc = entry.pc;
 }
 
 var openFile = function(file) {

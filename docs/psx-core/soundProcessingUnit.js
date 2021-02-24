@@ -1,23 +1,32 @@
 (function() {
 
+const frameCount = 44100 >> 2;
 'use strict';
 
 var BLOCKSIZE = (28 * 0x1000) >>> 0;
 
-var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-audioCtx.suspend();
-var frameCount = audioCtx.sampleRate >> 2; // 250ms
-var myArrayBuffer = audioCtx.createBuffer(2, frameCount, audioCtx.sampleRate);
-var source = audioCtx.createBufferSource();
-source.buffer = myArrayBuffer;
-source.connect(audioCtx.destination);
-source.loop = true;
-source.playbackRate.value = 44100 / audioCtx.sampleRate;
-source.$started = false;
-//source.start(0);
+const AudioContext = window.AudioContext || window.webkitAudioContext; 
 
-var left = myArrayBuffer.getChannelData(0)
-var right = myArrayBuffer.getChannelData(1)
+var left;
+var right;
+
+function init() {
+  var audioCtx = new AudioContext();
+  // audioCtx.suspend();
+  var myArrayBuffer = audioCtx.createBuffer(2, frameCount, audioCtx.sampleRate);
+  var source = audioCtx.createBufferSource();
+  source.buffer = myArrayBuffer;
+  source.connect(audioCtx.destination);
+  source.loop = true;
+  source.playbackRate.value = 44100 / audioCtx.sampleRate;
+  source.$started = false;
+  // source.start(0);
+  window.source = source;
+  window.audioCtx = audioCtx;
+
+  left = myArrayBuffer.getChannelData(0)
+  right = myArrayBuffer.getChannelData(1)
+}
 
 var spu = {
   totalSamples: 0,
@@ -44,8 +53,10 @@ var spu = {
   reverbOffset: 0,
 
   silence: function() {
-    for (var i = 0; i < frameCount; ++i) {
-      left[i] = right[i] = 0.0;
+    if (left && right) {
+      for (var i = 0; i < frameCount; ++i) {
+        left[i] = right[i] = 0.0;
+      }
     }
   },
 
@@ -156,7 +167,8 @@ var spu = {
       case 0x1dac:  //this.trace('ram-transfer-control', '$'+hex(data, 4))
                     break
       case 0x1daa:  this.SPUCNT = data;
-                    if (!source.$started && this.SPUCNT & 0x8000) {
+                    if ((!left || !right) && this.SPUCNT & 0x8000) {
+                      init();
                       source.$started = true;
                       audioCtx.resume();
                       source.start(0);
@@ -270,10 +282,12 @@ var spu = {
   },
 
   event: function (self, clock) {
-    self.clock += (33868800 / 44100);
+    psx.updateEvent(self, (33868800 / 44100));
 
     this.SPUSTAT &= ~(0x003F);
     this.SPUSTAT |= (this.SPUSTATm & 0x003F);
+
+    if (!left || !right) return;
 
     let l = 0, r = 0;
 
@@ -687,7 +701,6 @@ function InitADSR() {
 InitADSR();
 
 window.spu = spu;
-window.audioCtx = audioCtx;
 window.xa2flt = xa2flt;
 window.xa2pcm = xa2pcm;
 })();

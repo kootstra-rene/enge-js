@@ -188,7 +188,7 @@ var cdr = {
       default:  abort('unimplemented command: $' + hex(data, 2));
     }
 
-    psx.updateEvent(this.eventCmd, nevtctrl >>> 0);
+    psx.setEvent(this.eventCmd, nevtctrl >>> 0);
   },
 
   setIrq: function(data) {
@@ -209,10 +209,10 @@ var cdr = {
   eventCmd: null,
   completeCmd: function(self, clock) {
     self.active = false;
-    // if (cdr.irq & 0x1F) {
-    //     cdr.nevtctrl += cycles;
-    //     return;
-    // }
+    if (cdr.irq & 0x1F) {
+      psx.setEvent(this.eventCmd, 64);
+      return;
+    }
     const readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
 
     var currentCommand = cdr.ncmdctrl;
@@ -246,12 +246,12 @@ var cdr = {
                     cdr.currLoc = cdr.seekLoc = cdr.currTrack.begin + 150;
                     console.log(`CdlPlay: ${btoi(cdr.params[0])} : ${cdr.currLoc}`)
                   }
-                  psx.updateEvent(this.eventRead, readCycles >>> 0);
+                  psx.setEvent(this.eventRead, readCycles >>> 0);
                   cdr.ncmdread = 0x03;
                   this.enqueueEvent(3, 0x82);
                   break;
 
-      case 0x06:  psx.updateEvent(this.eventRead, readCycles >>> 0);
+      case 0x06:  psx.setEvent(this.eventRead, readCycles >>> 0);
                   cdr.ncmdread = 0x06;
                   this.enqueueEvent(3, 0x42);
                   cdr.currLoc = cdr.seekLoc;
@@ -266,7 +266,7 @@ var cdr = {
                   break;
 
       case 0x08:  this.enqueueEvent(3, 0x02);
-                  psx.updateEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x18a6076 : 0xd38aca) >>> 0);
+                  psx.setEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x18a6076 : 0xd38aca) >>> 0);
                   cdr.ncmdctrl = 0x80;
                   cdr.status |= 0x80;
                   break;
@@ -274,7 +274,7 @@ var cdr = {
                   break;
 
       case 0x09:  cdr.results.push(cdr.statusCode | 0x20); // reading data sectors
-                  psx.updateEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0);
+                  psx.setEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0);
                   cdr.ncmdctrl = 0x90;
                   cdr.status |= 0x80;
                   cdr.status |= 0x20;
@@ -288,7 +288,7 @@ var cdr = {
                   break;
 
       case 0x0A:  this.enqueueEvent(3, 0x02);
-                  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+                  psx.setEvent(this.eventCmd, 0x1000 >>> 0);
                   cdr.ncmdctrl = 0xA0;
                   cdr.status |= 0x80;
                   break;
@@ -382,7 +382,7 @@ var cdr = {
                   cdr.setIrq(3);
                 } break;
 
-      case 0x15:  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+      case 0x15:  psx.setEvent(this.eventCmd, 0x1000 >>> 0);
                   cdr.ncmdctrl = 0x150;
                   this.enqueueEvent(3, 0x42); // SEEKING
                   cdr.status |= 0x80;
@@ -391,7 +391,7 @@ var cdr = {
                   cdr.currLoc = cdr.seekLoc;
                   break;
 
-      case 0x16:  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+      case 0x16:  psx.setEvent(this.eventCmd, 0x1000 >>> 0);
                   cdr.ncmdctrl = 0x160;
                   this.enqueueEvent(3, 0x42); // SEEKING
                   cdr.status |= 0x80;
@@ -409,7 +409,7 @@ var cdr = {
                   cdr.setIrq(3);
                   break;
 
-      case 0x1A:  psx.updateEvent(this.eventCmd, 0x4a00 >>> 0);
+      case 0x1A:  psx.setEvent(this.eventCmd, 0x4a00 >>> 0);
                   cdr.results.push(cdr.statusCode);
                   cdr.ncmdctrl = 0x1A0;
                   cdr.status |= 0x20;
@@ -452,18 +452,17 @@ var cdr = {
                   // cdr.setIrq(5);
                   break;
 
-      case 0x1B:  psx.updateEvent(this.eventRead, readCycles >>> 0);
+      case 0x1B:  psx.setEvent(this.eventRead, readCycles >>> 0);
                   cdr.ncmdread = 0x1B;
                   this.enqueueEvent(3, 0x42);
                   cdr.currLoc = cdr.seekLoc;
                   break;
 
-      case 0x1E:  psx.updateEvent(this.eventCmd, 0x1000 >>> 0);
+      case 0x1E:  psx.setEvent(this.eventCmd, 0x1000 >>> 0);
                   cdr.ncmdctrl = 0x1E0;
                   this.enqueueEvent(3, 0x02);
                   break;
       case 0x1E0: this.enqueueEvent(2, 0x02);
-      se
                   break;
 
       default:  abort('unimplemented async command: $' + hex(cdr.ncmdctrl, 2));
@@ -474,10 +473,10 @@ var cdr = {
 
   eventRead: null,
   completeRead: function (self, clock) {
-    // if (cdr.irq & 0x1F) {
-    //     cdr.nevtread += cycles;
-    //     return;
-    // }
+    if (cdr.irq & 0x1F) {
+      psx.updateEvent(self, 64);
+      return;
+    }
 
     var readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
     switch (cdr.ncmdread) {
@@ -516,7 +515,7 @@ var cdr = {
                       } break;
                     }
                     cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
-                    self.clock += readCycles;
+                    psx.updateEvent(self, readCycles);
                     cdr.currLoc++;
                     break;
                   }
@@ -527,7 +526,7 @@ var cdr = {
                   cdr.status |= 0x20;
                   cdr.setIrq(1);
                   cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
-                  self.clock += readCycles;
+                  psx.updateEvent(self, readCycles);
                   cdr.currLoc++;
                   break;
 

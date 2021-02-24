@@ -2,7 +2,7 @@
 
 var video = {
 
-  iq: new Int32Array(64*4),
+  iq: new Int32Array(128),
   scale: new Uint8Array(3*256),
 
   zscan: [
@@ -35,10 +35,10 @@ var video = {
     this.iq.fill(0);
   },
 
-  iqtab_init: function(tab, addr, size) {
+  iqtab_init: function(addr, size) {
     for (let i = 0; i < size; ++i) {
       let q = map8[((addr + i) & 0x001fffff) >>> 0] & 0xff;
-      tab[i] = (q * this.aanscales[ this.zscan[i] ]) >> 12;
+      this.iq[i] = (q * this.aanscales[ this.zscan[i & 63] ]) >> 12;
     }
   },
 
@@ -122,6 +122,7 @@ var video = {
     let base = (addr & 0x001fffff) >>> 1;
 
     for (let i = 0; i < 6; i++) {
+      const iqoff = i >= 2 ? 0 : 64;
       const o = 64 * i;
 
       let rl = map16[base++] & 0xffff;
@@ -129,18 +130,18 @@ var video = {
       let k = 0;
       const q = rl >> 10;
       let dc = ((rl << 22) >> 22);
-      blk[o] = iqtab[0] * dc;
+      blk[o] = iqtab[iqoff] * dc;
 
       for (;;) {
         let rl = map16[base++] & 0xffff;
 
-        if (rl === 0xfe00) break;
-        k += ((rl >> 10) + 1); 
-        if (k >= 64) break;
-
-        let dc = ((rl << 22) >> 22);
-        let val = (iqtab[k] * q * dc) >> 3;
-        blk[o + this.zscan[k]] = val;
+        k += ((rl >> 10) + 1);
+        if (k <= 63) {
+          let dc = ((rl << 22) >> 22);
+          let val = (iqtab[iqoff + k] * q * dc) >> 3;
+          blk[o + this.zscan[k]] = val;
+        }
+        if (k >= 63) break;
       }
 
       this.icdt(blk, o);
@@ -283,7 +284,6 @@ var mdc = {
   },
 
   wr32r1820: function(data) {
-    // console.log('wr32r1820:', hex(data));
     mdc.r1820 = data;
   },
 
@@ -292,7 +292,7 @@ var mdc = {
   },
 
   wr32r1824: function(data) {
-    // console.log('wr32r1824:', hex(data));
+    console.log('wr32r1824:', hex(data));
 
     if (data & 0x80000000) {
       mdc.r1820 = 0;
@@ -314,11 +314,16 @@ var mdc = {
         break;
 
       case 0x2:
-        video.iqtab_init(video.iq, addr, transferSize << 2);
+        console.log("[mdec-in] quant table:", hex(mdc.r1820), transferSize << 2);
+        video.iqtab_init(addr, transferSize << 2);
+        if (mdc.r1820 !== 0x40000001) return abort('unsupported quant mode');
         break;
 
       case 0x3:
-        console.log("[mdec-in] scale table: NYI");
+        console.log("[mdec-in] scale table: NYI", transferSize << 2);
+        // for (let i = 0; i < transferSize; ++i) {
+        //   console.log(hex(addr+(i << 2)), ':', hex(map[(addr >> 2) + i]));
+        // }
         break;
 
       default:
@@ -356,7 +361,6 @@ var mdc = {
                 break;
       }
       decodedMacroBlocks += 6;
-      // addr += blockSize;
     }
 
     let decodingCyclesRemaining = (numberOfWords * 0x110) / 0x100;
@@ -367,7 +371,7 @@ var mdc = {
       decodingCyclesRemaining += ((33868800 / 6000) * decodedMacroBlocks);
     }
 
-    psx.updateEvent(this.event, decodingCyclesRemaining >>> 0);
+    psx.setEvent(this.event, decodingCyclesRemaining >>> 0);
     return numberOfWords;
   },
 
