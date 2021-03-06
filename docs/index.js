@@ -351,7 +351,7 @@ function handleFileSelect(evt) {
   evt.stopPropagation();
   evt.preventDefault();
 
-  var fileList = evt.dataTransfer.files;
+  var fileList = evt.dataTransfer?.files || evt.target.files;
 
   var output = [];
   for (var i = 0, f; f = fileList[i]; i++) {
@@ -370,6 +370,7 @@ function init() {
 
   document.addEventListener('dragover', handleDragOver, false);
   document.addEventListener('drop', handleFileSelect, false);
+  file_loader.addEventListener('change', handleFileSelect, false);
 
   mainLoop(performance.now());
 
