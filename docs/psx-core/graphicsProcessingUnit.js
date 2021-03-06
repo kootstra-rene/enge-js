@@ -45,7 +45,7 @@ var gpu = {
   img       : {w:0,h:0,x:0,y:0,index:0,pixelCount:0,buffer:new Uint16Array(1024*512)},
   info      : new Uint32Array(16),
   maxheights: [240,480,256,512],
-  maxwidths : [256,384,320,384,512,384,640,384],
+  maxwidths : [256,368,320,368,512,368,640,368],
   packetSize: 0,
   result    : 2,
   status    : 0x14802000,
@@ -59,30 +59,16 @@ var gpu = {
   widths    : [10,7,8,7,5,7,4,7],
   frame     : 0,
 
-  getDotClock: function() {
-    const PAL = ((gpu.status >> 20) & 1) ? true : false;
-    switch ((gpu.status >> 16) & 7) {
-      case 0: return PAL ?  5320343 :  5369329;
-      case 1: return PAL ?  7600490 :  7670470;
-      case 2: return PAL ?  6650428 :  6711661;
-      case 3: return PAL ?  7600490 :  7670470;
-      case 4: return PAL ? 10640686 : 10738658;
-      case 5: return PAL ?  7600490 :  7670470;
-      case 6: return PAL ? 13300857 : 13423323;
-      case 7: return PAL ?  7600490 :  7670470;
-    }
-  },
-
   cyclesToDotClock: function(cycles) {
     switch ((gpu.status >> 16) & 7) {
-      case 0: return (cycles*11/7/10) >> 0;
-      case 1: return (cycles*11/7/7) >> 0;
-      case 2: return (cycles*11/7/8) >> 0;
-      case 3: return (cycles*11/7/7) >> 0;
-      case 4: return (cycles*11/7/5) >> 0;
-      case 5: return (cycles*11/7/7) >> 0;
-      case 6: return (cycles*11/7/4) >> 0;
-      case 7: return (cycles*11/7/7) >> 0;
+      case 0: return +(cycles * 11.0 / 7.0 / 10.0);
+      case 1: return +(cycles * 11.0 / 7.0 /  7.0);
+      case 2: return +(cycles * 11.0 / 7.0 /  8.0);
+      case 3: return +(cycles * 11.0 / 7.0 /  7.0);
+      case 4: return +(cycles * 11.0 / 7.0 /  5.0);
+      case 5: return +(cycles * 11.0 / 7.0 /  7.0);
+      case 6: return +(cycles * 11.0 / 7.0 /  4.0);
+      case 7: return +(cycles * 11.0 / 7.0 /  7.0);
     }
   },
 
@@ -110,7 +96,7 @@ var gpu = {
   onScanLine: function () {
     let interlaced = gpu.status & (1 << 22);
 	  let PAL = ((gpu.status >> 20) & 1) ? true : false;
-    let vsync = PAL ? 313 : 263;
+    let vsync = PAL ? 314 : 263;
     let halfheight = (gpu.dispB - gpu.dispT) >> 1;
     let center = PAL ? 163 : 136;
     let vblankend = center - halfheight;

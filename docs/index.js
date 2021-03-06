@@ -50,17 +50,20 @@ var context = window.context= {
 };
 
 const psx = {
-  clock: 0,
+  clock: 0.0,
+  eventClock: 0.0,
   events:[],
-  eventClock: 0,
-  //  r0: 0,  r1:0,  r2: 0,  r3:0,  r4: 0,  r5:0,  r6: 0,  r7:0,
-  //  r8: 0,  r9:0, r10: 0, r11:0, r12: 0, r13:0, r14: 0, r15:0,
-  // r16: 0, r17:0, r18: 0, r19:0, r20: 0, r21:0, r22: 0, r23:0,
-  // r24: 0, r25:0, r26: 0, r27:0, r28: 0, r29:0, r30: 0, r31:0,
 }
 
 psx.addEvent = (clocks, cb) => {
-  const event = {active: true, clock: psx.clock + clocks, cb};
+  const event = {
+    active: true, 
+    clock: +psx.clock + +clocks,
+    start: +psx.clock,
+    cb
+  };
+  Object.seal(event);
+
   if (psx.eventClock > event.clock) {
     psx.eventClock = event.clock;
   }
@@ -69,7 +72,8 @@ psx.addEvent = (clocks, cb) => {
 }
 
 psx.updateEvent = (event, clocks) => {
-  event.clock += clocks;
+  event.start = event.clock;
+  event.clock += +clocks;
   event.active = true;
 
   if (psx.eventClock > event.clock) {
@@ -78,8 +82,18 @@ psx.updateEvent = (event, clocks) => {
   return event;
 }
 
+psx.unsetEvent = (event) => {
+  event.active = false;
+  return event;
+}
+
+psx.eventCycles = (event) => {
+  return +psx.clock - event.start;
+}
+
 psx.setEvent = (event, clocks) => {
-  event.clock = psx.clock + clocks;
+  event.clock = +psx.clock + +clocks;
+  event.start = +psx.clock;
   event.active = true;
 
   if (psx.eventClock > event.clock) {
@@ -121,17 +135,18 @@ cdr.eventRead = psx.addEvent(0, cdr.completeRead.bind(cdr));
 cdr.eventCmd = psx.addEvent(0, cdr.completeCmd.bind(cdr));
 joy.eventIRQ = psx.addEvent(0, joy.completeIRQ.bind(joy));
 mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
+
 dot.event = psx.addEvent(0, dot.complete.bind(dot));
+// rc0.event = psx.addEvent(0, rc0.complete.bind(rc0));
+// rc1.event = psx.addEvent(0, rc1.complete.bind(rc1));
+// rc2.event = psx.addEvent(0, rc2.complete.bind(rc2));
 
-// pulls rootcounters into eventloop to optimise mainloop
-rc0.event = psx.addEvent(0, rc0.complete.bind(rc0));
-rc1.event = psx.addEvent(0, rc1.complete.bind(rc1));
-rc2.event = psx.addEvent(0, rc2.complete.bind(rc2));
-
-
-const calls = new Uint32Array(1024);
-calls.fill(0);
-let callIdx = 0;
+let frameEvent = psx.addEvent(0, endMainLoop);
+let endAnimationFrame = false;
+function endMainLoop(self, clock) {
+  endAnimationFrame = true;
+  self.active = false;
+}
 
 function mainLoop(stamp) {
   window.requestAnimationFrame(mainLoop);
@@ -144,19 +159,18 @@ function mainLoop(stamp) {
   let diffTime = context.emutime - context.realtime;
   const timeToEmulate = 10.0 - diffTime;
 
-  const totalCycles = psx.clock + timeToEmulate * (768*44.100);
+  const totalCycles = timeToEmulate * (768*44.100);
   let jstime = performance.now();
 
   let entry = getCacheEntry(cpu.pc);
 
-  while (psx.clock < totalCycles) {
-    while (psx.clock < psx.eventClock) {
-      if (!entry.code) {
-        entry.code = compileBlock(entry.pc, entry);
-      }
-      entry = entry.code();
+  endAnimationFrame = false;
+  psx.setEvent(frameEvent, +totalCycles);
+  while (!endAnimationFrame) {
+    if (!entry.code) {
+      entry.code = compileBlock(entry);//.bind(null);
     }
-    entry = psx.handleEvents(entry);
+    entry = entry.code(psx);
   }
   cpu.pc = entry.pc;
 
@@ -171,18 +185,14 @@ function bios() {
   running = false;
 
   let entry = getCacheEntry(0xbfc00000);
-  while (entry.pc !== 0x80030000) {
+  const $ = psx;
+  while (entry.pc !== 0x00030000) {
     if (!entry.code) {
-      entry.code = compileBlock(entry.pc, entry);
+      entry.code = compileBlock(entry);//.bind(null);
     }
-    let next = entry.code();
-    if(!next) debugger;
-    entry = next;
-
-    if (psx.clock >= psx.eventClock) {
-      entry = psx.handleEvents(entry);
-    }
+    entry = entry.code(psx);
   }
+  context.realtime = context.emutime =  psx.clock / (768*44.100);
 
   cpu.pc = entry.pc;
 }
@@ -217,8 +227,8 @@ function loadFileData(arrayBuffer) {
   if ((data[0] & 0xffff) === 0x5350) { // PS
     cpu.pc = data.getInt32(0x10);
     cpu.gpr[28] = data.getInt32(0x14);
-    // cpu.gpr[29] = data.getInt32(0x30);
-    // cpu.gpr[30] = data.getInt32(0x30);
+    if (data.getInt32(0x30)) cpu.gpr[29] = data.getInt32(0x30);
+    if (data.getInt32(0x30)) cpu.gpr[30] = data.getInt32(0x30);
     cpu.gpr[31] = cpu.pc;
     console.log('init-pc  : $', hex(cpu.pc >>> 0));
     console.log('init-gp  : $', hex(cpu.gpr[28] >>> 0));
@@ -241,6 +251,11 @@ function loadFileData(arrayBuffer) {
       // map.setInt8(textSegmentOffset & 0x1FFFFF, data.getInt8(0x800 + i));
       textSegmentOffset++;
     }
+    // psx.addEvent(44100*768*60, (self, clock) => {
+    //   running = false;
+    //   spu.silence();
+    //   throw 'stoped';
+    // });
     running = true;
   }
   else if (data[0] === 0xffffff00) { // ISO
@@ -456,7 +471,7 @@ function trace(pc, val) {
         case 0x3d:  line += String.fromCharCode(gpr[4])
                     if (gpr[4] === 10 || gpr[4] === 13) {
                       if (line !== lastLine) {
-                        console.warn(line);
+                        console.debug(line);
                         lastLine = line;
                       }
                       line = '';

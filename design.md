@@ -207,9 +207,45 @@ function dyn800206EC(){
 ```
 
 Looking at these functions we see the same interesting properties:
-- *dyn8001FEA8* is a loop function. The branch target is the function it self.
-- *dyn80020734* jumps to *dyn800206EC* and vice versa.
+- *dyn8001FEA8* is a inner-loop function. The branch target is the function it self.
+- *dyn80020734* jumps to *dyn800206EC* and vice versa. lets call it an outer-loop function
 
 More interrestingly is the fact that the code of the non-loop functions is completely identical but just positioned at a different memory location.
 
 Running multiple games and demo's yields similar results. There is always a loop function in the top 5 and in most cases the two referring function seem to be there too. My guess would be that it is related to the missing 'halt' functionality on the PSone. The R3000A is always running and that means that somehwere it needs to loop until a change occurs. So if we would optimise this idle loop we already should see a substantial performance improvement.
+
+## Measuring during emulation
+Inline with the previous sections the code has been modified to measure the behavior in more details but also implemented the inner-loop functionality. As expected the inner-loop optimisation improved the performance in some instances especially in demos.  Secondly, the jump points are added to the recompiled function state and also the number of invocations are counted.  The analytics functionality of the previous section have been implemented and can be called after running the emulator for a while.
+
+The assumptions in the analytics part have been confirmed in many cases but are mostly effective during the actual game play and not during movie sequences.
+
+Here the results of playing Harry Potter until completing the initial Ghoul game.
+
+Running: *getCodeStats(**0**,5).map(a => \`${a.addr} - ${a.calls}\`).join()* gives us the 5 most called level 0 function addresses and the number of invocations. Clearly showing that the top 3 is responsible for most of the invocations.
+```
+800610a4 - 248833640,
+8006105c - 248813150,
+0006b5e4 - 210066480,
+8005d7b0 - 13382536,
+00010db4 - 9542646
+```
+
+Running *getCodeStats(**1**,5).map(a => \`${a.addr} - ${a.calls}\`).join()* gives us the 5 most called level 1 (inner-loop) function addresses and the number of invocations. The top function here is number #3 in the level 0 functions. Indicating that loop optimisation does improve the performance.
+```
+0006b5e4 - 210066480,
+8005d7b0 - 13382536,
+00010e74 - 6791202,
+00015844 - 2808832,
+0005b41c - 1419395
+```
+
+Running *getCodeStats(**2**,5).map(a => \`${a.addr} - ${a.calls}\`).join()* gives us the 5 most called level 2 (outer-loop) function addresses and the number of invocations. Outer loops are a recompiled functions that jump to another function and that function jumps back. The two top functions also are the top functions on level 0.
+```
+800610a4 - 248833640,
+8006105c - 248813150,
+00010db4 - 9542646,
+00010d34 - 9539271,
+00014bbc - 2674064
+```
+
+In conclusion detecting the inner-loop and outer-loop functions and optimising the compiler would possibly give a good performance improvement without refactoring to much code.

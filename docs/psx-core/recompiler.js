@@ -1,11 +1,13 @@
 'use strict';
 
-var createFunction = function(pc, code, rec) {
+var createFunction = function(pc, code, jumps) {
   const lines = [
-    rec.branchTarget ? `  const jump = getCacheEntry(0x${hex(rec.branchTarget)});` : '',
-    rec.pc ? `  const next = getCacheEntry(0x${hex(rec.pc)});\n` : '',
-    "  return function $" + hex(pc).toUpperCase() + "() { \n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
+    "  return function $" + hex(pc).toUpperCase() + "(psx) { \n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
   ];
+
+  (jumps||[]).forEach(addr => {
+    lines.unshift(`  var _${hex(addr)} = getCacheEntry(0x${hex(addr)});`);
+  })
   var generator = new Function(lines.join('\n'));
   return generator();
 }
@@ -13,17 +15,18 @@ var createFunction = function(pc, code, rec) {
 var rec = {
   'compile02' : function (rec, opc) {
                   rec.stop = true;
+                  rec.jump = true;
                   rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': j       $' + hex(rec.branchTarget) + '\n' +
-                         // 'var pc = 0x' + hex(rec.branchTarget) + ';\n' + 
-                         'target = jump;';
+                         `target = _${hex(rec.branchTarget)};`;
                 },
 
   'compile03' : function (rec, opc) {
                   rec.stop = true;
+                  rec.jump = true;
                   rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jal     $' + hex(rec.branchTarget) + '\n' +
-                         'target = jump;\n' + 
+                         `target = _${hex(rec.branchTarget)};\n` +
                          rec.reg(31) + ' = 0x' + hex(rec.pc + 8);
                 },
 
@@ -31,28 +34,28 @@ var rec = {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': beq     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' === ' + rec.getRT() + ') ? jump : next;';
+                         `target = ((${rec.getRS()} >> 0) === (${rec.getRT()} >> 0)) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
                 },
 
   'compile05' : function (rec, opc) {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bne     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' !== ' + rec.getRT() + ') ? jump : next;';
+                         `target = ((${rec.getRS()} >> 0) !== (${rec.getRT()} >> 0)) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
                 },
 
   'compile06' : function (rec, opc) {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': blez    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' <= 0) ? jump : next;';
+                         `target = ((${rec.getRS()} >> 0) <= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
                 },
 
   'compile07' : function (rec, opc) {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgtz    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' > 0) ? jump : next;';
+                         `target = ((${rec.getRS()} >> 0) > 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
                 },
 
   'compile08' : function (rec, opc) { var mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
@@ -92,10 +95,24 @@ var rec = {
                 },
 
   'compile20' : function (rec, opc) { var mips = 'lb      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+                  if (rec.isConstRS()) {
+                    const addr = rec.getConstRS() & 0x01ffffff;
+                    if (addr < 0x00800000) {
+                      rec.cycles += 5;
+                      return rec.setReg(mips, rec.rt, `map8[(${rec.getOF(opc)} & 0x001fffff) >> 0]`);
+                    }
+                  }
                   return rec.setReg(mips, rec.rt, '(memRead8(' + rec.getOF(opc) + ') << 24) >> 24');
                 },
 
   'compile21' : function (rec, opc) { var mips = 'lh      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+                  if (rec.isConstRS()) {
+                    const addr = rec.getConstRS() & 0x01ffffff;
+                    if (addr < 0x00800000) {
+                      rec.cycles += 5;
+                      return rec.setReg(mips, rec.rt, `map16[(${rec.getOF(opc)} & 0x001fffff) >> 1]`);
+                    }
+                  }
                   return rec.setReg(mips, rec.rt, '(memRead16 (' + rec.getOF(opc) + ') << 16) >> 16');
                 },
 
@@ -106,14 +123,35 @@ var rec = {
                 },
 
   'compile23' : function (rec, opc) { var mips = 'lw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-                  return rec.setReg(mips, rec.rt, 'memRead32(' + rec.getOF(opc) + ') >> 0');
+                  if (rec.isConstRS()) {
+                    const addr = rec.getConstRS() & 0x01ffffff;
+                    if (addr < 0x00800000) {
+                      rec.cycles += 5;
+                      return rec.setReg(mips, rec.rt, `map[(${rec.getOF(opc)} & 0x001fffff) >> 2]`);
+                    }
+                  }
+                  return rec.setReg(mips, rec.rt, 'memRead32(' + rec.getOF(opc) + ')');
                 },
 
   'compile24' : function (rec, opc) { var mips = 'lbu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+                  if (rec.isConstRS()) {
+                    const addr = rec.getConstRS() & 0x01ffffff;
+                    if (addr < 0x00800000) {
+                      rec.cycles += 5;
+                      return rec.setReg(mips, rec.rt, `map8[(${rec.getOF(opc)} & 0x001fffff) >> 0] & 0xff`);
+                    }
+                  }
                   return rec.setReg(mips, rec.rt, 'memRead8(' + rec.getOF(opc) + ') & 0xff');
                 },
 
   'compile25' : function (rec, opc) { var mips = 'lhu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+                  if (rec.isConstRS()) {
+                    const addr = rec.getConstRS() & 0x01ffffff;
+                    if (addr < 0x00800000) {
+                      rec.cycles += 5;
+                      return rec.setReg(mips, rec.rt, `map16[(${rec.getOF(opc)} & 0x001fffff) >> 1] & 0xffff`);
+                    }
+                  }
                   return rec.setReg(mips, rec.rt, 'memRead16(' + rec.getOF(opc) + ') & 0xffff');
                 },
 
@@ -172,25 +210,27 @@ var rec = {
                 },
 
   'compile44' : function (rec, opc) { var mips = 'sllv    r' + rec.rd + ', r' + rec.rt + ', r' + rec.rs;
-                  return rec.setReg(mips, rec.rd, rec.getRT() + ' << (' + rec.getRS() + ' & 0x1f);');
+                  return rec.setReg(mips, rec.rd, rec.getRT() + ' << (' + rec.getRS() + ' & 0x1f)');
                 },
 
   'compile46' : function (rec, opc) { var mips = 'srlv    r' + rec.rd + ', r' + rec.rt + ', r' + rec.rs;
-                  return rec.setReg(mips, rec.rd, rec.getRT() + ' >>> (' + rec.getRS() + ' & 0x1f);');
+                  return rec.setReg(mips, rec.rd, rec.getRT() + ' >>> (' + rec.getRS() + ' & 0x1f)');
                 },
 
   'compile47' : function (rec, opc) { var mips = 'srav    r' + rec.rd + ', r' + rec.rt + ', r' + rec.rs;
-                  return rec.setReg(mips, rec.rd, rec.getRT() + ' >> (' + rec.getRS() + ' & 0x1f);');
+                  return rec.setReg(mips, rec.rd, rec.getRT() + ' >> (' + rec.getRS() + ' & 0x1f)');
                 },
 
   'compile48' : function (rec, opc) {
                   rec.stop = true;
+                  rec.jump = true;
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jr      r' + rec.rs + '\n' +
                          'target = getCacheEntry(' + rec.getRS() + ');';
                 },
 
   'compile49' : function (rec, opc) {
                   rec.stop = true;
+                  rec.jump = true;
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jalr    r' + rec.rs + ', r' + rec.rd + '\n' +
                          rec.reg(rec.rd) + ' = 0x' + hex(rec.pc + 8) + '\n' +
                          'target = getCacheEntry(' + rec.getRS() + ');';
@@ -287,32 +327,32 @@ var rec = {
                 },
 
   'compile6A' : function (rec, opc) { var mips = 'slt     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  return rec.setReg(mips, rec.rd, '(' + rec.getRS() + ' >> 0) < (' + rec.getRT() + ' >> 0)');
+                  return rec.setReg(mips, rec.rd, '((' + rec.getRS() + ' >> 0) < (' + rec.getRT() + ' >> 0)) ? 1 : 0');
                 },
 
   'compile6B' : function (rec, opc) { var mips = 'sltu    r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-                  return rec.setReg(mips, rec.rd, '(' + rec.getRS() + ' >>> 0) < (' + rec.getRT() + ' >>> 0)');
+                  return rec.setReg(mips, rec.rd, '((' + rec.getRS() + ' >>> 0) < (' + rec.getRT() + ' >>> 0)) ? 1 : 0');
                 },
 
   'compile80' : function (rec, opc) {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bltz    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' < 0) ? jump : next;';
+                         `target = ((${rec.getRS()} >> 0) < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
                 },
 
   'compile81' : function (rec, opc) {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgez    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' >= 0) ? jump : next;';
+                         `target = ((${rec.getRS()} >> 0) >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
                 },
 
   'compile90' : function (rec, opc) {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bltzal  r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' < 0) ? jump : next;\n' + 
+                         `target = ((${rec.getRS()} >> 0) < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};` +
                          rec.reg(31) + ' = 0x' + hex(rec.pc + 8) + '\n';
                 },
 
@@ -320,12 +360,12 @@ var rec = {
                   rec.stop = true;
                   rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgezal  r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-                         'target = (' + rec.getRS() + ' >= 0) ? jump : next;\n' + 
+                         `target = ((${rec.getRS()} >> 0) >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};` +
                          rec.reg(31) + ' = 0x' + hex(rec.pc + 8) + '\n';
                 },
 
   'compileA0' : function (rec, opc) { var mips = 'mfc0    r' + rec.rt + ', r' + rec.rd + '\n';
-                  return rec.setReg(mips, rec.rt, 'cpu.getCtrl(' + rec.rd + ');');
+                  return rec.setReg(mips, rec.rt, 'cpu.getCtrl(' + rec.rd + ')');
                 },
 
   'compileA4' : function (rec, opc) {
@@ -335,7 +375,7 @@ var rec = {
                     rec.branchTarget = rec.pc + 8;
                     return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
                            'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');\n' + 
-                           'target = jump;';
+                           `target = _${hex(rec.branchTarget)};`;
                   }
                   else
                   if (rec.rd === 13) { // sr requires special handling
@@ -344,7 +384,7 @@ var rec = {
                     rec.branchTarget = rec.pc + 4;
                     return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
                            'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');\n' + 
-                           'target = jump;';
+                           `target = _${hex(rec.branchTarget)};`;
                   }
                   else {
                     return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
@@ -441,19 +481,20 @@ var state = {
   'cdata' : new Int32Array(32),
   entry: null,
   branchTarget: 0,
+  jump: false,
 
   reg: function(r) {
     return r ? 'gpr[' + r + ']' : '0';
   },
   getRS: function() {
     const r = this.rs;
-    if (this.const[r]) return `(0x${hex(this.cdata[r])} >> 0)`;
-    return this.reg(r);
+    if (this.const[r]) return `0x${hex(this.cdata[r])}`;
+    return `${this.reg(r)}`;
   },
   getRT: function() {
     const r = this.rt;
-    if (this.const[r]) return `(0x${hex(this.cdata[r])} >> 0)`;
-    return this.reg(r);
+    if (this.const[r]) return `0x${hex(this.cdata[r])}`;
+    return `${this.reg(r)}`;
   },
   getOF: function(opcode) {
     const offset = ((opcode << 16) >> 16);
@@ -484,12 +525,13 @@ var state = {
       }
     }
     if (!isconst) {
-      command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + value + ';');
+      command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
     }
     return command;
   },
   clear: function() {
     this.branchTarget = 0;
+    this.jump = false;
     this.stop = false;
     this.break = false;
     this.syscall = false;
@@ -513,7 +555,8 @@ const hleIDLE = [
   'gpr[2] = (map[addr] = map[addr] - 1) >> 0;',
 ];
 
-function compileBlock(pc, entry) {
+function compileBlockLines(entry) {
+  const pc = entry.pc >>> 0;
   state.clear();
   state.pc = pc;
   state.entry = entry;
@@ -525,8 +568,9 @@ function compileBlock(pc, entry) {
     state.cycles += 1;
     state.pc += 4;
 
-    // if (!state.stop && state.cycles >= 32) {
-    //   lines.push('var pc = 0x' + hex(state.pc) + ';');
+    // if (!state.stop && state.cycles >= 64) {
+    //   state.branchTarget = state.pc;
+    //   lines.push('target = jump;');
     //   console.log('large function at $'+pc.toString(16)+' with '+state.cycles);
     //   break;
     // }
@@ -561,24 +605,95 @@ function compileBlock(pc, entry) {
         lines.push('// flush constants');
         hasConstants = true;
       }
-      lines.push(`gpr[${i}] = (0x${hex(state.cdata[i])} >> 0);`)
+      lines.push(`gpr[${i}] = 0x${hex(state.cdata[i])} >> 0;`)
     }
   }
 
-  var cycles = state.cycles;
-  lines.push('psx.clock += ' + cycles + ';');
+  lines.push('++this.calls;this.clock = psx.clock;');
+  return lines;
+}
 
-  if (state.branchTarget === (pc >>> 0)) {
-    lines.unshift(`target = jump;\nwhile ((target === jump) && (psx.clock < psx.eventClock)) {`);
+function compileBlock(entry) {
+  const pc = entry.pc >>> 0;
+  let lines = compileBlockLines(entry);
+  entry.jump = getCacheEntry(state.branchTarget);
+  entry.next = getCacheEntry(state.pc);
+
+  let cycles = state.cycles;
+
+  let jumps = [
+    state.branchTarget >>> 0,
+    state.pc >>> 0
+  ];
+  let other = getCacheEntry(state.branchTarget);
+  if (other && other.pc !== pc && other.jump && other.jump.pc === pc) {
+    let otherEntry = {
+      pc: other.pc >>> 0,
+      calls: 0,
+      clock: 0,
+      addr: hex(pc),
+      code: null,
+      jump: null,
+      next: null,
+    };
+    let otherLines = compileBlockLines(otherEntry);
+    let combinedLines = [];
+    // console.log('level 2 (jump-jump)', hex(pc), hex(other.pc));
+    combinedLines.push(...lines);
+    combinedLines.push('psx.clock += ' + (cycles) + ';');
+    combinedLines.push(`if (target === _${hex(entry.next.pc)}) break;\n`);
+    combinedLines.push(...otherLines);
+    combinedLines.push('psx.clock += ' + (state.cycles) + ';');
+    combinedLines.push(`if (target === _${hex(state.pc)}) break;`);
+    combinedLines.unshift(`while(psx.clock < psx.eventClock) {`);
+    combinedLines.push('}');
+    combinedLines.push('return psx.handleEvents(target);');
+    // console.log('>', combinedLines.join('\n'));
+    lines = combinedLines;
+    jumps.push(
+      state.branchTarget >>> 0,
+      state.pc >>> 0
+    );
+  }
+  else
+  if (entry.jump.pc === (pc >>> 0)) {
+    // console.log('level 1', hex(pc));
+    lines.unshift(`while (psx.clock < psx.eventClock) {`);
+    lines.push(`if (target === _${hex(state.pc)}) break;`);
+    lines.push('psx.clock += ' + cycles + ';');
     lines.push('}');
+    lines.push('return psx.handleEvents(target);');
+  }
+  else {
+    // console.log('level 0', hex(pc));
+    lines.push('if((psx.clock += ' + cycles + ') >= psx.eventClock) {');
+    lines.push('  return psx.handleEvents(target);');
+    lines.push('}');
+    lines.push('return target;');
   }
 
-  lines.unshift('const gpr = cpu.gpr; let target = null;');
-  // lines.push('if (!target.pc) debugger;');
-  lines.push('return target;');
+  lines.unshift('const gpr = cpu.gpr; let target = this.jump;');
 
-  return createFunction(pc, lines.filter(a => a).join('\n'), state);
+
+  return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
 }
+
 
 Object.seal(state);
 Object.seal(rec);
+
+
+function getCodeStats(level, mostCalledItems) {
+  let items = [...cache.values()].filter(a => a.code).filter(a => a.clock >= (psx.clock - 10*33868800));
+  switch (level) {
+    case 0: break;
+    case 1: items = items.filter(a => a.jump === a);
+            break;
+    case 2: items = items.filter(a => a.jump !== a && a.jump.jump && a.jump.jump === a)
+            break;
+    case 3: items = items.filter(a => a.jump !== a && a.jump.jump && a.jump.jump.jump === a)
+            break;
+  }
+
+  return items.sort((a,b) => b.calls-a.calls).slice(0,mostCalledItems||10);
+}

@@ -61,7 +61,6 @@ function memRead8(addr) {
   }
 
   if ((base >= 0x01800000) && (base < 0x01803000)) {
-    psx.clock += 3;
     switch (base & 0x3fff) {
       case 0x1040:  return joy.rd08r1040();
       case 0x1044:  return (joy.rd16r1044() << 24) >> 24;
@@ -78,7 +77,6 @@ function memRead8(addr) {
       case 0x1814:  return (gpu.rd32r1814() << 24) >> 24;
       case 0x1824:  return (mdc.rd32r1824() << 24) >> 24;
       default:      if (base < 0x01801000) {
-                      psx.clock -= 3;
                       return map8[base >>> 0];
                     }
                     if (base >= 0x01802000) {
@@ -116,7 +114,6 @@ function memRead16(addr) {
     return map16[(base & 0x001fffff) >>> 1];
   }
   if ((base >= 0x01800000) && (base < 0x01803000)) {
-    psx.clock += 3;
     switch (base & 0x3fff) {
       case 0x1014:  return map16[base >>> 1];
       case 0x1044:  return joy.rd16r1044();
@@ -143,7 +140,6 @@ function memRead16(addr) {
       case 0x1814:  return (gpu.rd32r1814() << 16) >> 16;
       case 0x1824:  return (mdc.rd32r1824() << 16) >> 16;
       default:      if (base < 0x01801000) {
-                      psx.clock -= 3;
                       return map16[base >>> 1];
                     }
                     if (base >= 0x01802000) {
@@ -214,7 +210,6 @@ function hwRead32(addr) {
     case 0x1820:  return mdc.rd32r1820() >> 0;
     case 0x1824:  return mdc.rd32r1824() >> 0;
     default    :  if (addr < 0x01801000) {
-                    psx.clock -= 3;
                     return map[addr >>> 2] >> 0;
                   }
                   if (addr >= 0x01802000) {
@@ -238,7 +233,6 @@ function memRead32(addr) {
   }
 
   if ((base >= 0x01800000) && (base < 0x01803000)) {
-    psx.clock += 3;
   	return hwRead32(base) >> 0;
   }
   if (base >= 0x01A00000 && base < 0x01A80000) {

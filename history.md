@@ -6,3 +6,4 @@ history.md
 2021-02-16: added basic constant folding to recompiler  
 2021-02-20: reduced basic constant folding to offsets only  
 2021-02-23: removed pressure on mainLoop by pre-fetching branch targets in recompiled code  
+2021-02-25: started complete rewrite of root-counters

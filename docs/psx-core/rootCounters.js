@@ -27,7 +27,7 @@ let rc0 = {
   },
 
   getTarget: function(bits32) {
-    return this.r11x8 & 0xffff;
+    return this.r11x8;
   },
 
   getMode: function() {
@@ -53,7 +53,7 @@ let rc0 = {
 
   setTarget: function(bits32) {
     // console.log(hex(0x1108, 4), hex(bits32));
-    this.r11x8 = bits32 & 0xffff;
+    this.r11x8 = bits32;
   },
 
   setValue: function(bits32) {
@@ -93,7 +93,7 @@ let rc1 = {
   },
 
   getTarget: function(bits32) {
-    return this.r11x8 & 0xffff;
+    return this.r11x8;
   },
 
   getMode: function() {
@@ -123,13 +123,13 @@ let rc1 = {
 
   setTarget: function(bits32) {
     // console.log(hex(0x1118, 4), hex(bits32));
-    this.r11x8 = bits32 & 0xffff;
+    this.r11x8 = bits32;
   },
 
   setValue: function(bits32) {
     // console.log(hex(0x1110, 4), hex(bits32));
     this.clockSet = psx.clock;
-    this.r11x0 = bits32 & 0xffff;
+    this.r11x0 = bits32;
   },
 
   onScanLine: function () {
@@ -138,7 +138,7 @@ let rc1 = {
 
       if (this.r11x4 & 0x0008) {
         // reset after target
-        if (this.r11x0 > this.r11x8) {
+        if (this.r11x0 === this.r11x8) {
           if (this.r11x4 & 0x0010) { // IRQ on target
             this.r11x4 |= 0x0800;
             cpu.istat |= 0x0020;
@@ -177,7 +177,7 @@ let rc2 = {
   },
 
   getTarget: function(bits32) {
-    return this.r11x8 & 0xffff;
+    return this.r11x8;
   },
 
   getMode: function() {
@@ -203,7 +203,7 @@ let rc2 = {
 
   setTarget: function(bits32) {
     // console.log(hex(0x1128, 4), hex(bits32));
-    this.r11x8 = bits32 & 0xffff;
+    this.r11x8 = bits32;
   },
 
   setValue: function(bits32) {
@@ -216,19 +216,12 @@ let rc2 = {
 
 let dot = {
   event: null,
-  remainder: 0.0,
 
   complete: function(self, clock) {
     const videoCycles = ((gpu.status >> 20) & 1) ? 3406 : 3413;
     let cpuCycles = (videoCycles * 7.0 / 11.0);
 
-    this.remainder += (cpuCycles - (cpuCycles >>> 0));
-    if (this.remainder >= 1.0) {
-      this.remainder -= 1.0;
-      ++cpuCycles;
-    }
-
-    psx.updateEvent(self, (cpuCycles >>> 0));
+    psx.updateEvent(self, +cpuCycles);
 
     gpu.onScanLine();
     rc1.onScanLine();
