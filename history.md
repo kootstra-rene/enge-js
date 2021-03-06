@@ -6,4 +6,8 @@ history.md
 2021-02-16: added basic constant folding to recompiler  
 2021-02-20: reduced basic constant folding to offsets only  
 2021-02-23: removed pressure on mainLoop by pre-fetching branch targets in recompiled code  
-2021-02-25: started complete rewrite of root-counters
+2021-02-25: started complete rewrite of root-counters  
+2021-02-28: root-counter seem to work properly again (toggle and single-shot not yet implemented)  
+2021-03-02: fixed a rendering bug by flushing vertices before storing an image. needed for using older clut.  
+2021-03-04: adapted recompiler to collect statistics  
+2021-03-05: adapted recompiler to support level-1 and level-2 loops, substantial increase in performance.  
