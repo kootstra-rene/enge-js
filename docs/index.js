@@ -8,7 +8,6 @@ var loading = 0;
 var renderer = undefined;
 var canvas = undefined;
 var emulationTime = 0.0;
-var pads = undefined;
 var context = undefined;
 
 function readStorageStream(item, cb) {
@@ -166,6 +165,7 @@ function mainLoop(stamp) {
 
   endAnimationFrame = false;
   psx.setEvent(frameEvent, +totalCycles);
+  handleGamePads();
   while (!endAnimationFrame) {
     if (!entry.code) {
       entry.code = compileBlock(entry);//.bind(null);
@@ -351,7 +351,7 @@ function handleFileSelect(evt) {
   evt.stopPropagation();
   evt.preventDefault();
 
-  var fileList = evt.dataTransfer.files;
+  const fileList = evt.dataTransfer?.files || evt.target.files;
 
   var output = [];
   for (var i = 0, f; f = fileList[i]; i++) {
@@ -370,6 +370,7 @@ function init() {
 
   document.addEventListener('dragover', handleDragOver, false);
   document.addEventListener('drop', handleFileSelect, false);
+  document.getElementById('file').addEventListener('change', handleFileSelect, false);
 
   mainLoop(performance.now());
 
@@ -489,5 +490,52 @@ function trace(pc, val) {
                     break;
       }
       break;
+  }
+}
+
+let gp = null;
+
+window.addEventListener("gamepadconnected", function(e) {
+  gp = e.gamepad;
+  console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
+  gp.index, gp.id,
+  gp.buttons.length, gp.axes.length);
+});
+
+window.addEventListener("gamepaddisconnected", function(e) {
+  console.log("Gamepad disconnected");
+  gp = null;
+});
+
+function handleGamePads() {
+  if (!gp) return;
+  const pads = navigator.getGamepads();
+  const pad = pads[gp.index]; // get newest state
+  if (pad) {
+    const device = joy.devices[0];
+
+pad.buttons.forEach((a,i) => {
+  if (a.pressed) console.log(a);
+});
+
+    device.lo = 0xff;
+    if (pad.axes[0] === -1) { device.lo &= ~0x80 } // left
+    if (pad.axes[0] ===  1) { device.lo &= ~0x20 } // right
+    if (pad.axes[1] === -1) { device.lo &= ~0x10 } // up
+    if (pad.axes[1] ===  1) { device.lo &= ~0x40 } // down
+
+    if (pad.buttons[8].pressed) { device.lo &= ~0x01 } // select
+    if (pad.buttons[9].pressed) { device.lo &= ~0x08 } // start
+
+    device.hi = 0xff;
+    if (pad.buttons[0].pressed) { device.hi &= ~0x10 } // triangle
+    if (pad.buttons[1].pressed) { device.hi &= ~0x20 } // circle
+    if (pad.buttons[2].pressed) { device.hi &= ~0x40 } // cross
+    if (pad.buttons[3].pressed) { device.hi &= ~0x80 } // square
+
+    if (pad.buttons[4].pressed) { device.hi &= ~0x04 } // l1
+    if (pad.buttons[6].pressed) { device.hi &= ~0x01 } // l2
+    if (pad.buttons[5].pressed) { device.hi &= ~0x08 } // r1
+    if (pad.buttons[7].pressed) { device.hi &= ~0x02 } // r2
   }
 }

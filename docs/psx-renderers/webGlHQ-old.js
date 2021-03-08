@@ -169,8 +169,8 @@ var vertexShaderDraw =
 
     "  twin = aTextureWindow.x + aTextureWindow.y;"+
 
-    "  tmx = 255.0 - aTextureWindow.x;"+
-    "  tmy = 255.0 - aTextureWindow.y;"+
+    "  tmx = 256.0 - aTextureWindow.x;"+
+    "  tmy = 256.0 - aTextureWindow.y;"+
 
     "  tox = aTexturePage.x + aTextureWindow.z;"+
     "  toy = aTexturePage.y + aTextureWindow.a;"+
@@ -186,7 +186,7 @@ var vertexShaderDraw =
     "  else {"+
     "    vSTP = floor(aVertexColor.a / 8.0);"+
     "  }"+
-    "  vColor = vec4(aVertexColor.rgb / 255.0, uBlendAlpha);" +
+    "  vColor = vec4(aVertexColor.rgb / 256.0, uBlendAlpha);" +
     "}";
 
 var fragmentShaderDraw =
@@ -960,7 +960,7 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
 }
 
 WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
-  switch ((data[0] >> 24) & 0xF) {
+    switch ((data[0] >> 24) & 0xF) {
     case 0x5:
     case 0x7:
     case 0xd:
@@ -974,6 +974,7 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   var c = (data[0] & 0xffffff);
   var w = (data[2] << 16) >> 16;
   var h = (data[2] >> 16);
+// console.log(`drawRectangle: ${x}, ${y}`)
 
   var showT1 = !this.outsideDrawArea(x+0, y  +0, x+w-1, y+0, x  +0, y+h-1);
   var showT2 = !this.outsideDrawArea(x+0, y+h-1, x+w-1, y+0, x+w-1, y+h-1);
@@ -1013,6 +1014,7 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   }
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
+// console.log(`--drawRectangle: ${x}, ${y}, ${w}, ${h}`)
 
   var info = 3;
   if (semi_transparent) {

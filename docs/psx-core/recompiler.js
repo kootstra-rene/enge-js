@@ -568,9 +568,9 @@ function compileBlockLines(entry) {
     state.cycles += 1;
     state.pc += 4;
 
-    // if (!state.stop && state.cycles >= 64) {
+    // if (!state.stop && state.cycles >= 32) {
     //   state.branchTarget = state.pc;
-    //   lines.push('target = jump;');
+    //   lines.push(`target = _${hex(state.pc)};`);
     //   console.log('large function at $'+pc.toString(16)+' with '+state.cycles);
     //   break;
     // }
@@ -589,7 +589,7 @@ function compileBlockLines(entry) {
    && (lines[3].indexOf('afa20010: sw') !== -1)
    && (lines[4].indexOf('8fa20010: lw') !== -1)
    && (lines[5].indexOf('00000000: nop') !== -1)) {
-    console.warn('idle loop detected');
+    // console.warn('idle loop detected');
     lines.splice(0, 6, ...hleIDLE);
     state.cycles += 11;
   }
