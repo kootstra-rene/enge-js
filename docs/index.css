@@ -67,6 +67,8 @@ nav {
   bottom: 16px;
   width: calc(var(--display-left) - 32px);
   background-color: transparent;
+  display: flex;
+  flex-direction: column;
 }
 
 /* overrides for developper view */
@@ -104,6 +106,7 @@ nav {
     height: calc(var(--display-top) - 32px);
     width: unset;
     top: unset;
+    flex-direction: row;
   }
 }
 
@@ -128,17 +131,32 @@ span.nobios {
   }
 }
 
-
-#file {
+nav > div {
   width: 10vh;
   height: 10vh;
+  margin-bottom: 1vh;
+  margin-right: 1vw;
+}
+
+#gamepad {
+  background-image: url('images/gamepad.svg');
+  background-size: 8vh;
+  background-repeat: no-repeat;
+  background-position: center;
+  border: 0.5vh solid #555;
+  border-radius: 1vh;
+  display: inline-block;
+  padding: 6px 12px;
+}
+
+#gamepad.connected {
+  border: 0.5vh solid #246;
 }
 
 input[type="file"] {
     display: none;
 }
 .custom-file-upload {
-  box-sizing: content-box;
   border: 0.5vh solid #555;
   border-radius: 1vh;
   display: inline-block;
@@ -147,7 +165,7 @@ input[type="file"] {
   width: 10vh;
   height: 10vh;
   background-image: url('images/upload.svg');
-  background-size: contain;
+  background-size: 8vh;
   background-repeat: no-repeat;
   background-position: center;
 }
