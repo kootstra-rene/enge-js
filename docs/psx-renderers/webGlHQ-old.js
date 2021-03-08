@@ -508,7 +508,7 @@ WebGLRenderer.prototype.loadImage = function(x, y, w, h, buffer) {
       buffer[o++] = this.vram[offsetY + ((x+i)%1024)]
     }
   }
-  console.log('loadImage', x, y, w, h)
+  // console.log('loadImage', x, y, w, h)
 }
 
 WebGLRenderer.prototype.moveImage = function(sx, sy, dx, dy, w, h) {
