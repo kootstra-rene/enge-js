@@ -369,27 +369,8 @@ var rec = {
                 },
 
   'compileA4' : function (rec, opc) {
-                  if (rec.rd === 12) { // cause requires special handling
-                    rec.stop = true;
-                    rec.cause = true;
-                    rec.branchTarget = rec.pc + 8;
-                    return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
-                           'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');\n' + 
-                           `target = _${hex(rec.branchTarget)};`;
-                  }
-                  else
-                  if (rec.rd === 13) { // sr requires special handling
-                    rec.stop = true;
-                    rec.sr = true;
-                    rec.branchTarget = rec.pc + 4;
-                    return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
-                           'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');\n' + 
-                           `target = _${hex(rec.branchTarget)};`;
-                  }
-                  else {
-                    return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
-                           'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');';
-                  }
+                  return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': mtc0    r' + rec.rt + ', r' + rec.rd + '\n' +
+                         'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ');';
                 },
 
   'compileB0' : function (rec, opc) { // simplicity
