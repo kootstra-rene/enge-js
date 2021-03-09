@@ -160,6 +160,7 @@ function mainLoop(stamp) {
   const totalCycles = timeToEmulate * (768*44.100);
 
   let entry = getCacheEntry(cpu.pc);
+  if (!entry) return abort('invalid pc')
 
   endAnimationFrame = false;
   psx.setEvent(frameEvent, +totalCycles);
@@ -168,7 +169,9 @@ function mainLoop(stamp) {
     if (!entry.code) {
       entry.code = compileBlock(entry);//.bind(null);
     }
-    entry = entry.code(psx);
+    let next = entry.code(psx);
+    if (!next) debugger;
+    entry = next;
   }
   cpu.pc = entry.pc;
 
@@ -417,6 +420,7 @@ function init() {
 
     if (e.key === 'F1' && e.ctrlKey) renderer.setMode('disp');
     if (e.key === 'F2' && e.ctrlKey) renderer.setMode('vram');
+    if (e.key === 'F3' && e.ctrlKey) renderer.setMode('text');
 
     e.preventDefault();
   }, false);

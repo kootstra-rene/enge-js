@@ -232,7 +232,7 @@ var rec = {
                   rec.stop = true;
                   rec.jump = true;
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jalr    r' + rec.rs + ', r' + rec.rd + '\n' +
-                         rec.reg(rec.rd) + ' = 0x' + hex(rec.pc + 8) + '\n' +
+                         (rec.rd ? (rec.reg(rec.rd) + ' = 0x' + hex(rec.pc + 8) + '\n') : '') +
                          'target = getCacheEntry(' + rec.getRS() + ');';
                 },
 
@@ -401,6 +401,13 @@ var rec = {
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': cop2    0x' + hex(opc & 0x1ffffff) + '\n' +
                          'gte.command(0x' + hex(opc & 0x1ffffff) + ')';
                 },
+
+  'invalid'   : function (rec, opc) {
+                  rec.stop = true;
+                  rec.syscall = true;
+                  return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': invalid instruction\n' +
+                         'target = cpuException(4 << 2, 0x' + hex(rec.pc) + ');';
+                },
 }
 rec.compileD1 = rec.compileD0;
 rec.compileD2 = rec.compileD0;
@@ -440,13 +447,12 @@ function compileInstruction(state, lines) {
   state.rt = (opcode >>> 16) & 0x1F;
 
   try {
-    lines.push(recmap.get(opc)(state, opcode));
+    lines.push((recmap.get(opc) || rec.invalid)(state, opcode));
   }
   catch (e) {
-    console.log(compiler);
     console.log(lines.join('\n'));
     console.log(e);
-    abort('compileInstruction');
+    abort('compileInstruction: $'+hex(opc,2));
   }
 }
 
@@ -607,7 +613,8 @@ function compileBlock(entry) {
 
   let jumps = [
     state.branchTarget >>> 0,
-    state.pc >>> 0
+    state.pc >>> 0,
+    pc >>> 0
   ];
   let other = getCacheEntry(state.branchTarget);
   if (other && other.pc !== pc && other.jump && other.jump.pc === pc) {
@@ -656,7 +663,7 @@ function compileBlock(entry) {
     lines.push('return target;');
   }
 
-  lines.unshift('const gpr = cpu.gpr; let target = this.jump;');
+  lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};`);
 
 
   return createFunction(pc, lines.filter(a => a).join('\n'), jumps);

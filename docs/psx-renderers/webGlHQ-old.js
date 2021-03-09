@@ -558,18 +558,18 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
     tex[(i << 3) + 0] = lo;
     tex[(i << 3) + 1] = (lo >>> 0) & 0xf;
     tex[(i << 3) + 2] = (lo >>> 4) & 0xf;
-    tex[(i << 3) + 3] = 0;//((sbgr >>> 15) & 0x01) ? 255 : 0; // a
+    tex[(i << 3) + 3] = 0;
 
     var hi = (sbgr >>> 8) & 0xff;
     tex[(i << 3) + 4] = hi;
     tex[(i << 3) + 5] = (hi >>> 0) & 0xf;
     tex[(i << 3) + 6] = (hi >>> 4) & 0xf;
-    tex[(i << 3) + 7] = 0;//((sbgr >>> 15) & 0x01) ? 255 : 0; // a;
+    tex[(i << 3) + 7] = 0;
 
-    xet[(i << 2) + 0] = ((sbgr >>>  0) & 0x1f) << 3;      // r
-    xet[(i << 2) + 1] = ((sbgr >>>  5) & 0x1f) << 3;      // g
-    xet[(i << 2) + 2] = ((sbgr >>> 10) & 0x1f) << 3;      // b
-    xet[(i << 2) + 3] = ((sbgr >>> 15) & 0x01) ? 255 : 0; // a
+    xet[(i << 2) + 0] = 0 + (((sbgr >>>  0) & 0x1f) << 3);      // r
+    xet[(i << 2) + 1] = 0 + (((sbgr >>>  5) & 0x1f) << 3);      // g
+    xet[(i << 2) + 2] = 0 + (((sbgr >>> 10) & 0x1f) << 3);      // b
+    xet[(i << 2) + 3] = 0 + (((sbgr >>> 15) & 0x01) ? 255 : 0); // a
   }
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
@@ -1152,7 +1152,11 @@ WebGLRenderer.prototype.onVBlankEnd = function() {
 
 WebGLRenderer.prototype.setMode = function(mode) {
   switch (mode) {
+    case 'disp':  this.displaymode = 2;
+                  break
     case 'vram':  this.displaymode = 1;
+                  break
+    case 'text':  this.displaymode = 0;
                   break
     default    :  this.displaymode = 2;
                   break
