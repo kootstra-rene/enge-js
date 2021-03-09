@@ -236,10 +236,9 @@ function loadFileData(arrayBuffer) {
     console.log('data-size: $', hex(data.getInt32(0x24) >>> 0));
 
     var textSegmentOffset = data.getInt32(0x18);
-    var fileContentLength = data.getInt32(0x1C);
+    var fileContentLength = view8.length;
     for (var i = 0; i < fileContentLength; ++i) {
       map8[(textSegmentOffset & 0x001fffff) >>> 0] = view8[(0x800 + i) >>> 0];
-      // map.setInt8(textSegmentOffset & 0x1FFFFF, data.getInt8(0x800 + i));
       textSegmentOffset++;
     }
     running = true;
