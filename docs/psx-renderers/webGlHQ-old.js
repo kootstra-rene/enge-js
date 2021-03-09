@@ -449,7 +449,7 @@ WebGLRenderer.prototype.initTextures = function() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   // Drawing
-  this.tex16draw = this.createTexture(gl.NEAREST);
+  this.tex16draw = this.createTexture();
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, qwidth, qheight, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 
   this.buf16draw = this.createBuffer();
