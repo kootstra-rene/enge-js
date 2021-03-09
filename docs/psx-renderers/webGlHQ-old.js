@@ -546,8 +546,8 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
     let h1 = 512 - img.y;
     let h2 = img.h - h1;
 
-    this.storeImageInTexture({x:img.x, y:img.y, w:img.w, h:h1, buffer: new Uint16Array(img.buffer.buffer), pixelCount:img.h1*img.w});
-    this.storeImageInTexture({x:img.x, y:0, w:img.w, h:h2, buffer: new Uint16Array(img.buffer.buffer, h1*img.w*2), pixelCount:img.h2*img.w});
+    this.storeImageInTexture({x:img.x, y:img.y, w:img.w, h:h1, buffer: new Uint16Array(img.buffer.buffer), pixelCount:h1*img.w});
+    this.storeImageInTexture({x:img.x, y:0, w:img.w, h:h2, buffer: new Uint16Array(img.buffer.buffer, h1*img.w*2), pixelCount:h2*img.w});
     return;
   }
   // mode 8-bit
