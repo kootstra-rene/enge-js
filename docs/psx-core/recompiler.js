@@ -418,7 +418,12 @@ rec.compileDD = rec.compileD0;
 rec.compileDE = rec.compileD0;
 rec.compileDF = rec.compileD0;
 
-var compileInstruction = function(state, lines) {
+const recmap = new Map();
+for (let i = 0; i < 256; ++i) {
+  recmap.set(i, rec[`compile${hex(i, 2).toUpperCase()}`])
+}
+
+function compileInstruction(state, lines) {
   const iwordIndex = getCacheIndex(state.pc);
   var opcode = map[iwordIndex];
   var opc    = 0;
@@ -434,10 +439,8 @@ var compileInstruction = function(state, lines) {
   state.rs = (opcode >>> 21) & 0x1F;
   state.rt = (opcode >>> 16) & 0x1F;
 
-  var compiler = 'compile' + hex(opc, 2).toUpperCase();
   try {
-    lines.push(rec[compiler](state, opcode));
-    // if ((state.pc|0) === (0x80041a00|0)) lines.push('debugger;')
+    lines.push(recmap.get(opc)(state, opcode));
   }
   catch (e) {
     console.log(compiler);

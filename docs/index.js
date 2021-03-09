@@ -45,7 +45,6 @@ var context = window.context= {
   timeStamp: 0,
   realtime: 0,
   emutime: 0,
-  jstime: 0
 };
 
 const psx = {
@@ -159,7 +158,6 @@ function mainLoop(stamp) {
   const timeToEmulate = 10.0 - diffTime;
 
   const totalCycles = timeToEmulate * (768*44.100);
-  let jstime = performance.now();
 
   let entry = getCacheEntry(cpu.pc);
 
@@ -174,11 +172,8 @@ function mainLoop(stamp) {
   }
   cpu.pc = entry.pc;
 
-  jstime = performance.now() - jstime;
-  context.jstime += jstime;
   // correct the emulation time accourding to the psx.clock
   context.emutime =  psx.clock / (768*44.100);
-  // console.log(context.jstime/context.emutime);
 }
 
 function bios() {
@@ -240,10 +235,6 @@ function loadFileData(arrayBuffer) {
     console.log('data-addr: $', hex(data.getInt32(0x20) >>> 0));
     console.log('data-size: $', hex(data.getInt32(0x24) >>> 0));
 
-    // for (let i = 0; i < 0x40;i+=4) {
-    //   console.log(hex(data.getInt32(i) >>> 0))
-    // }
-
     var textSegmentOffset = data.getInt32(0x18);
     var fileContentLength = data.getInt32(0x1C);
     for (var i = 0; i < fileContentLength; ++i) {
@@ -251,11 +242,6 @@ function loadFileData(arrayBuffer) {
       // map.setInt8(textSegmentOffset & 0x1FFFFF, data.getInt8(0x800 + i));
       textSegmentOffset++;
     }
-    // psx.addEvent(44100*768*60, (self, clock) => {
-    //   running = false;
-    //   spu.silence();
-    //   throw 'stoped';
-    // });
     running = true;
   }
   else if (data[0] === 0xffffff00) { // ISO
