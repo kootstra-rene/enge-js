@@ -320,8 +320,6 @@ function loadFileData(arrayBuffer) {
     localStorage.setItem('bios', base64text);
     for (var i = 0; i < 0x00080000; i += 4) {
       map[(0x01c00000 + i) >>> 2] = data[i >>> 2];
-      // map[(0x01c00000 + i) >>> 2] = data.getInt32(i);
-      // map.setInt32(0x01c00000 + i, data.getInt32(i));
     }
     bios();
     let header = document.querySelector('span.nobios');
@@ -339,7 +337,7 @@ function handleFileSelect(evt) {
   evt.stopPropagation();
   evt.preventDefault();
 
-  const fileList = evt.dataTransfer?.files || evt.target.files;
+  const fileList = evt.dataTransfer ? evt.dataTransfer.files : evt.target.files;
 
   var output = [];
   for (var i = 0, f; f = fileList[i]; i++) {
