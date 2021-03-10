@@ -17,6 +17,9 @@ Same as with the BIOS drag and drop the .psx-exe file on the emulator page and i
 ## Loading a cdrom
 Same as with the BIOS drag and drop the .bin file on the emulator page and it will automatically start running. Only raw .iso and .bin files are supported currently. The emulator will try to build it's own table of contents a.k.a track information and as such a lot of games have cd audio but it could not work in all cases.
 
+## Improving quality
+Clicking the Qx button, toggle between Q1,Q2 and Q4 the latter being the highest quality. After doing so the border will get an redisch color indicating that you have to restart the emulator which can be done by reloading the page.
+
 ## Controls
 
 When using the keyboard:  
