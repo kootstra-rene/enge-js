@@ -599,7 +599,7 @@ function compileBlockLines(entry) {
     }
   }
 
-  lines.push('++this.calls;this.clock = psx.clock;');
+  // debug-only: lines.push('++this.calls;this.clock = psx.clock;');
   return lines;
 }
 

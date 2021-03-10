@@ -14,8 +14,8 @@
 //      load image at higher resolutions
 
 "use strict"
-var qwf = 1;
-var qhf = 1;
+var qwf = settings.quality || 1;
+var qhf = settings.quality || 1;
 var qwidth = 1024*qwf;
 var qheight = 512*qhf;
 
@@ -430,12 +430,9 @@ WebGLRenderer.prototype.initTextures = function() {
     return
   }
 
-  const buf = new Uint8Array(2048*512*4);
-  buf.fill(0);
-
   // 8-bit video ram
   this.tex8vram = this.createTexture();
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
   this.buf8vram = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf8vram);
@@ -445,7 +442,7 @@ WebGLRenderer.prototype.initTextures = function() {
 
   // Drawing
   this.tex16draw = this.createTexture();
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, qwidth, qheight, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, qwidth, qheight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
   this.buf16draw = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
@@ -453,7 +450,7 @@ WebGLRenderer.prototype.initTextures = function() {
 
   // Colour Mapping
   this.tex16rgba = this.createTexture();
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE,  null);
 
   this.buf16rgba = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16rgba);
@@ -566,10 +563,10 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
     tex[(i << 3) + 6] = (hi >>> 4) & 0xf;
     tex[(i << 3) + 7] = 0;
 
-    xet[(i << 2) + 0] = 0 + (((sbgr >>>  0) & 0x1f) << 3);      // r
-    xet[(i << 2) + 1] = 0 + (((sbgr >>>  5) & 0x1f) << 3);      // g
-    xet[(i << 2) + 2] = 0 + (((sbgr >>> 10) & 0x1f) << 3);      // b
-    xet[(i << 2) + 3] = 0 + (((sbgr >>> 15) & 0x01) ? 255 : 0); // a
+    xet[(i << 2) + 0] = ((sbgr >>>  0) & 0x1f) << 3;      // r
+    xet[(i << 2) + 1] = ((sbgr >>>  5) & 0x1f) << 3;      // g
+    xet[(i << 2) + 2] = ((sbgr >>> 10) & 0x1f) << 3;      // b
+    xet[(i << 2) + 3] = ((sbgr >>> 15) & 0x01) ? 255 : 0; // a
   }
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
@@ -1014,21 +1011,12 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   }
 }
 
-WebGLRenderer.prototype.clearVRAM = function(x, y, w, h) {
-  var gl = this.gl;
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf8vram);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex8vram, 0);
-
-  gl.scissor(x << 1, y, w << 1, h);
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
-}
+const clr = new Uint32Array(2*1024*512);
+const view = new Uint8Array(clr.buffer);
 
 WebGLRenderer.prototype.fillRectangle = function(data) {
+  var gl = this.gl;
+
   var x = (data[1] << 16) >> 16;
   var y = (data[1] >> 16);
   var c = (data[0] & 0xf8f8f8);
@@ -1040,7 +1028,14 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
   h = (h & 0x1ff);
   if (!w && !h) return;
 
+  clr.fill(c, 0, 2*w*h);
+
   this.flushVertexBuffer(true);
+
+  gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x*2, y, w*2, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+  gl.bindTexture(gl.TEXTURE_2D, this.tex16draw);
+
   var buffer = this.getVertexBuffer(6, 0);
   buffer.addVertex(x+0, y+0, c);
   buffer.addVertex(x+w, y+0, c);
@@ -1050,7 +1045,6 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
   buffer.addVertex(x+w, y+0, c);
   buffer.addVertex(x+w, y+h, c);
   this.flushVertexBuffer(false);
-  this.clearVRAM(x, y, w, h, c); // really needed sadly for Castlevania
 }
 
 WebGLRenderer.prototype.setDrawAreaOF = function(x, y) {

@@ -10,17 +10,6 @@ var canvas = undefined;
 var emulationTime = 0.0;
 var context = undefined;
 
-function readStorageStream(item, cb) {
-  const base64text = localStorage.getItem(item);
-  if (base64text) {
-    const arrayBuffer = Base64.decode(base64text);
-    cb(arrayBuffer);
-  }
-  else {
-    cb(null);
-  }
-}
-
 var abort = function() {
   console.error(Array.prototype.slice.call(arguments).join(' '));
   canvas.style.borderColor = 'red';
@@ -167,11 +156,12 @@ function mainLoop(stamp) {
   handleGamePads();
   while (!endAnimationFrame) {
     if (!entry.code) {
-      entry.code = compileBlock(entry);//.bind(null);
+      entry.code = compileBlock(entry);
     }
-    let next = entry.code(psx);
-    if (!next) debugger;
-    entry = next;
+    entry = entry.code(psx);
+    // let next = entry.code(psx);
+    // if (!next) debugger;
+    // entry = next;
   }
   cpu.pc = entry.pc;
 
@@ -186,7 +176,7 @@ function bios() {
   const $ = psx;
   while (entry.pc !== 0x00030000) {
     if (!entry.code) {
-      entry.code = compileBlock(entry);//.bind(null);
+      entry.code = compileBlock(entry);
     }
     entry = entry.code(psx);
   }
@@ -225,8 +215,8 @@ function loadFileData(arrayBuffer) {
   if ((data[0] & 0xffff) === 0x5350) { // PS
     cpu.pc = data.getInt32(0x10);
     cpu.gpr[28] = data.getInt32(0x14);
-    if (data.getInt32(0x30)) cpu.gpr[29] = data.getInt32(0x30);
-    if (data.getInt32(0x30)) cpu.gpr[30] = data.getInt32(0x30);
+    cpu.gpr[29] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001ffff0;
+    cpu.gpr[30] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001ffff0;
     cpu.gpr[31] = cpu.pc;
     console.log('init-pc  : $', hex(cpu.pc >>> 0));
     console.log('init-gp  : $', hex(cpu.gpr[28] >>> 0));
@@ -316,8 +306,7 @@ function loadFileData(arrayBuffer) {
     }
   }
   else if (arrayBuffer.byteLength === 524288) {
-    const base64text = Base64.encode(arrayBuffer);
-    localStorage.setItem('bios', base64text);
+    writeStorageStream('bios', arrayBuffer);
     for (var i = 0; i < 0x00080000; i += 4) {
       map[(0x01c00000 + i) >>> 2] = data[i >>> 2];
     }
@@ -358,11 +347,22 @@ function init() {
   document.addEventListener('drop', handleFileSelect, false);
   document.getElementById('file').addEventListener('change', handleFileSelect, false);
 
+  settings.updateQuality();
+
+  document.getElementById('quality').addEventListener('click', evt => {
+    settings.updateQuality(true);
+
+    evt.stopPropagation();
+    evt.preventDefault();
+    return false;
+  });
+
+
   mainLoop(performance.now());
 
   renderer = new WebGLRenderer(canvas);
 
-  window.addEventListener("dblclick", function(e) {
+  canvas.addEventListener("dblclick", function(e) {
     running = !running;
     if (!running) {
       spu.silence();
