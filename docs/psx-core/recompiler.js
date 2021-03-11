@@ -5,9 +5,11 @@ var createFunction = function(pc, code, jumps) {
     "  return function $" + hex(pc).toUpperCase() + "(psx) { \n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
   ];
 
-  (jumps||[]).forEach(addr => {
-    lines.unshift(`  var _${hex(addr)} = getCacheEntry(0x${hex(addr)});`);
-  })
+  const points = [...new Set(jumps || [])];
+
+  points.forEach(addr => {
+    lines.unshift(`  const _${hex(addr)} = getCacheEntry(0x${hex(addr)});`);
+  });
   var generator = new Function(lines.join('\n'));
   return generator();
 }
@@ -650,8 +652,8 @@ function compileBlock(entry) {
   if (entry.jump.pc === (pc >>> 0)) {
     // console.log('level 1', hex(pc));
     lines.unshift(`while (psx.clock < psx.eventClock) {`);
-    lines.push(`if (target === _${hex(state.pc)}) break;`);
     lines.push('psx.clock += ' + cycles + ';');
+    lines.push(`if (target === _${hex(state.pc)}) break;`);
     lines.push('}');
     lines.push('return psx.handleEvents(target);');
   }
