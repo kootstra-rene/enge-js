@@ -209,12 +209,16 @@ var fragmentShaderDraw =
 
     "varying float twin;"+
 
-    "vec4 getColor(float cx, float cy) {" +
+    "float getSRGB16(float cx, float cy) {" +
     "  float tx = floor(cx * 1024.0) * 2.0;"+
     "  float ty = floor(cy * 512.0);"+
     "  float lo = floor(texture2D(uTex8, vec2(tx + 0.0, ty) / vec2(2048.0, 512.0)).r * 255.0);"+
     "  float hi = floor(texture2D(uTex8, vec2(tx + 1.0, ty) / vec2(2048.0, 512.0)).r * 255.0);"+
-    "  float srgb = hi * 256.0 + lo;" +
+    "  return hi * 256.0 + lo;" +
+    "}"+
+
+    "vec4 getColor(float cx, float cy) {" +
+    "  float srgb = getSRGB16(cx, cy);" +
     "  float r = mod(floor(srgb /     1.0), 32.0) / 32.0;"+
     "  float g = mod(floor(srgb /    32.0), 32.0) / 32.0;"+
     "  float b = mod(floor(srgb /  1024.0), 32.0) / 32.0;"+
@@ -244,14 +248,14 @@ var fragmentShaderDraw =
     "    ty = toy + floor(tcy);"+
     "  }"+
     "  if (vTextureMode == 1.0) {"+
-    "    float val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).r;" +
-    "    cx = vClut.x + (val * 255.0) / 1024.0; cy = vClut.y;"+
+    "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).r * 255.0;" +
+    "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
     "  }"+
     "  else"+
     "  if (vTextureMode == 0.0) {"+
-    "    vec4 clut = texture2D(uTex8, vec2(tx / 4096.0, ty / 512.0));" +
-    "    if (mod((tx), 2.0) == 0.0) { val = clut.g; } else { val = clut.b; }"+
-    "    cx = vClut.x + (val * 255.0) / 1024.0; cy = vClut.y;"+
+    "    val = texture2D(uTex8, vec2(tx / 4096.0, ty / 512.0)).r * 255.0;" +
+    "    if (mod((tx), 2.0) == 0.0) { val = mod(val, 16.0); } else { val = mod(floor(val / 16.0), 16.0); }"+
+    "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
     "  }"+
     "  else"+
     "  if (vTextureMode == 2.0) {"+
@@ -551,15 +555,15 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
 
     var lo = (sbgr >>> 0) & 0xff;
     tex[(i << 3) + 0] = lo;
-    tex[(i << 3) + 1] = (lo >>> 0) & 0xf;
-    tex[(i << 3) + 2] = (lo >>> 4) & 0xf;
-    tex[(i << 3) + 3] = 0;
+    // tex[(i << 3) + 1] = 0;//(lo >>> 0) & 0xf;
+    // tex[(i << 3) + 2] = 0;//(lo >>> 4) & 0xf;
+    // tex[(i << 3) + 3] = 0;
 
     var hi = (sbgr >>> 8) & 0xff;
     tex[(i << 3) + 4] = hi;
-    tex[(i << 3) + 5] = (hi >>> 0) & 0xf;
-    tex[(i << 3) + 6] = (hi >>> 4) & 0xf;
-    tex[(i << 3) + 7] = 0;
+    // tex[(i << 3) + 5] = 0;//(hi >>> 0) & 0xf;
+    // tex[(i << 3) + 6] = 0;//(hi >>> 4) & 0xf;
+    // tex[(i << 3) + 7] = 0;
   }
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
@@ -1090,11 +1094,11 @@ WebGLRenderer.prototype.onVBlankEnd = function() {
   var drawBuffer = this.vertexBuffer.subarray(0, this.vertexBuffer.index / 4);
 
   if (this.displaymode === 0) {
-    gl.viewport(0, 0, this.canvas.width = 2048, this.canvas.height = 1024)
+    gl.viewport(0, 0, this.canvas.width = 2048, this.canvas.height = 1024);
     display8bit(this, drawBuffer)
   }
   if (this.displaymode === 1) {
-    gl.viewport(0, 0, this.canvas.width = 1024, this.canvas.height = 512)
+    gl.viewport(0, 0, this.canvas.width = 1024*qwf, this.canvas.height = 512*qhf);
     display16bit(this, drawBuffer)
   }
   if (this.displaymode === 2) {
@@ -1142,9 +1146,10 @@ WebGLRenderer.prototype.setMode = function(mode) {
     default:
     case 'disp':  this.displaymode = 2;
                   break
-    case 'vram':  this.displaymode = 1;
+    case 'draw':  this.displaymode = 1;
                   break
-    case 'text':  this.displaymode = 0;
+    case 'clut4': // todo: implement
+    case 'clut8': this.displaymode = 0;
                   break
   }
 }
