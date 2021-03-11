@@ -120,9 +120,9 @@ var fragmentShader24bit =
     "vec4 getColor(float tx, float ty) {" +
     "  if (ty >= 512.0) ty = 512.0;"+
     "  if (tx >= 2048.0) tx = 2048.0;"+
-    "  float r = texture2D(uVRAM, vec2((tx + 0.0) / 2048.0, ty / 512.0)).r;" +
-    "  float g = texture2D(uVRAM, vec2((tx + 1.0) / 2048.0, ty / 512.0)).r;" +
-    "  float b = texture2D(uVRAM, vec2((tx + 2.0) / 2048.0, ty / 512.0)).r;" +
+    "  float r = texture2D(uVRAM, vec2((tx + 0.0) / 2048.0, ty / 512.0)).a;" +
+    "  float g = texture2D(uVRAM, vec2((tx + 1.0) / 2048.0, ty / 512.0)).a;" +
+    "  float b = texture2D(uVRAM, vec2((tx + 2.0) / 2048.0, ty / 512.0)).a;" +
     "  return vec4(r, g, b, 0.0);"+
     "}"+
 
@@ -212,8 +212,8 @@ var fragmentShaderDraw =
     "float getSRGB16(float cx, float cy) {" +
     "  float tx = floor(cx * 1024.0) * 2.0;"+
     "  float ty = floor(cy * 512.0);"+
-    "  float lo = floor(texture2D(uTex8, vec2(tx + 0.0, ty) / vec2(2048.0, 512.0)).r * 255.0);"+
-    "  float hi = floor(texture2D(uTex8, vec2(tx + 1.0, ty) / vec2(2048.0, 512.0)).r * 255.0);"+
+    "  float lo = floor(texture2D(uTex8, vec2(tx + 0.0, ty) / vec2(2048.0, 512.0)).a * 255.0);"+
+    "  float hi = floor(texture2D(uTex8, vec2(tx + 1.0, ty) / vec2(2048.0, 512.0)).a * 255.0);"+
     "  return hi * 256.0 + lo;" +
     "}"+
 
@@ -248,12 +248,12 @@ var fragmentShaderDraw =
     "    ty = toy + floor(tcy);"+
     "  }"+
     "  if (vTextureMode == 1.0) {"+
-    "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).r * 255.0;" +
+    "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).a * 255.0;" +
     "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
     "  }"+
     "  else"+
     "  if (vTextureMode == 0.0) {"+
-    "    val = texture2D(uTex8, vec2(tx / 4096.0, ty / 512.0)).r * 255.0;" +
+    "    val = texture2D(uTex8, vec2(tx / 4096.0, ty / 512.0)).a * 255.0;" +
     "    if (mod((tx), 2.0) == 0.0) { val = mod(val, 16.0); } else { val = mod(floor(val / 16.0), 16.0); }"+
     "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
     "  }"+
@@ -443,7 +443,7 @@ WebGLRenderer.prototype.initTextures = function() {
 
   // 8-bit video ram
   this.tex8vram = this.createTexture();
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, 2048, 512, 0, gl.ALPHA, gl.UNSIGNED_BYTE, null);
 
   this.buf8vram = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf8vram);
@@ -512,7 +512,7 @@ WebGLRenderer.prototype.storeImage = function(img) {
   this.storeImageInTexture(img)
 }
 
-var tex = new Uint8Array(2048*512*4*2);
+// var tex = new Uint8Array(1024*512*2);
 WebGLRenderer.prototype.storeImageInTexture = function (img) {
   const gl = this.gl;
 
@@ -549,24 +549,10 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
     this.storeImageInTexture({x:img.x, y:0, w:img.w, h:h2, buffer: new Uint16Array(img.buffer.buffer, h1*img.w*2), pixelCount:h2*img.w});
     return;
   }
-  // mode 8-bit
-  for (var i = 0, l = img.pixelCount; i < l; ++i) {
-    var sbgr = img.buffer[i];
-
-    var lo = (sbgr >>> 0) & 0xff;
-    tex[(i << 3) + 0] = lo;
-    // tex[(i << 3) + 1] = 0;//(lo >>> 0) & 0xf;
-    // tex[(i << 3) + 2] = 0;//(lo >>> 4) & 0xf;
-    // tex[(i << 3) + 3] = 0;
-
-    var hi = (sbgr >>> 8) & 0xff;
-    tex[(i << 3) + 4] = hi;
-    // tex[(i << 3) + 5] = 0;//(hi >>> 0) & 0xf;
-    // tex[(i << 3) + 6] = 0;//(hi >>> 4) & 0xf;
-    // tex[(i << 3) + 7] = 0;
-  }
+  // copy image to GPU
+  const view = new Uint8Array(img.buffer.buffer, 0, img.pixelCount << 1);
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
 
   // needed for 16bit video
   var x1 = img.x; var x2 = img.x + img.w;
@@ -1008,9 +994,9 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, c) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf8vram);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex8vram, 0);
 
-  gl.scissor(x << 1, y, w << 1, h);
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  // gl.scissor(x << 1, y, w << 1, h);
+  // gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  // gl.clear(gl.COLOR_BUFFER_BIT);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
