@@ -291,10 +291,9 @@ function loadFileData(arrayBuffer) {
         tracks.push({id, begin, end, audio:true});
       }
     }
+    cdr.setCdImage(data);
     cdr.setTOC(tracks);
 
-    cdr.hasCdFile = true;
-    cdr.cdImage = data;
     running = true;
   }
   else if (data[0] === 0x0000434d) { // MEMCARD
