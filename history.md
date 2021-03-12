@@ -1,5 +1,6 @@
 history.md
 
+2021-03-12: improved cdrom dma transfer speed, increases FMV performance. 
 2021-03-11: removed uRGBA texture and moved logic to shader, less CPU/GPU usage when moving/storing images, should increase FMV performance
             adjusted shaders to use only alpha channel, img.buffer is copied directly to GPU. Total data from CPU -> GPU reduced by factor +/- 6
             as such qoulity-level Q8 is now supported
