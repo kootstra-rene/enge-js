@@ -107,7 +107,7 @@ var fragmentShaderTexture =
     "varying vec2 vTextureCoord;"+
     "void main(void) {" +
     "  vec4 pixel = texture2D(uVRAM, vTextureCoord);" +
-    "  gl_FragColor = vec4(pixel.rrr, 1.0);" +
+    "  gl_FragColor = vec4(pixel.aaa, 1.0);" +
     "}";
 
 var fragmentShader24bit =
@@ -988,18 +988,36 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   }
 }
 
-WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, c) {
+let clr = new Uint16Array(1024*512);
+const clrState = {
+  color: 0,
+  size: 1024*512
+};
+clr.fill(0);
+
+WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color) {
   var gl = this.gl;
 
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf8vram);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex8vram, 0);
+  // update clear buffer;
+  const size = w * h;
+  if ((clrState.color !== color) || (size < clrState.size)) {
+    clrState.color = color;
+    clrState.size = size;
 
-  // gl.scissor(x << 1, y, w << 1, h);
-  // gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  // gl.clear(gl.COLOR_BUFFER_BIT);
+    const r = (color >>>  3) & 0x1f;
+    const g = (color >>> 11) & 0x1f;
+    const b = (color >>> 19) & 0x1f;
+    const c = (b << 10) | (g << 5) | r;
+    clr.fill(c, 0, size);
+  }
 
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
+  gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
+
+  // copy image to GPU
+  const view = new Uint8Array(clr.buffer, 0, size << 1);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
+
+  gl.bindTexture(gl.TEXTURE_2D, this.tex16draw);
 }
 
 WebGLRenderer.prototype.fillRectangle = function(data) {
@@ -1017,7 +1035,7 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
   if (!w && !h) return;
 
   this.flushVertexBuffer(true);
-  this.clearVRAM(x, y, w, h, c); // really needed sadly for Castlevania 
+  this.clearVRAM(x, y, w, h, c);
 
   var buffer = this.getVertexBuffer(6, 0);
   buffer.addVertex(x+0, y+0, c);

@@ -1,5 +1,8 @@
 history.md
 
+2021-03-11: removed uRGBA texture and moved logic to shader, less CPU/GPU usage when moving/storing images, should increase FMV performance
+            adjusted shaders to use only alpha channel, img.buffer is copied directly to GPU. Total data from CPU -> GPU reduced by factor +/- 6
+            as such qoulity-level Q8 is now supported
 2021-03-10: added quality selector Q1,Q2,Q4 for higher quality graphics
 2021-03-08: added gamepad support and file selection
 2021-03-05: adapted recompiler to support level-1 and level-2 loops, substantial increase in performance.

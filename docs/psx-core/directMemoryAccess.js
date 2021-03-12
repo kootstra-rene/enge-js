@@ -153,6 +153,7 @@ const dma = {
 
       switch (ctrl) {
         case 0x00000000:  break;
+        case 0x00000001:  break;
         case 0x00000401:  break;
         case 0x01000200:  transferSize = gpu.dmaTransferMode0200(this.r10a0, this.r10a4) || 10;
                           this.r10a0 += transferSize << 2;

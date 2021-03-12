@@ -26,7 +26,7 @@ settings.updateQuality = update => {
 
   if (update) {
     settings.quality <<= 1;
-    if (settings.quality > 4) settings.quality = 1;
+    if (settings.quality > 8) settings.quality = 1;
 
     localStorage.setItem('config', JSON.stringify(settings));
     elem.classList.add('restart');

@@ -416,9 +416,10 @@ function init() {
     if (e.keyCode === 123) return; //f12
     if (e.keyCode === 116) return; //f5
 
-    if (e.key === 'F1' && e.ctrlKey) renderer.setMode('disp');
-    if (e.key === 'F2' && e.ctrlKey) renderer.setMode('vram');
-    if (e.key === 'F3' && e.ctrlKey) renderer.setMode('text');
+    if (e.key === '1' && e.ctrlKey) renderer.setMode('disp');
+    if (e.key === '2' && e.ctrlKey) renderer.setMode('draw');
+    if (e.key === '3' && e.ctrlKey) renderer.setMode('clut8');
+    if (e.key === '4' && e.ctrlKey) renderer.setMode('clut4');
 
     e.preventDefault();
   }, false);
