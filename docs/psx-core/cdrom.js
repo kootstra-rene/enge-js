@@ -564,20 +564,20 @@ const cdr = (() => {
       cdr.sectorEnd = cdr.sectorIndex + cdr.sectorSize;
 
       if ((cdr.mode & 0x48) !== 0) { //playXaAudio
-        var mode = cdr.cdImage.getInt8(cdr.sectorOffset + 0x0f);
+        var mode = sectorData8[cdr.sectorOffset + 0x0f];
         if (mode !== 2) return;
 
         if ((cdr.mode & 0x48) === 0x48) { // useFilter
-          var file = cdr.cdImage.getInt8(cdr.sectorOffset + 0x10);
+          var file = sectorData8[cdr.sectorOffset + 0x10];
           if (file !== cdr.filter.file) return;
 
-          var chan = cdr.cdImage.getInt8(cdr.sectorOffset + 0x11);
+          var chan = sectorData8[cdr.sectorOffset + 0x11];
           if (chan !== cdr.filter.chan) return;
         }
 
-        var sub = cdr.cdImage.getInt8(cdr.sectorOffset + 0x12);
+        var sub = sectorData8[cdr.sectorOffset + 0x12];
         if ((sub & 0x44) !== 0x44) return;
-        var nfo = cdr.cdImage.getInt8(cdr.sectorOffset + 0x13);
+        var nfo = sectorData8[cdr.sectorOffset + 0x13];
 
         switch ((nfo >>> 0) & 3) {
           case 0: var ms = 'mono';    break;
@@ -762,7 +762,6 @@ const cdr = (() => {
         map[(addr & 0x001fffff) >> 2] = sectorData32[(cdr.sectorOffset + cdr.sectorIndex) >> 2];
         cdr.sectorIndex += 4;
         addr += 4;
-        // memWrite8((addr++) & 0x001fffff, cdr.cdImage.getInt8(cdr.sectorOffset + cdr.sectorIndex++));
       }
       if (cdr.sectorIndex >= cdr.sectorEnd) {
         cdr.status &= ~0x40;
