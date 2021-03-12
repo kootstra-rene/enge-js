@@ -9,6 +9,7 @@ const cdr = (() => {
   }
 
   let sectorData8 = new Int8Array(0);
+  let sectorData16 = new Int16Array(0);
   let sectorData32 = new Int32Array(0);
 
   var cdr = {
@@ -632,8 +633,9 @@ const cdr = (() => {
   nextpcm: function(buf) {
     if (cdr.ncmdread === 0x03) {
       if (cdr.currTrack.audio) {
-        let sampleL = cdr.cdImage.getInt16(cdr.sectorOffset + cdr.playIndex + 0) / 32768.0;
-        let sampleR = cdr.cdImage.getInt16(cdr.sectorOffset + cdr.playIndex + 2) / 32768.0;
+        const offset = (cdr.sectorOffset + cdr.playIndex) >> 1;
+        let sampleL = sectorData16[offset + 0] / 32768.0;
+        let sampleR = sectorData16[offset + 1] / 32768.0;
         let sL = sampleL * cdr.volCdLeft2SpuLeft + sampleR * cdr.volCdRight2SpuLeft;
         let sR = sampleR * cdr.volCdRight2SpuRight + sampleL * cdr.volCdLeft2SpuRight;
         buf[0] = sL;
@@ -669,14 +671,14 @@ const cdr = (() => {
       var sectorOffset = cdr.sectorOffset + 24 + (sg * 128);
 
       for (var su = 0; su < 8; ++su) {
-        var shiftFilter = cdr.cdImage.getInt8(sectorOffset + 4 + su);
+        var shiftFilter = sectorData8[sectorOffset + 4 + su];
         var shift  = (shiftFilter & 0x0f) >>> 0;
         var filter = (shiftFilter & 0xf0) >>> 3;
         var k0 = xa2flt[filter + 0]
         var k1 = xa2flt[filter + 1]
 
         for (var sd = 0; sd < 28; ++sd) {
-          var data = cdr.cdImage.getInt8(sectorOffset + 16 + (sd * 4) + (su / 2)) & 0xff;
+          var data = sectorData8[sectorOffset + 16 + (sd * 4) + (su / 2)] & 0xff;
           var index = (shift * 256 + data) * 2;
 
           var s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + (su & 1)];
@@ -705,14 +707,14 @@ const cdr = (() => {
       var sectorOffset = cdr.sectorOffset + 24 + (sg * 128);
 
       for (var su = 0; su < 8; su += 2) {
-        var shiftFilter = cdr.cdImage.getInt8(sectorOffset + 4 + su);
+        var shiftFilter = sectorData8[sectorOffset + 4 + su];
         var shift  = (shiftFilter & 0x0f) >>> 0;
         var filter = (shiftFilter & 0xf0) >>> 3;
         var k0 = xa2flt[filter + 0]
         var k1 = xa2flt[filter + 1]
 
         for (var sd = 0; sd < 28; ++sd) {
-          var data = cdr.cdImage.getInt8(sectorOffset + 16 + (sd * 4) + (su / 2)) & 0xff;
+          var data = sectorData8[sectorOffset + 16 + (sd * 4) + (su / 2)] & 0xff;
           var index = (shift * 256 + data) * 2;
 
           var s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + 0];
@@ -722,14 +724,14 @@ const cdr = (() => {
           xa[ix + sd*2 + 0] = s;
         }
 
-        var shiftFilter = cdr.cdImage.getInt8(sectorOffset + 5 + su);
+        var shiftFilter = sectorData8[sectorOffset + 5 + su];
         var shift  = (shiftFilter & 0x0f) >>> 0;
         var filter = (shiftFilter & 0xf0) >>> 3;
         var k0 = xa2flt[filter + 0]
         var k1 = xa2flt[filter + 1]
 
         for (var sd = 0; sd < 28; ++sd) {
-          var data = cdr.cdImage.getInt8(sectorOffset + 16 + (sd * 4) + (su / 2)) & 0xff;
+          var data = sectorData8[sectorOffset + 16 + (sd * 4) + (su / 2)] & 0xff;
           var index = (shift * 256 + data) * 2;
 
           var s = (sr[1] * k0) + (sr[0] * k1) + xa2pcm[index + 1];
@@ -776,6 +778,7 @@ const cdr = (() => {
 
     setCdImage: function(data) {
       sectorData32 = new Int32Array(data.buffer);
+      sectorData16 = new Int16Array(data.buffer);
       sectorData8 = new Int8Array(data.buffer);
 
       cdr.hasCdFile = true;
