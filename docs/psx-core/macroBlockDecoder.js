@@ -141,7 +141,7 @@ var video = {
           let val = (iqtab[iqoff + k] * q * dc) >> 3;
           blk[o + this.zscan[k]] = val;
         }
-        if (k >= 63) break;
+        if (k > 63) break;
       }
 
       this.icdt(blk, o);
