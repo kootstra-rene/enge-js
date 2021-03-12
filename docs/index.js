@@ -124,9 +124,6 @@ joy.eventIRQ = psx.addEvent(0, joy.completeIRQ.bind(joy));
 mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
 
 dot.event = psx.addEvent(0, dot.complete.bind(dot));
-// rc0.event = psx.addEvent(0, rc0.complete.bind(rc0));
-// rc1.event = psx.addEvent(0, rc1.complete.bind(rc1));
-// rc2.event = psx.addEvent(0, rc2.complete.bind(rc2));
 
 let frameEvent = psx.addEvent(0, endMainLoop);
 let endAnimationFrame = false;
@@ -143,8 +140,8 @@ function mainLoop(stamp) {
 
   context.realtime += delta;
 
-  let diffTime = context.emutime - context.realtime;
-  const timeToEmulate = 10.0 - diffTime;
+  let diffTime = context.realtime - context.emutime;
+  const timeToEmulate = diffTime;
 
   const totalCycles = timeToEmulate * (768*44.100);
 
