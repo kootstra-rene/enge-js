@@ -678,7 +678,9 @@ const cdr = (() => {
         var k1 = xa2flt[filter + 1]
 
         for (var sd = 0; sd < 28; ++sd) {
-          var data = sectorData8[sectorOffset + 16 + (sd * 4) + (su / 2)] & 0xff;
+          const offset = (sectorOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+          var data = sectorData8[offset] & 0xff;
+
           var index = (shift * 256 + data) * 2;
 
           var s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + (su & 1)];
@@ -714,7 +716,8 @@ const cdr = (() => {
         var k1 = xa2flt[filter + 1]
 
         for (var sd = 0; sd < 28; ++sd) {
-          var data = sectorData8[sectorOffset + 16 + (sd * 4) + (su / 2)] & 0xff;
+          const offset = (sectorOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+          var data = sectorData8[offset] & 0xff;
           var index = (shift * 256 + data) * 2;
 
           var s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + 0];
@@ -731,7 +734,8 @@ const cdr = (() => {
         var k1 = xa2flt[filter + 1]
 
         for (var sd = 0; sd < 28; ++sd) {
-          var data = sectorData8[sectorOffset + 16 + (sd * 4) + (su / 2)] & 0xff;
+          const offset = (sectorOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+          var data = sectorData8[offset] & 0xff;
           var index = (shift * 256 + data) * 2;
 
           var s = (sr[1] * k0) + (sr[0] * k1) + xa2pcm[index + 1];
