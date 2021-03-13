@@ -396,9 +396,7 @@ var gpu = {
       dy = (dy & 0x1ff);
       sx = (sx & 0x3ff);
       sy = (sy & 0x1ff);
-      if (w === 0) w = 0x400;
-      if (h === 0) h = 0x200;
-      renderer.moveImage(sx, sy, dx, dy, w, h);
+      if (w*h) renderer.moveImage(sx, sy, dx, dy, w, h);
     }
   },
 

@@ -541,12 +541,12 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
   }
 
   // out-of-bound vertically
-  if ((img.y + img.h) >  512) {
+  if ((img.y + img.h) > 512) {
     let h1 = 512 - img.y;
     let h2 = img.h - h1;
 
-    this.storeImageInTexture({x:img.x, y:img.y, w:img.w, h:h1, buffer: new Uint16Array(img.buffer.buffer), pixelCount:h1*img.w});
-    this.storeImageInTexture({x:img.x, y:0, w:img.w, h:h2, buffer: new Uint16Array(img.buffer.buffer, h1*img.w*2), pixelCount:h2*img.w});
+    this.storeImageInTexture({x:img.x, y:img.y, w:img.w, h:h1, buffer: new Uint16Array(img.buffer.buffer, 0, h1*img.w), pixelCount:h1*img.w});
+    this.storeImageInTexture({x:img.x, y:0, w:img.w, h:h2, buffer: new Uint16Array(img.buffer.buffer, h1*img.w), pixelCount:h2*img.w});
     return;
   }
   // copy image to GPU
@@ -999,8 +999,8 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color) {
   var gl = this.gl;
 
   // update clear buffer;
-  const size = w * h;
-  if ((clrState.color !== color) || (size < clrState.size)) {
+  const size = (w * h) >>> 0;
+  if ((clrState.color !== color) || (clrState.size < size)) {
     clrState.color = color;
     clrState.size = size;
 
@@ -1017,7 +1017,7 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color) {
   const view = new Uint8Array(clr.buffer, 0, size << 1);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
 
-  gl.bindTexture(gl.TEXTURE_2D, this.tex16draw);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
 WebGLRenderer.prototype.fillRectangle = function(data) {
