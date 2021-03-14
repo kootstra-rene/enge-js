@@ -9,6 +9,8 @@ var renderer = undefined;
 var canvas = undefined;
 var emulationTime = 0.0;
 var context = undefined;
+var fileName = '';
+var saveState = undefined;
 
 var abort = function() {
   console.error(Array.prototype.slice.call(arguments).join(' '));
@@ -134,6 +136,9 @@ function endMainLoop(self, clock) {
 
 function mainLoop(stamp) {
   window.requestAnimationFrame(mainLoop);
+
+  saveState.processSaveStates();
+
   const delta = stamp - context.timeStamp;
   context.timeStamp = stamp;
   if (!running || !hasFocus || delta > 200) return;
@@ -187,7 +192,7 @@ var openFile = function(file) {
 
   reader.onload = function(event) {
     console.log(escape(file.name), file.size);
-
+    fileName = file.name;
     loadFileData(event.target.result)
   };
 
@@ -353,6 +358,7 @@ function init() {
     return false;
   });
 
+  saveState = new SaveState();
 
   mainLoop(performance.now());
 

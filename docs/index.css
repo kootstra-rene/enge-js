@@ -186,3 +186,30 @@ input[type="file"] {
 #quality.restart {
   border: 0.5vh solid #a42;
 }
+
+#savestate {
+  border: 0.5vh solid #555;
+  border-radius: 1vh;
+  display: inline-block;
+  cursor: pointer;
+  text-align: center;
+  line-height: 9vh;
+  font-size: 5vh;
+  font-weight: bold;
+  color: rgb(80, 80, 80);
+}
+
+.textOverlayDiv{
+  position: fixed;
+  color: black;
+  background-color: white;
+  padding: 10px;
+  font-size: 12pt;
+  margin-left: auto;
+  margin-right: auto;
+  width: 200px;
+  top: 10%;
+  left: 50%;
+  margin-left: -100px;
+  z-index: 3;
+}

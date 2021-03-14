@@ -23,6 +23,7 @@
     <script type="text/javascript" src="psx-core/rootCounters.js"></script>
     <script type="text/javascript" src="psx-core/gamepad.js"></script>
 
+    <script type="text/javascript" src="savestate.js"></script>
     <script type="text/javascript" src="index.js"></script>
 
     <script id="vertex" type="x-shader/x-vertex">#version 300 es
@@ -171,9 +172,17 @@
       <div id="gamepad">
       </div>
       <span></span>
+      <div id="savestate" onclick="saveState.RequestSaveState()">
+        SV
+      </div>
+      <div id="savestate" onclick="saveState.RequestLoadState()">
+        LD
+      </div>
       <div id="quality">
       </div>
     </nav>
+    <div id="textOverlayDiv" class="textOverlayDiv" style="text-align: center;opacity: .8;display: none;">
+    </div>
   </body>
 </html>
 
