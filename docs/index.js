@@ -132,6 +132,7 @@ function endMainLoop(self, clock) {
   self.active = false;
 }
 
+let switches = 0;
 function mainLoop(stamp) {
   window.requestAnimationFrame(mainLoop);
   const delta = stamp - context.timeStamp;
@@ -156,6 +157,7 @@ function mainLoop(stamp) {
       entry.code = compileBlock(entry);
     }
     entry = entry.code(psx);
+    ++switches;
     // let next = entry.code(psx);
     // if (!next) debugger;
     // entry = next;
@@ -175,7 +177,10 @@ function bios() {
     if (!entry.code) {
       entry.code = compileBlock(entry);
     }
-    entry = entry.code(psx);
+    // entry = entry.code(psx);
+    let next = entry.code(psx);
+    if (!next) debugger;
+    entry = next;
   }
   context.realtime = context.emutime =  psx.clock / (768*44.100);
 
@@ -335,6 +340,26 @@ function handleDragOver(evt) {
   evt.preventDefault();
 }
 
+// default keyboard mapping
+const keyboard = new Map();
+keyboard.set(69, {bits: 0x10, property: 'hi'}); /*  [^]  */
+keyboard.set(68, {bits: 0x20, property: 'hi'}); /*  [O]  */
+keyboard.set(88, {bits: 0x40, property: 'hi'}); /*  [X]  */
+keyboard.set(83, {bits: 0x80, property: 'hi'}); /*  [#]  */
+
+keyboard.set(81, {bits: 0x01, property: 'hi'}); /*  [L2]  */
+keyboard.set(84, {bits: 0x02, property: 'hi'}); /*  [R2]  */
+keyboard.set(87, {bits: 0x04, property: 'hi'}); /*  [L1]  */
+keyboard.set(82, {bits: 0x08, property: 'hi'}); /*  [R1]  */
+
+keyboard.set(38, {bits: 0x10, property: 'lo'}); /*  [u]  */
+keyboard.set(39, {bits: 0x20, property: 'lo'}); /*  [r]  */
+keyboard.set(40, {bits: 0x40, property: 'lo'}); /*  [d]  */
+keyboard.set(37, {bits: 0x80, property: 'lo'}); /*  [l]  */
+
+keyboard.set(32, {bits: 0x01, property: 'lo'}); /* [sel] */
+keyboard.set(13, {bits: 0x08, property: 'lo'}); /*[start]*/
+
 function init() {
 
   canvas = document.getElementById('display');
@@ -365,59 +390,17 @@ function init() {
     }
   });
 
-  window.addEventListener("keydown", function(e) {
-    if (e.keyCode === 69) { /*  [^]  */ joy.devices[0].hi &= ~0x10; return; }
-    if (e.keyCode === 68) { /*  [O]  */ joy.devices[0].hi &= ~0x20; return; }
-    if (e.keyCode === 88) { /*  [X]  */ joy.devices[0].hi &= ~0x40; return; }
-    if (e.keyCode === 83) { /*  [#]  */ joy.devices[0].hi &= ~0x80; return; }
-
-    if (e.keyCode === 81) { /*  [L2] */ joy.devices[0].hi &= ~0x01; return; }
-    if (e.keyCode === 84) { /*  [R2] */ joy.devices[0].hi &= ~0x02; return; }
-    if (e.keyCode === 87) { /*  [L1] */ joy.devices[0].hi &= ~0x04; return; }
-    if (e.keyCode === 82) { /*  [R1] */ joy.devices[0].hi &= ~0x08; return; }
-
-    if (e.keyCode === 38) { /*  [u]  */ joy.devices[0].lo &= ~0x10; return; }
-    if (e.keyCode === 39) { /*  [r]  */ joy.devices[0].lo &= ~0x20; return; }
-    if (e.keyCode === 40) { /*  [d]  */ joy.devices[0].lo &= ~0x40; return; }
-    if (e.keyCode === 37) { /*  [l]  */ joy.devices[0].lo &= ~0x80; return; }
-
-    if (e.keyCode === 32) { /*  sel  */ joy.devices[0].lo &= ~0x01; return; }
-    if (e.keyCode === 13) { /* start */ joy.devices[0].lo &= ~0x08; return; }
-    if (e.keyCode === 122) return; //f11
-    if (e.keyCode === 123) return; //f12
-    if (e.keyCode === 116) return; //f5
-    e.preventDefault();
+  window.addEventListener("keydown", function (e) {
+    // e.preventDefault();
   }, false);
 
   window.addEventListener("keyup", function(e) {
-    if (e.keyCode === 69) { /*  [^]  */ joy.devices[0].hi |= 0x10; }
-    if (e.keyCode === 68) { /*  [O]  */ joy.devices[0].hi |= 0x20; }
-    if (e.keyCode === 88) { /*  [X]  */ joy.devices[0].hi |= 0x40; }
-    if (e.keyCode === 83) { /*  [#]  */ joy.devices[0].hi |= 0x80; }
-
-    if (e.keyCode === 81) { /*  [L2] */ joy.devices[0].hi |= 0x01; }
-    if (e.keyCode === 84) { /*  [R2] */ joy.devices[0].hi |= 0x02; }
-    if (e.keyCode === 87) { /*  [L1] */ joy.devices[0].hi |= 0x04; }
-    if (e.keyCode === 82) { /*  [R1] */ joy.devices[0].hi |= 0x08; }
-
-    if (e.keyCode === 38) { /*  [u]  */ joy.devices[0].lo |= 0x10; }
-    if (e.keyCode === 39) { /*  [r]  */ joy.devices[0].lo |= 0x20; }
-    if (e.keyCode === 40) { /*  [d]  */ joy.devices[0].lo |= 0x40; }
-    if (e.keyCode === 37) { /*  [l]  */ joy.devices[0].lo |= 0x80; }
-
-    if (e.keyCode === 32) { /*  sel  */ joy.devices[0].lo |= 0x01; }
-    if (e.keyCode === 13) { /* start */ joy.devices[0].lo |= 0x08; }
-
-    if (e.keyCode === 122) return;
-    if (e.keyCode === 123) return; //f12
-    if (e.keyCode === 116) return; //f5
-
     if (e.key === '1' && e.ctrlKey) renderer.setMode('disp');
     if (e.key === '2' && e.ctrlKey) renderer.setMode('draw');
     if (e.key === '3' && e.ctrlKey) renderer.setMode('clut8');
     if (e.key === '4' && e.ctrlKey) renderer.setMode('clut4');
 
-    e.preventDefault();
+    // e.preventDefault();
   }, false);
 
   readStorageStream('bios', data => {

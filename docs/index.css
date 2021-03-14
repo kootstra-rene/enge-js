@@ -136,19 +136,37 @@ nav > div {
   margin-bottom: 1vh;
   margin-right: 1vw;
   flex: none;
+  border: 0.5vh solid #555;
+  border-radius: 1vh;
+  cursor: pointer;
+  background-size: 8vh;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+nav > div:last-child {
+  margin-bottom: unset !important;
+  margin-right: unset !important;
 }
 
 nav > span {
   flex: 1;
 }
 
+#globe {
+  background-image: url('images/globe.svg');
+}
+
 #gamepad {
+  background-image: url('images/keyboard.svg');
+}
+
+#gamepad.keyboard {
+  background-image: url('images/keyboard.svg');
+}
+
+#gamepad.gamepad {
   background-image: url('images/gamepad.svg');
-  background-size: 8vh;
-  background-repeat: no-repeat;
-  background-position: center;
-  border: 0.5vh solid #555;
-  border-radius: 1vh;
 }
 
 #gamepad.connected {
@@ -156,26 +174,17 @@ nav > span {
 }
 
 input[type="file"] {
-    display: none;
+  display: none;
 }
 .custom-file-upload {
-  border: 0.5vh solid #555;
-  border-radius: 1vh;
   display: inline-block;
-  cursor: pointer;
   width: 100%;
   height: 100%;
   background-image: url('images/upload.svg');
-  background-size: 8vh;
-  background-repeat: no-repeat;
-  background-position: center;
+  cursor: pointer;
 }
 
 #quality {
-  border: 0.5vh solid #555;
-  border-radius: 1vh;
-  display: inline-block;
-  cursor: pointer;
   text-align: center;
   line-height: 9vh;
   font-size: 5vh;
