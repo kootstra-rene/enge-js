@@ -480,6 +480,7 @@ WebGLRenderer.prototype.loadImage = function(x, y, w, h, buffer) {
       buffer[o++] = this.vram[offsetY + ((x+i)%1024)]
     }
   }
+  buffer.fill(0x7c1f, 0, w*h);
 }
 
 WebGLRenderer.prototype.moveImage = function(sx, sy, dx, dy, w, h) {
@@ -818,32 +819,6 @@ WebGLRenderer.prototype.drawLine = function(data, c1, xy1, c2, xy2) {
   }
 }
 
-// todo: cache results as this is called per textured primitive
-WebGLRenderer.prototype.getClutInfo = function(cl, tm) {
-  var cx = ((cl >>> 0) & 0x03f) * 16;
-  var cy = ((cl >>> 6) & 0x1ff);
-
-  if (tm === 2) return 3;
-  if (tm === 1) var len = 256;
-  if (tm === 0) var len = 16;
-
-  var info = 0;
-  var offs = 1024*cy+cx;
-  var vram = this.vram;
-  while (--len >= 0) {
-    var pixel = vram[offs++];
-    if (pixel !== 0) {
-      if (pixel <= 0x7fff) {
-        info |= 1; // STP:0
-      }
-      else {
-        info |= 2; // STP:1
-      }
-    }
-  }
-  return info;
-}
-
 WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
   switch ((data[0] >> 24) & 0xF) {// raw-texture
     case 0x5:
@@ -891,24 +866,16 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
 
-  var info = 3;
+  var buffer = this.getVertexBuffer(3, data[0]);
+  buffer.addVertexUV(x1, y1, data[c1], tm | 8, u1, v1, cx, cy);
+  buffer.addVertexUV(x2, y2, data[c2], tm | 8, u2, v2, cx, cy);
+  buffer.addVertexUV(x3, y3, data[c3], tm | 8, u3, v3, cx, cy);
+
   if (semi_transparent) {
-    info = this.getClutInfo(cl, tm);
-    tm |= 16;
-  }
-
-  if (!semi_transparent || ((info & 2) === 2)) {
-    var buffer = this.getVertexBuffer(3, data[0]);
-    buffer.addVertexUV(x1, y1, data[c1], tm | 8, u1, v1, cx, cy);
-    buffer.addVertexUV(x2, y2, data[c2], tm | 8, u2, v2, cx, cy);
-    buffer.addVertexUV(x3, y3, data[c3], tm | 8, u3, v3, cx, cy);
-  }
-
-  if (semi_transparent && ((info & 1) === 1)) {
     var buffer = this.getVertexBuffer(3, 0);
-    buffer.addVertexUV(x1, y1, data[c1], tm, u1, v1, cx, cy);
-    buffer.addVertexUV(x2, y2, data[c2], tm, u2, v2, cx, cy);
-    buffer.addVertexUV(x3, y3, data[c3], tm, u3, v3, cx, cy);
+    buffer.addVertexUV(x1, y1, data[c1], tm | 16, u1, v1, cx, cy);
+    buffer.addVertexUV(x2, y2, data[c2], tm | 16, u2, v2, cx, cy);
+    buffer.addVertexUV(x3, y3, data[c3], tm | 16, u3, v3, cx, cy);
   }
 }
 
@@ -969,32 +936,24 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
 // console.log(`--drawRectangle: ${x}, ${y}, ${w}, ${h}`)
 
-  var info = 3;
+  var buffer = this.getVertexBuffer(6, data[0]); 
+  buffer.addVertexUV(x+0, y+0, c, tm | 8, tl, tt, cx, cy);
+  buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
+  buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
+
+  buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
+  buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
+  buffer.addVertexUV(x+w, y+h, c, tm | 8, tr, tb, cx, cy);
+
   if (semi_transparent) {
-    info = this.getClutInfo(cl, tm);
-    tm |= 16;
-  }
-
-  if (!semi_transparent || ((info & 2) === 2)) {
-    var buffer = this.getVertexBuffer(6, data[0]); 
-    buffer.addVertexUV(x+0, y+0, c, tm | 8, tl, tt, cx, cy);
-    buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
-    buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
-
-    buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
-    buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
-    buffer.addVertexUV(x+w, y+h, c, tm | 8, tr, tb, cx, cy);
-  }
-
-  if (semi_transparent && ((info & 1) === 1)) {
     var buffer = this.getVertexBuffer(6, 0); 
-    buffer.addVertexUV(x+0, y+0, c, tm, tl, tt, cx, cy);
-    buffer.addVertexUV(x+w, y+0, c, tm, tr, tt, cx, cy);
-    buffer.addVertexUV(x+0, y+h, c, tm, tl, tb, cx, cy);
+    buffer.addVertexUV(x+0, y+0, c, tm | 16, tl, tt, cx, cy);
+    buffer.addVertexUV(x+w, y+0, c, tm | 16, tr, tt, cx, cy);
+    buffer.addVertexUV(x+0, y+h, c, tm | 16, tl, tb, cx, cy);
 
-    buffer.addVertexUV(x+w, y+0, c, tm, tr, tt, cx, cy);
-    buffer.addVertexUV(x+0, y+h, c, tm, tl, tb, cx, cy);
-    buffer.addVertexUV(x+w, y+h, c, tm, tr, tb, cx, cy);
+    buffer.addVertexUV(x+w, y+0, c, tm | 16, tr, tt, cx, cy);
+    buffer.addVertexUV(x+0, y+h, c, tm | 16, tl, tb, cx, cy);
+    buffer.addVertexUV(x+w, y+h, c, tm | 16, tr, tb, cx, cy);
   }
 }
 
