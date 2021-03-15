@@ -527,11 +527,10 @@ var gpu = {
     var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
     gpu.transferTotal -= transferSize;
 
+    const img = gpu.img;
     while (--transferSize >= 0) {
       const data = map16[(addr & 0x001fffff) >>> 1];
-      // var value = map.getInt16(addr & 0x1fffff);
-      gpu.img.buffer[gpu.img.index] = data;
-      gpu.img.index++;
+      img.buffer[img.index++] = data;
       addr += 2;
     }
 
