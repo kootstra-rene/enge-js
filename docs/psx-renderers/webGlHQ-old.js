@@ -226,25 +226,14 @@ var fragmentShaderDraw =
     "  return vec4(r, g, b, a);"+
     "}"+
 
-    "void main(void) {" +
-    "  if (vTextureMode == 7.0) {"+
-    "    gl_FragColor = getColor(tcx, tcy);"+
-    "    return;"+
-    "  }"+
-
-    "  if (vTextureMode == 3.0) {"+
-    "    gl_FragColor = vec4(vColor.rgb, uBlendAlpha);"+
-    "    return;"+
-    "  }"+
-
-    "  vec4 rgba;"+
+    "vec4 getClutColor(float ox) {" +
     "  float cx, cy, val, tx, ty;"+
     "  if (twin != 0.0) {"+
-    "    tx = tox + mod(floor(tcx), tmx);"+
+    "    tx = tox + mod(floor(tcx + ox), tmx);"+
     "    ty = toy + mod(floor(tcy), tmy);"+
     "  }"+
     "  else {"+
-    "    tx = tox + floor(tcx);"+
+    "    tx = tox + floor(tcx + ox);"+
     "    ty = toy + floor(tcy);"+
     "  }"+
     "  if (vTextureMode == 1.0) {"+
@@ -261,17 +250,38 @@ var fragmentShaderDraw =
     "  if (vTextureMode == 2.0) {"+
     "    cx = tx / 1024.0; cy = ty / 512.0;"+
     "  }"+
-
-    "  rgba = getColor(cx, cy);"+
-
+    "  vec4 rgba = getColor(cx, cy);"+
     "  if (rgba.a == 0.0) {"+
-    "    if (rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;"+
-    "    if (vSTP == 3.0) discard;"+
+    "    if (vSTP == 3.0) return vec4(0.0,0.0,0.0,0.0);"+
     "  }"+
     "  else {"+
-    "    if (vSTP == 2.0) discard;"+
+    "    if (vSTP == 2.0) return vec4(0.0,0.0,0.0,0.0);"+
     "  }"+
-    "  gl_FragColor = vec4(vColor.rgb * rgba.rgb * 2.0, uBlendAlpha);"+
+    "  return rgba;"+
+    "}"+
+
+    "void main(void) {" +
+    "  float fx = tcx - floor(tcx);"+
+    "  float fy = tcy - floor(tcy);"+
+
+    "  if (vTextureMode == 7.0) {"+ // copy mode
+    "    gl_FragColor = getColor(tcx, tcy);"+
+    "    return;"+
+    "  }"+
+
+    "  if (vTextureMode == 3.0) {"+
+    "    gl_FragColor = vec4(vColor.rgb, uBlendAlpha);"+
+    "    return;"+
+    "  }"+
+
+    "  vec4 c = getClutColor(0.0);"+
+    "  if (c == vec4(0.0, 0.0, 0.0, 0.0)) discard;"+
+
+    // "  if (fx < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
+    // "  if (fx >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
+    // "  if (fy < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
+    // "  if (fy >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
+    "  gl_FragColor = vec4(2.0 * (vColor.rgb * c.rgb), uBlendAlpha);"+
     "}";
 
 function WebGLRenderer(canvas) {
