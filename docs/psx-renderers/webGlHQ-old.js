@@ -473,14 +473,14 @@ WebGLRenderer.prototype.initTextures = function() {
 }
 
 WebGLRenderer.prototype.loadImage = function(x, y, w, h, buffer) {
-  var o = 0;
-  for (var j = 0; j < h; ++j) {
-    for (var i = 0; i < w; ++i) {
-      var offsetY = ((y + j) % 512) * 1024;
+  let o = 0;
+  for (let j = 0; j < h; ++j) {
+    const offsetY = ((y + j) % 512) * 1024;
+    for (let i = 0; i < w; ++i) {
       buffer[o++] = this.vram[offsetY + ((x+i)%1024)]
     }
   }
-  buffer.fill(0x7c1f, 0, w*h);
+  // buffer.fill(0x7c1f, 0, w*h);
 }
 
 WebGLRenderer.prototype.moveImage = function(sx, sy, dx, dy, w, h) {
