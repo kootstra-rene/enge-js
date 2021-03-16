@@ -477,7 +477,7 @@ const dot = {
     rc0.onScanLine();
     rc1.onScanLine(this.scanLine === gpu.dispB);
     rc2.onScanLine();
-    gpu.onScanLine();
+    gpu.onScanLine(this.scanLine);
 
 
     let scanlineCycles = this.stop - this.start;

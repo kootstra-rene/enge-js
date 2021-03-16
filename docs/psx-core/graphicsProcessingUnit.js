@@ -93,7 +93,8 @@ var gpu = {
     return {x:gpu.dispX, y:gpu.dispY, w:width, h:height};
   },
 
-  onScanLine: function () {
+  onScanLine: function (scanline) {
+    gpu.hline = scanline;
     let interlaced = gpu.status & (1 << 22);
 	  let PAL = ((gpu.status >> 20) & 1) ? true : false;
     let vsync = PAL ? 314 : 263;
@@ -123,12 +124,12 @@ var gpu = {
     if (gpu.hline === vblankbegin) {
       renderer.onVBlankBegin();
       gpu.status &= 0x7fffffff;
+      cpu.istat |= 0x0001;
     }
     if (gpu.hline === vblankend) {
       renderer.onVBlankEnd();
     }
     if (++gpu.hline >= vsync) {
-      cpu.istat |= 0x0001;
       gpu.hline = 0;
       ++gpu.frame;
     }
