@@ -336,6 +336,33 @@ function WebGLRenderer(canvas) {
   }
 }
 
+// todo: cache results as this is called per textured primitive.
+//       do not ever remove one of the more powerful optimisations
+WebGLRenderer.prototype.getClutInfo = function(cl, tm) {
+  var cx = ((cl >>> 0) & 0x03f) * 16;
+  var cy = ((cl >>> 6) & 0x1ff);
+
+  if (tm === 2) return 3;
+  if (tm === 1) var len = 256;
+  if (tm === 0) var len = 16;
+
+  var info = 0;
+  var offs = 1024*cy+cx;
+  var vram = this.vram;
+  while (--len >= 0) {
+    var pixel = vram[offs++];
+    if (pixel !== 0) {
+      if (pixel <= 0x7fff) {
+        info |= 1; // STP:0  // opaque colors in clut
+      }
+      else {
+        info |= 2; // STP:1  // transparent colors in clut
+      }
+    }
+  }
+  return info;
+}
+
 WebGLRenderer.prototype.outsideDrawArea = function(x1,y1,x2,y2,x3,y3) {
   if ((x1 < this.drawAreaL) && (x2 < this.drawAreaL) && (x3 < this.drawAreaL)) return true;
   if ((x1 > this.drawAreaR) && (x2 > this.drawAreaR) && (x3 > this.drawAreaR)) return true;
@@ -560,6 +587,8 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
     this.storeImageInTexture({x:img.x, y:0, w:img.w, h:h2, buffer: new Uint16Array(img.buffer.buffer, h1*img.w), pixelCount:h2*img.w});
     return;
   }
+
+  // console.log(img.x, img.y, img.w, img.h)
   // copy image to GPU
   const view = new Uint8Array(img.buffer.buffer, 0, img.pixelCount << 1);
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
@@ -838,8 +867,6 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
   var x3 = this.drawOffsetX + ((data[xy3] << 21) >> 21);
   var y3 = this.drawOffsetY + ((data[xy3] <<  5) >> 21);
 
-  if (gpu.txflip || gpu.tyflip) console.warn('texture flip with triangles');
-
   if (this.outsideDrawArea(x1,y1,x2,y2,x3,y3)) return;
   if (this.largePrimitive(x1,y1,x2,y2,x3,y3)) return;
 
@@ -852,6 +879,8 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
     buffer.addVertex(x3, y3, data[c3]);
     return;
   }
+
+  if (gpu.txflip || gpu.tyflip) console.warn('texture flip with triangles');
 
   var u1 = (data[uv1] >>> 0) & 255;
   var v1 = (data[uv1] >>> 8) & 255;
@@ -866,12 +895,20 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
 
-  var buffer = this.getVertexBuffer(3, data[0]);
-  buffer.addVertexUV(x1, y1, data[c1], tm | 8, u1, v1, cx, cy);
-  buffer.addVertexUV(x2, y2, data[c2], tm | 8, u2, v2, cx, cy);
-  buffer.addVertexUV(x3, y3, data[c3], tm | 8, u3, v3, cx, cy);
-
+  var info = 3;
   if (semi_transparent) {
+    info = this.getClutInfo(cl, tm);
+  }
+
+  if (!semi_transparent || ((info & 2) === 2)) {
+    var buffer = this.getVertexBuffer(3, data[0]);
+    buffer.addVertexUV(x1, y1, data[c1], tm | 8, u1, v1, cx, cy);
+    buffer.addVertexUV(x2, y2, data[c2], tm | 8, u2, v2, cx, cy);
+    buffer.addVertexUV(x3, y3, data[c3], tm | 8, u3, v3, cx, cy);
+  }
+
+  if (semi_transparent && ((info & 1) === 1)) {
+    // there are opaque colors in the clut
     var buffer = this.getVertexBuffer(3, 0);
     buffer.addVertexUV(x1, y1, data[c1], tm | 16, u1, v1, cx, cy);
     buffer.addVertexUV(x2, y2, data[c2], tm | 16, u2, v2, cx, cy);
@@ -923,29 +960,37 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   var tr = tx + w;
   if (gpu.txflip) {
     tl = tx + 0
-    tr = tx - w// + 1
+    tr = tx - w + 1
   }
 
   var tt = ty + 0;
   var tb = ty + h;
   if (gpu.tyflip) {
     tt = ty + 0
-    tb = ty - h// + 1
+    tb = ty - h + 1
   }
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
 // console.log(`--drawRectangle: ${x}, ${y}, ${w}, ${h}`)
 
-  var buffer = this.getVertexBuffer(6, data[0]); 
-  buffer.addVertexUV(x+0, y+0, c, tm | 8, tl, tt, cx, cy);
-  buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
-  buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
-
-  buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
-  buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
-  buffer.addVertexUV(x+w, y+h, c, tm | 8, tr, tb, cx, cy);
-
+  var info = 3;
   if (semi_transparent) {
+    info = this.getClutInfo(cl, tm);
+  }
+
+  if (!semi_transparent || ((info & 2) === 2)) {
+    var buffer = this.getVertexBuffer(6, data[0]); 
+    buffer.addVertexUV(x+0, y+0, c, tm | 8, tl, tt, cx, cy);
+    buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
+    buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
+
+    buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
+    buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
+    buffer.addVertexUV(x+w, y+h, c, tm | 8, tr, tb, cx, cy);
+  }
+
+  if (semi_transparent && ((info & 1) === 1)) {
+    // there are opaque colors in the clut
     var buffer = this.getVertexBuffer(6, 0); 
     buffer.addVertexUV(x+0, y+0, c, tm | 16, tl, tt, cx, cy);
     buffer.addVertexUV(x+w, y+0, c, tm | 16, tr, tt, cx, cy);
@@ -1003,6 +1048,16 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
   h = (h & 0x1ff);
   if (!w && !h) return;
 
+  if ((x + w) > 1024) {
+    // unsupport 
+    console.log('fillRectangle does not support x-wrap', x, w)
+    return;
+  }
+  if ((y + h) > 1024) {
+    // unsupport 
+    console.log('fillRectangle does not support y-wrap', h, y)
+    return;
+  }
   this.flushVertexBuffer(true);
   this.clearVRAM(x, y, w, h, c);
 
