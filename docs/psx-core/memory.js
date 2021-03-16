@@ -268,11 +268,9 @@ function hwWrite8(base, data) {
 function memWrite8(addr, data) {
   const base = (addr & 0x01ffffff) >>> 0;
   if (base < 0x00800000) {
-    if (0 === (cpu.sr & 0x00010000)) {
-      map8[(base & 0x001fffff) >>> 0] = data;
-      clearCodeCache(base);
-      psx.clock += 1;
-    }
+    map8[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 0] = data;
+    clearCodeCache(base);
+    psx.clock += 1;
     return;
   }
   if ((base >= 0x01800000) && (base < 0x01802000)) {
@@ -319,11 +317,9 @@ function hwWrite16(base, data) {
 function memWrite16(addr, data) {
   const base = (addr & 0x01ffffff) >>> 0;
   if (base < 0x00800000) {
-    if (0 === (cpu.sr & 0x00010000)) {
-      map16[(base & 0x001fffff) >>> 1] = data;
-      clearCodeCache(base);
-      psx.clock += 1;
-    }
+    map16[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 1] = data;
+    clearCodeCache(base);
+    psx.clock += 1;
     return;
   }
   if ((base >= 0x01800000) && (base < 0x01802000)) {
@@ -390,11 +386,9 @@ function memWrite32(addr, data) {
   const base = (addr & 0x01ffffff) >>> 0;
 
   if (base < 0x00800000) {
-    if (0 === (cpu.sr & 0x00010000)) {
-  	  map[(addr & 0x001fffff) >> 2] = data;
-      clearCodeCache(base);
-      psx.clock += 1;
-    }
+	  map[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 2] = data;
+    clearCodeCache(base);
+    psx.clock += 1;
     return;
   }
   if ((base >= 0x01800000) && (base < 0x01802000)) {
