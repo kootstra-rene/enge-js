@@ -119,7 +119,7 @@ const dma = {
       psx.setEvent(this.eventDMA0, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      console.log('dma0 not enabled');
+      // console.log('dma0 not enabled');
       this.r1088 &= 0xfeffffff;
     }
   },
@@ -141,7 +141,7 @@ const dma = {
       psx.setEvent(this.eventDMA1, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      console.log('dma1 not enabled');
+      // console.log('dma1 not enabled');
       this.r1098 &= 0xfeffffff;
     }
   },
@@ -171,7 +171,7 @@ const dma = {
       psx.setEvent(this.eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      console.log('dma2 not enabled');
+      // console.log('dma2 not enabled');
       this.r10a8 &= 0xfeffffff;
     }
   },
@@ -194,7 +194,7 @@ const dma = {
       psx.setEvent(this.eventDMA3, ((transferSize * 0x2800) / 0x100) >>> 0);
     }
     else {
-      console.log('dma3 not enabled');
+      // console.log('dma3 not enabled');
       this.r10b8 &= 0xfeffffff;
     }
   },
@@ -220,7 +220,7 @@ const dma = {
       psx.setEvent(this.eventDMA4, ((transferSize * 0x420) / 0x100) >>> 0);
     }
     else {
-      console.log('dma4 not enabled');
+      // console.log('dma4 not enabled');
       this.r10c8 &= 0xfeffffff;
     }
   },
@@ -243,7 +243,7 @@ const dma = {
       psx.setEvent(this.eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      console.log('dma6 not enabled');
+      // console.log('dma6 not enabled');
       this.r10e8 &= 0xfeffffff;
     }
   },
