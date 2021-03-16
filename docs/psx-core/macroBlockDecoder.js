@@ -336,7 +336,7 @@ var mdc = {
   dmaTransferMode0200: function(addr, blck) {
     addr = addr & 0x001fffff; // ram always
     const numberOfWords = (blck >>> 16) * (blck & 0xffff);
-    clearCodeCache( addr, numberOfWords << 2);
+    // clearCodeCache( addr, numberOfWords << 2); // optimistice assumption (performance reasons)
 
     var blk = mdc.block;
     var end = addr + (numberOfWords << 2);

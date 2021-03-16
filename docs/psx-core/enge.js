@@ -254,11 +254,12 @@ function getCacheEntry(pc) {
 
   if (!entry) {
     cache.set(lutIndex, entry = {
-      pc: (pc >>> 0) & 0x01ffffff,
-      calls: 0,
-      clock: 0,
-      addr: hex(pc),
       code: null,
+      pc: (pc >>> 0) & 0x01ffffff,
+      // inline: false,
+      // calls: 0,
+      // clock: 0,
+      addr: hex(pc),
       jump: null,
       next: null,
     });

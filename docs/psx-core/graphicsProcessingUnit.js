@@ -501,15 +501,14 @@ var gpu = {
 
   dmaTransferMode0200: function(addr, blck) {
     var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-    clearCodeCache( addr, transferSize << 1);
+    // clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
 
     gpu.transferTotal -= transferSize;
 
+    const img = gpu.img;
     while (--transferSize >= 0) {
-      const data = gpu.img.buffer[gpu.img.index];
+      const data = gpu.img.buffer[img.index++];
       map16[(addr & 0x001fffff) >>> 1] = data;
-      // map.setInt16(addr & 0x1fffff, value);
-      gpu.img.index++;
       addr += 2;
     }
 
@@ -614,7 +613,7 @@ var gpu = {
     }
     map[addr >> 2] = 0x00ffffff;
 
-    clearCodeCache(addr, transferSize << 2);
+    // clearCodeCache(addr, transferSize << 2); // optimistice assumption (performance reasons)
     return transferSize;
   },
 }
