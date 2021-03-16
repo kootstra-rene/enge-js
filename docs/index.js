@@ -177,10 +177,11 @@ function bios() {
     if (!entry.code) {
       entry.code = compileBlock(entry);
     }
-    // entry = entry.code(psx);
-    let next = entry.code(psx);
-    if (!next) debugger;
-    entry = next;
+    entry = entry.code(psx);
+    ++switches;
+    // let next = entry.code(psx);
+    // if (!next) debugger;
+    // entry = next;
   }
   context.realtime = context.emutime =  psx.clock / (768*44.100);
 
@@ -391,7 +392,10 @@ function init() {
   });
 
   window.addEventListener("keydown", function (e) {
-    // e.preventDefault();
+    if (e.key === 'F12') return; // allow developer tools
+    if (e.key === 'F11') return; // allow full screen
+    if (e.key === 'F5') return; // allow page refresh
+    e.preventDefault();
   }, false);
 
   window.addEventListener("keyup", function(e) {
@@ -400,7 +404,10 @@ function init() {
     if (e.key === '3' && e.ctrlKey) renderer.setMode('clut8');
     if (e.key === '4' && e.ctrlKey) renderer.setMode('clut4');
 
-    // e.preventDefault();
+    if (e.key === 'F12') return; // allow developer tools
+    if (e.key === 'F11') return; // allow full screen
+    if (e.key === 'F5') return; // allow page refresh
+    e.preventDefault();
   }, false);
 
   readStorageStream('bios', data => {

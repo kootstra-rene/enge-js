@@ -17,9 +17,8 @@ window.addEventListener("keydown", function (e) {
   if (mapping !== undefined) {
     device[mapping.property] &= ~mapping.bits;
     setController('keyboard');
-    e.preventDefault();
   }
-}, true);
+}, false);
 
 window.addEventListener("keyup", function(e) {
   const mapping = keyboard.get(e.keyCode);
@@ -27,9 +26,8 @@ window.addEventListener("keyup", function(e) {
 
   if (mapping !== undefined) {
     device[mapping.property] |= mapping.bits;
-    e.preventDefault();
   }
-}, true);
+}, false);
 
 const handleGamePads = (() => {
 
