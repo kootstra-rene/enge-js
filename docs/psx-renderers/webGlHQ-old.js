@@ -1019,6 +1019,7 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color) {
 
   // update clear buffer;
   const size = (w * h) >>> 0;
+
   if ((clrState.color !== color) || (clrState.size < size)) {
     clrState.color = color;
     clrState.size = size;
@@ -1044,6 +1045,7 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color) {
   // copy image to GPU
   const view = new Uint8Array(clr.buffer, 0, size << 1);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
+  // if (gl.getError() !== gl.NO_ERROR) debugger;
 
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
@@ -1060,14 +1062,14 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
   y = (y & 0x1ff);
   w = ((w & 0x3ff) + 15) & ~15;
   h = (h & 0x1ff);
-  if (!w && !h) return;
+  if (!w || !h) return;
 
   if ((x + w) > 1024) {
     // unsupport 
     console.log('fillRectangle does not support x-wrap', x, w)
     return;
   }
-  if ((y + h) > 1024) {
+  if ((y + h) > 512) {
     // unsupport 
     console.log('fillRectangle does not support y-wrap', h, y)
     return;
