@@ -32,7 +32,7 @@ var spu = {
   totalSamples: 0,
   voices: [],
   index: 0,
-  writeIndex: 0,
+  writeIndex: (44100 * 0.125) >> 0,
 
   data: new Uint8Array(512*1024),
 
