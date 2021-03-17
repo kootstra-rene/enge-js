@@ -948,6 +948,10 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
     buffer.addVertex(x+w, y+0, c);
     buffer.addVertex(x+0, y+h, c);
     buffer.addVertex(x+w, y+h, c);
+
+    if (!c) {
+      this.clearVRAM(x,y,w,h,c);
+    }
     return;
   }
 
@@ -1005,6 +1009,7 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
 let clr = new Uint16Array(1024*512);
 const clrState = {
   color: 0,
+  c : 0,
   size: 1024*512
 };
 clr.fill(0);
@@ -1022,7 +1027,16 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color) {
     const g = (color >>> 11) & 0x1f;
     const b = (color >>> 19) & 0x1f;
     const c = (b << 10) | (g << 5) | r;
+    clrState.c = c;
+
     clr.fill(c, 0, size);
+  }
+
+  for (let j = 0; j < h; ++j) {
+    const offsetY = ((y + j) % 512) * 1024;
+    for (let i = 0; i < w; ++i) {
+      this.vram[offsetY + ((x+i)%1024)] = clrState.c;
+    }
   }
 
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
@@ -1131,8 +1145,6 @@ WebGLRenderer.prototype.onVBlankEnd = function() {
   }
   if (this.displaymode === 2) {
     var area = gpu.getDisplayArea();
-    this.canvas.width = area.w*qwf;
-    this.canvas.height = area.h*qhf;
     this.vertexBuffer.reset()
 
     var al = area.x
@@ -1149,17 +1161,19 @@ WebGLRenderer.prototype.onVBlankEnd = function() {
     this.vertexBuffer.addVertexDisp(+32767, -32768, ar, ab);
 
     var drawBuffer = this.vertexBuffer.subarray(0, this.vertexBuffer.index / 4)
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height)
 
     if (gpu.status & (1 << 23)) {
+      gl.viewport(0, 0, this.canvas.width = area.w*qwf, this.canvas.height = area.h*qhf)
       gl.clearColor(0.0, 0.0, 0.0, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     else
     if (gpu.status & (1 << 21)) {
+      gl.viewport(0, 0, this.canvas.width = area.w, this.canvas.height = area.h);
       display24bit(this, drawBuffer, al, at)
     }
     else {
+      gl.viewport(0, 0, this.canvas.width = area.w*qwf, this.canvas.height = area.h*qhf)
       display16bit(this, drawBuffer, al, at)
     }
   }
