@@ -660,3 +660,45 @@ function getCodeStats(level, mostCalledItems) {
 
   return items.sort((a,b) => b.calls-a.calls).slice(0,mostCalledItems||10);
 }
+
+// an array is faster but consumes much more memory, deliberatly chosen for memory here,
+const cache = new Map();
+Object.seal(cache);
+
+function getCacheIndex(pc) {
+  pc = pc & 0x01ffffff;
+  if (pc < 0x800000) pc &= 0x1fffff;
+  return pc >>> 2;
+}
+
+function clearCodeCache(addr, size) {
+  const words = !size ? 4 >>> 0 : size >>> 0;
+
+  for (let i = 0 >>> 0; i < words; i += 4) {
+    const lutIndex = getCacheIndex((addr >>> 0) + i);
+    let entry = cache.get(lutIndex);
+    if (entry) entry.code = null;
+  }
+}
+
+function getCacheEntry(pc) {
+  const lutIndex = getCacheIndex(pc);
+  let entry = cache.get(lutIndex);
+
+  if (!entry) {
+    cache.set(lutIndex, entry = {
+      code: null,
+      pc: lutIndex << 2,
+      // inline: false,
+      // calls: 0,
+      // clock: 0,
+      addr: hex(lutIndex << 2),
+      jump: null,
+      next: null,
+    });
+    Object.seal(entry);
+  }
+  return entry;
+}
+
+const vector = getCacheEntry(0x80000080);
