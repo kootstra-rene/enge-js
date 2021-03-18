@@ -184,7 +184,7 @@ function bios() {
     // entry = next;
   }
   context.realtime = context.emutime =  psx.clock / (768*44.100);
-
+  vector = getCacheEntry(0x80);
   cpu.pc = entry.pc;
 }
 
@@ -237,6 +237,8 @@ function loadFileData(arrayBuffer) {
       map8[(textSegmentOffset & 0x001fffff) >>> 0] = view8[(0x800 + i) >>> 0];
       textSegmentOffset++;
     }
+
+    clearCodeCache(data.getInt32(0x18), view8.length);
     running = true;
   }
   else if (data[0] === 0xffffff00) { // ISO
@@ -422,6 +424,15 @@ function init() {
         header.classList.remove('nobios');
       }
       bios();
+    }
+  });
+  readStorageStream('card1', data => {
+    if (data) {
+      let data8 = new Uint8Array(data);
+      console.log('loading card1', data8.length);
+      for (let i = 0; i < 128*1024; ++i) {
+        joy.devices[0].data[i] = data8[i];
+      }
     }
   });
 }

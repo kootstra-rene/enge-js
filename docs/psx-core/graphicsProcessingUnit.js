@@ -114,7 +114,8 @@ var gpu = {
       }
     }
     else {
-      if ((gpu.hline & 1) === 1) {
+      const oddLine = gpu.hline + (gpu.frame & 1); // toggle even/odd on every frame
+      if ((oddLine& 1) === 1) {
         gpu.status |= 0x80000000;
       }
       else {
@@ -123,11 +124,14 @@ var gpu = {
     }
     if (gpu.hline === vblankbegin) {
       renderer.onVBlankBegin();
-      gpu.status &= 0x7fffffff;
       cpu.istat |= 0x0001;
     }
     if (gpu.hline === vblankend) {
       renderer.onVBlankEnd();
+    }
+    if ((gpu.hline >= vblankbegin) || (gpu.hline < vblankend)) {
+      // always even during vlbank.
+      gpu.status &= 0x7fffffff;
     }
     if (++gpu.hline >= vsync) {
       gpu.hline = 0;

@@ -404,12 +404,12 @@ var rec = {
                          'gte.command(0x' + hex(opc & 0x1ffffff) + ')';
                 },
 
-  'invalid'   : function (rec, opc) {
-                  rec.stop = true;
-                  rec.syscall = true;
-                  return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': invalid instruction\n' +
-                         'target = cpuException(4 << 2, 0x' + hex(rec.pc) + ');';
-                },
+  // 'invalid'   : function (rec, opc) {
+  //                 rec.stop = true;
+  //                 rec.syscall = true;
+  //                 return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': invalid instruction\n' +
+  //                        'target = cpuException(4 << 2, 0x' + hex(rec.pc) + ');';
+  //               },
 }
 rec.compileD1 = rec.compileD0;
 rec.compileD2 = rec.compileD0;
@@ -701,4 +701,4 @@ function getCacheEntry(pc) {
   return entry;
 }
 
-const vector = getCacheEntry(0x80000080);
+let vector;

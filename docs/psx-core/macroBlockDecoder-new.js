@@ -27,7 +27,7 @@ const decoder = {
         const dc = (rle << 22) >> 22;
         console.log(psx.clock, 'b:', this.b, 'k:', this.k, 'dc:', dc)
       }
-      if (this.k >= 63) {
+      if (this.k > 63) {
         // todo: idct
         this.f = true;
         this.b++;

@@ -38,7 +38,7 @@ var joy = {
                       this.response.push(0x47);
                       break;
           case 0x57:  // write
-                      this.response.push(0x00, 0x5a, 0x5d, 0x00, -1);
+                      this.response.push(0x00, 0x5a, 0x5d, -1, -1);
                       for (let i = 0; i < 128; ++i) {
                         this.response.push(-1);
                       }
@@ -81,15 +81,23 @@ var joy = {
                 break;
               case (dataIndex === 7):
                 data = this.received[3];
+                this.checkSum = data;
                 break;
               case (dataIndex === 8):
-                data = this.received[4];
                 this.addr = (this.received[3] << 8) | this.received[4];
+                data = this.received[4];
+                this.checkSum ^= data;
                 break;
 
               case (dataIndex >= 9 && dataIndex < 137):
                 let offset = (this.addr * 128) + dataIndex - 9;
                 data = this.data[offset];
+                this.checkSum ^= data;
+                break;
+
+                break;
+              case (dataIndex === 137):
+                data = this.checkSum & 0xff;
                 break;
 
               default:
@@ -102,14 +110,26 @@ var joy = {
           if (data === -1) {
             let dataIndex = this.received.length;
             switch (true) {
+              case (dataIndex === 3):
+                data = this.received[3];
+                this.checkSum = data;
+                break;
               case (dataIndex === 4):
                 data = this.received[3];
+                this.checkSum ^= data;
                 this.addr = (data << 8) | byte;
                 break;
-              case (dataIndex >= 5 && dataIndex < 132):
+              case (dataIndex >= 5 && dataIndex < 133):
                 let offset = (this.addr * 128) + dataIndex - 5;
                 data = this.data[offset-1];
                 this.data[offset] = byte;
+                this.checkSum ^= byte;
+                break;
+              case (dataIndex === 133):
+                // todo: check checksum
+                data = this.data[132];
+                const base64text = Base64.encode(this.data);
+                localStorage.setItem('card1', base64text);
                 break;
               default:  debugger;
             }
@@ -177,7 +197,7 @@ var joy = {
                   this.setResult(byte, !more);
                 } break;
 
-      case 0x81:  return this.setResult(0xff, true); // no memcard for now
+      case 0x81:  //return this.setResult(0xff, true); // no memcard for now
                   device.buildMemCardResponse(data & 0xff);
                   this.command = 0x82;
       case 0x82:{ let byte = device.sendReceiveByte(data & 0xff);
