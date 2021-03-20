@@ -1,5 +1,6 @@
 'use strict';
 
+const speedFactor = 1.0;
 var running = false;
 var originalSpeed = true;
 var realtimeStart = 0;
@@ -113,7 +114,7 @@ Object.seal(psx);
 
 psx.addEvent(0, spu.event.bind(spu));
 dma.eventDMA0 = psx.addEvent(0, dma.completeDMA0.bind(dma));
-dma.eventDMA1 = psx.addEvent(0, dma.completeDMA1.bind(dma));
+// dma.eventDMA1 = psx.addEvent(0, dma.completeDMA1.bind(dma));
 dma.eventDMA2 = psx.addEvent(0, dma.completeDMA2.bind(dma));
 dma.eventDMA3 = psx.addEvent(0, dma.completeDMA3.bind(dma));
 dma.eventDMA4 = psx.addEvent(0, dma.completeDMA4.bind(dma));
@@ -137,9 +138,9 @@ function mainLoop(stamp) {
   window.requestAnimationFrame(mainLoop);
   const delta = stamp - context.timeStamp;
   context.timeStamp = stamp;
-  if (!running || !hasFocus || delta > 200) return;
+  if (!running || !hasFocus || delta > 250) return;
 
-  context.realtime += delta;
+  context.realtime += delta * speedFactor;
 
   let diffTime = context.realtime - context.emutime;
   const timeToEmulate = diffTime;
@@ -218,8 +219,8 @@ function loadFileData(arrayBuffer) {
   if ((data[0] & 0xffff) === 0x5350) { // PS
     cpu.pc = data.getInt32(0x10);
     cpu.gpr[28] = data.getInt32(0x14);
-    cpu.gpr[29] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001ffff0;
-    cpu.gpr[30] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001ffff0;
+    cpu.gpr[29] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001fff00;
+    cpu.gpr[30] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001fff00;
     cpu.gpr[31] = cpu.pc;
     console.log('init-pc  : $', hex(cpu.pc >>> 0));
     console.log('init-gp  : $', hex(cpu.gpr[28] >>> 0));

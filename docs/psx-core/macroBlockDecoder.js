@@ -363,13 +363,8 @@ var mdc = {
       decodedMacroBlocks += 6;
     }
 
-    let decodingCyclesRemaining = (numberOfWords * 0x110) / 0x100;
-    if (mdc.r1820 & 0x08000000) {
-      decodingCyclesRemaining += ((33868800 / 9000) * decodedMacroBlocks);
-    }
-    else {
-      decodingCyclesRemaining += ((33868800 / 6000) * decodedMacroBlocks);
-    }
+    // 320x240x30 = 9000 16x16 blocks;
+    let decodingCyclesRemaining = ((33868800 / 9000 / 6) * decodedMacroBlocks);
 
     psx.setEvent(this.event, decodingCyclesRemaining >>> 0);
     return numberOfWords;
@@ -377,7 +372,8 @@ var mdc = {
 
   event: null,
   complete: function(self, clock) {
-    mdc.r1824 &= ~(1 << 29);
+    dma.completeDMA1({});
+    // mdc.r1824 &= ~(1 << 29);
     self.active = false;
   }
 }

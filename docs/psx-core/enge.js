@@ -49,7 +49,7 @@ var cpu = {
       case 11:  break;
       case 12:  this.sr = value; 
                 // trick to force writing to unused memory location with isolated cache
-                this.forceWriteBits = (value & 0x00010000) ? 0x01ffffff >>> 0 : 0x00000000 >>> 0;
+                this.forceWriteBits = (value & 0x00010000) ? 0x01fffffc >>> 0 : 0x00000000 >>> 0;
                 break;
       case 13:  this.cause = this.cause & 0xfffffcff;
                 this.cause |= (value & 0x00000300); 

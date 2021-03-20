@@ -189,6 +189,8 @@ const cdr = (() => {
         case 0x09:  //- CdlPause
                     cdr.stopReading();
                     break;
+        case 0x99:  //- CdlPause (auto)
+                    break;
 
         default:  abort('unimplemented command: $' + hex(data, 2));
       }
@@ -291,6 +293,13 @@ const cdr = (() => {
                     cdr.status |= 0x20;
                     cdr.setIrq(2);
                     break;
+        case 0x99:  cdr.statusCode = (cdr.statusCode & ~ 0xA0) | 0x02; // not reading data sectors or playing
+                    cdr.results.push(cdr.statusCode);
+                    cdr.status &= ~0x80;
+                    cdr.status |= 0x20;
+                    cdr.setIrq(4);
+                    break;
+
 
         case 0x0A:  this.enqueueEvent(3, 0x02);
                     psx.setEvent(this.eventCmd, 0x1000 >>> 0);
@@ -483,11 +492,19 @@ const cdr = (() => {
         return;
       }
 
-      var readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
+      let readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
+      let loc = cdr.currLoc - 150;
       switch (cdr.ncmdread) {
         case 0x03:  cdr.playIndex = 0;
+                    if (cdr.currLoc === cdr.currTrack.end) {
+                      console.log('end-of-track:', cdr.currTrack);
+                      if (cdr.mode & 0x02) {
+                        console.log('- autopause:');
+                        psx.unsetEvent(self);
+                        return cdr.command(0x99);
+                      }
+                    }
                     if ((cdr.mode & 0x05) == 0x05) {
-                      let loc = cdr.currLoc - 150;
                       // playing CDDA and reporting is on
                       switch(loc % 75) {
                         case  0:
@@ -753,6 +770,7 @@ const cdr = (() => {
 
     stopReading: function() {
       cdr.eventRead.active = false;
+      cdr.statusCode &= ~0x80;
       cdr.statusCode &= ~0x20;
       cdr.ncmdread = 0;
     },

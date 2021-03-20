@@ -47,7 +47,7 @@ var joy = {
                       this.response.push(0x5d);
                       this.response.push(0x47);
                       break;
-          default:    return abort(`unknown subCommand: $${hex(byte,2)}`);
+          default:    //return abort(`unknown subCommand: $${hex(byte,2)}`);
                       this.response.push(0xff);
                       break;
         }

@@ -950,6 +950,7 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
     buffer.addVertex(x+w, y+h, c);
 
     if (!c) {
+      this.flushVertexBuffer(true);
       this.clearVRAM(x,y,w,h,c);
     }
     return;

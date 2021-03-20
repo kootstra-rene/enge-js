@@ -116,7 +116,7 @@ const dma = {
       switch (ctrl) {
         case 0x00000000:  break;
         case 0x01000201:  transferSize = mdc.dmaTransferMode0201(this.r1080, this.r1084);
-                          this.r1080n += transferSize << 2;
+                          this.r1080n = this.r1080 + (transferSize << 2);
                           break;
 
         default:  abort('mdi-ctrl:'+hex(ctrl));
@@ -138,13 +138,13 @@ const dma = {
       switch (ctrl) {
         case 0x00000000:  break;
         case 0x01000200:  transferSize = mdc.dmaTransferMode0200(this.r1090, this.r1094);
-                          this.r1090n += transferSize << 2;
+                          this.r1090n = this.r1090 + (transferSize << 2);
                           break;
 
         default:  abort('mdo-ctrl:'+hex(ctrl));
       }
 
-      psx.setEvent(this.eventDMA1, ((transferSize * 0x110) / 0x100) >>> 0);
+      // psx.setEvent(this.eventDMA1, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
       // console.log('dma1 not enabled');
@@ -162,10 +162,10 @@ const dma = {
         case 0x00000001:  break;
         case 0x00000401:  break;
         case 0x01000200:  transferSize = gpu.dmaTransferMode0200(this.r10a0, this.r10a4) || 10;
-                          this.r10a0n += transferSize << 2;
+                          this.r10a0n = this.r10a0 + (transferSize << 2);
                           break;
         case 0x01000201:  transferSize = gpu.dmaTransferMode0201(this.r10a0, this.r10a4) || 10;
-                          this.r10a0n += transferSize << 2;
+                          this.r10a0n = this.r10a0 + (transferSize << 2);
                           break;
         case 0x01000401:  transferSize = gpu.dmaTransferMode0401(this.r10a0, this.r10a4) || 10;
                           this.r10a0n = 0x00ffffff;
@@ -190,10 +190,10 @@ const dma = {
       switch (ctrl) {
         case 0x00000000:  break;
         case 0x11000000:  transferSize = cdr.dmaTransferMode0000(this.r10b0, this.r10b4);
-                          this.r10b0n += transferSize << 2;
+                          this.r10b0n = this.r10b0 + (transferSize << 2);
                           break;
         case 0x11400100:  transferSize = cdr.dmaTransferMode0000(this.r10b0, this.r10b4);
-                          this.r10b0n += transferSize << 2;
+                          this.r10b0n = this.r10b0 + (transferSize << 2);
                           break;
 
         default:  abort('cd-ctrl:'+hex(ctrl));
@@ -215,11 +215,11 @@ const dma = {
       switch (ctrl) {
         case 0x01000000:  
         case 0x01000200:  transferSize = spu.dmaTransferMode0200(this.r10c0, this.r10c4);
-                          this.r10c0n += transferSize << 2;
+                          this.r10c0n = this.r10c0 + (transferSize << 2);
                           break;
         case 0x01000001:  
         case 0x01000201:  transferSize = spu.dmaTransferMode0201(this.r10c0, this.r10c4);
-                          this.r10c0n += transferSize << 2;
+                          this.r10c0n = this.r10c0 + (transferSize << 2);
                           break;
 
         default:  abort('spu-ctrl:'+hex(ctrl));
@@ -243,7 +243,7 @@ const dma = {
         case 0x01000002:  break;
         case 0x10000002:  break;
         case 0x11000002:  transferSize = gpu.dmaLinkedListMode0002(this.r10e0, this.r10e4);
-                          this.r10e0n += transferSize << 2;
+                          this.r10e0n = this.r10e0 + (transferSize << 2);
                           break;
 
         default:  abort('otc-ctrl:'+hex(ctrl));

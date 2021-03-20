@@ -1,6 +1,6 @@
 (function() {
 
-const frameCount = 44100 >> 2;
+const frameCount = (1.0 * 44100) >> 2;
 'use strict';
 
 var BLOCKSIZE = (28 * 0x1000) >>> 0;
@@ -18,7 +18,7 @@ function init() {
   source.buffer = myArrayBuffer;
   source.connect(audioCtx.destination);
   source.loop = true;
-  source.playbackRate.value = 44100 / audioCtx.sampleRate;
+  source.playbackRate.value = 44100 / audioCtx.sampleRate * speedFactor;
   source.$started = false;
   // source.start(0);
   window.source = source;
