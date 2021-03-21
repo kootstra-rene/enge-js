@@ -1,10 +1,10 @@
 # Why this emulator
-Everybody said you can't run a PSXone emulator in JavaScript at full speed in the browser. It's too slow...
+Everybody said you can't run a PSone emulator in JavaScript at full speed in the browser. It's too slow...
 You have the emscriptem based ones but that is not pure JavaScript and also those emulators don't seem to run at full speed.  So to learn JavaScript and further my programming knowledge I decided to build a PSone emulator in JavaScript. Keep in mind it is a work in progress but at this point it is good enough to publish.
 
 # How to run
 
-First clone or download the repo then open the index.html in the distfolder. or visit [the latest release](https://kootstra-rene.github.io/enge-js/). Note you'll need chrome for running this emulator.
+Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). Note you'll need chrome for running this emulator and read the rest of this readme before you do.
 
 ## Loading the BIOS
 
@@ -18,7 +18,7 @@ Same as with the BIOS drag and drop the .psx-exe file on the emulator page and i
 Same as with the BIOS drag and drop the .bin file on the emulator page and it will automatically start running. Only raw .iso and .bin files are supported currently. The emulator will try to build it's own table of contents a.k.a track information and as such a lot of games have cd audio but it could not work in all cases.
 
 ## Improving quality
-Clicking the Qx button, toggle between Q1,Q2 and Q4 the latter being the highest quality. After doing so the border will get an redisch color indicating that you have to restart the emulator which can be done by reloading the page.
+Clicking the Qx button, toggle between Q1,Q2,Q4 and Q8 the latter being the highest quality. After doing so the border will get an redisch color indicating that you have to restart the emulator which can be done by reloading the page.
 
 ## Controls
 
@@ -34,14 +34,14 @@ x = x
 space = select  
 enter = start  
 
-When using the gamepad just connect it, press a button on the gamepad and the border aorund the gamepad icon should become blueish and you are ready to go.
+When using the gamepad just connect it, press a button on the gamepad and the border around the gamepad/keyboardicon should become blueish and you are ready to go.
 
 ## Handy info
 Double clicking the emulator page will stop/resume the emulator. This can be handy when the sound is really crappy.
 
 ## Memory Card
-Totally not supported at this time
+Only one memory card is supported at this time. You can load it the same as the BIOS or CD
 
 # Which games run
 
-I haven't extensivly tested but SCARS, Spyro, Final Fantasy VII seem te be running just fine.
+I haven't extensivly tested but SCARS, Spyro, Final Fantasy VII and Klonoa seem te be running just fine.
