@@ -1,5 +1,7 @@
 history.md
 
+2021-03-23: first attempt at caching GTE coordinates and trying to remap them. 3D game look better but problems with rectangular primitives.
+            those are commonly used for background tiles and text.
 2021-03-12: improved cdrom dma transfer speed, increases FMV performance. 
 2021-03-11: removed uRGBA texture and moved logic to shader, less CPU/GPU usage when moving/storing images, should increase FMV performance
             adjusted shaders to use only alpha channel, img.buffer is copied directly to GPU. Total data from CPU -> GPU reduced by factor +/- 6
