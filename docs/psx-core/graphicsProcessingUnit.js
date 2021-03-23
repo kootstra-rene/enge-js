@@ -97,7 +97,7 @@ var gpu = {
     gpu.hline = scanline;
     let interlaced = gpu.status & (1 << 22);
 	  let PAL = ((gpu.status >> 20) & 1) ? true : false;
-    let vsync = PAL ? 313 : 263;
+    let vsync = PAL ? 314 : 263;
     let halfheight = (gpu.dispB - gpu.dispT) >> 1;
     let center = PAL ? 163 : 136;
     let vblankend = center - halfheight;
@@ -115,7 +115,7 @@ var gpu = {
     }
     else {
       const oddLine = gpu.hline + (gpu.frame & 1); // toggle even/odd on every frame
-      if ((oddLine& 1) === 1) {
+      if ((oddLine & 1) === 1) {
         gpu.status |= 0x80000000;
       }
       else {
@@ -124,7 +124,6 @@ var gpu = {
     }
     if (gpu.hline === vblankbegin) {
       renderer.onVBlankBegin();
-      cpu.istat |= 0x0001;
     }
     if (gpu.hline === vblankend) {
       renderer.onVBlankEnd();
@@ -134,6 +133,7 @@ var gpu = {
       gpu.status &= 0x7fffffff;
     }
     if (++gpu.hline >= vsync) {
+      cpu.istat |= 0x0001;
       gpu.hline = 0;
       ++gpu.frame;
     }
@@ -573,7 +573,7 @@ var gpu = {
         const packetId = map[addr >> 2] >>> 24;
         if (packetSizes[packetId] === 0) {
           addr += 4; --nitem; ++words;
-          console.warn('invalid packetId:', hex(packetId, 2));
+          // console.warn('invalid packetId:', hex(packetId, 2));
           continue;
         }
         if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {

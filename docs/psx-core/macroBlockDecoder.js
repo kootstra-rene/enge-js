@@ -363,15 +363,16 @@ var mdc = {
       decodedMacroBlocks += 6;
     }
 
-    // 320x240x30 = 9000 16x16 blocks;
-    let decodingCyclesRemaining = ((33868800 / 9000 / 6) * decodedMacroBlocks);
-
+    // 320x240x30 = 9000 16x16 blocks
+    const decodingCyclesRemaining = (33868800 / 9000) * (decodedMacroBlocks / 6);
+    // console.log(decodingCyclesRemaining);
     psx.setEvent(this.event, decodingCyclesRemaining >>> 0);
     return numberOfWords;
   },
 
   event: null,
   complete: function(self, clock) {
+    // dma.completeDMA0({});
     dma.completeDMA1({});
     // mdc.r1824 &= ~(1 << 29);
     self.active = false;
