@@ -406,6 +406,7 @@ function init() {
     if (e.key === '2' && e.ctrlKey) renderer.setMode('draw');
     if (e.key === '3' && e.ctrlKey) renderer.setMode('clut8');
     if (e.key === '4' && e.ctrlKey) renderer.setMode('clut4');
+    if (e.key === '0' && e.ctrlKey) renderer.setMode('page2');
 
     if (e.key === 'F12') return; // allow developer tools
     if (e.key === 'F11') return; // allow full screen

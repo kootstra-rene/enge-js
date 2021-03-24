@@ -227,12 +227,13 @@ var fragmentShaderDraw =
     "  float r = mod(floor(srgb /     1.0), 32.0) / 32.0;"+
     "  float g = mod(floor(srgb /    32.0), 32.0) / 32.0;"+
     "  float b = mod(floor(srgb /  1024.0), 32.0) / 32.0;"+
-    "  float a = srgb >= 32768.0 ? 1.0 : 0.0;"+
+    "  float a = srgb >= 32767.0 ? (31.0/32.0) : 0.0;"+
     "  return vec4(r, g, b, a);"+
     "}"+
 
     "vec4 getClutColor(float ox) {" +
     "  float cx, cy, val, tx, ty;"+
+    "  vec4 rgba;"+
     "  if (twin != 0.0) {"+
     "    tx = tox + mod(floor(tcx + ox), tmx);"+
     "    ty = toy + mod(floor(tcy), tmy);"+
@@ -244,30 +245,33 @@ var fragmentShaderDraw =
     "  if (vTextureMode == 1.0) {"+
     "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).a * 255.0;" +
     "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
+    "    rgba = getColor(cx, cy);"+
     "  }"+
     "  else"+
     "  if (vTextureMode == 0.0) {"+
     "    val = texture2D(uTex8, vec2(tx / 4096.0, ty / 512.0)).a * 255.0;" +
     "    if (mod((tx), 2.0) == 0.0) { val = mod(val, 16.0); } else { val = mod(floor(val / 16.0), 16.0); }"+
     "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
+    "    rgba = getColor(cx, cy);"+
     "  }"+
     "  else"+
-    "  if (vTextureMode == 2.0) {"+
-    "    cx = tx / 1024.0; cy = ty / 512.0;"+
+    "  if (vTextureMode == 2.0) {"+ // no texture window yet
+    "    rgba = texture2D(uTex8, vec2((tox+tcx) / 1024.0, (toy+tcy) / 512.0));"+
     "  }"+
-    "  vec4 rgba = getColor(cx, cy);"+
+
     "  if (rgba.a == 0.0) {"+
-    "    if (vSTP == 3.0) return vec4(0.0,0.0,0.0,0.0);"+
+    "    if (vSTP == 1.0) return vec4(0.0,0.0,0.0,0.0);"+ // semitransparent (dicard non-transparent)
     "  }"+
     "  else {"+
-    "    if (vSTP == 2.0) return vec4(0.0,0.0,0.0,0.0);"+
+    "    if (vSTP == 3.0) return vec4(0.0,0.0,0.0,0.0);"+ // semitransparent + opaque clut (discard transparent)
     "  }"+
+
     "  return rgba;"+
     "}"+
 
     "void main(void) {" +
-    "  float fx = tcx - floor(tcx);"+
-    "  float fy = tcy - floor(tcy);"+
+    // "  float fx = tcx - floor(tcx);"+
+    // "  float fy = tcy - floor(tcy);"+
 
     "  if (vTextureMode == 7.0) {"+ // copy mode
     "    gl_FragColor = getColor(tcx, tcy);"+
@@ -275,7 +279,7 @@ var fragmentShaderDraw =
     "  }"+
 
     "  if (vTextureMode == 3.0) {"+
-    "    gl_FragColor = vec4(vColor.rgb, uBlendAlpha);"+
+    "    gl_FragColor = vColor;"+
     "    return;"+
     "  }"+
 
@@ -286,7 +290,7 @@ var fragmentShaderDraw =
     // "  if (fx >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
     // "  if (fy < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
     // "  if (fy >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
-    "  gl_FragColor = vec4(2.0 * (vColor.rgb * c.rgb), uBlendAlpha);"+
+    "  gl_FragColor = vec4(2.0 * (vColor.rgb * c.rgb), (vSTP == 1.0) ? uBlendAlpha : c.a);"+
     "}";
 
 function WebGLRenderer(canvas) {
@@ -497,6 +501,11 @@ WebGLRenderer.prototype.initTextures = function() {
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  this.vramP2 = this.createTexture();
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, qwidth, qheight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 WebGLRenderer.prototype.loadImage = function(x, y, w, h, buffer) {
@@ -695,6 +704,7 @@ WebGLRenderer.prototype.createBuffer = function() {
 WebGLRenderer.prototype.createTexture = function(mode) {
   var gl = this.gl;
   var texture = gl.createTexture();
+  console.log('>>>', texture);
   if (mode === undefined) mode = gl.NEAREST;
 
   gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -745,10 +755,35 @@ WebGLRenderer.prototype.flushVertexBuffer = function(clip) {
   }
 
   const drawBuffer = this.vertexBuffer.view();
+  const vertices = this.vertexBuffer.getNumberOfVertices();
+
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawBuffer);
 
-  const vertices = this.vertexBuffer.getNumberOfVertices();
-  gl.drawArrays(gl.TRIANGLES, 0, vertices);
+  switch (this.renderMode >> 4) {
+    case 0: case 1: 
+      gl.activeTexture(this.gl.TEXTURE1);
+      gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);
+
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramP2, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+      break;
+    case 2: case 3://   console.log('15bit rendering');
+      gl.activeTexture(this.gl.TEXTURE1);
+
+      gl.bindTexture(this.gl.TEXTURE_2D, this.tex16draw);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramP2, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
+      gl.bindTexture(this.gl.TEXTURE_2D, this.vramP2);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
+      gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);
+      break;
+  }
 
   this.vertexBuffer.reset();
 }
@@ -760,7 +795,7 @@ WebGLRenderer.prototype.setBlendMode = function(mode) {
 
   var gl = this.gl;
 
-  switch (mode) {
+  switch (mode & 0xf) {
     case 0: gl.enable(gl.BLEND);
             gl.blendEquation(gl.FUNC_ADD);
             gl.blendFunc(gl.SRC_ALPHA, gl.SRC_ALPHA);
@@ -782,13 +817,15 @@ WebGLRenderer.prototype.setBlendMode = function(mode) {
             gl.uniform1f(this.programDraw.blendAlpha, 0.75);
             break;
     case 4: gl.disable(gl.BLEND);
-            // gl.uniform1f(this.programDraw.blendAlpha, 0.00);
+            gl.uniform1f(this.programDraw.blendAlpha, 0.00);
             break;
   }
 }
 
 WebGLRenderer.prototype.getVertexBuffer = function(cnt, pid) {
-  var select = ((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
+  var select = (((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4) | (gpu.tp << 4);
+
+//gpu.tp;
 
   if (!this.vertexBuffer.canHold(cnt)) {
     this.flushVertexBuffer(true);
@@ -924,13 +961,14 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
   var info = 3;
   if (semi_transparent) {
     info = this.getClutInfo(cl, tm);
+    tm |= 8;
   }
 
   if (!semi_transparent || ((info & 2) === 2)) {
     var buffer = this.getVertexBuffer(3, data[0]);
-    buffer.addVertexUV(x1, y1, data[c1], tm | 8, u1, v1, cx, cy);
-    buffer.addVertexUV(x2, y2, data[c2], tm | 8, u2, v2, cx, cy);
-    buffer.addVertexUV(x3, y3, data[c3], tm | 8, u3, v3, cx, cy);
+    buffer.addVertexUV(x1, y1, data[c1], tm, u1, v1, cx, cy);
+    buffer.addVertexUV(x2, y2, data[c2], tm, u2, v2, cx, cy);
+    buffer.addVertexUV(x3, y3, data[c3], tm, u3, v3, cx, cy);
   }
 
   if (semi_transparent && ((info & 1) === 1)) {
@@ -1010,17 +1048,22 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   var info = 3;
   if (semi_transparent) {
     info = this.getClutInfo(cl, tm);
+    tm |= 8;
   }
+
+  // opaque
+  // semitransparent with transparent clut
+  // semitransparent with opaque clut
 
   if (!semi_transparent || ((info & 2) === 2)) {
     var buffer = this.getVertexBuffer(6, data[0]); 
-    buffer.addVertexUV(x+0, y+0, c, tm | 8, tl, tt, cx, cy);
-    buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
-    buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
+    buffer.addVertexUV(x+0, y+0, c, tm, tl, tt, cx, cy);
+    buffer.addVertexUV(x+w, y+0, c, tm, tr, tt, cx, cy);
+    buffer.addVertexUV(x+0, y+h, c, tm, tl, tb, cx, cy);
 
-    buffer.addVertexUV(x+w, y+0, c, tm | 8, tr, tt, cx, cy);
-    buffer.addVertexUV(x+0, y+h, c, tm | 8, tl, tb, cx, cy);
-    buffer.addVertexUV(x+w, y+h, c, tm | 8, tr, tb, cx, cy);
+    buffer.addVertexUV(x+w, y+0, c, tm, tr, tt, cx, cy);
+    buffer.addVertexUV(x+0, y+h, c, tm, tl, tb, cx, cy);
+    buffer.addVertexUV(x+w, y+h, c, tm, tr, tb, cx, cy);
   }
 
   if (semi_transparent && ((info & 1) === 1)) {
@@ -1080,14 +1123,13 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color, clip) {
     }
   }
 
-  gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
+  gl.activeTexture(this.gl.TEXTURE1);
+  gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);
 
   // copy image to GPU
   const view = new Uint8Array(clr.buffer, 0, size << 1);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
-  // if (gl.getError() !== gl.NO_ERROR) debugger;
-
-  gl.bindTexture(gl.TEXTURE_2D, null);
+//  if (gl.getError() !== gl.NO_ERROR) debugger;
 }
 
 WebGLRenderer.prototype.fillRectangle = function(data) {
@@ -1185,6 +1227,10 @@ WebGLRenderer.prototype.onVBlankEnd = function() {
     gl.viewport(0, 0, this.canvas.width = 1024*qwf, this.canvas.height = 512*qhf);
     display16bit(this, drawBuffer)
   }
+  if (this.displaymode === 3) {
+    gl.viewport(0, 0, this.canvas.width = 1024*qwf, this.canvas.height = 512*qhf);
+    display16bit(this, drawBuffer)
+  }
   if (this.displaymode === 2) {
     var area = gpu.getDisplayArea();
     this.vertexBuffer.reset()
@@ -1235,6 +1281,8 @@ WebGLRenderer.prototype.setMode = function(mode) {
     case 'clut4': // todo: implement
     case 'clut8': this.displaymode = 0;
                   break
+    case 'page2': this.displaymode = 3;
+                  break
   }
 }
 
@@ -1261,7 +1309,9 @@ function display16bit(self, drawBuffer, al, at) {
   gl.vertexAttribPointer(self.programDisplay.vertexPosition, 2, gl.SHORT, true, 8, 0);
   gl.vertexAttribPointer(self.programDisplay.vertexTexture , 2, gl.SHORT, false, 8, 4);
 
-  gl.bindTexture(gl.TEXTURE_2D, self.tex16draw);
+  const texture = self.displaymode === 3 ? self.vramP2 : self.tex16draw;
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawBuffer);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }

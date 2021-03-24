@@ -690,7 +690,15 @@ const gte = {
     let cx = (sx[2] >>> 0) & 0xfff;
     let cy = (sy[2] >>> 0) & 0xfff;
     let ci = (cy << 12) | cx;
-    gte.coords.set(ci, {x:sx[2], y:sy[2], clock: psx.clock});
+    let map = gte.coords.get(ci);
+    if (map) {
+      map.x = sx[2];
+      map.y = sy[2];
+      map.clock = psx.clock;
+    }
+    else {
+      gte.coords.set(ci, {x:sx[2], y:sy[2], clock: psx.clock});
+    }
   },
 
   sqr: function() {
