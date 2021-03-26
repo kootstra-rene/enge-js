@@ -213,6 +213,7 @@ var fragmentShaderDraw =
     "varying float tcy;"+ // texture coordinate y
 
     "varying float twin;"+
+    "float stp;"+
 
     "float getSRGB16(float cx, float cy) {" +
     "  float tx = floor(cx * 1024.0) * 2.0;"+
@@ -227,8 +228,8 @@ var fragmentShaderDraw =
     "  float r = mod(floor(srgb /     1.0), 32.0) / 32.0;"+
     "  float g = mod(floor(srgb /    32.0), 32.0) / 32.0;"+
     "  float b = mod(floor(srgb /  1024.0), 32.0) / 32.0;"+
-    "  float a = srgb >= 32767.0 ? (31.0/32.0) : 0.0;"+
-    "  return vec4(r, g, b, a);"+
+    "  stp = srgb >= 32768.0 ? 1.0 : 0.0;"+
+    "  return vec4(r, g, b, stp);"+
     "}"+
 
     "vec4 getClutColor(float ox) {" +
@@ -257,13 +258,14 @@ var fragmentShaderDraw =
     "  else"+
     "  if (vTextureMode == 2.0) {"+ // no texture window yet
     "    rgba = texture2D(uTex8, vec2((tox+tcx) / 1024.0, (toy+tcy) / 512.0));"+
+    // "    rgba = vec4(1.0, 0.0, 0.0, 1.0);"+
     "  }"+
 
-    "  if (rgba.a == 0.0) {"+
-    "    if (vSTP == 1.0) return vec4(0.0,0.0,0.0,0.0);"+ // semitransparent (dicard non-transparent)
+    "  if (stp == 0.0) {"+ // bit15 not set
+    "    if (vSTP == 1.0) discard;"+ // semitransparent (dicard non-transparent)
     "  }"+
     "  else {"+
-    "    if (vSTP == 3.0) return vec4(0.0,0.0,0.0,0.0);"+ // semitransparent + opaque clut (discard transparent)
+    "    if (vSTP == 3.0) discard;"+ // semitransparent + opaque clut (discard transparent)
     "  }"+
 
     "  return rgba;"+
@@ -290,7 +292,7 @@ var fragmentShaderDraw =
     // "  if (fx >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
     // "  if (fy < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
     // "  if (fy >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
-    "  gl_FragColor = vec4(2.0 * (vColor.rgb * c.rgb), (vSTP == 1.0) ? uBlendAlpha : c.a);"+
+    "  gl_FragColor = vec4(2.0 * (vColor.rgb * c.rgb), (vSTP != 1.0) ? stp : uBlendAlpha);"+
     "}";
 
 function WebGLRenderer(canvas) {
