@@ -213,7 +213,6 @@ var fragmentShaderDraw =
     "varying float tcy;"+ // texture coordinate y
 
     "varying float twin;"+
-    "float stp;"+
 
     "float getSRGB16(float cx, float cy) {" +
     "  float tx = floor(cx * 1024.0) * 2.0;"+
@@ -223,18 +222,18 @@ var fragmentShaderDraw =
     "  return hi * 256.0 + lo;" +
     "}"+
 
-    "vec4 getColor(float cx, float cy) {" +
+    "vec3 getColor(float cx, float cy) {" +
     "  float srgb = getSRGB16(cx, cy);" +
     "  float r = mod(floor(srgb /     1.0), 32.0) / 32.0;"+
     "  float g = mod(floor(srgb /    32.0), 32.0) / 32.0;"+
     "  float b = mod(floor(srgb /  1024.0), 32.0) / 32.0;"+
-    "  stp = srgb >= 32768.0 ? 1.0 : 0.0;"+
-    "  return vec4(r, g, b, stp);"+
+    "  b += srgb >= 32768.0 ? (1.0/255.0) : 0.0;"+
+    "  return vec3(r, g, b);"+
     "}"+
-
-    "vec4 getClutColor(float ox) {" +
+"float stp;"+
+    "vec3 getClutColor(float ox) {" +
     "  float cx, cy, val, tx, ty;"+
-    "  vec4 rgba;"+
+    "  vec3 rgb;"+
     "  if (twin != 0.0) {"+
     "    tx = tox + mod(floor(tcx + ox), tmx);"+
     "    ty = toy + mod(floor(tcy), tmy);"+
@@ -246,21 +245,22 @@ var fragmentShaderDraw =
     "  if (vTextureMode == 1.0) {"+
     "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).a * 255.0;" +
     "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
-    "    rgba = getColor(cx, cy);"+
+    "    rgb = getColor(cx, cy);"+
     "  }"+
     "  else"+
     "  if (vTextureMode == 0.0) {"+
     "    val = texture2D(uTex8, vec2(tx / 4096.0, ty / 512.0)).a * 255.0;" +
     "    if (mod((tx), 2.0) == 0.0) { val = mod(val, 16.0); } else { val = mod(floor(val / 16.0), 16.0); }"+
     "    cx = vClut.x + (val / 1024.0); cy = vClut.y;"+
-    "    rgba = getColor(cx, cy);"+
+    "    rgb = getColor(cx, cy);"+
     "  }"+
     "  else"+
     "  if (vTextureMode == 2.0) {"+ // no texture window yet
-    "    rgba = texture2D(uTex8, vec2((tox+tcx) / 1024.0, (toy+tcy) / 512.0));"+
-    // "    rgba = vec4(1.0, 0.0, 0.0, 1.0);"+
+    "    rgb = texture2D(uTex8, vec2((tox+tcx) / 1024.0, (toy+tcy) / 512.0)).rgb;"+
     "  }"+
 
+    "  if (rgb == vec3(0.0, 0.0, 0.0)) discard;"+
+    "  stp = mod(rgb.b, 2.0/256.0);"+
     "  if (stp == 0.0) {"+ // bit15 not set
     "    if (vSTP == 1.0) discard;"+ // semitransparent (dicard non-transparent)
     "  }"+
@@ -268,7 +268,8 @@ var fragmentShaderDraw =
     "    if (vSTP == 3.0) discard;"+ // semitransparent + opaque clut (discard transparent)
     "  }"+
 
-    "  return rgba;"+
+    "  rgb.b -= stp;"+
+    "  return rgb;"+
     "}"+
 
     "void main(void) {" +
@@ -276,7 +277,7 @@ var fragmentShaderDraw =
     // "  float fy = tcy - floor(tcy);"+
 
     "  if (vTextureMode == 7.0) {"+ // copy mode
-    "    gl_FragColor = getColor(tcx, tcy);"+
+    "    gl_FragColor = vec4(getColor(tcx, tcy), uBlendAlpha);"+
     "    return;"+
     "  }"+
 
@@ -285,14 +286,16 @@ var fragmentShaderDraw =
     "    return;"+
     "  }"+
 
-    "  vec4 c = getClutColor(0.0);"+
-    "  if (c == vec4(0.0, 0.0, 0.0, 0.0)) discard;"+
+    "  vec3 c = getClutColor(0.0);"+
 
     // "  if (fx < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
     // "  if (fx >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
     // "  if (fy < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
     // "  if (fy >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
-    "  gl_FragColor = vec4(2.0 * (vColor.rgb * c.rgb), (vSTP != 1.0) ? stp : uBlendAlpha);"+
+    "  vec3 color = 2.0 * (vColor.rgb * c.rgb);"+
+    "  color -= mod(color, 2.0/256.0);"+
+    "  color.b += stp;"+
+    "  gl_FragColor = vec4(color, uBlendAlpha);"+
     "}";
 
 function WebGLRenderer(canvas) {
@@ -939,9 +942,9 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
 
   if (!textured) {
     var buffer = this.getVertexBuffer(3, data[0]);
-    buffer.addVertex(x1, y1, data[c1]);
-    buffer.addVertex(x2, y2, data[c2]);
-    buffer.addVertex(x3, y3, data[c3]);
+    buffer.addVertex(x1, y1, data[c1] & 0xfefefe);
+    buffer.addVertex(x2, y2, data[c2] & 0xfefefe);
+    buffer.addVertex(x3, y3, data[c3] & 0xfefefe);
     return;
   }
 
@@ -968,17 +971,17 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
 
   if (!semi_transparent || ((info & 2) === 2)) {
     var buffer = this.getVertexBuffer(3, data[0]);
-    buffer.addVertexUV(x1, y1, data[c1], tm, u1, v1, cx, cy);
-    buffer.addVertexUV(x2, y2, data[c2], tm, u2, v2, cx, cy);
-    buffer.addVertexUV(x3, y3, data[c3], tm, u3, v3, cx, cy);
+    buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm, u1, v1, cx, cy);
+    buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm, u2, v2, cx, cy);
+    buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm, u3, v3, cx, cy);
   }
 
   if (semi_transparent && ((info & 1) === 1)) {
     // there are opaque colors in the clut
     var buffer = this.getVertexBuffer(3, 0);
-    buffer.addVertexUV(x1, y1, data[c1], tm | 16, u1, v1, cx, cy);
-    buffer.addVertexUV(x2, y2, data[c2], tm | 16, u2, v2, cx, cy);
-    buffer.addVertexUV(x3, y3, data[c3], tm | 16, u3, v3, cx, cy);
+    buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 16, u1, v1, cx, cy);
+    buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | 16, u2, v2, cx, cy);
+    buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | 16, u3, v3, cx, cy);
   }
 }
 
@@ -994,7 +997,7 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
 
   var x = this.drawOffsetX + ((data[1] << 21) >> 21);
   var y = this.drawOffsetY + ((data[1] <<  5) >> 21);
-  var c = (data[0] & 0xffffff);
+  var c = (data[0] & 0xfefefe);
   var w = (data[2] << 16) >> 16;
   var h = (data[2] >> 16);
 // console.log(`drawRectangle: ${x}, ${y}`)
@@ -1149,14 +1152,10 @@ WebGLRenderer.prototype.fillRectangle = function(data) {
   if (!w || !h) return;
 
   if ((x + w) > 1024) {
-    // unsupport 
-    console.log('fillRectangle does not support x-wrap', x, w)
-    return;
+    w = 1024 - x;
   }
   if ((y + h) > 512) {
-    // unsupport 
-    console.log('fillRectangle does not support y-wrap', h, y)
-    return;
+    h = 512 - y;
   }
   this.flushVertexBuffer(true);
   this.clearVRAM(x, y, w, h, c, false);

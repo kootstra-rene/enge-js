@@ -234,19 +234,20 @@ const dma = {
   },
 
   wr32r10e8: function(ctrl) {
-    this.r10e8 = ctrl;
+    this.r10e8 = (ctrl & 0x50000002) | 0x2;
     if (dma.dpcr & 0x08000000) {
       let transferSize = 10;
+        // console.log(hex(this.r10e0), hex(map[(this.r10e0 & 0x01ffffff) >> 2]));
 
-      switch (ctrl) {
-        case 0x00000000:  break;
-        case 0x01000002:  break;
-        case 0x10000002:  break;
-        case 0x11000002:  transferSize = gpu.dmaLinkedListMode0002(this.r10e0, this.r10e4);
-                          this.r10e0n = this.r10e0 + (transferSize << 2);
+      switch (this.r10e8) {
+        case 0x00000002:  this.r10e0n = this.r10e0 = map[(this.r10e0 & 0x01ffffff) >> 2];
+                          break;
+        case 0x10000002:  
+        case 0x50000002:  transferSize = gpu.dmaLinkedListMode0002(this.r10e0, this.r10e4);
+                          this.r10e0n = 0x00ffffff;//this.r10e0 + (transferSize << 2);
                           break;
 
-        default:  abort('otc-ctrl:'+hex(ctrl));
+        default:  abort('otc-ctrl:'+hex(ctrl)+' '+hex(this.r10e8));
       }
 
       psx.setEvent(this.eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);

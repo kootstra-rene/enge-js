@@ -31,7 +31,7 @@ var gpu = {
   dispT     : 16,
   dispX     : 0,
   dispY     : 0,
-  dmaBuffer : new Int32Array(256),
+  dmaBuffer : new Int32Array(256*4),
   dmaIndex  : 0,
   drawAreaX1: 0,
   drawAreaX2: 0,
@@ -216,7 +216,8 @@ var gpu = {
 //                console.log(data & 0xf, hex(gpu.result));
                   break;
       case 0x40:  break; // ???
-      default:    abort('gpu.cmnd' + hex(data >>> 24, 2));
+      default:    //abort('gpu.cmnd' + hex(data >>> 24, 2));
+                  console.warn('gpu.cmnd' + hex(data >>> 24, 2));
     }
     gpu.updateTexturePage();
   },
@@ -567,13 +568,13 @@ var gpu = {
 
       while (nitem > 0) {
         // check for endless loop.
-        if (check[addr] === sequence) return;
-        check[addr] = sequence;
+        // if (check[addr] === sequence) return;
+        // check[addr] = sequence;
   
         const packetId = map[addr >> 2] >>> 24;
         if (packetSizes[packetId] === 0) {
           addr += 4; --nitem; ++words;
-          // console.warn('invalid packetId:', hex(packetId, 2));
+          console.warn('invalid packetId:', hex(packetId, 2));
           continue;
         }
         if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
