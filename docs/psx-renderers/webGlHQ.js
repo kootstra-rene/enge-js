@@ -850,12 +850,12 @@ WebGLRenderer.prototype.drawLine = function(data, c1, xy1, c2, xy2) {
   var x2 = this.drawOffsetX + ((data[xy2] << 21) >> 21);
   var y2 = this.drawOffsetY + ((data[xy2] <<  5) >> 21);
 
-  if (this.outsideDrawArea(x1,y1,x2,y2,x1,y1)) return;
-  if (this.largePrimitive(x1,y1,x2,y2,x1,y1)) return;
-
   let map;
   map = this.getGteCoord(x1, y1); if (map) { x1 = map.x+this.drawOffsetX; y1 = map.y+this.drawOffsetY; }
   map = this.getGteCoord(x2, y2); if (map) { x2 = map.x+this.drawOffsetX; y2 = map.y+this.drawOffsetY; }
+
+  if (this.outsideDrawArea(x1,y1,x2,y2,x1,y1)) return;
+  if (this.largePrimitive(x1,y1,x2,y2,x1,y1)) return;
 
   var w = Math.abs(x1-x2);
   var h = Math.abs(y1-y2);
@@ -927,13 +927,13 @@ WebGLRenderer.prototype.drawTriangle = function(data, c1, xy1, c2, xy2, c3, xy3,
   var x3 = this.drawOffsetX + ((data[xy3] << 21) >> 21);
   var y3 = this.drawOffsetY + ((data[xy3] <<  5) >> 21);
 
-  if (this.outsideDrawArea(x1,y1,x2,y2,x3,y3)) return;
-  if (this.largePrimitive(x1,y1,x2,y2,x3,y3)) return;
-
   let map;
   map = this.getGteCoord(x1, y1); if (map) { x1 = map.x+this.drawOffsetX; y1 = map.y+this.drawOffsetY; }
   map = this.getGteCoord(x2, y2); if (map) { x2 = map.x+this.drawOffsetX; y2 = map.y+this.drawOffsetY; }
   map = this.getGteCoord(x3, y3); if (map) { x3 = map.x+this.drawOffsetX; y3 = map.y+this.drawOffsetY; }
+
+  if (this.outsideDrawArea(x1,y1,x2,y2,x3,y3)) return;
+  if (this.largePrimitive(x1,y1,x2,y2,x3,y3)) return;
 
   var textured = (data[0] & 0x04000000) === 0x04000000;
 
@@ -999,12 +999,12 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   var h = (data[2] >> 16);
 // console.log(`drawRectangle: ${x}, ${y}`)
 
+  let map;
+  map = this.getGteCoord(x, y); if (map) { x = map.x+this.drawOffsetX; y = map.y+this.drawOffsetY; }
+
   var showT1 = !this.outsideDrawArea(x+0, y  +0, x+w-1, y+0, x  +0, y+h-1);
   var showT2 = !this.outsideDrawArea(x+0, y+h-1, x+w-1, y+0, x+w-1, y+h-1);
   if (!showT1 && !showT2) return;
-
-  let map;
-  map = this.getGteCoord(x, y); if (map) { x = map.x+this.drawOffsetX; y = map.y+this.drawOffsetY; }
 
   var textured = (data[0] & 0x04000000) === 0x04000000;
 
@@ -1118,12 +1118,12 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color, clip) {
     clr.fill(c, 0, size);
   }
 
-  for (let j = 0; j < h; ++j) {
-    const offsetY = ((y + j) % 512) * 1024;
-    for (let i = 0; i < w; ++i) {
-      this.vram[offsetY + ((x+i)%1024)] = clrState.c;
-    }
-  }
+  // for (let j = 0; j < h; ++j) {
+  //   const offsetY = ((y + j) % 512) * 1024;
+  //   for (let i = 0; i < w; ++i) {
+  //     this.vram[offsetY + ((x+i)%1024)] = clrState.c;
+  //   }
+  // }
 
   gl.activeTexture(this.gl.TEXTURE1);
   gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);
