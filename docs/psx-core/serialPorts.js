@@ -144,7 +144,139 @@ var joy = {
         return this.response.length > 0;
       }
     },
-    { id:1, lo: 0xff, hi: 0xff, data: new Uint8Array(128*1024), addr: 0, checkSum:0 },
+    { id:1, lo: 0xff, hi: 0xff, data: new Uint8Array(128*1024), addr: 0, checkSum:0,
+      mode: 0x00,
+      response: [],
+      received: [],
+      initMemCard: function() {
+        this.mode = 0x00;
+        this.response = [];
+        this.received = [];
+      },
+      initController: function() {
+        this.mode = 0x00;
+        this.response = [];
+        this.received = [];
+      },
+      buildMemCardResponse: function(byte) {
+        this.mode = byte;
+        // log(`subCommand: $${hex(byte,2)}`)
+        switch (byte) {
+          case 0x52:  // read
+                      this.response.push(0x00, 0x5a, 0x5d, 0x00, -1, 0x5c, -1, -1, -1);
+                      for (let i = 0; i < 128; ++i) {
+                        this.response.push(-1);
+                      }
+                      this.response.push(-1);
+                      this.response.push(0x47);
+                      break;
+          case 0x57:  // write
+                      this.response.push(0x00, 0x5a, 0x5d, -1, -1);
+                      for (let i = 0; i < 128; ++i) {
+                        this.response.push(-1);
+                      }
+                      this.response.push(-1);
+                      this.response.push(0x5c);
+                      this.response.push(0x5d);
+                      this.response.push(0x47);
+                      break;
+          default:    //return abort(`unknown subCommand: $${hex(byte,2)}`);
+                      this.response.push(0xff);
+                      break;
+        }
+      },
+      buildControllerResponse: function(byte) {
+        this.mode = byte;
+        // log(`subCommand: $${hex(byte,2)}`)
+        switch (byte) {
+          case 0x42:  this.response.push(0x41, 0x5a, this.lo, this.hi/*, 0x00, 0x00, 0x00, 0x00*/);
+                      break;
+          case 0x43:  // todo: Exit/Enter configuration
+                      this.response.push(0xff);
+                      break;
+          default:    return abort(`unknown subCommand: $${hex(byte,2)}`);
+                      break;
+        }
+      },
+      sendReceiveByte: function(byte) {
+        if (this.response.length <= 0) console.log(`#${this.id}: reading unexpected in mode $${hex(this.mode,2)}`);
+        let data = this.response.shift() || 0;
+
+        if (this.mode === 0x52) {
+          if (data === -1) {
+            let dataIndex = this.received.length;
+            switch (true) {
+              case (dataIndex === 4):
+                data = this.received[3];
+                break;
+              case (dataIndex === 6):
+                data = 0x5d;
+                break;
+              case (dataIndex === 7):
+                data = this.received[3];
+                this.checkSum = data;
+                break;
+              case (dataIndex === 8):
+                this.addr = (this.received[3] << 8) | this.received[4];
+                data = this.received[4];
+                this.checkSum ^= data;
+                break;
+
+              case (dataIndex >= 9 && dataIndex < 137):
+                let offset = (this.addr * 128) + dataIndex - 9;
+                data = this.data[offset];
+                this.checkSum ^= data;
+                break;
+
+                break;
+              case (dataIndex === 137):
+                data = this.checkSum & 0xff;
+                break;
+
+              default:
+                debugger;
+            }
+          }
+          // console.log(`R${hex(this.received.length,2)}`, hex(byte,2), hex(data,2));
+        }
+        if (this.mode === 0x57) {
+          if (data === -1) {
+            let dataIndex = this.received.length;
+            switch (true) {
+              case (dataIndex === 3):
+                data = this.received[3];
+                this.checkSum = data;
+                break;
+              case (dataIndex === 4):
+                data = this.received[3];
+                this.checkSum ^= data;
+                this.addr = (data << 8) | byte;
+                break;
+              case (dataIndex >= 5 && dataIndex < 133):
+                let offset = (this.addr * 128) + dataIndex - 5;
+                data = this.data[offset-1];
+                this.data[offset] = byte;
+                this.checkSum ^= byte;
+                break;
+              case (dataIndex === 133):
+                // todo: check checksum
+                data = this.data[132];
+                const base64text = Base64.encode(this.data);
+                localStorage.setItem('card2', base64text);
+                break;
+              default:  debugger;
+            }
+          }
+          // console.log(`W${hex(this.received.length,2)}`, hex(byte,2), hex(data,2));
+        }
+
+        this.received.push(byte);
+        return data & 0xff;
+      },
+      hasMore: function() {
+        return this.response.length > 0;
+      }
+    }
   ],
 
   rd08r1040: function() {
@@ -175,7 +307,7 @@ var joy = {
       abort('should not receive byte for device null');
     }
     if ((this.r104a & 0x0002) === 0x0002) {
-      device = (this.r104a & 0x2000) ? null/*this.devices[1]*/ : this.devices[0];
+      device = (this.r104a & 0x2000) ? this.devices[1] : this.devices[0];
     }
 
     // log('wr08r1040(data):', hex(data, 4), ' cmd:', hex(this.command, 2), ' JOY:', device ? device.id : 'N/A')

@@ -58,6 +58,8 @@ var gpu = {
   tyflip    : 0,
   widths    : [10,7,8,7,5,7,4,7],
   frame     : 0,
+  internalFrame: 0,
+  updated   : false,
 
   cyclesToDotClock: function(cycles) {
     switch ((gpu.status >> 16) & 7) {
@@ -133,6 +135,10 @@ var gpu = {
       gpu.status &= 0x7fffffff;
     }
     if (++gpu.hline >= vsync) {
+      if (gpu.updated) {
+        ++gpu.internalFrame;
+      }
+      gpu.updated = false;
       cpu.istat |= 0x0001;
       gpu.hline = 0;
       ++gpu.frame;
@@ -161,6 +167,7 @@ var gpu = {
       if (gpu.dmaIndex === gpu.packetSize) {
         var packetId = gpu.dmaBuffer[0] >>> 24;
         gpu.handlers[packetId].call(this, gpu.dmaBuffer);
+        // gpu.status &= ~0x10000000;
         gpu.dmaIndex = 0;
       }
     }
@@ -178,7 +185,7 @@ var gpu = {
       case 0x00:  gpu.status = 0x14802000;
                   gpu.dmaIndex = 0;
                   break;
-      case 0x01:  gpu.status |= 0x10000000;
+      case 0x01:  gpu.status |= 0x70000000;
                   gpu.dmaIndex = 0;
                   break;
       case 0x02:  break;
@@ -187,6 +194,7 @@ var gpu = {
                   break;
       case 0x04:  gpu.status &= 0x9FFFFFFF;
                   gpu.status |= ((data & 0x03) << 0x1D);
+                  // console.log('dma-direction', hex(data, 1));
                   break;
       case 0x05:  gpu.dispX = (data >>  0) & 0x3FF;
                   gpu.dispY = (data >> 10) & 0x1FF;
@@ -496,6 +504,7 @@ var gpu = {
 
   // Mask setting
   handlePacketE6: function(data) {
+    // if (data[0] & 3) return abort("unsupported mode:", hex(data[0]&3,2));
     gpu.status &= 0xffffe7ff;
     gpu.status |= ((data[0] & 3) << 11);
   },
@@ -541,6 +550,7 @@ var gpu = {
 
     if (gpu.transferTotal <= 0) {
       gpu.imgTransferComplete(gpu.img);
+      gpu.updated = true;
     }
 
     return (blck >> 16) * (blck & 0xFFFF);
@@ -558,8 +568,8 @@ var gpu = {
     let words = 0;
     for(;;) {
       addr = addr & 0x001fffff;
-      // if (check[addr] === sequence) return;
-      // check[addr] = sequence;
+      if (check[addr] === sequence) return;
+      check[addr] = sequence;
       var header = map[addr >> 2];
       var nitem = header >>> 24;
       var nnext = header & 0x00ffffff;
@@ -568,13 +578,14 @@ var gpu = {
 
       while (nitem > 0) {
         // check for endless loop.
-        // if (check[addr] === sequence) return;
-        // check[addr] = sequence;
+        if (check[addr] === sequence) return;
+        check[addr] = sequence;
   
         const packetId = map[addr >> 2] >>> 24;
         if (packetSizes[packetId] === 0) {
           addr += 4; --nitem; ++words;
-          console.warn('invalid packetId:', hex(packetId, 2));
+          // console.warn('invalid packetId:', hex(packetId, 2));
+          nitem = 0;
           continue;
         }
         if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
@@ -583,11 +594,11 @@ var gpu = {
             const value = map[addr >> 2];
             addr += 4; --nitem; ++words;
 
-            if (value === 0x55555555) break;
-            if (value === 0x50005000) break;
+            if ((value & 0xF000F000) === 0x50005000) break;
             data[i] = value;
           }
           gpu.handlers[packetId].call(this, data, i);
+          gpu.updated = true;
         }
         else {
           for (var i = 0; i < packetSizes[packetId]; ++i) {
@@ -596,6 +607,7 @@ var gpu = {
             ++words;
           }
           gpu.handlers[packetId].call(this, data);
+          gpu.updated = true;
         }
       }
       if (!nnext || (nnext == 0x00ffffff)) break;

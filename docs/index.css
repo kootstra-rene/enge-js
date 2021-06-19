@@ -1,5 +1,5 @@
 :root {
-  --display-width: calc((100vh / 3 * 4) - 32px);
+  --display-width: calc((100vh / 9 * 14) - 32px);
   --display-height: calc(100vh - 32px);
 
   --display-left: calc((100vw - var(--display-width)) / 2);
@@ -74,7 +74,7 @@ nav {
 @media screen and (max-width: 133.34vh) {
   :root {
     --display-width: calc((100vw) - 32px);
-    --display-height: calc((100vw / 4 * 3) - 32px);
+    --display-height: calc((100vw / 14 * 9) - 32px);
     --display-left: 16px;
     --display-top: calc((100vh - var(--display-height)) / 2);
   }

@@ -82,7 +82,7 @@ const gte = {
       case 0x19:  return this.mac[1];
       case 0x1a:  return this.mac[2];
       case 0x1b:  return this.mac[3];
-      case 0x1c:  return this.regs[regId] & 0x7fff;
+      case 0x1c:  //return this.regs[regId] & 0x7fff;
       case 0x1d:  var value = 0;
                   value |= ((this.ir[1] >> 7) <<  0);
                   value |= ((this.ir[2] >> 7) <<  5);
@@ -226,6 +226,8 @@ const gte = {
     ir[1] = this.lim(mac[1], lm, 24, 32767.0, 24);
     ir[2] = this.lim(mac[2], lm, 23, 32767.0, 23);
     ir[3] = this.lim(mac[3], lm, 22, 32767.0, 22);
+
+    // todo: update irgb/orgb
   },
 
   depthCue: function() {
@@ -243,6 +245,7 @@ const gte = {
     ir[1] = this.lim(ir[1], -32768.0, 24, 32767.0, 24);
     ir[2] = this.lim(ir[2], -32768.0, 23, 32767.0, 23);
     ir[3] = this.lim(ir[3], -32768.0, 22, 32767.0, 22);
+    // todo: update irgb/orgb
   },
 
   interpolate: function() {
@@ -653,7 +656,7 @@ const gte = {
     if (mac[3] < -8796093022208) this.regs[0x3f] |= this.flag[25];
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
-    this.limit(0);
+    this.limit(this.lm);
 
     sx[0] = sx[1];
     sx[1] = sx[2];
@@ -690,14 +693,22 @@ const gte = {
     let cx = (sx[2] >>> 0) & 0xfff;
     let cy = (sy[2] >>> 0) & 0xfff;
     let ci = (cy << 12) | cx;
-    let map = gte.coords.get(ci);
-    if (map) {
-      map.x = sx[2];
-      map.y = sy[2];
-      map.clock = psx.clock;
-    }
-    else {
-      gte.coords.set(ci, {x:sx[2], y:sy[2], clock: psx.clock});
+
+    if (settings.naiveResolutionImprovement) {
+      if ((gpu.internalFrame - gte.frame) >= 2) {
+        gte.clear(gpu.internalFrame - 2);
+        gte.frame = gpu.internalFrame;
+      }
+      let map = gte.coords.get(ci);
+      if (map) {
+        map.x = sx[2];
+        map.y = sy[2];
+        map.z = sz[3];
+        map.frame = gpu.internalFrame;
+      }
+      else {
+        gte.coords.set(ci, Object.seal({x:sx[2], y:sy[2], z:sz[3], id: ci, frame: gpu.internalFrame}));
+      }
     }
   },
 
@@ -792,7 +803,14 @@ for (var i = 13; i <= 18; ++i) {
 }
 
 gte.coords = new Map();
-gte.clear = () => {
-  gte.coords = new Map();
+gte.frame = 0;
+
+gte.clear = (frame) => {
+  gte.coords.forEach((v, k, m) => {
+    if (v && v.frame <= frame) {
+      // object pool for v? 
+      m.delete(k);
+    }
+  });
 }
 Object.seal(gte);

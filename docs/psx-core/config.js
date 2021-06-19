@@ -15,9 +15,9 @@ function writeStorageStream(item, arrayBuffer) {
 }
 
 const settings = (() => {
-
-  return JSON.parse(localStorage.getItem('config') || '{"quality": 1}');
-
+  let object = JSON.parse(localStorage.getItem('config') || '{"quality": 1}');
+  if (object.naiveResolutionImprovement === undefined) object.naiveResolutionImprovement = true;
+  return object;
 })();
 
 

@@ -662,8 +662,9 @@ function getCodeStats(level, mostCalledItems) {
 }
 
 // an array is faster but consumes much more memory, deliberatly chosen for memory here,
-const cache = new Map();
-Object.seal(cache);
+const cached = new Array(0x02000000>>>2);
+cached.fill(null);
+Object.seal(cached);
 
 function getCacheIndex(pc) {
   pc = pc & 0x01ffffff;
@@ -676,17 +677,17 @@ function clearCodeCache(addr, size) {
 
   for (let i = 0 >>> 0; i < words; i += 4) {
     const lutIndex = getCacheIndex((addr >>> 0) + i);
-    let entry = cache.get(lutIndex);
+    const entry = cached[lutIndex];
     if (entry) entry.code = null;
   }
 }
 
 function getCacheEntry(pc) {
   const lutIndex = getCacheIndex(pc);
-  let entry = cache.get(lutIndex);
+  let entry = cached[lutIndex];
 
   if (!entry) {
-    cache.set(lutIndex, entry = {
+    cached[lutIndex] = entry = {
       code: null,
       pc: lutIndex << 2,
       // inline: false,
@@ -695,7 +696,7 @@ function getCacheEntry(pc) {
       addr: hex(lutIndex << 2),
       jump: null,
       next: null,
-    });
+    };
     Object.seal(entry);
   }
   return entry;

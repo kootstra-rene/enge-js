@@ -437,6 +437,15 @@ function init() {
       }
     }
   });
+  readStorageStream('card2', data => {
+    if (data) {
+      let data8 = new Uint8Array(data);
+      console.log('loading card2', data8.length);
+      for (let i = 0; i < 128*1024; ++i) {
+        joy.devices[1].data[i] = data8[i];
+      }
+    }
+  });
 }
 
 var line = ''
