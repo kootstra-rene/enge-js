@@ -44,4 +44,4 @@ Only one memory card is supported at this time. You can load it the same as the 
 
 # Which games run
 
-I haven't extensivly tested but SCARS, Spyro, Final Fantasy VII and Klonoa seem te be running just fine.
+I have started a [compatibility list](./compatability.md). So feel free to update it.

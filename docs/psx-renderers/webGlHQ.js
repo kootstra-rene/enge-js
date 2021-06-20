@@ -999,8 +999,9 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   var h = (data[2] >> 16);
 // console.log(`drawRectangle: ${x}, ${y}`)
 
-  let map;
-  map = this.getGteCoord(x, y); if (map) { x = map.x+this.drawOffsetX; y = map.y+this.drawOffsetY; }
+  // turned off because of background tiles rendering wrong
+  // let map;
+  // map = this.getGteCoord(x, y); if (map) { x = map.x+this.drawOffsetX; y = map.y+this.drawOffsetY; }
 
   var showT1 = !this.outsideDrawArea(x+0, y  +0, x+w-1, y+0, x  +0, y+h-1);
   var showT2 = !this.outsideDrawArea(x+0, y+h-1, x+w-1, y+0, x+w-1, y+h-1);
