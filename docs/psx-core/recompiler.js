@@ -125,6 +125,7 @@ var rec = {
                 },
 
   'compile23' : function (rec, opc) { var mips = 'lw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+                  rec.loadDelayRegister = rec.rt;
                   if (rec.isConstRS()) {
                     const addr = rec.getConstRS() & 0x01ffffff;
                     if (addr < 0x00800000) {
@@ -474,6 +475,7 @@ var state = {
   entry: null,
   branchTarget: 0,
   jump: false,
+  loadDelayRegister: 0,
 
   reg: function(r) {
     return r ? 'gpr[' + r + ']' : '0';
@@ -678,8 +680,15 @@ function clearCodeCache(addr, size) {
   for (let i = 0 >>> 0; i < words; i += 4) {
     const lutIndex = getCacheIndex((addr >>> 0) + i);
     const entry = cached[lutIndex];
-    if (entry) entry.code = null;
+    if (entry) {
+      entry.code = lazyCompile.bind(entry);
+    }
   }
+}
+
+function lazyCompile() {
+  this.code = compileBlock(this);
+  return this;
 }
 
 function getCacheEntry(pc) {
@@ -698,6 +707,10 @@ function getCacheEntry(pc) {
       next: null,
     };
     Object.seal(entry);
+    entry.code = lazyCompile.bind(entry);
+    // if (!entry.code) {
+    //   entry.code = compileBlock(entry);
+    // }
   }
   return entry;
 }

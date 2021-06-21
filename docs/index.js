@@ -133,7 +133,6 @@ function endMainLoop(self, clock) {
   self.active = false;
 }
 
-let switches = 0;
 function mainLoop(stamp) {
   window.requestAnimationFrame(mainLoop);
   const delta = stamp - context.timeStamp;
@@ -154,14 +153,10 @@ function mainLoop(stamp) {
   psx.setEvent(frameEvent, +totalCycles);
   handleGamePads();
   while (!endAnimationFrame) {
-    if (!entry.code) {
-      entry.code = compileBlock(entry);
-    }
+    // if (!entry.code) {
+    //   entry.code = compileBlock(entry);
+    // }
     entry = entry.code(psx);
-    ++switches;
-    // let next = entry.code(psx);
-    // if (!next) debugger;
-    // entry = next;
   }
   cpu.pc = entry.pc;
 
@@ -175,14 +170,10 @@ function bios() {
   let entry = getCacheEntry(0xbfc00000);
   const $ = psx;
   while (entry.pc !== 0x00030000) {
-    if (!entry.code) {
-      entry.code = compileBlock(entry);
-    }
+    // if (!entry.code) {
+    //   entry.code = compileBlock(entry);
+    // }
     entry = entry.code(psx);
-    ++switches;
-    // let next = entry.code(psx);
-    // if (!next) debugger;
-    // entry = next;
   }
   context.realtime = context.emutime =  psx.clock / (768*44.100);
   vector = getCacheEntry(0x80);

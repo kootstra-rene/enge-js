@@ -695,10 +695,6 @@ const gte = {
     let ci = (cy << 12) | cx;
 
     if (settings.naiveResolutionImprovement) {
-      if ((gpu.internalFrame - gte.frame) >= 2) {
-        gte.clear(gpu.internalFrame - 2);
-        gte.frame = gpu.internalFrame;
-      }
       let map = gte.coords.get(ci);
       if (map) {
         map.x = sx[2];
