@@ -2,12 +2,13 @@
 Everybody said you can't run a PSone emulator in JavaScript at full speed in the browser. It's too slow...
 You have the emscriptem based ones but that is not pure JavaScript and also those emulators don't seem to run at full speed.  So to learn JavaScript and further my programming knowledge I decided to build a PSone emulator in JavaScript. Keep in mind it is a work in progress but at this point it is good enough to publish.
 
-# How to run
+# About the code
+All the code resides in the docs folder so that, when pushing to GitHub, the emulator gets automatically deployed to GitHub pages. Keep in mind it is a hobby project and does not have tests nor is it very structured. When I will find the time some parts will be rewritten using TDD and more ES6 style coding.
 
+# How to run
 Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). Note you'll need chrome for running this emulator and read the rest of this readme before you do.
 
 ## Loading the BIOS
-
 When the emulator is running and no BIOS has been loaded the eNGE logo will be pulsating with a red color.
 You can load the BIOS by dragging and dropping a PSX BIOS file (SCHP1001) on the emulator page. If all went well the eNGE logo stops pulsating. If you press F5 or everythime you start the emulator again it will use the previous loaded BIOS.
 
