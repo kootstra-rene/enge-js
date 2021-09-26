@@ -458,7 +458,7 @@ const dot = {
 
   upateToLastGpuState: function(self) {
     const videoCycles = ((gpu.status >> 20) & 1) ? 3406.0 : 3413.0;
-    const cpuCycles = (videoCycles * 7.0 / 11.0);
+    const cpuCycles = (videoCycles * 7.0 / 11.0) * (PSX_SPEED / (768*44100));
 
     this.start = +self.clock;
     this.stop  = +cpuCycles + this.start;

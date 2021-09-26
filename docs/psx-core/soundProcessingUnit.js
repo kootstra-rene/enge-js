@@ -282,7 +282,8 @@ var spu = {
   },
 
   event: function (self, clock) {
-    psx.updateEvent(self, (33868800 / 44100));
+    psx.updateEvent(self, (PSX_SPEED / 44100));
+    ++this.totalSamples;
 
     this.SPUSTAT &= ~(0x003F);
     this.SPUSTAT |= (this.SPUSTATm & 0x003F);
@@ -362,7 +363,6 @@ var spu = {
     if (captureIndex === 0x200) {
       this.SPUSTAT |= 0x0800;
     }
-    ++this.totalSamples;
   }
 
 }

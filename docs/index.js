@@ -11,6 +11,8 @@ var canvas = undefined;
 var emulationTime = 0.0;
 var context = undefined;
 
+var PSX_SPEED = 44100*768; // 33868800 cyles
+
 var abort = function() {
   console.error(Array.prototype.slice.call(arguments).join(' '));
   canvas.style.borderColor = 'red';
@@ -80,6 +82,7 @@ psx.eventCycles = (event) => {
 }
 
 psx.setEvent = (event, clocks) => {
+  let ticks = clocks * (PSX_SPEED / (768*44100));
   event.clock = +psx.clock + +clocks;
   event.start = +psx.clock;
   event.active = true;
@@ -133,8 +136,20 @@ function endMainLoop(self, clock) {
   self.active = false;
 }
 
+function runFrame() {
+  let entry = getCacheEntry(cpu.pc);
+  if (!entry) return abort('invalid pc')
+
+  handleGamePads();
+
+  const $ = psx;
+  while (!endAnimationFrame) {
+    entry = entry.code($);
+  }
+  cpu.pc = entry.pc;
+}
+
 function mainLoop(stamp) {
-  window.requestAnimationFrame(mainLoop);
   const delta = stamp - context.timeStamp;
   context.timeStamp = stamp;
   if (!running || !hasFocus || delta > 250) return;
@@ -144,24 +159,19 @@ function mainLoop(stamp) {
   let diffTime = context.realtime - context.emutime;
   const timeToEmulate = diffTime;
 
-  const totalCycles = timeToEmulate * (768*44.100);
-
-  let entry = getCacheEntry(cpu.pc);
-  if (!entry) return abort('invalid pc')
+  const totalCycles = timeToEmulate * (PSX_SPEED / 1000);
 
   endAnimationFrame = false;
   psx.setEvent(frameEvent, +totalCycles);
-  handleGamePads();
-  while (!endAnimationFrame) {
-    // if (!entry.code) {
-    //   entry.code = compileBlock(entry);
-    // }
-    entry = entry.code(psx);
-  }
-  cpu.pc = entry.pc;
+  runFrame();
 
   // correct the emulation time accourding to the psx.clock
-  context.emutime =  psx.clock / (768*44.100);
+  context.emutime =  psx.clock / (PSX_SPEED / 1000);
+}
+
+function emulate(stamp) {
+  window.requestAnimationFrame(emulate);
+  mainLoop(stamp);
 }
 
 function bios() {
@@ -170,12 +180,9 @@ function bios() {
   let entry = getCacheEntry(0xbfc00000);
   const $ = psx;
   while (entry.pc !== 0x00030000) {
-    // if (!entry.code) {
-    //   entry.code = compileBlock(entry);
-    // }
-    entry = entry.code(psx);
+    entry = entry.code($);
   }
-  context.realtime = context.emutime =  psx.clock / (768*44.100);
+  context.realtime = context.emutime =  psx.clock / (PSX_SPEED / 1000);
   vector = getCacheEntry(0x80);
   cpu.pc = entry.pc;
 }
@@ -374,7 +381,7 @@ function init() {
   });
 
 
-  mainLoop(performance.now());
+  emulate(performance.now());
 
   renderer = new WebGLRenderer(canvas);
 
@@ -441,6 +448,8 @@ function init() {
 
 var line = ''
 var lastLine = null;
+var gameCode = "";
+var gameCodeRegEx = /[A-Za-z]{4}_[0-9]{3}\.[0-9]{2}/;
 
 function trace(pc, val) {
   const gpr = cpu.gpr;
@@ -459,6 +468,14 @@ function trace(pc, val) {
         case 0x3d:  line += String.fromCharCode(gpr[4])
                     if (gpr[4] === 10 || gpr[4] === 13) {
                       if (line !== lastLine) {
+                        var result = gameCodeRegEx.exec(line);
+                        if (result) {
+                          let gc = result[0].replace('.', '').toUpperCase();
+                          if (gameCode !== gc) {
+                            console.error(gc);
+                            gameCode = gc;
+                          }
+                        }
                         console.debug(line);
                         lastLine = line;
                       }

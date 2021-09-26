@@ -220,7 +220,7 @@ const cdr = (() => {
         psx.setEvent(this.eventCmd, 64);
         return;
       }
-      const readCycles = 33868800 / ((cdr.mode & 0x80) ? 150 : 75);
+      const readCycles = PSX_SPEED / ((cdr.mode & 0x80) ? 150 : 75);
 
       var currentCommand = cdr.ncmdctrl;
       cdr.ncmdctrl = 0;

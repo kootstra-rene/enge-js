@@ -269,7 +269,7 @@ function memWrite8(addr, data) {
   const base = (addr & 0x01ffffff) >>> 0;
   if (base < 0x00800000) {
     map8[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 0] = data;
-    clearCodeCache(base);
+    clearCodeCache(base, 4);
     psx.clock += 1;
     return;
   }
@@ -318,7 +318,7 @@ function memWrite16(addr, data) {
   const base = (addr & 0x01ffffff) >>> 0;
   if (base < 0x00800000) {
     map16[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 1] = data;
-    clearCodeCache(base);
+    clearCodeCache(base, 4);
     psx.clock += 1;
     return;
   }
@@ -387,7 +387,7 @@ function memWrite32(addr, data) {
 
   if (base < 0x00800000) {
 	  map[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 2] = data;
-    clearCodeCache(base);
+    clearCodeCache(base, 4);
     psx.clock += 1;
     return;
   }

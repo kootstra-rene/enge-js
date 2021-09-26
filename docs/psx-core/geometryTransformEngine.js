@@ -690,9 +690,9 @@ const gte = {
     sy[2] = this.lim(sy[2], -1024.0, 13, 1023.0, 13);
     ir[0] = this.lim(ir[0], 0.0, 12, 4096.0, 12);
 
-    let cx = (sx[2] >>> 0) & 0xfff;
-    let cy = (sy[2] >>> 0) & 0xfff;
-    let ci = (cy << 12) | cx;
+    let cx = (sx[2] >>> 0) & 0x7ff;
+    let cy = (sy[2] >>> 0) & 0x7ff;
+    let ci = (cy << 11) | cx;
 
     if (settings.naiveResolutionImprovement) {
       let map = gte.coords.get(ci);

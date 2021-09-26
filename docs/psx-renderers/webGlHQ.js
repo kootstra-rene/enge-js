@@ -896,9 +896,9 @@ WebGLRenderer.prototype.drawLine = function(data, c1, xy1, c2, xy2) {
 
 let mapped = 0, unmapped = 0;
 WebGLRenderer.prototype.getGteCoord = function(x,y) {
-  let cix = ((x - this.drawOffsetX) >>> 0) & 0xfff;
-  let ciy = ((y - this.drawOffsetY) >>> 0) & 0xfff;
-  let ci = (ciy << 12) | cix;
+  let cix = ((x - this.drawOffsetX) >>> 0) & 0x7ff;
+  let ciy = ((y - this.drawOffsetY) >>> 0) & 0x7ff;
+  let ci = (ciy << 11) | cix;
   let map = gte.coords.get(ci);
   if (map) {
     ++mapped;

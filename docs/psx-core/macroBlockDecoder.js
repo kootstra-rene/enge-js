@@ -364,7 +364,7 @@ var mdc = {
     }
 
     // 320x240x30 = 9000 16x16 blocks
-    const decodingCyclesRemaining = (33868800 / 9000) * (decodedMacroBlocks / 6);
+    const decodingCyclesRemaining = (PSX_SPEED / 9000) * (decodedMacroBlocks / 6);
     // console.log(decodingCyclesRemaining);
     psx.setEvent(this.event, decodingCyclesRemaining >>> 0);
     return numberOfWords;

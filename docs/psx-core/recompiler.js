@@ -61,22 +61,39 @@ var rec = {
                 },
 
   'compile08' : function (rec, opc) { var mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+                  if (rec.isConstRS()) {
+                    // console.log('addi with constants')
+                    return rec.setReg(mips, rec.rt, '0x' + hex(((opc << 16) >> 16) + rec.getConstRS()), true);
+                  }
                   return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
                 },
 
   'compile09' : function (rec, opc) { var mips = 'addiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+                  if (rec.isConstRS()) {
+                    // console.log('addiu with constants', hex(state.entryPC))
+                    return rec.setReg(mips, rec.rt, '0x' + hex(((opc << 16) >> 16) + rec.getConstRS()), true);
+                  }
                   return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
                 },
 
   'compile0A' : function (rec, opc) { var mips = 'slti    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+                  if (rec.isConstRS()) {
+                    console.log('slti with constants')
+                  }
                   return rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' >> 0) < (' + ((opc << 16) >> 16) + ' >> 0)');
                 },
 
   'compile0B' : function (rec, opc) { var mips = 'sltiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+                  if (rec.isConstRS()) {
+                    console.log('sltiu with constants')
+                  }
                   return rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' >>> 0) < (' + ((opc << 16) >> 16) + ' >>> 0)');
                 },
 
   'compile0C' : function (rec, opc) { var mips = 'andi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+                  if (rec.isConstRS()) {
+                    console.log('andi with constants')
+                  }
                   return rec.setReg(mips, rec.rt, rec.getRS() + ' & 0x' + hex(opc, 4));
                 },
 
@@ -89,6 +106,9 @@ var rec = {
                 },
 
   'compile0E' : function (rec, opc) { var mips = 'xori    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+                  if (rec.isConstRS()) {
+                    console.log('xori with constants')
+                  }
                   return rec.setReg(mips, rec.rt, rec.getRS() + ' ^ 0x' + hex(opc, 4));
                 },
 
@@ -433,7 +453,16 @@ for (let i = 0; i < 256; ++i) {
   recmap.set(i, rec[`compile${hex(i, 2).toUpperCase()}`])
 }
 
-function compileInstruction(state, lines) {
+const loadDelay = new Uint8Array(256);
+loadDelay.fill(0);
+loadDelay[0x20] = 1; // lb
+loadDelay[0x21] = 1; // lh
+loadDelay[0x23] = 1; // lw
+loadDelay[0x24] = 1; // lbu
+loadDelay[0x25] = 1; // lhu
+
+
+function compileInstruction(state, lines, delaySlot) {
   const iwordIndex = getCacheIndex(state.pc);
   var opcode = map[iwordIndex];
   var opc    = 0;
@@ -448,6 +477,19 @@ function compileInstruction(state, lines) {
   state.rd = (opcode >>> 11) & 0x1F;
   state.rs = (opcode >>> 21) & 0x1F;
   state.rt = (opcode >>> 16) & 0x1F;
+
+  if (delaySlot && loadDelay[opc]) {
+    console.log('load delay in branch slot', hex(state.entryPC));
+  }
+  else
+  if (loadDelay[opc]) {
+    // console.log('load delay', hex(state.entryPC));
+  }
+  // if (state.loadDelayRegister && (state.rt === state.loadDelayRegister || state.rs === state.loadDelayRegister)) {
+  //   console.log('use of delay register', state.loadDelayRegister, 'in', hex(state.entryPC));
+  //   // lines.push('debugger');
+  // }
+  state.loadDelayRegister = 0;
 
   try {
     lines.push((recmap.get(opc) || rec.invalid)(state, opcode));
@@ -476,6 +518,7 @@ var state = {
   branchTarget: 0,
   jump: false,
   loadDelayRegister: 0,
+  entryPC: 0,
 
   reg: function(r) {
     return r ? 'gpr[' + r + ']' : '0';
@@ -533,6 +576,7 @@ var state = {
     this.sr = false;
     this.cycles = 0;
 
+    this.loadDelayRegister = 0;
     this.const.fill(0);
     this.const[0] = 1;
   }
@@ -542,19 +586,20 @@ function compileBlockLines(entry) {
   const pc = entry.pc >>> 0;
   state.clear();
   state.pc = pc;
+  state.entryPC = pc;
   state.entry = entry;
 
   const lines = [];
 
   // todo: limit the amount of cycles per block
   while (!state.stop) {
-    compileInstruction(state, lines);
+    compileInstruction(state, lines, false);
     state.cycles += 1;
     state.pc += 4;
   }
 
   if (state.stop && (!state.break && !state.syscall && !state.sr)) {
-    compileInstruction(state, lines);
+    compileInstruction(state, lines, true);
     state.cycles += 1;
     state.pc += 4;
   }
@@ -669,17 +714,18 @@ cached.fill(null);
 Object.seal(cached);
 
 function getCacheIndex(pc) {
-  pc = pc & 0x01ffffff;
-  if (pc < 0x800000) pc &= 0x1fffff;
-  return pc >>> 2;
+  let ipc = pc & 0x01ffffff;
+  if (ipc < 0x800000) ipc &= 0x1fffff;
+  return ipc >>> 2;
 }
 
 function clearCodeCache(addr, size) {
   const words = !size ? 4 >>> 0 : size >>> 0;
 
+  const ibase = getCacheIndex(addr);
   for (let i = 0 >>> 0; i < words; i += 4) {
-    const lutIndex = getCacheIndex((addr >>> 0) + i);
-    const entry = cached[lutIndex];
+    // const lutIndex = getCacheIndex((addr >>> 0) + i);
+    const entry = cached[ibase + (i >>> 2)];
     if (entry) {
       entry.code = lazyCompile.bind(entry);
     }
