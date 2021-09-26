@@ -34,7 +34,7 @@ var cpu = {
       case 13:  return this.cause >> 0;
       case 14:  return this.epc >> 0;
       case 15:  return 2 >> 0;
-      default:  //abort('getCtrl:' + reg);
+      default:  console.warn('getCtrl:' + reg);
     }
   },
 
@@ -54,7 +54,7 @@ var cpu = {
       case 13:  this.cause = this.cause & 0xfffffcff;
                 this.cause |= (value & 0x00000300); 
                 break;
-      default:  //abort('setCtrl:' + reg);
+      default:  cons1ole.warn('setCtrl:' + reg);
     }
   },
 

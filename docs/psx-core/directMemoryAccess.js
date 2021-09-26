@@ -125,7 +125,6 @@ const dma = {
       psx.setEvent(this.eventDMA0, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      // console.log('dma0 not enabled');
       this.r1088 &= 0xfeffffff;
     }
   },
@@ -144,10 +143,8 @@ const dma = {
         default:  abort('mdo-ctrl:'+hex(ctrl));
       }
 
-      // psx.setEvent(this.eventDMA1, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      // console.log('dma1 not enabled');
       this.r1098 &= 0xfeffffff;
     }
   },
@@ -177,7 +174,6 @@ const dma = {
       psx.setEvent(this.eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      // console.log('dma2 not enabled');
       this.r10a8 &= 0xfeffffff;
     }
   },
@@ -202,7 +198,6 @@ const dma = {
       psx.setEvent(this.eventDMA3, ((transferSize * 0x2800) / 0x100) >>> 0);
     }
     else {
-      // console.log('dma3 not enabled');
       this.r10b8 &= 0xfeffffff;
     }
   },
@@ -228,7 +223,6 @@ const dma = {
       psx.setEvent(this.eventDMA4, ((transferSize * 0x420) / 0x100) >>> 0);
     }
     else {
-      // console.log('dma4 not enabled');
       this.r10c8 &= 0xfeffffff;
     }
   },
@@ -237,14 +231,13 @@ const dma = {
     this.r10e8 = (ctrl & 0x50000002) | 0x2;
     if (dma.dpcr & 0x08000000) {
       let transferSize = 10;
-        // console.log(hex(this.r10e0), hex(map[(this.r10e0 & 0x01ffffff) >> 2]));
 
       switch (this.r10e8) {
         case 0x00000002:  this.r10e0n = this.r10e0 = map[(this.r10e0 & 0x01ffffff) >> 2];
                           break;
         case 0x10000002:  
         case 0x50000002:  transferSize = gpu.dmaLinkedListMode0002(this.r10e0, this.r10e4);
-                          this.r10e0n = 0x00ffffff;//this.r10e0 + (transferSize << 2);
+                          this.r10e0n = 0x00ffffff;
                           break;
 
         default:  abort('otc-ctrl:'+hex(ctrl)+' '+hex(this.r10e8));
@@ -253,7 +246,6 @@ const dma = {
       psx.setEvent(this.eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      // console.log('dma6 not enabled');
       this.r10e8 &= 0xfeffffff;
     }
   },

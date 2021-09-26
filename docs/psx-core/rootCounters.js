@@ -1,5 +1,3 @@
-// see rootcounters.md for details
-
 const {rc0, rc1, rc2, dot} = (() => {
 'use strict';
 
@@ -94,7 +92,6 @@ const rc0 = {
   },
 
   setMode: function(bits32) {
-    // console.log(hex(0x1104, 4), hex(bits32));
     r11x4[0] = (bits32 & 0x3ff) | (1 << 10);
 
     let cyclesToSkip = +0;
@@ -135,19 +132,17 @@ const rc0 = {
   },
 
   setTarget: function(bits32) {
-    // console.log(hex(0x1108, 4), hex(bits32));
     if (!bits32) bits32 = 0xffff;
     r11x8[0] = bits32;
   },
 
   setValue: function(bits32) {
-    // console.log(hex(0x1100, 4), hex(bits32));
     if (bits32) return abort('not supported');
     r11x0[0] = bits32;
   },
 
   onLimitReached: function() {
-    if (r11x4[0] & 0x0030) { // IRQ enabled
+    if (r11x4[0] & 0x0030) {
       cpu.istat |= 0x0010;
     }
   },
@@ -233,7 +228,6 @@ const rc1 = {
   },
 
   setMode: function(bits32) {
-    // console.log(hex(0x1114, 4), hex(bits32));
     r11x4[1] = ((bits32 & 0x13f) | (1 << 10)) >>> 0;
 
     // todo: implement synchronisation
@@ -266,19 +260,17 @@ const rc1 = {
   },
 
   setTarget: function(bits32) {
-    // console.log(hex(0x1118, 4), hex(bits32));
     if (!bits32) bits32 = 0xffff;
     r11x8[1] = bits32 >>> 0;
   },
 
   setValue: function(bits32) {
-    // console.log(hex(0x1110, 4), hex(bits32));
     if (bits32) return abort('not supported');
     r11x0[1] = +bits32;
   },
 
   onLimitReached: function() {
-    if (r11x4[1] & 0x0030) { // IRQ enabled
+    if (r11x4[1] & 0x0030) {
       cpu.istat |= 0x0020;
     }
   },
@@ -377,7 +369,6 @@ const rc2 = {
   },
 
   setMode: function(bits32) {
-    // console.log(hex(0x1124, 4), hex(bits32));
     r11x4[2] = (bits32 & 0x3ff) | (1 << 10);
 
     switch (r11x4[2] & 0x207) {
@@ -417,7 +408,7 @@ const rc2 = {
   },
 
   onLimitReached: function() {
-    if (r11x4[2] & 0x0030) { // IRQ enabled
+    if (r11x4[2] & 0x0030) {
       cpu.istat |= 0x0040;
     }
   },

@@ -1,18 +1,3 @@
-//todo:
-//      image loading in draw area should be displayed and not loaded into textuer buffers (MDEC ?)
-//      only update texture when needed (keep track of dirty pages) less image load to textures
-//      keep track of STP in CLUT allows better performance
-//      - only a CLUT with mixed STP bits needs the flushes of the vertex buffer
-//      rewrite shaders using only a 2048x512 as texture (even pixel is low byte, odd is high byte)
-//      - allows for 4/8/16/24 bit modes
-//      - faster load/store/move image
-//      - no javascript buffer needed
-//      - 100% gpu (filtering of primitives done by cpu)
-// done:
-//      filter primitives outside the draw area
-//      filter primitives wider than 1024 or heigher than 512
-//      load image at higher resolutions
-
 "use strict"
 var qwf = settings.quality || 1;
 var qhf = settings.quality || 1;
@@ -273,9 +258,6 @@ var fragmentShaderDraw =
     "}"+
 
     "void main(void) {" +
-    // "  float fx = tcx - floor(tcx);"+
-    // "  float fy = tcy - floor(tcy);"+
-
     "  if (vTextureMode == 7.0) {"+ // copy mode
     "    gl_FragColor = vec4(getColor(tcx, tcy), uBlendAlpha);"+
     "    return;"+
@@ -288,10 +270,6 @@ var fragmentShaderDraw =
 
     "  vec3 c = getClutColor(0.0);"+
 
-    // "  if (fx < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
-    // "  if (fx >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
-    // "  if (fy < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
-    // "  if (fy >= 0.75) { gl_FragColor = vec4(0.0, 0.0, 0.25, uBlendAlpha); return; }"+
     "  vec3 color = 2.0 * (vColor.rgb * c.rgb);"+
     "  color -= mod(color, 2.0/256.0);"+
     "  color.b += stp;"+
@@ -301,7 +279,7 @@ var fragmentShaderDraw =
 function WebGLRenderer(canvas) {
   this.gl = null
   this.programDisplay = null
-  this.vertexBuffer = new Uint32Array(18*1024 >> 2)// // 18.0 Kb, 768 vertices vertices, 256 triangles
+  this.vertexBuffer = new Uint32Array(18*1024 >> 2)//  18.0 Kb, 768 vertices, 256 triangles
 
   this.drawOffsetX = 0
   this.drawOffsetY = 0
@@ -321,8 +299,7 @@ function WebGLRenderer(canvas) {
       depth: false, 
       stencil: false,
 
-      powerPreference: 'high-performance',
-      // desynchronized: true, // makes screen black if true?
+      powerPreference: 'high-performance'
     });
   }
   catch (e) {
@@ -351,7 +328,7 @@ function WebGLRenderer(canvas) {
 }
 
 // todo: cache results as this is called per textured primitive.
-//       do not ever remove one of the more powerful optimisations
+//       do not ever remove this as it is one of the more powerful optimisations
 WebGLRenderer.prototype.getClutInfo = function(cl, tm) {
   var cx = ((cl >>> 0) & 0x03f) * 16;
   var cy = ((cl >>> 6) & 0x1ff);
@@ -521,7 +498,6 @@ WebGLRenderer.prototype.loadImage = function(x, y, w, h, buffer) {
       buffer[o++] = this.vram[offsetY + ((x+i)%1024)]
     }
   }
-  // buffer.fill(0x7c1f, 0, w*h);
 }
 
 WebGLRenderer.prototype.moveImage = function(sx, sy, dx, dy, w, h) {
@@ -564,7 +540,6 @@ WebGLRenderer.prototype.storeImage = function(img) {
   this.storeImageInTexture(img)
 }
 
-// var tex = new Uint8Array(1024*512*2);
 WebGLRenderer.prototype.storeImageInTexture = function (img) {
   const gl = this.gl;
 
@@ -602,7 +577,6 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
     return;
   }
 
-  // console.log(img.x, img.y, img.w, img.h)
   // copy image to GPU
   const view = new Uint8Array(img.buffer.buffer, 0, img.pixelCount << 1);
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
@@ -775,7 +749,7 @@ WebGLRenderer.prototype.flushVertexBuffer = function(clip) {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
       gl.drawArrays(gl.TRIANGLES, 0, vertices);
       break;
-    case 2: case 3://   console.log('15bit rendering');
+    case 2: case 3:
       gl.activeTexture(this.gl.TEXTURE1);
 
       gl.bindTexture(this.gl.TEXTURE_2D, this.tex16draw);
@@ -829,8 +803,6 @@ WebGLRenderer.prototype.setBlendMode = function(mode) {
 
 WebGLRenderer.prototype.getVertexBuffer = function(cnt, pid) {
   var select = (((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4) | (gpu.tp << 4);
-
-//gpu.tp;
 
   if (!this.vertexBuffer.canHold(cnt)) {
     this.flushVertexBuffer(true);
@@ -997,8 +969,6 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   var c = (data[0] & 0xfefefe);
   var w = (data[2] << 16) >> 16;
   var h = (data[2] >> 16);
-// console.log(`drawRectangle: ${x}, ${y}`)
-
   // turned off because of background tiles rendering wrong
   // let map;
   // map = this.getGteCoord(x, y); if (map) { x = map.x+this.drawOffsetX; y = map.y+this.drawOffsetY; }
@@ -1046,7 +1016,6 @@ WebGLRenderer.prototype.drawRectangle = function(data, tx, ty, cl) {
   }
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
-// console.log(`--drawRectangle: ${x}, ${y}, ${w}, ${h}`)
 
   var info = 3;
   if (semi_transparent) {
@@ -1119,6 +1088,7 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color, clip) {
     clr.fill(c, 0, size);
   }
 
+  // commented out for performance reasons
   // for (let j = 0; j < h; ++j) {
   //   const offsetY = ((y + j) % 512) * 1024;
   //   for (let i = 0; i < w; ++i) {
@@ -1132,7 +1102,6 @@ WebGLRenderer.prototype.clearVRAM = function(x, y, w, h, color, clip) {
   // copy image to GPU
   const view = new Uint8Array(clr.buffer, 0, size << 1);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
-//  if (gl.getError() !== gl.NO_ERROR) debugger;
 }
 
 WebGLRenderer.prototype.fillRectangle = function(data) {

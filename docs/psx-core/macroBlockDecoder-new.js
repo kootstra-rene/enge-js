@@ -3,9 +3,8 @@
 const decoder = {
   k: 0,
   q: 0,
-  f: true, //- first value
-  b: 0, // block cr,cb,y1,y2,y3,y4
-
+  f: true, 
+  b: 0, 
 
   dataIn: function (rle) {
     if (this.f) {
@@ -17,12 +16,11 @@ const decoder = {
         this.f = false;
       }
       else {
-//        return abort('unexpected rle')
         return;
       }
     }
     else {
-      this.k += ((rle >> 10) + 1); // takes care of 0xfe00
+      this.k += ((rle >> 10) + 1);
       if (this.k <= 63) {
         const dc = (rle << 22) >> 22;
         console.log(psx.clock, 'b:', this.b, 'k:', this.k, 'dc:', dc)
@@ -37,8 +35,6 @@ const decoder = {
     if (this.b >= 6) {
       console.log('data-in: full');
       this.b = 0;
-      // mdc.r1824 |= (1 << 30);
-      // mdc.r1824 &= ~(1 << 31);
     }
   }
 }
@@ -94,14 +90,14 @@ var mdc = {
   wr32r1820: function(data) {
     if (0 === (mdc.r1824 & (1 << 29))) {
       mdc.r1820 = data;
-      mdc.r1824 |= (1 << 29); // set command busy
+      mdc.r1824 |= (1 << 29); 
       console.log('wr32r1820(c):', hex(data));
       switch (mdc.r1820 >>> 29) {
         case  1:  // Decode
                   mdc.commandIndex = 0;
                   mdc.commandSize = (mdc.r1820 & 0xffff) >>> 0;
 
-                  mdc.r1824 |= (1 << 28); // data-in request
+                  mdc.r1824 |= (1 << 28); 
                   mdc.r1824 = (mdc.r1824 & 0xfe8f0000);
                   mdc.r1824 |= ((mdc.r1820 & 0xffff) - 1);
                   mdc.r1824 |= (((mdc.r1820 >> 25) & 15) << 23);
@@ -130,7 +126,7 @@ var mdc = {
                 mdc.dataInFifo.push(data);
                 if (mdc.dataInFifo.full()) {
 
-                  mdc.r1824 |= (1 << 30); // data-in fifo full
+                  mdc.r1824 |= (1 << 30);
 
                   while (!mdc.dataInFifo.empty()) {
                     let bits32 = mdc.dataInFifo.pop();
@@ -140,15 +136,15 @@ var mdc = {
 
                   mdc.r1824 &= 0xfff8ffff;
                   mdc.r1824 |= (((4 + decoder.b) % 6) << 16);
-                  mdc.r1824 &= ~(1 << 31); // data-out fifo not empty
-                  mdc.r1824 |= (1 << 27); // data-out request
+                  mdc.r1824 &= ~(1 << 31);
+                  mdc.r1824 |= (1 << 27);
                   debugger;
                 }
                 break;
 
         case 2: 
         case 3: if (mdc.commandIndex >= mdc.commandSize) {
-                  mdc.r1824 &= ~(1 << 29); // clear command busy
+                  mdc.r1824 &= ~(1 << 29);
                 }
                 break;
       }
@@ -172,15 +168,14 @@ var mdc = {
   },
 
   dmaTransferMode0201: function(addr, blck) {
-    addr = addr & 0x001fffff; // ram always
-    //console.log("[mdec-in] addr:"+hex(addr)+" blck:"+hex(blck));
+    addr = addr & 0x001fffff; // assume ram always
 
     const transferSize = (blck >>> 16) * (blck & 0xffff);
     return transferSize;
   },
 
   dmaTransferMode0200: function(addr, blck) {
-    addr = addr & 0x001fffff; // ram always
+    addr = addr & 0x001fffff; // assume ram always
     const numberOfWords = (blck >>> 16) * (blck & 0xffff);
     clearCodeCache(addr, numberOfWords << 2);
     return numberOfWords;

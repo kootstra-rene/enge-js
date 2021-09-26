@@ -117,7 +117,6 @@ Object.seal(psx);
 
 psx.addEvent(0, spu.event.bind(spu));
 dma.eventDMA0 = psx.addEvent(0, dma.completeDMA0.bind(dma));
-// dma.eventDMA1 = psx.addEvent(0, dma.completeDMA1.bind(dma));
 dma.eventDMA2 = psx.addEvent(0, dma.completeDMA2.bind(dma));
 dma.eventDMA3 = psx.addEvent(0, dma.completeDMA3.bind(dma));
 dma.eventDMA4 = psx.addEvent(0, dma.completeDMA4.bind(dma));
@@ -165,7 +164,6 @@ function mainLoop(stamp) {
   psx.setEvent(frameEvent, +totalCycles);
   runFrame();
 
-  // correct the emulation time accourding to the psx.clock
   context.emutime =  psx.clock / (PSX_SPEED / 1000);
 }
 
@@ -241,13 +239,12 @@ function loadFileData(arrayBuffer) {
     running = true;
   }
   else if (data[0] === 0xffffff00) { // ISO
-    // audo build TOC (sad attempt to not need .cue files)
+    // auto build TOC (attempt to not need .cue files)
     let loc = 0;
     let lastLoc = data.length / (2352 / 4);
     let type = 0; // data
     let tracks = [];
 
-    // console.log(`TRACK #0: 0 - ${lastLoc}`);
     tracks.push({id: 0, begin:0, end:lastLoc});
     const sectorLength = 2352;
     function isDataSector(startLoc) {
@@ -272,7 +269,6 @@ function loadFileData(arrayBuffer) {
     while ((i < lastLoc) && isDataSector(i)) ++i;
     end = i;
     while ((i < lastLoc) && isEmptySector(i)) ++i;
-    // console.log(`TRACK #${++track}: ${begin} - ${end}`);
     tracks.push({id: 1, begin, end,data:true});
  
     let id = 2;
@@ -284,14 +280,12 @@ function loadFileData(arrayBuffer) {
         while ((i < lastLoc) && isEmptySector(i)) ++i;
         lead = i;
         if ((lead-end) < 75) continue;
-        // console.log(`TRACK #${++track}: ${begin} - ${end}: ${end-begin}: ${lead-end}`);
         tracks.push({id, begin, end, audio:true});
         begin = i;
         id++;
       }
       if (begin < lastLoc) {
         end = lead = lastLoc
-        // console.log(`TRACK #${++track}: ${begin} - ${end}: ${end-begin}: ${lead-end}`);
         tracks.push({id, begin, end, audio:true});
       }
     }
@@ -417,7 +411,6 @@ function init() {
       let data32 = new Uint32Array(data);
       for (var i = 0; i < 0x80000; i+=4) {
         map[(0x01c00000 + i) >>> 2] = data32[i >>> 2];
-        // map.setInt32(0x01c00000 + i, data32[i>>2]);
       }
       let header = document.querySelector('span.nobios');
       if (header) {
@@ -455,16 +448,8 @@ function trace(pc, val) {
   const gpr = cpu.gpr;
 
   switch (pc) {
-    case 0xa0:
-      switch (val) {
-        default:    //log(`$${hex(pc, 2)}: $${hex(val, 3)}`);
-                    break;
-      }
-      break;
     case 0xb0:
       switch (val) {
-        case 0x16:  break; // OutdatedPadGetButtons()
-        case 0x17:  break; // ReturnFromException()
         case 0x3d:  line += String.fromCharCode(gpr[4])
                     if (gpr[4] === 10 || gpr[4] === 13) {
                       if (line !== lastLine) {
@@ -481,16 +466,6 @@ function trace(pc, val) {
                       }
                       line = '';
                     }
-                    break;
-        case 0x4f:  log(`read_card_sector($${hex(gpr[4])}, $${hex(gpr[5])}, $${hex(gpr[6])})`);
-                    break;
-        default:    //log(`$${hex(pc, 2)}: $${hex(val, 3)}`);
-                    break;
-      }
-      break;
-    case 0xc0:
-      switch (val) {
-        default:    //log(`$${hex(pc, 2)}: $${hex(val, 3)}`);
                     break;
       }
       break;

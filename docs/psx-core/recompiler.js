@@ -62,7 +62,6 @@ var rec = {
 
   'compile08' : function (rec, opc) { var mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
                   if (rec.isConstRS()) {
-                    // console.log('addi with constants')
                     return rec.setReg(mips, rec.rt, '0x' + hex(((opc << 16) >> 16) + rec.getConstRS()), true);
                   }
                   return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
@@ -70,7 +69,6 @@ var rec = {
 
   'compile09' : function (rec, opc) { var mips = 'addiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
                   if (rec.isConstRS()) {
-                    // console.log('addiu with constants', hex(state.entryPC))
                     return rec.setReg(mips, rec.rt, '0x' + hex(((opc << 16) >> 16) + rec.getConstRS()), true);
                   }
                   return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
@@ -424,13 +422,6 @@ var rec = {
                   return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': cop2    0x' + hex(opc & 0x1ffffff) + '\n' +
                          'gte.command(0x' + hex(opc & 0x1ffffff) + ')';
                 },
-
-  // 'invalid'   : function (rec, opc) {
-  //                 rec.stop = true;
-  //                 rec.syscall = true;
-  //                 return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': invalid instruction\n' +
-  //                        'target = cpuException(4 << 2, 0x' + hex(rec.pc) + ');';
-  //               },
 }
 rec.compileD1 = rec.compileD0;
 rec.compileD2 = rec.compileD0;
@@ -481,14 +472,6 @@ function compileInstruction(state, lines, delaySlot) {
   if (delaySlot && loadDelay[opc]) {
     console.log('load delay in branch slot', hex(state.entryPC));
   }
-  else
-  if (loadDelay[opc]) {
-    // console.log('load delay', hex(state.entryPC));
-  }
-  // if (state.loadDelayRegister && (state.rt === state.loadDelayRegister || state.rs === state.loadDelayRegister)) {
-  //   console.log('use of delay register', state.loadDelayRegister, 'in', hex(state.entryPC));
-  //   // lines.push('debugger');
-  // }
   state.loadDelayRegister = 0;
 
   try {
@@ -551,8 +534,6 @@ var state = {
   setReg: function(mips, nr, value, isconst) {
     const iword = map[(this.pc & 0x01ffffff) >>> 2];
     let command =  '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
-
-    // isconst = false;
 
     if (nr) {
       this.const[nr] = 0;
@@ -619,7 +600,6 @@ function compileBlockLines(entry) {
     }
   }
 
-  // debug-only: lines.push('++this.calls;this.clock = psx.clock;');
   return lines;
 }
 
@@ -649,7 +629,6 @@ function compileBlock(entry) {
     };
     let otherLines = compileBlockLines(otherEntry);
     let combinedLines = [];
-    // console.log('level 2 (jump-jump)', hex(pc), hex(other.pc));
     combinedLines.push(...lines);
     combinedLines.push('psx.clock += ' + (cycles) + ';');
     combinedLines.push(`if (target === _${hex(entry.next.pc)}) break;\n`);
@@ -659,7 +638,6 @@ function compileBlock(entry) {
     combinedLines.unshift(`while(psx.clock < psx.eventClock) {`);
     combinedLines.push('}');
     combinedLines.push('return psx.handleEvents(target);');
-    // console.log('>', combinedLines.join('\n'));
     lines = combinedLines;
     jumps.push(
       state.branchTarget >>> 0,
@@ -668,7 +646,6 @@ function compileBlock(entry) {
   }
   else
   if (entry.jump.pc === (pc >>> 0)) {
-    // console.log('level 1', hex(pc));
     lines.unshift(`while (psx.clock < psx.eventClock) {`);
     lines.push('psx.clock += ' + cycles + ';');
     lines.push(`if (target === _${hex(state.pc)}) break;`);
@@ -676,7 +653,6 @@ function compileBlock(entry) {
     lines.push('return psx.handleEvents(target);');
   }
   else {
-    // console.log('level 0', hex(pc));
     lines.push('if((psx.clock += ' + cycles + ') >= psx.eventClock) {');
     lines.push('  return psx.handleEvents(target);');
     lines.push('}');
@@ -708,7 +684,6 @@ function getCodeStats(level, mostCalledItems) {
   return items.sort((a,b) => b.calls-a.calls).slice(0,mostCalledItems||10);
 }
 
-// an array is faster but consumes much more memory, deliberatly chosen for memory here,
 const cached = new Array(0x02000000>>>2);
 cached.fill(null);
 Object.seal(cached);
@@ -724,7 +699,6 @@ function clearCodeCache(addr, size) {
 
   const ibase = getCacheIndex(addr);
   for (let i = 0 >>> 0; i < words; i += 4) {
-    // const lutIndex = getCacheIndex((addr >>> 0) + i);
     const entry = cached[ibase + (i >>> 2)];
     if (entry) {
       entry.code = lazyCompile.bind(entry);
@@ -745,18 +719,12 @@ function getCacheEntry(pc) {
     cached[lutIndex] = entry = {
       code: null,
       pc: lutIndex << 2,
-      // inline: false,
-      // calls: 0,
-      // clock: 0,
       addr: hex(lutIndex << 2),
       jump: null,
       next: null,
     };
     Object.seal(entry);
     entry.code = lazyCompile.bind(entry);
-    // if (!entry.code) {
-    //   entry.code = compileBlock(entry);
-    // }
   }
   return entry;
 }

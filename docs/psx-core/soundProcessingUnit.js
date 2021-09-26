@@ -12,7 +12,6 @@ var right;
 
 function init() {
   var audioCtx = new AudioContext();
-  // audioCtx.suspend();
   var myArrayBuffer = audioCtx.createBuffer(2, frameCount, audioCtx.sampleRate);
   var source = audioCtx.createBufferSource();
   source.buffer = myArrayBuffer;
@@ -20,7 +19,6 @@ function init() {
   source.loop = true;
   source.playbackRate.value = 44100 / audioCtx.sampleRate * speedFactor;
   source.$started = false;
-  // source.start(0);
   window.source = source;
   window.audioCtx = audioCtx;
 
@@ -77,13 +75,11 @@ var spu = {
                       return voice.getRegister(addr);
                     }
                     return map16[((0x01800000 + addr) & 0x01ffffff) >>> 1];
-                    // return map.getInt16(0x01800000 + addr);
     }
   },
 
   setInt16: function(addr, data) {
     data &= 0xffff;
-//    console.log(hex(addr, 4), hex(data));
 
     switch (addr) {
       case 0x1d80:  this.mainVolumeLeft = this.getVolume(data);
@@ -138,7 +134,6 @@ var spu = {
                     break
       case 0x1d98:  for (var i = 0; i < 16; ++i) {
                       if ((data & (1 << i)) === 0) continue
-                      //this.trace('voice-'+i+'-key-on')
                       this.voices[i].echoOn()
                     }
                     break
@@ -164,8 +159,7 @@ var spu = {
                     this.ramOffset += 2;
                     this.checkIrq();
                     break
-      case 0x1dac:  //this.trace('ram-transfer-control', '$'+hex(data, 4))
-                    break
+      case 0x1dac:  break
       case 0x1daa:  this.SPUCNT = data;
                     if ((!left || !right) && this.SPUCNT & 0x8000) {
                       init();
@@ -181,11 +175,9 @@ var spu = {
                     break
       case 0x1dae:  // SPUSTAT (read-only)
                     break
-      case 0x1db0:  //this.trace('cd-audio-volume-left', '$'+hex(data, 4))
-                    this.cdVolumeLeft = data / 0x8000;
+      case 0x1db0:  this.cdVolumeLeft = data / 0x8000;
                     break
-      case 0x1db2:  //this.trace('cd-audio-volume-right', '$'+hex(data, 4))
-                    this.cdVolumeRight = data / 0x8000;
+      case 0x1db2:  this.cdVolumeRight = data / 0x8000;
                     break
       case 0x1db4:  this.extVolumeLeft = data / 0x8000;
                     break
@@ -210,7 +202,6 @@ var spu = {
                       this.setReverbRegister(addr, data);
                       break;
                     }
-                    //this.trace('this.setInt16('+hex(addr,4)+','+hex(data,4)+')')
                     abort("Unimplemented spu register:" + hex(addr,4))
                     break
     }
@@ -251,7 +242,6 @@ var spu = {
 
   setReverbRegister: function(addr, data) {
     // todo: implement reverb later
-    // this.trace('reverb-'+hex(addr, 4)+'', '$'+hex(data, 4))
   },
 
   checkIrq: function(voice) {
@@ -299,7 +289,6 @@ var spu = {
       let voice = this.voices[i];
       if (!voice.adsrState) continue;
 
-// voice begin
       voice.pitchCounter += voice.pitchStep;
 
       if (voice.pitchCounter >= BLOCKSIZE) {
@@ -329,7 +318,6 @@ var spu = {
 
       l += sampleL;
       r += sampleR;
-// voice end
     }
 
     var cdxa = [0.0, 0.0];
@@ -473,8 +461,7 @@ Voice.prototype.decodeBlock = function () {
 
 Voice.prototype.mixADSR = function () {
   switch (this.adsrState) {
-    case 0x0: // silence
-              return 0.0;
+    case 0x0: return 0.0;
     case 0x1: this.adsrAttack();
               break;
     case 0x2: this.adsrDecay();
@@ -621,7 +608,6 @@ Voice.prototype.setRegister = function(addr, data) {
                   this.adsrReleaseMode      = (data & 0x0020) >>> 5;
                   this.adsrReleaseRate      = (((data & 0x001F) >>> 0) ^ 0x1F) << 2;
                   this.r1CxA = data;
-                  // optimisations
                   this.adsrLinearReleaseRate = rateTable[this.adsrReleaseRate - 0x0C + 32];
                   if (this.adsrSustainDirection == 0) {
                     this.adsrLinearSustainRate = rateTable[this.adsrSustainRate - 0x10 + 32];
@@ -630,8 +616,7 @@ Voice.prototype.setRegister = function(addr, data) {
                     this.adsrLinearSustainRate = -rateTable[this.adsrSustainRate - 0x0F + 32];
                   }
                   break
-    case 0x000c:  //this.adsrLevel = ((data << 16) >> 16) * 65536.0;
-                  this.adsrLevel = data << 16;
+    case 0x000c:  this.adsrLevel = data << 16;
                   break
     case 0x000e:  this.repeatAddress = data << 3;
                   this.r1CxE = data;
@@ -693,9 +678,6 @@ function InitADSR() {
 
    rateTable[i] = r;
   }
-  // for (let i = 0; i < 160; ++i) {
-  //   console.log("adsr-rate-table", rateTable[i]);
-  // }
 }
 
 InitADSR();

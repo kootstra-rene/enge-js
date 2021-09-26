@@ -13,14 +13,14 @@ Uint32Array.prototype.getInt16 = function(index) {
   switch (index & 3) {
     case 0: return (this[index >> 2] << 16) >> 16;
     case 2: return (this[index >> 2] <<  0) >> 16;
-    default://abort('unaligned read: ' + hex(index));
+    default:abort('unaligned read: ' + hex(index));
   }
 }
 
 Uint32Array.prototype.getInt32 = function(index) {
   switch (index & 3) {
     case 0: return (this[index >> 2]) >> 0;
-    default://abort('unaligned read: ' + hex(index));
+    default:abort('unaligned read: ' + hex(index));
   }
 }
 
@@ -32,21 +32,6 @@ Uint32Array.prototype.setInt8 = function(index, data) {
     case 3: this[index >> 2] = (this[index >> 2] & 0x00ffffff) | ((data & 0xff) << 24); break;
   }
 }
-
-// Uint32Array.prototype.setInt16 = function(index, data) {
-//   switch (index & 3) {
-//     case 0: this[index >> 2] = (this[index >> 2] & 0xffff0000) | ((data & 0xffff) <<  0); break;
-//     case 2: this[index >> 2] = (this[index >> 2] & 0x0000ffff) | ((data & 0xffff) << 16); break;
-//     default://abort('unaligned write: ' + hex(index));
-//   }
-// }
-
-// Uint32Array.prototype.setInt32 = function(index, data) {
-//   switch (index & 3) {
-//     case 0: this[index >> 2] = data; break;
-//     default://abort('unaligned write: ' + hex(index));
-//   }
-// }
 
 const map = new Int32Array(0x02000000 >> 2);
 const map8 = new Int8Array(map.buffer);
@@ -156,12 +141,10 @@ function memRead16(addr) {
     psx.clock += 5;
     return map16[base >>> 1] >> 0;
   }
-  // BIOS
   if (base >= 0x01C00000 && base < 0x01C80000) {
     psx.clock += 12;
     return map16[base >>> 1];
   }
-  // EROM
   if (base >= 0x01000000 && base < 0x01080000) {
     psx.clock += 12;
     return map16[base >>> 1];

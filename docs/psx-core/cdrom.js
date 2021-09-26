@@ -13,7 +13,7 @@ const cdr = (() => {
   let sectorData32 = new Int32Array(0);
 
   var cdr = {
-    cdImage   : new Uint32Array(0), //- maybe Uint8Array
+    cdImage   : new Uint32Array(0),
     cdRomFile : undefined,
     currLoc   : 0,
     filter    : {},
@@ -34,7 +34,7 @@ const cdr = (() => {
     sectorSize : 0,
     seekLoc   : 0,
     currTrack : {},
-    status    : 0x18, // fifo empty and not full
+    status    : 0x18,
     statusCode: 0x00,
     xa        : new Float32Array(8064),
     playIndex : 0,
@@ -59,8 +59,8 @@ const cdr = (() => {
     rd08r1801: function() {
       if ((cdr.status & 0x23) == 0x21) {
         if (cdr.results.length === 1) {
-          cdr.status &= ~0x40; // data fifo is empty
-          cdr.status &= ~0x20; // response fifo is empty
+          cdr.status &= ~0x40;
+          cdr.status &= ~0x20;
         }
         return cdr.results.shift();
       }
@@ -99,7 +99,7 @@ const cdr = (() => {
     wr08r1802: function(data) {
       switch (cdr.status & 3) {
         case  0:  cdr.params.push(data);
-                  if (cdr.params.length === 16) cdr.status &= ~0x10; // fifo full
+                  if (cdr.params.length === 16) cdr.status &= ~0x10;
                   break;
         case  1:  cdr.irqEnable = data;
                   cdr.irq = 0;
@@ -115,7 +115,6 @@ const cdr = (() => {
     wr08r1803: function(data) {
       switch (cdr.status & 3) {
         case 0: if (data === 0x80) {
-                  // want data
                   cdr.status |= 0x40;
                 }
                 break;
@@ -128,8 +127,7 @@ const cdr = (() => {
                 break;
         case 2: cdr.config.volCdLeft2SpuRight = ((data & 0xff) >>> 0) / 0x80;
                 break;
-        case 3: //console.log(' - Audio Volume Apply Changes: $' + hex(data, 2));
-                if (data & 0x20) {
+        case 3: if (data & 0x20) {
                   cdr.volCdLeft2SpuLeft = cdr.config.volCdLeft2SpuLeft;
                   cdr.volCdLeft2SpuRight = cdr.config.volCdLeft2SpuRight;
                   cdr.volCdRight2SpuLeft = cdr.config.volCdRight2SpuLeft;
@@ -146,7 +144,7 @@ const cdr = (() => {
     },
 
     resetparams: function() {
-      cdr.params.length = 0;// = [];
+      cdr.params.length = 0;
     },
 
     command: function(data) {
@@ -156,7 +154,6 @@ const cdr = (() => {
       cdr.results.length = 0;
       cdr.status  |= 0x80;
       cdr.ncmdctrl = data;
-  // console.log('cd-cmd', data.toString(16))
       switch (data) {
         case 0x01:  //- CdlNop
                     nevtctrl = 0xc4e1;
@@ -280,20 +277,20 @@ const cdr = (() => {
         case 0x80:  this.enqueueEvent(2, 0x00);
                     break;
 
-        case 0x09:  cdr.results.push(cdr.statusCode | 0x20); // reading data sectors
+        case 0x09:  cdr.results.push(cdr.statusCode | 0x20);
                     psx.setEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0);
                     cdr.ncmdctrl = 0x90;
                     cdr.status |= 0x80;
                     cdr.status |= 0x20;
                     cdr.setIrq(3);
                     break;
-        case 0x90:  cdr.statusCode = (cdr.statusCode & ~ 0x20) | 0x02; // not reading data sectors
+        case 0x90:  cdr.statusCode = (cdr.statusCode & ~ 0x20) | 0x02;
                     cdr.results.push(cdr.statusCode);
                     cdr.status &= ~0x80;
                     cdr.status |= 0x20;
                     cdr.setIrq(2);
                     break;
-        case 0x99:  cdr.statusCode = (cdr.statusCode & ~ 0xA0) | 0x02; // not reading data sectors or playing
+        case 0x99:  cdr.statusCode = (cdr.statusCode & ~ 0xA0) | 0x02;
                     cdr.results.push(cdr.statusCode);
                     cdr.status &= ~0x80;
                     cdr.status |= 0x20;
@@ -371,7 +368,6 @@ const cdr = (() => {
         case 0x14:{ let mmss = 0;
                     let track = this.tracks[btoi(cdr.params[0])];
                     if (!track) {
-                      // door open
                       cdr.statusCode |= 0x10;
                       cdr.results.push(0x11);
                       cdr.results.push(0x80);
@@ -398,19 +394,19 @@ const cdr = (() => {
 
         case 0x15:  psx.setEvent(this.eventCmd, 0x1000 >>> 0);
                     cdr.ncmdctrl = 0x150;
-                    this.enqueueEvent(3, 0x42); // SEEKING
+                    this.enqueueEvent(3, 0x42);
                     cdr.status |= 0x80;
                     break;
-        case 0x150: this.enqueueEvent(2, 0x2); // done
+        case 0x150: this.enqueueEvent(2, 0x2);
                     cdr.currLoc = cdr.seekLoc;
                     break;
 
         case 0x16:  psx.setEvent(this.eventCmd, 0x1000 >>> 0);
                     cdr.ncmdctrl = 0x160;
-                    this.enqueueEvent(3, 0x42); // SEEKING
+                    this.enqueueEvent(3, 0x42);
                     cdr.status |= 0x80;
                     break;
-        case 0x160: this.enqueueEvent(2, 0x2); // done
+        case 0x160: this.enqueueEvent(2, 0x2);
                     cdr.currLoc = cdr.seekLoc;
                     break;
 
@@ -444,7 +440,6 @@ const cdr = (() => {
                       cdr.setIrq(2);
                     }
                     else {
-                      // door open
                       cdr.statusCode |= 0x10;
                       cdr.results.push(0x11);
                       cdr.results.push(0x80);
@@ -452,18 +447,6 @@ const cdr = (() => {
                       cdr.status |= 0x20;
                       cdr.setIrq(5);
                     }
-                    //- audio
-                    // cdr.results.push(0x0A);
-                    // cdr.results.push(0x90);
-                    // cdr.results.push(0x00);
-                    // cdr.results.push(0x00);
-                    // cdr.results.push(0x00);
-                    // cdr.results.push(0x00);
-                    // cdr.results.push(0x00);
-                    // cdr.results.push(0x00);
-                    // cdr.status &= ~0x80;
-                    // cdr.status |= 0x20;
-                    // cdr.setIrq(5);
                     break;
 
         case 0x1B:  psx.setEvent(this.eventRead, readCycles >>> 0);
@@ -505,7 +488,6 @@ const cdr = (() => {
                       }
                     }
                     if ((cdr.mode & 0x05) == 0x05) {
-                      // playing CDDA and reporting is on
                       switch(loc % 75) {
                         case  0:
                         case 20:
@@ -536,7 +518,7 @@ const cdr = (() => {
                           cdr.setIrq(1);
                         } break;
                       }
-                      cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
+                      cdr.readSector(cdr.currLoc);
                       psx.updateEvent(self, readCycles);
                       cdr.currLoc++;
                       break;
@@ -547,12 +529,12 @@ const cdr = (() => {
                     cdr.status |= 0x40;
                     cdr.status |= 0x20;
                     cdr.setIrq(1);
-                    cdr.readSector(cdr.currLoc); // todo: read sector ahead to reduce audio glitches
+                    cdr.readSector(cdr.currLoc);
                     psx.updateEvent(self, readCycles);
                     cdr.currLoc++;
                     break;
 
-        default:  //abort('unimplemented async read: $' + hex(cdr.ncmdread, 2));
+        default:  console.log('unimplemented async read: $' + hex(cdr.ncmdread, 2));
                   this.eventRead.active = false;
       }
     },
@@ -580,11 +562,11 @@ const cdr = (() => {
       }
       cdr.sectorEnd = cdr.sectorIndex + cdr.sectorSize;
 
-      if ((cdr.mode & 0x48) !== 0) { //playXaAudio
+      if ((cdr.mode & 0x48) !== 0) {
         var mode = sectorData8[cdr.sectorOffset + 0x0f];
         if (mode !== 2) return;
 
-        if ((cdr.mode & 0x48) === 0x48) { // useFilter
+        if ((cdr.mode & 0x48) === 0x48) {
           var file = sectorData8[cdr.sectorOffset + 0x10];
           if (file !== cdr.filter.file) return;
 
@@ -612,10 +594,6 @@ const cdr = (() => {
           case 0: var em = 'normal';  break;
           case 1: var em = 'emphasis';break;
         }
-        //var min = cdr.cdImage.getInt8(cdr.sectorOffset + 0x0c);
-        //var sec = cdr.cdImage.getInt8(cdr.sectorOffset + 0x0d);
-        //var frm = cdr.cdImage.getInt8(cdr.sectorOffset + 0x0e);
-        //console.log('mss:', hex(min,2), hex(sec,2), hex(frm,2), hex(sub,2), ms, sr, bs, em)
         cdr.pcmidx = 0;
         cdr.xa.fill(0);
         cdr.pcm.fill(0);
@@ -643,7 +621,6 @@ const cdr = (() => {
           }
         }
         cdr.pcmmax = ix;
-        //debugger
       }
     },
 
@@ -681,7 +658,7 @@ const cdr = (() => {
 
   decodeMono: function() {
     var ix = 0;
-    var sl = this.sl;//[0.0, 0.0];
+    var sl = this.sl;
     var xa = cdr.xa;
 
     for (var sg = 0; sg < 18; ++sg) {
@@ -709,7 +686,7 @@ const cdr = (() => {
         }
       }
     }
-    //debugger
+    //debugge
     return ix;
   },
 
@@ -718,8 +695,8 @@ const cdr = (() => {
 
   decodeStereo: function() {
     var ix = 0;
-    var sl = this.sl;//[0.0, 0.0];
-    var sr = this.sr;//[0.0, 0.0];
+    var sl = this.sl;
+    var sr = this.sr;
     var xa = cdr.xa;
 
     for (var sg = 0; sg < 18; ++sg) {
@@ -764,7 +741,6 @@ const cdr = (() => {
         ix += 2*28;
       }
     }
-    //debugger
     return ix;
   },
 

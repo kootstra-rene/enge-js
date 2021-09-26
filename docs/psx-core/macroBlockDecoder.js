@@ -152,15 +152,9 @@ var video = {
   putquadrgb15: function(addr, blk, o, Cr, Cb) {
     let Y, r, g, b, a = mdc.STP;
 
-    // PSX
-    // R = (1433 * Cr) >> 0;
-    // G = ((-351 * Cb) - (728 * Cr)) >> 0;
-    // B = (1807 * Cb) >> 0; 
-
-    // // JPEG
-    const R = ((1436 * Cr)             ) >> 10;
-    const G = ((-352 * Cb) - (731 * Cr)) >> 10;
-    const B = ((1815 * Cb)             ) >> 10; 
+    const R = ((1433 * Cr)             ) >> 10;
+    const G = ((-351 * Cb) - (728 * Cr)) >> 10;
+    const B = ((1807 * Cb)             ) >> 10; 
 
     const base = (addr & 0x001fffff) >>> 0;
 
@@ -212,36 +206,27 @@ var video = {
   putquadrgb24: function(addr, blk, o, Cr, Cb) {
     let Y;
 
-    // PSX
-    // R = (1433 * Cr) >> 0;
-    // G = ((-351 * Cb) - (728 * Cr)) >> 0;
-    // B = (1807 * Cb) >> 0; 
-
-    // JPEG
-    const R = ((1436 * Cr)             ) >> 10;
-    const G = ((-352 * Cb) - (731 * Cr)) >> 10;
-    const B = ((1815 * Cb)             ) >> 10; 
+    const R = ((1433 * Cr)             ) >> 10;
+    const G = ((-351 * Cb) - (728 * Cr)) >> 10;
+    const B = ((1807 * Cb)             ) >> 10; 
 
     const base = (addr & 0x001fffff) >>> 0;
-    // if ((addr + 0) >= mdc.end) return;
+
     Y = blk[o + 0] << 0;
     map8[base + 0] = this.SCALERC256(Y, R);
     map8[base + 1] = this.SCALERC256(Y, G);
     map8[base + 2] = this.SCALERC256(Y, B);
 
-    // if ((addr + 3) >= mdc.end) return;
     Y = blk[o + 1] << 0;
     map8[base + 3] = this.SCALERC256(Y, R);
     map8[base + 4] = this.SCALERC256(Y, G);
     map8[base + 5] = this.SCALERC256(Y, B);
 
-    // if ((addr + 48) >= mdc.end) return;
     Y = blk[o + 8] << 0;
     map8[base + 48] = this.SCALERC256(Y, R);
     map8[base + 49] = this.SCALERC256(Y, G);
     map8[base + 50] = this.SCALERC256(Y, B);
 
-    // if ((addr + 51) >= mdc.end) return;
     Y = blk[o + 9] << 0;
     map8[base + 51] = this.SCALERC256(Y, R);
     map8[base + 52] = this.SCALERC256(Y, G);
@@ -292,8 +277,6 @@ var mdc = {
   },
 
   wr32r1824: function(data) {
-    // console.log('wr32r1824:', hex(data));
-
     if (data & 0x80000000) {
       mdc.r1820 = 0;
       mdc.r1824 = 0x80040000;
@@ -302,8 +285,7 @@ var mdc = {
   },
 
   dmaTransferMode0201: function(addr, blck) {
-    addr = addr & 0x001fffff; // ram always
-    //console.log("[mdec-in] addr:"+hex(addr)+" blck:"+hex(blck));
+    addr = addr & 0x001fffff;
 
     const transferSize = (blck >>> 16) * (blck & 0xffff);
 
@@ -314,29 +296,21 @@ var mdc = {
         break;
 
       case 0x2:
-        // console.log("[mdec-in] quant table:", hex(mdc.r1820), transferSize << 2);
         video.iqtab_init(addr, transferSize << 2);
         if (mdc.r1820 !== 0x40000001) return abort('unsupported quant mode');
         break;
 
-      case 0x3:
-        // console.log("[mdec-in] scale table: NYI", transferSize << 2);
-        // for (let i = 0; i < transferSize; ++i) {
-        //   console.log(hex(addr+(i << 2)), ':', hex(map[(addr >> 2) + i]));
-        // }
-        break;
-
       default:
-        // console.log('not implemented', mdc.r1820 >>> 29);
+        console.log('not implemented', mdc.r1820 >>> 29);
     }
 
     return transferSize;
   },
 
   dmaTransferMode0200: function(addr, blck) {
-    addr = addr & 0x001fffff; // ram always
+    addr = addr & 0x001fffff;
     const numberOfWords = (blck >>> 16) * (blck & 0xffff);
-    // clearCodeCache( addr, numberOfWords << 2); // optimistice assumption (performance reasons)
+    // clearCodeCache( addr, numberOfWords << 2); // commented out because of optimistice assumption (performance reasons)
 
     var blk = mdc.block;
     var end = addr + (numberOfWords << 2);
@@ -347,10 +321,10 @@ var mdc = {
       mdc.STP = (mdc.r1820 & (1 << 25)) ? 0x8000 : 0x0000;
       mdc.rl = video.rl2blk(blk, mdc.rl);
       switch (depth) {
-        case 0: //console.error('unsupported depth', depth);
+        case 0: console.warn('unsupported depth', depth);
                 addr += (4 * 16) << 1;
                 break;
-        case 1: //console.error('unsupported depth', depth);
+        case 1: console.warn('unsupported depth', depth);
                 addr += (8 * 16) << 1;
                 break;
         case 2: video.yuv2rgb24(blk, addr);
@@ -365,16 +339,13 @@ var mdc = {
 
     // 320x240x30 = 9000 16x16 blocks
     const decodingCyclesRemaining = (PSX_SPEED / 9000) * (decodedMacroBlocks / 6);
-    // console.log(decodingCyclesRemaining);
     psx.setEvent(this.event, decodingCyclesRemaining >>> 0);
     return numberOfWords;
   },
 
   event: null,
   complete: function(self, clock) {
-    // dma.completeDMA0({});
     dma.completeDMA1({});
-    // mdc.r1824 &= ~(1 << 29);
     self.active = false;
   }
 }

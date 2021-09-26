@@ -168,7 +168,6 @@ var gpu = {
       if (gpu.dmaIndex === gpu.packetSize) {
         var packetId = gpu.dmaBuffer[0] >>> 24;
         gpu.handlers[packetId].call(this, gpu.dmaBuffer);
-        // gpu.status &= ~0x10000000;
         gpu.dmaIndex = 0;
       }
     }
@@ -195,7 +194,6 @@ var gpu = {
                   break;
       case 0x04:  gpu.status &= 0x9FFFFFFF;
                   gpu.status |= ((data & 0x03) << 0x1D);
-                  // console.log('dma-direction', hex(data, 1));
                   break;
       case 0x05:  gpu.dispX = (data >>  0) & 0x3FF;
                   gpu.dispY = (data >> 10) & 0x1FF;
@@ -222,11 +220,9 @@ var gpu = {
                       gpu.result = 0;
                       break;
                   }
-//                console.log(data & 0xf, hex(gpu.result));
                   break;
       case 0x40:  break; // ???
-      default:    //abort('gpu.cmnd' + hex(data >>> 24, 2));
-                  console.warn('gpu.cmnd' + hex(data >>> 24, 2));
+      default:    console.warn('gpu.cmnd' + hex(data >>> 24, 2));
     }
     gpu.updateTexturePage();
   },
@@ -244,8 +240,8 @@ var gpu = {
     switch (gpu.tp) {
       case 0: gpu.tx <<= 2; break;
       case 1: gpu.tx <<= 1; break;
-      // case 2: gpu.tx *= 1; break;
-      // case 3: gpu.tx *= 1; break;
+      case 2: gpu.tx *= 1; break;
+      case 3: gpu.tx *= 1; break;
     }
   },
 
@@ -456,9 +452,6 @@ var gpu = {
     gpu.status = (gpu.status & 0xfffff800) | (data[0] & 0x7ff);
     gpu.txflip = (data[0] >>> 12) & 1;
     gpu.tyflip = (data[0] >>> 13) & 1;
-    if (gpu.txflip || gpu.tyflip) {
-      // console.warn('e1:', gpu.txflip, ',', gpu.tyflip)
-    }
     gpu.updateTexturePage();
   },
 
@@ -505,7 +498,6 @@ var gpu = {
 
   // Mask setting
   handlePacketE6: function(data) {
-    // if (data[0] & 3) return abort("unsupported mode:", hex(data[0]&3,2));
     gpu.status &= 0xffffe7ff;
     gpu.status |= ((data[0] & 3) << 11);
   },
@@ -517,7 +509,7 @@ var gpu = {
 
   dmaTransferMode0200: function(addr, blck) {
     var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-    // clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
+    // clearCodeCache( addr, transferSize << 1); // commented out because of optimistice assumption (performance reasons)
 
     gpu.transferTotal -= transferSize;
 
@@ -585,7 +577,6 @@ var gpu = {
         const packetId = map[addr >> 2] >>> 24;
         if (packetSizes[packetId] === 0) {
           addr += 4; --nitem; ++words;
-          // console.warn('invalid packetId:', hex(packetId, 2));
           nitem = 0;
           continue;
         }
@@ -633,7 +624,7 @@ var gpu = {
     }
     map[addr >> 2] = 0x00ffffff;
 
-    // clearCodeCache(addr, transferSize << 2); // optimistice assumption (performance reasons)
+    // clearCodeCache(addr, transferSize << 2); // commented out because of optimistice assumption (performance reasons)
     return transferSize;
   },
 }

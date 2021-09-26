@@ -51,8 +51,6 @@ const gte = {
   },
 
   get: function(regId) {
-    // console.log('get', hex(regId, 2));
-
     switch (regId) {
       case 0x00:  return this.regs[regId];
       case 0x01:  return (this.v0[3] << 16) >> 16;
@@ -82,7 +80,6 @@ const gte = {
       case 0x19:  return this.mac[1];
       case 0x1a:  return this.mac[2];
       case 0x1b:  return this.mac[3];
-      case 0x1c:  //return this.regs[regId] & 0x7fff;
       case 0x1d:  var value = 0;
                   value |= ((this.ir[1] >> 7) <<  0);
                   value |= ((this.ir[2] >> 7) <<  5);
@@ -128,9 +125,7 @@ const gte = {
 
   set: function(regId, data) {
     var data = data >> 0;
-    // this.regs[0x3f] = 0;
     this.regs[regId] = data;
-    // console.log('set', hex(regId, 2), hex(data));
 
     switch (regId) {
       case 0x00:  this.v0[1] = (data << 16) >> 16;  this.v0[2] = (data << 0) >> 16; break;
@@ -141,7 +136,6 @@ const gte = {
       case 0x05:  this.v2[3] = (data << 16) >> 16;  break;
       case 0x06:  this.rgb[3] = data; break;
       case 0x07:  break;
-      // case 0x07:  this.regs[regId] = (data << 16) >>> 16;   break;
       case 0x08:  this.ir[0] = (data << 16) >> 16;  break;
       case 0x09:  this.ir[1] = (data << 16) >> 16;  break;
       case 0x0a:  this.ir[2] = (data << 16) >> 16;  break;
@@ -196,11 +190,6 @@ const gte = {
       case 0x35:  this.fc[0] = (data << 0) >> 0;  break;
       case 0x36:  this.fc[1] = (data << 0) >> 0;  break;
       case 0x37:  this.fc[2] = (data << 0) >> 0;  break;
-      // case 0x38:  break;
-      // case 0x39:  break;
-      // case 0x3a:  break;
-      // case 0x3b:  break;
-      // case 0x3c:  break;
       case 0x38:  this.regs[regId] = (data << 0) >> 0;      break;
       case 0x39:  this.regs[regId] = (data << 0) >> 0;      break;
       case 0x3a:  this.regs[regId] = (data << 16) >>> 16;   break;
@@ -266,10 +255,6 @@ const gte = {
     const ir  = this.ir;
     const mac = this.mac;
     const sf  = this.sf ? 4096.0 : 1.0;
-
-    // if (add !== this.zr && add.length !== 3) return abort('invalid transform');
-    // if (mat.length !== 9) return abort('invalid transform');
-    // if (vec.length !== 4) return abort('invalid transform');
 
     // [MAC1,MAC2,MAC3] = (Tx*1000h + Mx*Vx) SAR (sf*12)
     mac[1] = ((add[0] * 4096.0) + (mat[0] * vec[1]) + (mat[1] * vec[2]) + (mat[2] * vec[3])) / sf;
@@ -751,7 +736,7 @@ const gte = {
       case 0x3d:  this.gpf();             break;
       case 0x3e:  this.gpl();             break;
       case 0x3f:  this.nccs(this.v0);     this.nccs(this.v1);     this.nccs(this.v2);     break;
-      default  :  //abort('gte.$'+hex(commandId,5)+' not yet implemented')
+      default  :  abort('gte.$'+hex(commandId,5)+' not yet implemented')
     }
   },
 
@@ -779,7 +764,7 @@ const gte = {
       case 0x3d:  return 5;
       case 0x3e:  return 5;
       case 0x3f:  return 39;
-      default  :  //abort('gte.$'+hex(commandId,5)+' has no cycles')
+      default  :  abort('gte.$'+hex(commandId,5)+' has no cycles')
                   return 5;
     }
   }
@@ -804,7 +789,6 @@ gte.frame = 0;
 gte.clear = (frame) => {
   gte.coords.forEach((v, k, m) => {
     if (v && v.frame <= frame) {
-      // object pool for v? 
       m.delete(k);
     }
   });

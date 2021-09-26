@@ -57,17 +57,17 @@
       if (byteRemainder == 1) {
         chunk = bytes[mainLength];
 
-        a = (chunk & 252) >> 2 // 252 = (2^6 - 1) << 2
-        b = (chunk & 3)   << 4 // 3   = 2^2 - 1
+        a = (chunk & 252) >> 2;
+        b = (chunk & 3)   << 4;
 
         base64 += encodings[a] + encodings[b] + '==';
       }
       else if (byteRemainder == 2) {
         chunk = (bytes[mainLength] << 8) | bytes[mainLength + 1];
 
-        a = (chunk & 64512) >> 10 // 64512 = (2^6 - 1) << 10
-        b = (chunk & 1008)  >>  4 // 1008  = (2^6 - 1) << 4
-        c = (chunk & 15)    <<  2 // 15    = 2^4 - 1
+        a = (chunk & 64512) >> 10;
+        b = (chunk & 1008)  >>  4;
+        c = (chunk & 15)    <<  2;
 
         base64 += encodings[a] + encodings[b] + encodings[c] + '=';
       }
