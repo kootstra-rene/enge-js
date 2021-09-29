@@ -438,36 +438,3 @@ function init() {
     }
   });
 }
-
-var line = ''
-var lastLine = null;
-var gameCode = "";
-var gameCodeRegEx = /[A-Za-z]{4}_[0-9]{3}\.[0-9]{2}/;
-
-function trace(pc, val) {
-  const gpr = cpu.gpr;
-
-  switch (pc) {
-    case 0xb0:
-      switch (val) {
-        case 0x3d:  line += String.fromCharCode(gpr[4])
-                    if (gpr[4] === 10 || gpr[4] === 13) {
-                      if (line !== lastLine) {
-                        var result = gameCodeRegEx.exec(line);
-                        if (result) {
-                          let gc = result[0].replace('.', '').toUpperCase();
-                          if (gameCode !== gc) {
-                            console.error(gc);
-                            gameCode = gc;
-                          }
-                        }
-                        console.debug(line);
-                        lastLine = line;
-                      }
-                      line = '';
-                    }
-                    break;
-      }
-      break;
-  }
-}
