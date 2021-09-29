@@ -770,7 +770,6 @@ const cdr = (() => {
 
     setTOC: function(tracks) {
       this.tracks = tracks;
-      console.log(tracks);
     },
 
     setCdImage: function(data) {

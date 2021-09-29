@@ -683,7 +683,6 @@ WebGLRenderer.prototype.createBuffer = function() {
 WebGLRenderer.prototype.createTexture = function(mode) {
   var gl = this.gl;
   var texture = gl.createTexture();
-  console.log('>>>', texture);
   if (mode === undefined) mode = gl.NEAREST;
 
   gl.bindTexture(gl.TEXTURE_2D, texture);

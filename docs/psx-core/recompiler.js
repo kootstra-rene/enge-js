@@ -75,23 +75,14 @@ var rec = {
                 },
 
   'compile0A' : function (rec, opc) { var mips = 'slti    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    console.log('slti with constants')
-                  }
                   return rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' >> 0) < (' + ((opc << 16) >> 16) + ' >> 0)');
                 },
 
   'compile0B' : function (rec, opc) { var mips = 'sltiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    console.log('sltiu with constants')
-                  }
                   return rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' >>> 0) < (' + ((opc << 16) >> 16) + ' >>> 0)');
                 },
 
   'compile0C' : function (rec, opc) { var mips = 'andi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    console.log('andi with constants')
-                  }
                   return rec.setReg(mips, rec.rt, rec.getRS() + ' & 0x' + hex(opc, 4));
                 },
 
@@ -104,9 +95,6 @@ var rec = {
                 },
 
   'compile0E' : function (rec, opc) { var mips = 'xori    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-                  if (rec.isConstRS()) {
-                    console.log('xori with constants')
-                  }
                   return rec.setReg(mips, rec.rt, rec.getRS() + ' ^ 0x' + hex(opc, 4));
                 },
 
@@ -143,7 +131,6 @@ var rec = {
                 },
 
   'compile23' : function (rec, opc) { var mips = 'lw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-                  rec.loadDelayRegister = rec.rt;
                   if (rec.isConstRS()) {
                     const addr = rec.getConstRS() & 0x01ffffff;
                     if (addr < 0x00800000) {
@@ -444,15 +431,6 @@ for (let i = 0; i < 256; ++i) {
   recmap.set(i, rec[`compile${hex(i, 2).toUpperCase()}`])
 }
 
-const loadDelay = new Uint8Array(256);
-loadDelay.fill(0);
-loadDelay[0x20] = 1; // lb
-loadDelay[0x21] = 1; // lh
-loadDelay[0x23] = 1; // lw
-loadDelay[0x24] = 1; // lbu
-loadDelay[0x25] = 1; // lhu
-
-
 function compileInstruction(state, lines, delaySlot) {
   const iwordIndex = getCacheIndex(state.pc);
   var opcode = map[iwordIndex];
@@ -468,11 +446,6 @@ function compileInstruction(state, lines, delaySlot) {
   state.rd = (opcode >>> 11) & 0x1F;
   state.rs = (opcode >>> 21) & 0x1F;
   state.rt = (opcode >>> 16) & 0x1F;
-
-  if (delaySlot && loadDelay[opc]) {
-    console.log('load delay in branch slot', hex(state.entryPC));
-  }
-  state.loadDelayRegister = 0;
 
   try {
     lines.push((recmap.get(opc) || rec.invalid)(state, opcode));
@@ -500,7 +473,6 @@ var state = {
   entry: null,
   branchTarget: 0,
   jump: false,
-  loadDelayRegister: 0,
   entryPC: 0,
 
   reg: function(r) {
@@ -557,7 +529,6 @@ var state = {
     this.sr = false;
     this.cycles = 0;
 
-    this.loadDelayRegister = 0;
     this.const.fill(0);
     this.const[0] = 1;
   }
