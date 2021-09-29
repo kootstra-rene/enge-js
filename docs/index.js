@@ -12,7 +12,7 @@ var emulationTime = 0.0;
 
 var PSX_SPEED = 44100*768; // 33868800 cyles
 
-var abort = function() {
+function abort() {
   console.error(Array.prototype.slice.call(arguments).join(' '));
   canvas.style.borderColor = 'red';
   running = false;
@@ -184,7 +184,7 @@ function bios() {
   cpu.pc = entry.pc;
 }
 
-var openFile = function(file) {
+function openFile(file) {
   var reader = new FileReader();
 
   reader.onload = function(event) {
