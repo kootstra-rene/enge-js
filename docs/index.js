@@ -260,26 +260,6 @@ function handleDragOver(evt) {
 	evt.preventDefault();
 }
 
-// default keyboard mapping
-const keyboard = new Map();
-keyboard.set(69, { bits: 0x10, property: 'hi' }); /*  [^]  */
-keyboard.set(68, { bits: 0x20, property: 'hi' }); /*  [O]  */
-keyboard.set(88, { bits: 0x40, property: 'hi' }); /*  [X]  */
-keyboard.set(83, { bits: 0x80, property: 'hi' }); /*  [#]  */
-
-keyboard.set(81, { bits: 0x01, property: 'hi' }); /*  [L2]  */
-keyboard.set(84, { bits: 0x02, property: 'hi' }); /*  [R2]  */
-keyboard.set(87, { bits: 0x04, property: 'hi' }); /*  [L1]  */
-keyboard.set(82, { bits: 0x08, property: 'hi' }); /*  [R1]  */
-
-keyboard.set(38, { bits: 0x10, property: 'lo' }); /*  [u]  */
-keyboard.set(39, { bits: 0x20, property: 'lo' }); /*  [r]  */
-keyboard.set(40, { bits: 0x40, property: 'lo' }); /*  [d]  */
-keyboard.set(37, { bits: 0x80, property: 'lo' }); /*  [l]  */
-
-keyboard.set(32, { bits: 0x01, property: 'lo' }); /* [sel] */
-keyboard.set(13, { bits: 0x08, property: 'lo' }); /*[start]*/
-
 function init() {
 
 	canvas = document.getElementById('display');
