@@ -6,29 +6,6 @@
   let lastLine = null;
   let gameCode = "";
 
-  function extractGameCodeFromCurrentLine() {
-    const result = gameCodeRegEx.exec(line);
-    if (result) {
-      let gc = result[0].replace('.', '').toUpperCase();
-      if (gameCode !== gc) {
-        console.warn(`gamecode: '${gc}'`);
-        gameCode = gc;
-      }
-    }
-  }
-
-  function BIOS_std_out_putchar(charCode) {
-    line += String.fromCharCode(charCode);
-    if (charCode === 10 || charCode === 13) {
-      if (line !== lastLine) {
-        extractGameCodeFromCurrentLine();
-        lastLine = line;
-      }
-      console.debug(line);
-      line = '';
-    }
-  }
-
   function traceBiosCalls(programCounter, functionId) {
     switch (programCounter) {
       case 0xa0:
@@ -45,6 +22,29 @@
           }
           break;
       }
+  }
+
+  function BIOS_std_out_putchar(charCode) {
+    line += String.fromCharCode(charCode);
+    if (charCode === 10 || charCode === 13) {
+      if (line !== lastLine) {
+        extractGameCodeFromCurrentLine();
+        lastLine = line;
+      }
+      console.debug(line);
+      line = '';
+    }
+  }
+
+  function extractGameCodeFromCurrentLine() {
+    const result = gameCodeRegEx.exec(line);
+    if (result) {
+      let gc = result[0].replace('.', '').toUpperCase();
+      if (gameCode !== gc) {
+        console.warn(`gamecode: '${gc}'`);
+        gameCode = gc;
+      }
+    }
   }
 
   scope.trace = traceBiosCalls;
