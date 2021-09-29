@@ -9,7 +9,6 @@ var loading = 0;
 var renderer = undefined;
 var canvas = undefined;
 var emulationTime = 0.0;
-var context = undefined;
 
 var PSX_SPEED = 44100*768; // 33868800 cyles
 
@@ -33,7 +32,7 @@ document.addEventListener("visibilitychange", function() {
   }
 });
 
-var context = window.context= {
+const context = {
   timeStamp: 0,
   realtime: 0,
   emutime: 0,
