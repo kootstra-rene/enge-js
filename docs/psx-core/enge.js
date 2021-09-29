@@ -4,11 +4,6 @@ var hex = function (value, len) {
 	return ("00000000" + (value >>> 0).toString(16)).substr(-(len || 8));
 }
 
-String.prototype.endsWith = function (suffix) {
-	return this.indexOf(suffix, this.length - suffix.length) !== -1;
-};
-
-
 var log = function () {
 	console.log.call(console, ('000000000000' + (psx.clock)).substr(-12) + ']', Array.prototype.slice.call(arguments).join(''));
 }
