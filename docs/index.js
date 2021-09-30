@@ -125,13 +125,13 @@ function openFile(file) {
 function loadFileData(arrayBuffer) {
 	if ((arrayBuffer.byteLength & 3) !== 0) {
 		var copy = new Uint8Array(arrayBuffer);
-		var data = new Uint32Array(((copy.length + 3) & ~3) >> 2);
+		var data = new MemoryBlock(((copy.length + 3) & ~3) >> 2);
 		for (var i = 0; i < copy.length; ++i) {
 			data.setInt8(i, copy[i]);
 		}
 	}
 	else {
-		var data = new Uint32Array(arrayBuffer);
+		var data = new MemoryBlock(arrayBuffer);
 	}
 
 	const view8 = new Int8Array(data.buffer);

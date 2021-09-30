@@ -4,64 +4,68 @@ var qhf = settings.quality || 1;
 var qwidth = 1024 * qwf;
 var qheight = 512 * qhf;
 
-Uint32Array.prototype.addVertexDisp = function (x, y, u, v) {
-	var xy = (y << 16) | (x & 0xffff);
-	var uv = (v << 16) | (u & 0xffff);
+class VertexBlock extends Uint32Array {
 
-	var index = this.index >>> 2;
-	this[index + 0] = xy;
-	this[index + 1] = uv;
+	addVertexDisp(x, y, u, v) {
+		var xy = (y << 16) | (x & 0xffff);
+		var uv = (v << 16) | (u & 0xffff);
 
-	this.index += 8;
-}
+		var index = this.index >>> 2;
+		this[index + 0] = xy;
+		this[index + 1] = uv;
 
-Uint32Array.prototype.addVertex = function (x, y, c) {
-	x = x * 16;
-	y = y * 16;
-	var xy = (y << 16) | (x & 0xffff);
+		this.index += 8;
+	}
 
-	var index = this.index >>> 2;
+	addVertex(x, y, c) {
+		x = x * 16;
+		y = y * 16;
+		var xy = (y << 16) | (x & 0xffff);
 
-	this[index + 0] = (c & 0xffffff) | 0x03000000;
-	this[index + 1] = xy;
+		var index = this.index >>> 2;
 
-	this.index += 24;
-}
+		this[index + 0] = (c & 0xffffff) | 0x03000000;
+		this[index + 1] = xy;
 
-Uint32Array.prototype.addVertexUV = function (x, y, c, tm, u, v, cx, cy) {
-	x = x * 16;
-	y = y * 16;
+		this.index += 24;
+	}
 
-	var xy = (y << 16) | (x & 0xffff);
-	var uv = (v << 16) | (u & 0xffff);
-	var cxy = (cy << 16) | (cx & 0xffff);
-	var txy = (gpu.ty << 16) | (gpu.tx & 0xffff);
+	addVertexUV(x, y, c, tm, u, v, cx, cy) {
+		x = x * 16;
+		y = y * 16;
 
-	var index = this.index >>> 2;
-	this[index + 0] = (c & 0xffffff) | (tm << 24);
-	this[index + 1] = xy;
-	this[index + 2] = uv;
-	this[index + 3] = cxy;
-	this[index + 4] = txy;
-	this[index + 5] = gpu.twin;
+		var xy = (y << 16) | (x & 0xffff);
+		var uv = (v << 16) | (u & 0xffff);
+		var cxy = (cy << 16) | (cx & 0xffff);
+		var txy = (gpu.ty << 16) | (gpu.tx & 0xffff);
 
-	this.index += 24;
-}
+		var index = this.index >>> 2;
+		this[index + 0] = (c & 0xffffff) | (tm << 24);
+		this[index + 1] = xy;
+		this[index + 2] = uv;
+		this[index + 3] = cxy;
+		this[index + 4] = txy;
+		this[index + 5] = gpu.twin;
 
-Uint32Array.prototype.getNumberOfVertices = function () {
-	return this.index / 24;
-}
+		this.index += 24;
+	}
 
-Uint32Array.prototype.canHold = function (cnt) {
-	return this.index + (24 * cnt) < (this.length * 4);
-}
+	getNumberOfVertices() {
+		return this.index / 24;
+	}
 
-Uint32Array.prototype.reset = function () {
-	this.index = 0;
-}
+	canHold(cnt) {
+		return this.index + (24 * cnt) < (this.length * 4);
+	}
 
-Uint32Array.prototype.view = function () {
-	return new Uint32Array(this.buffer, 0, this.index >> 2);
+	reset() {
+		this.index = 0;
+	}
+
+	view() {
+		return new Uint32Array(this.buffer, 0, this.index >> 2);
+	}
+
 }
 
 var vertexShaderDisplay =
@@ -279,7 +283,7 @@ var fragmentShaderDraw =
 function WebGLRenderer(canvas) {
 	this.gl = null
 	this.programDisplay = null
-	this.vertexBuffer = new Uint32Array(18 * 1024 >> 2)//  18.0 Kb, 768 vertices, 256 triangles
+	this.vertexBuffer = new VertexBlock(18 * 1024 >> 2)//  18.0 Kb, 768 vertices, 256 triangles
 
 	this.drawOffsetX = 0
 	this.drawOffsetY = 0

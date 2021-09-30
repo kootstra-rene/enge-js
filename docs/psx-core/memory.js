@@ -1,39 +1,43 @@
 'use strict';
 
-Uint32Array.prototype.getInt8 = function (index) {
-	switch (index & 3) {
-		case 0: return (this[index >> 2] << 24) >> 24;
-		case 1: return (this[index >> 2] << 16) >> 24;
-		case 2: return (this[index >> 2] << 8) >> 24;
-		case 3: return (this[index >> 2] << 0) >> 24;
+class MemoryBlock extends Uint32Array {
+
+	getInt8(index) {
+		switch (index & 3) {
+			case 0: return (this[index >> 2] << 24) >> 24;
+			case 1: return (this[index >> 2] << 16) >> 24;
+			case 2: return (this[index >> 2] << 8) >> 24;
+			case 3: return (this[index >> 2] << 0) >> 24;
+		}
 	}
+
+	getInt16(index) {
+		switch (index & 3) {
+			case 0: return (this[index >> 2] << 16) >> 16;
+			case 2: return (this[index >> 2] << 0) >> 16;
+			default: abort('unaligned read: ' + hex(index));
+		}
+	}
+
+	getInt32(index) {
+		switch (index & 3) {
+			case 0: return (this[index >> 2]) >> 0;
+			default: abort('unaligned read: ' + hex(index));
+		}
+	}
+
+	setInt8(index, data) {
+		switch (index & 3) {
+			case 0: this[index >> 2] = (this[index >> 2] & 0xffffff00) | ((data & 0xff) << 0); break;
+			case 1: this[index >> 2] = (this[index >> 2] & 0xffff00ff) | ((data & 0xff) << 8); break;
+			case 2: this[index >> 2] = (this[index >> 2] & 0xff00ffff) | ((data & 0xff) << 16); break;
+			case 3: this[index >> 2] = (this[index >> 2] & 0x00ffffff) | ((data & 0xff) << 24); break;
+		}
+	}
+
 }
 
-Uint32Array.prototype.getInt16 = function (index) {
-	switch (index & 3) {
-		case 0: return (this[index >> 2] << 16) >> 16;
-		case 2: return (this[index >> 2] << 0) >> 16;
-		default: abort('unaligned read: ' + hex(index));
-	}
-}
-
-Uint32Array.prototype.getInt32 = function (index) {
-	switch (index & 3) {
-		case 0: return (this[index >> 2]) >> 0;
-		default: abort('unaligned read: ' + hex(index));
-	}
-}
-
-Uint32Array.prototype.setInt8 = function (index, data) {
-	switch (index & 3) {
-		case 0: this[index >> 2] = (this[index >> 2] & 0xffffff00) | ((data & 0xff) << 0); break;
-		case 1: this[index >> 2] = (this[index >> 2] & 0xffff00ff) | ((data & 0xff) << 8); break;
-		case 2: this[index >> 2] = (this[index >> 2] & 0xff00ffff) | ((data & 0xff) << 16); break;
-		case 3: this[index >> 2] = (this[index >> 2] & 0x00ffffff) | ((data & 0xff) << 24); break;
-	}
-}
-
-const map = new Int32Array(0x02000000 >> 2);
+const map = new MemoryBlock(0x02000000 >> 2);
 const map8 = new Int8Array(map.buffer);
 const map16 = new Int16Array(map.buffer);
 
