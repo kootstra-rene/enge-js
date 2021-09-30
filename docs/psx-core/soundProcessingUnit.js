@@ -1,4 +1,4 @@
-(function () {
+(scope => {
 
 	const frameCount = (1.0 * 44100) >> 2;
 	'use strict';
@@ -685,4 +685,5 @@
 	window.spu = spu;
 	window.xa2flt = xa2flt;
 	window.xa2pcm = xa2pcm;
-})();
+
+})(window);
