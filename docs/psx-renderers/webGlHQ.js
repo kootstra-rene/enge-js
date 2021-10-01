@@ -1,6 +1,7 @@
 (scope => {
 
 	"use strict"
+
 	var qwf = settings.quality || 1;
 	var qhf = settings.quality || 1;
 	var qwidth = 1024 * qwf;

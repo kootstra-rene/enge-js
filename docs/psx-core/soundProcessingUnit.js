@@ -672,7 +672,10 @@
 			if (r < 0x7FFFFFFF) {
 				r += rs;
 				rd++;
-				if (rd === 5) { rd = 1; rs *= 2; }
+				if (rd === 5) {
+					rd = 1;
+					rs *= 2;
+				}
 			}
 			if (r > 0x7FFFFFFF) r = 0x7FFFFFFF;
 
@@ -682,8 +685,8 @@
 
 	InitADSR();
 
-	window.spu = spu;
-	window.xa2flt = xa2flt;
-	window.xa2pcm = xa2pcm;
+	scope.spu = spu;
+	scope.xa2flt = xa2flt;
+	scope.xa2pcm = xa2pcm;
 
 })(window);

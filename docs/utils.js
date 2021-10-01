@@ -1,4 +1,6 @@
-((scope) => {
+(scope => {
+
+	'use strict';
 
 	function readStorageStream(item, handler) {
 		const base64text = localStorage.getItem(item);

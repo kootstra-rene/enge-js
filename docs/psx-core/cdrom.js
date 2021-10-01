@@ -1,4 +1,5 @@
-const cdr = (() => {
+(scope => {
+	
 	'use strict';
 
 	var itob = function (i) {
@@ -784,5 +785,7 @@ const cdr = (() => {
 	}
 
 	Object.seal(cdr);
-	return cdr;
-})();
+
+	scope.cdr = cdr;
+
+})(window);

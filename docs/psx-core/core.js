@@ -1,4 +1,6 @@
-((scope) => {
+(scope => {
+
+	'use strict';
 
 	const psx = {
 		clock: 0.0,

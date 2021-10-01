@@ -1,4 +1,6 @@
-((scope) => {
+(scope => {
+
+	'use strict';
 
 	let controller = null;
 	let joypad = null;

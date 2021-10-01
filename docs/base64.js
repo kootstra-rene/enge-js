@@ -1,4 +1,6 @@
 ((context) => {
+	'use strict';
+
 	var encodings = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 	var decodings = {};
 	encodings.split('').forEach((a, i) => decodings[a] = i);
@@ -29,7 +31,6 @@
 					bi += 3;
 				}
 			}
-			buffer.length = byteLength;
 			return result;
 		},
 

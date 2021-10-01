@@ -1,4 +1,5 @@
-const { rc0, rc1, rc2, dot } = (() => {
+const { rc0, rc1, rc2, dot } = (scope => {
+
 	'use strict';
 
 	const r11x0 = new Float64Array(4);
@@ -498,4 +499,5 @@ const { rc0, rc1, rc2, dot } = (() => {
 	Object.seal(dot);
 
 	return { rc0, rc1, rc2, dot };
-})();
+
+})(window);
