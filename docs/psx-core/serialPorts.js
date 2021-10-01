@@ -381,4 +381,7 @@
 	}
 
 	Object.seal(joy);
+
+	scope.joy = joy;
+	
 })(window);
