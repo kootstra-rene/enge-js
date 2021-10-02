@@ -1094,13 +1094,13 @@
 			clr.fill(c, 0, size);
 		}
 
-		// commented out for performance reasons
-		// for (let j = 0; j < h; ++j) {
-		//   const offsetY = ((y + j) % 512) * 1024;
-		//   for (let i = 0; i < w; ++i) {
-		//     this.vram[offsetY + ((x+i)%1024)] = clrState.c;
-		//   }
-		// }
+		// can comment out for performance reasons but introduces glitches
+		for (let j = 0; j < h; ++j) {
+		  const offsetY = ((y + j) % 512) * 1024;
+		  for (let i = 0; i < w; ++i) {
+		    this.vram[offsetY + ((x+i)%1024)] = clrState.c;
+		  }
+		}
 
 		gl.activeTexture(this.gl.TEXTURE1);
 		gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);

@@ -511,7 +511,7 @@
 
 		dmaTransferMode0200: function (addr, blck) {
 			var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-			// clearCodeCache( addr, transferSize << 1); // commented out because of optimistice assumption (performance reasons)
+			clearCodeCache( addr, transferSize << 1);
 
 			gpu.transferTotal -= transferSize;
 
@@ -626,7 +626,7 @@
 			}
 			map[addr >> 2] = 0x00ffffff;
 
-			// clearCodeCache(addr, transferSize << 2); // commented out because of optimistice assumption (performance reasons)
+			clearCodeCache(addr, transferSize << 2);
 			return transferSize;
 		},
 	}
