@@ -1,14 +1,6 @@
 'use strict';
 
-var hex = function (value, len) {
-	return ("00000000" + (value >>> 0).toString(16)).substr(-(len || 8));
-}
-
-var log = function () {
-	console.log.call(console, ('000000000000' + (psx.clock)).substr(-12) + ']', Array.prototype.slice.call(arguments).join(''));
-}
-
-var cpu = {
+const cpu = {
 	'cause': 0,
 	'cop': new Int32Array(32),
 	'cycles': 0,
@@ -199,6 +191,8 @@ var cpu = {
 		}
 	}
 };
+
+Object.seal(cpu);
 
 function cpuException(id, pc) {
 	cpu.sr = (cpu.sr & ~0x3F) | ((cpu.sr << 2) & 0x3F);
