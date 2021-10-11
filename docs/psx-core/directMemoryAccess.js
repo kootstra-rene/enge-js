@@ -16,8 +16,8 @@
 		eventDMA0: null,
 		completeDMA0: function (self, clock) {
 			this.r1088 &= 0xfeffffff;
+			this.r1080 = this.r1080n;
 			if (dma.dicr & 0x00010000) {
-				this.r1080 = this.r1080n;
 				dma.dicr |= 0x81000000;
 				cpu.istat |= 0x0008;
 			}
@@ -27,8 +27,8 @@
 		eventDMA1: null,
 		completeDMA1: function (self, clock) {
 			this.r1098 &= 0xfeffffff;
+			this.r1090 = this.r1090n;
 			if (dma.dicr & 0x00020000) {
-				this.r1090 = this.r1090n;
 				dma.dicr |= 0x82000000;
 				cpu.istat |= 0x0008;
 			}
@@ -38,8 +38,8 @@
 		eventDMA2: null,
 		completeDMA2: function (self, clock) {
 			this.r10a8 &= 0xfeffffff;
+			this.r10a0 = this.r10a0n;
 			if (dma.dicr & 0x00040000) {
-				this.r10a0 = this.r10a0n;
 				dma.dicr |= 0x84000000;
 				cpu.istat |= 0x0008;
 			}
@@ -49,8 +49,8 @@
 		eventDMA3: null,
 		completeDMA3: function (self, clock) {
 			this.r10b8 &= 0xfeffffff;
+			this.r10b0 = this.r10b0n;
 			if (dma.dicr & 0x00080000) {
-				this.r10b0 = this.r10b0n;
 				dma.dicr |= 0x88000000;
 				cpu.istat |= 0x0008;
 			}
@@ -60,8 +60,8 @@
 		eventDMA4: null,
 		completeDMA4: function (self, clock) {
 			this.r10c8 &= 0xfeffffff;
+			this.r10c0 = this.r10c0n;
 			if (dma.dicr & 0x00100000) {
-				this.r10c0 = this.r10c0n;
 				dma.dicr |= 0x90000000;
 				cpu.istat |= 0x0008;
 			}
@@ -71,8 +71,8 @@
 		eventDMA6: null,
 		completeDMA6: function (self, clock) {
 			this.r10e8 &= 0xfeffffff;
+			this.r10e0 = this.r10e0n;
 			if (dma.dicr & 0x00400000) {
-				this.r108e0 = this.r10e0n;
 				dma.dicr |= 0xC0000000;
 				cpu.istat |= 0x0008;
 			}
@@ -253,8 +253,6 @@
 		},
 	}
 
-	Object.seal(dma);
-
-	scope.dma = dma;
+	scope.dma = Object.seal(dma);
 
 })(window);
