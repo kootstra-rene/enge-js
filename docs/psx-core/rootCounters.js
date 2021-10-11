@@ -1,4 +1,4 @@
-const { rc0, rc1, rc2, dot } = (scope => {
+(scope => {
 
 	'use strict';
 
@@ -498,6 +498,9 @@ const { rc0, rc1, rc2, dot } = (scope => {
 
 	Object.seal(dot);
 
-	return { rc0, rc1, rc2, dot };
+	scope.rc0 = rc0;
+	scope.rc1 = rc1;
+	scope.rc2 = rc2;
+	scope.dot = dot;
 
 })(window);
