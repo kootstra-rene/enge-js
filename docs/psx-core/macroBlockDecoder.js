@@ -352,15 +352,13 @@
 		}
 	}
 
-	Object.seal(video);
-	Object.seal(mdc);
-
 	for (let i = 0; i < 256; ++i) {
 		video.scale[0 + i] = 0;
 		video.scale[256 + i] = i;
 		video.scale[512 + i] = 255;
 	}
+	Object.seal(video);
 
-	scope.mdc = mdc;
+	scope.mdc = Object.seal(mdc);
 
 })(window);

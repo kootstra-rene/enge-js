@@ -784,8 +784,6 @@
 		}
 	}
 
-	Object.seal(cdr);
-
-	scope.cdr = cdr;
+	scope.cdr = Object.seal(cdr);
 
 })(window);

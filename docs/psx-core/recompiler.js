@@ -672,27 +672,11 @@
 	}
 
 
-	Object.seal(state);
-	Object.seal(rec);
-
-
-	function getCodeStats(level, mostCalledItems) {
-		let items = [...cache.values()].filter(a => a.code).filter(a => a.clock >= (psx.clock - 10 * 33868800));
-		switch (level) {
-			case 0: break;
-			case 1: items = items.filter(a => a.jump === a);
-				break;
-			case 2: items = items.filter(a => a.jump !== a && a.jump.jump && a.jump.jump === a)
-				break;
-			case 3: items = items.filter(a => a.jump !== a && a.jump.jump && a.jump.jump.jump === a)
-				break;
-		}
-
-		return items.sort((a, b) => b.calls - a.calls).slice(0, mostCalledItems || 10);
-	}
-
 	const cached = new Array(0x02000000 >>> 2);
 	cached.fill(null);
+
+	Object.seal(state);
+	Object.seal(rec);
 	Object.seal(cached);
 
 	function getCacheIndex(pc) {
@@ -723,14 +707,13 @@
 		let entry = cached[lutIndex];
 
 		if (!entry) {
-			cached[lutIndex] = entry = {
+			cached[lutIndex] = entry = Object.seal({
 				code: null,
 				pc: lutIndex << 2,
 				addr: hex(lutIndex << 2),
 				jump: null,
 				next: null,
-			};
-			Object.seal(entry);
+			});
 			entry.code = lazyCompile.bind(entry);
 		}
 		return entry;

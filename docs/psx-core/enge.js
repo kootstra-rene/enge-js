@@ -194,8 +194,6 @@
 		}
 	};
 
-	Object.seal(cpu);
-
 	function cpuException(id, pc) {
 		cpu.sr = (cpu.sr & ~0x3F) | ((cpu.sr << 2) & 0x3F);
 		cpu.cause = (cpu.cause & ~0x7C) | id;
@@ -220,7 +218,7 @@
 		return entry;
 	}
 
-	scope.cpu = cpu;
+	scope.cpu = Object.seal(cpu);
 	scope.cpuException = cpuException;
 	scope.cpuInterrupt = cpuInterrupt;
 

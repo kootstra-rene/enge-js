@@ -9,13 +9,12 @@
 	}
 
 	psx.addEvent = (clocks, cb) => {
-		const event = {
+		const event = Object.seal({
 			active: true,
 			clock: +psx.clock + +clocks,
 			start: +psx.clock,
 			cb
-		};
-		Object.seal(event);
+		});
 
 		if (psx.eventClock > event.clock) {
 			psx.eventClock = event.clock;
@@ -76,8 +75,6 @@
 		return cpuInterrupt(entry);
 	}
 
-	Object.seal(psx);
-
-	scope.psx = psx;
+	scope.psx = Object.seal(psx);
 
 })(window);

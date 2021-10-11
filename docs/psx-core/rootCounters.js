@@ -488,19 +488,12 @@
 				return 0 >> 0;
 			}
 			return 1 >> 0;
-		},
-
+		}
 	}
 
-	Object.seal(rc0);
-	Object.seal(rc1);
-	Object.seal(rc2);
-
-	Object.seal(dot);
-
-	scope.rc0 = rc0;
-	scope.rc1 = rc1;
-	scope.rc2 = rc2;
-	scope.dot = dot;
+	scope.rc0 = Object.seal(rc0);
+	scope.rc1 = Object.seal(rc1);
+	scope.rc2 = Object.seal(rc2);
+	scope.dot = Object.seal(dot);
 
 })(window);

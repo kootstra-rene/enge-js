@@ -380,8 +380,6 @@
 		},
 	}
 
-	Object.seal(joy);
-
-	scope.joy = joy;
+	scope.joy = Object.seal(joy);
 	
 })(window);

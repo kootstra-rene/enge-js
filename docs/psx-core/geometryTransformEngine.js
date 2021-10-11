@@ -795,8 +795,7 @@
 			}
 		});
 	}
-	Object.seal(gte);
 
-	scope.gte = gte;
+	scope.gte = Object.seal(gte);
 
 })(window);
