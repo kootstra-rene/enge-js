@@ -24,6 +24,7 @@
 				case 14: return this.epc >> 0;
 				case 15: return 2 >> 0;
 				default: console.warn('getCtrl:' + reg);
+						 return this.cop[reg];
 			}
 		},
 
