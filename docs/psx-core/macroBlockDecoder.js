@@ -348,7 +348,7 @@
 		event: null,
 		complete: function (self, clock) {
 			dma.completeDMA1({});
-			self.active = false;
+			psx.unsetEvent(self);
 		}
 	}
 

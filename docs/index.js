@@ -51,7 +51,7 @@
 	let endAnimationFrame = false;
 	function endMainLoop(self, clock) {
 		endAnimationFrame = true;
-		self.active = false;
+		psx.unsetEvent(self);
 	}
 
 	function runFrame() {

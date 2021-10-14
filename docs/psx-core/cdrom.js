@@ -213,7 +213,7 @@
 
 		eventCmd: null,
 		completeCmd: function (self, clock) {
-			self.active = false;
+			psx.unsetEvent(self);
 			if (cdr.irq & 0x1F) {
 				psx.setEvent(this.eventCmd, 64);
 				return;

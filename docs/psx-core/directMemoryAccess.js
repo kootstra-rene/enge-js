@@ -21,7 +21,7 @@
 				dma.dicr |= 0x81000000;
 				cpu.istat |= 0x0008;
 			}
-			self.active = false;
+			psx.unsetEvent(self);
 		},
 
 		eventDMA1: null,
@@ -32,7 +32,7 @@
 				dma.dicr |= 0x82000000;
 				cpu.istat |= 0x0008;
 			}
-			self.active = false;
+			psx.unsetEvent(self);
 		},
 
 		eventDMA2: null,
@@ -43,7 +43,7 @@
 				dma.dicr |= 0x84000000;
 				cpu.istat |= 0x0008;
 			}
-			self.active = false;
+			psx.unsetEvent(self);
 		},
 
 		eventDMA3: null,
@@ -54,7 +54,7 @@
 				dma.dicr |= 0x88000000;
 				cpu.istat |= 0x0008;
 			}
-			self.active = false;
+			psx.unsetEvent(self);
 		},
 
 		eventDMA4: null,
@@ -65,7 +65,7 @@
 				dma.dicr |= 0x90000000;
 				cpu.istat |= 0x0008;
 			}
-			self.active = false;
+			psx.unsetEvent(self);
 		},
 
 		eventDMA6: null,
@@ -76,7 +76,7 @@
 				dma.dicr |= 0xC0000000;
 				cpu.istat |= 0x0008;
 			}
-			self.active = false;
+			psx.unsetEvent(self);
 		},
 
 		rd08r10f6: function () {

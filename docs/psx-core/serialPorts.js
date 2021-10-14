@@ -375,8 +375,7 @@
 		completeIRQ: function (self, clock) {
 			this.r1044 |= 0x0200; // JOY_STAT.IRQ = 1;
 			cpu.istat |= 0x0080; // todo: should take care of edge triggering
-
-			self.active = false;
+			psx.unsetEvent(self);
 		},
 	}
 
