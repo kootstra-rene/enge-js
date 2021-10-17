@@ -282,7 +282,7 @@
 			if (data & 0x80000000) {
 				mdc.r1820 = 0;
 				mdc.r1824 = 0x80040000;
-				mdc.event.active = false;
+				psx.unsetEvent(mdc.event);
 			}
 		},
 

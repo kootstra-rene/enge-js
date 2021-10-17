@@ -538,7 +538,7 @@
 					break;
 
 				default: console.log('unimplemented async read: $' + hex(cdr.ncmdread, 2));
-					this.eventRead.active = false;
+					psx.unsetEvent(this.eventRead);
 			}
 		},
 
@@ -747,7 +747,7 @@
 		},
 
 		stopReading: function () {
-			cdr.eventRead.active = false;
+			psx.unsetEvent(cdr.eventRead);
 			cdr.statusCode &= ~0x80;
 			cdr.statusCode &= ~0x20;
 			cdr.ncmdread = 0;

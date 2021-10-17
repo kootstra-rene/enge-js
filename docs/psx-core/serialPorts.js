@@ -346,7 +346,7 @@
 					device.initMemCard();
 				}
 
-				this.eventIRQ.active = false;
+				psx.unsetEvent(this.eventIRQ);
 				this.command = 0;
 				this.r1044 = 0x0005;
 			}
