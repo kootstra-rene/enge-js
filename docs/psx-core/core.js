@@ -6,10 +6,13 @@
 		clock: 0.0,
 		eventClock: 0.0,
 		events: [],
+		inactiveEvents: [],
+		lastId: 0
 	}
 
 	psx.addEvent = (clocks, cb) => {
 		const event = Object.seal({
+			id: psx.lastId++,
 			active: true,
 			clock: +psx.clock + +clocks,
 			start: +psx.clock,
@@ -35,7 +38,15 @@
 	}
 
 	psx.unsetEvent = (event) => {
-		event.active = false;
+		if (!event.active) return;
+
+		const index = psx.events.findIndex(a => a.id === event.id);
+		if (index !== -1) {
+			psx.inactiveEvents.push(event);
+			psx.events.splice(index, 1);
+			event.active = false;
+		}
+
 		return event;
 	}
 
@@ -44,7 +55,14 @@
 	}
 
 	psx.setEvent = (event, clocks) => {
-		let ticks = clocks * (PSX_SPEED / (768 * 44100));
+		if (!event.active) {
+			const index = psx.inactiveEvents.findIndex(a => a.id === event.id);
+			if (index !== -1) {
+				psx.inactiveEvents.splice(index, 1);
+				psx.events.push(event);
+			}
+		}
+
 		event.clock = +psx.clock + +clocks;
 		event.start = +psx.clock;
 		event.active = true;
@@ -58,13 +76,23 @@
 	psx.handleEvents = (entry) => {
 		let eventClock = Number.MAX_SAFE_INTEGER;
 
+		const events = [];
 		for (let i = 0, l = psx.events.length; i < l; ++i) {
 			const event = psx.events[i];
-			if (!event.active) continue;
 
 			if (psx.clock >= event.clock) {
-				event.cb(event, psx.clock);
+				events.push(event);
 			}
+		}
+
+		for (let i = 0, l = events.length; i < l; ++i) {
+			const event = events[i];
+
+			event.cb(event, psx.clock);
+		}
+
+		for (let i = 0, l = psx.events.length; i < l; ++i) {
+			const event = psx.events[i];
 			if (event.clock < eventClock && event.active) {
 				eventClock = event.clock;
 			}
