@@ -1046,9 +1046,9 @@
 		if (clip && !(gpu.status & (1 << 21))) {
 			let l, r, t, b;
 			l = (x <= gpu.drawAreaX1) ? gpu.drawAreaX1 : x;
-			r = (x >= gpu.drawAreaX2) ? gpu.drawAreaX2 : x;
+			r = ((x + w) >= gpu.drawAreaX2) ? gpu.drawAreaX2 : x + w;
 			t = (y <= gpu.drawAreaY1) ? gpu.drawAreaY1 : y;
-			b = (y >= gpu.drawAreaY2) ? gpu.drawAreaY2 : y;
+			b = ((y + h) >= gpu.drawAreaY2) ? gpu.drawAreaY2 : y + h;
 
 			x = l; w = r - l;
 			y = t; h = b - t;
@@ -1070,10 +1070,10 @@
 
 		// can comment out for performance reasons but introduces glitches
 		for (let j = 0; j < h; ++j) {
-		  const offsetY = ((y + j) % 512) * 1024;
-		  for (let i = 0; i < w; ++i) {
-		    this.vram[offsetY + ((x+i)%1024)] = clrState.c;
-		  }
+			const offsetY = ((y + j) % 512) * 1024;
+			for (let i = 0; i < w; ++i) {
+				this.vram[offsetY + ((x + i) % 1024)] = clrState.c;
+			}
 		}
 
 		gl.activeTexture(this.gl.TEXTURE1);
