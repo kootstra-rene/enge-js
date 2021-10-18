@@ -462,9 +462,9 @@
 	rec.compileDE = rec.compileD0;
 	rec.compileDF = rec.compileD0;
 
-	const recmap = new Map();
+	const recmap = new Array(256);
 	for (let i = 0; i < 256; ++i) {
-		recmap.set(i, rec[`compile${hex(i, 2).toUpperCase()}`])
+		recmap[i] = rec[`compile${hex(i, 2).toUpperCase()}`]  || rec.invalid;
 	}
 
 	function compileInstruction(state, lines, delaySlot) {
@@ -484,7 +484,7 @@
 		state.rt = (opcode >>> 16) & 0x1F;
 
 		try {
-			lines.push((recmap.get(opc) || rec.invalid)(state, opcode));
+			lines.push(recmap[opc](state, opcode));
 		}
 		catch (e) {
 			console.log(lines.join('\n'));
@@ -621,7 +621,7 @@
 		let jumps = [
 			state.branchTarget >>> 0,
 			state.pc >>> 0,
-			pc >>> 0
+			pc
 		];
 		let other = getCacheEntry(state.branchTarget);
 		if (other && other.pc !== pc && other.jump && other.jump.pc === pc) {
