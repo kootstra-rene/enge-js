@@ -4,6 +4,7 @@
 	'use strict';
 
 	var BLOCKSIZE = (28 * 0x1000) >>> 0;
+	const CYCLES_PER_EVENT = 8;
 
 	const AudioContext = window.AudioContext || window.webkitAudioContext;
 
@@ -272,84 +273,86 @@
 		},
 
 		event: function (self, clock) {
-			psx.updateEvent(self, (PSX_SPEED / 44100));
-			++this.totalSamples;
-
-			this.SPUSTAT &= ~(0x003F);
-			this.SPUSTAT |= (this.SPUSTATm & 0x003F);
-
+			psx.updateEvent(self, (PSX_SPEED / 44100 * CYCLES_PER_EVENT));
 			if (!left || !right) return;
 
-			let l = 0, r = 0;
+			for (let tt = CYCLES_PER_EVENT; tt > 0; --tt) {
+				++this.totalSamples;
 
-			const captureIndex = (this.totalSamples % 0x200) << 1;
-			this.checkIrq();
+				this.SPUSTAT &= ~(0x003F);
+				this.SPUSTAT |= (this.SPUSTATm & 0x003F);
 
-			for (let i = 23; i >= 0; --i) {
-				let voice = this.voices[i];
-				if (!voice.adsrState) continue;
+				let l = 0, r = 0;
 
-				voice.pitchCounter += voice.pitchStep;
+				const captureIndex = (this.totalSamples % 0x200) << 1;
+				this.checkIrq();
 
-				if (voice.pitchCounter >= BLOCKSIZE) {
-					voice.pitchCounter -= BLOCKSIZE;
+				for (let i = 23; i >= 0; --i) {
+					let voice = this.voices[i];
+					if (!voice.adsrState) continue;
 
-					voice.decodeBlock();
-					this.checkIrq(voice);
+					voice.pitchCounter += voice.pitchStep;
+
+					if (voice.pitchCounter >= BLOCKSIZE) {
+						voice.pitchCounter -= BLOCKSIZE;
+
+						voice.decodeBlock();
+						this.checkIrq(voice);
+					}
+
+					const sampleIndex = voice.pitchCounter >>> 12;
+					const sample = voice.buffer[sampleIndex];
+
+					const adsrVolume = voice.mixADSR();
+					const sampleL = (sample * adsrVolume * voice.volumeLeft);
+					const sampleR = (sample * adsrVolume * voice.volumeRight);
+
+					if (i === 3) {
+						const mono = (sampleL * 0x8000) >>> 0;
+						this.data[0x0C00 + captureIndex] = mono & 0xff;
+						this.data[0x0C01 + captureIndex] = mono >> 8;
+					}
+					if (i === 1) {
+						const mono = (sampleL * 0x8000) >>> 0;
+						this.data[0x0800 + captureIndex] = mono & 0xff;
+						this.data[0x0801 + captureIndex] = mono >> 8;
+					}
+
+					l += sampleL;
+					r += sampleR;
 				}
 
-				const sampleIndex = voice.pitchCounter >>> 12;
-				const sample = voice.buffer[sampleIndex];
+				var cdxa = [0.0, 0.0];
+				cdr.nextpcm(cdxa);
 
-				const adsrVolume = voice.mixADSR();
-				const sampleL = (sample * adsrVolume * voice.volumeLeft);
-				const sampleR = (sample * adsrVolume * voice.volumeRight);
-
-				if (i === 3) {
-					const mono = (sampleL * 0x8000) >>> 0;
-					this.data[0x0C00 + captureIndex] = mono & 0xff;
-					this.data[0x0C01 + captureIndex] = mono >> 8;
+				let cdSampleL = (cdxa[0] * this.cdVolumeLeft);
+				let cdSampleR = (cdxa[1] * this.cdVolumeRight);
+				{
+					const mono = (cdSampleL * 0x8000) >>> 0;
+					this.data[0x0000 + captureIndex] = mono & 0xff;
+					this.data[0x0001 + captureIndex] = mono >> 8;
 				}
-				if (i === 1) {
-					const mono = (sampleL * 0x8000) >>> 0;
-					this.data[0x0800 + captureIndex] = mono & 0xff;
-					this.data[0x0801 + captureIndex] = mono >> 8;
+				{
+					const mono = (cdSampleR * 0x8000) >>> 0;
+					this.data[0x0400 + captureIndex] = mono & 0xff;
+					this.data[0x0401 + captureIndex] = mono >> 8;
 				}
+				l += cdSampleL;
+				r += cdSampleR;
 
-				l += sampleL;
-				r += sampleR;
-			}
+				l = (l * this.mainVolumeLeft);
+				r = (r * this.mainVolumeRight);
 
-			var cdxa = [0.0, 0.0];
-			cdr.nextpcm(cdxa);
+				left[this.writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
+				right[this.writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
+				this.writeIndex = (this.writeIndex + 1) % frameCount;
 
-			let cdSampleL = (cdxa[0] * this.cdVolumeLeft);
-			let cdSampleR = (cdxa[1] * this.cdVolumeRight);
-			{
-				const mono = (cdSampleL * 0x8000) >>> 0;
-				this.data[0x0000 + captureIndex] = mono & 0xff;
-				this.data[0x0001 + captureIndex] = mono >> 8;
-			}
-			{
-				const mono = (cdSampleR * 0x8000) >>> 0;
-				this.data[0x0400 + captureIndex] = mono & 0xff;
-				this.data[0x0401 + captureIndex] = mono >> 8;
-			}
-			l += cdSampleL;
-			r += cdSampleR;
-
-			l = (l * this.mainVolumeLeft);
-			r = (r * this.mainVolumeRight);
-
-			left[this.writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
-			right[this.writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
-			this.writeIndex = (this.writeIndex + 1) % frameCount;
-
-			if (captureIndex === 0x000) {
-				this.SPUSTAT &= ~0x0800;
-			}
-			if (captureIndex === 0x200) {
-				this.SPUSTAT |= 0x0800;
+				if (captureIndex === 0x000) {
+					this.SPUSTAT &= ~0x0800;
+				}
+				if (captureIndex === 0x200) {
+					this.SPUSTAT |= 0x0800;
+				}
 			}
 		}
 
