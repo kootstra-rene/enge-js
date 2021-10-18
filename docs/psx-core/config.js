@@ -4,7 +4,6 @@
 
 	const settings = (() => {
 		let object = JSON.parse(localStorage.getItem('config') || '{"quality": 1}');
-		if (object.naiveResolutionImprovement === undefined) object.naiveResolutionImprovement = true;
 		return object;
 	})();
 

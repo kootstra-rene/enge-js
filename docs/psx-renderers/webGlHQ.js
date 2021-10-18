@@ -828,10 +828,6 @@
 		var x2 = this.drawOffsetX + ((data[xy2] << 21) >> 21);
 		var y2 = this.drawOffsetY + ((data[xy2] << 5) >> 21);
 
-		let map;
-		map = this.getGteCoord(x1, y1); if (map) { x1 = map.x + this.drawOffsetX; y1 = map.y + this.drawOffsetY; }
-		map = this.getGteCoord(x2, y2); if (map) { x2 = map.x + this.drawOffsetX; y2 = map.y + this.drawOffsetY; }
-
 		if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
 		if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
 
@@ -872,20 +868,6 @@
 		}
 	}
 
-	let mapped = 0, unmapped = 0;
-	WebGLRenderer.prototype.getGteCoord = function (x, y) {
-		let cix = ((x - this.drawOffsetX) >>> 0) & 0x7ff;
-		let ciy = ((y - this.drawOffsetY) >>> 0) & 0x7ff;
-		let ci = (ciy << 11) | cix;
-		let map = gte.coords.get(ci);
-		if (map) {
-			++mapped;
-			return map;
-		}
-		++unmapped;
-		return null;
-	}
-
 	WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
 		switch ((data[0] >> 24) & 0xF) {// raw-texture
 			case 0x5:
@@ -904,11 +886,6 @@
 		var y2 = this.drawOffsetY + ((data[xy2] << 5) >> 21);
 		var x3 = this.drawOffsetX + ((data[xy3] << 21) >> 21);
 		var y3 = this.drawOffsetY + ((data[xy3] << 5) >> 21);
-
-		let map;
-		map = this.getGteCoord(x1, y1); if (map) { x1 = map.x + this.drawOffsetX; y1 = map.y + this.drawOffsetY; }
-		map = this.getGteCoord(x2, y2); if (map) { x2 = map.x + this.drawOffsetX; y2 = map.y + this.drawOffsetY; }
-		map = this.getGteCoord(x3, y3); if (map) { x3 = map.x + this.drawOffsetX; y3 = map.y + this.drawOffsetY; }
 
 		if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
 		if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
@@ -975,9 +952,6 @@
 		var c = (data[0] & 0xfefefe);
 		var w = (data[2] << 16) >> 16;
 		var h = (data[2] >> 16);
-		// turned off because of background tiles rendering wrong
-		// let map;
-		// map = this.getGteCoord(x, y); if (map) { x = map.x+this.drawOffsetX; y = map.y+this.drawOffsetY; }
 
 		var showT1 = !this.outsideDrawArea(x + 0, y + 0, x + w - 1, y + 0, x + 0, y + h - 1);
 		var showT2 = !this.outsideDrawArea(x + 0, y + h - 1, x + w - 1, y + 0, x + w - 1, y + h - 1);
