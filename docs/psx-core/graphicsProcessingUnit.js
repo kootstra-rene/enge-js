@@ -578,7 +578,7 @@
 
 					const packetId = map[addr >> 2] >>> 24;
 					if (packetSizes[packetId] === 0) {
-						addr += 4; --nitem; ++words;
+						addr += 4; ++words;
 						nitem = 0;
 						continue;
 					}
@@ -587,21 +587,23 @@
 						for (; i < 256; ++i) {
 							const value = map[addr >> 2];
 							addr += 4; --nitem; ++words;
+							data[i] = value;
 
 							if ((value & 0xF000F000) === 0x50005000) break;
-							data[i] = value;
 						}
 						gpu.handlers[packetId].call(this, data, i);
 						gpu.updated = true;
 					}
 					else {
-						for (var i = 0; i < packetSizes[packetId]; ++i) {
+						const dataSize = packetSizes[packetId];
+						for (let i = 0; i < dataSize; ++i) {
 							data[i] = map[addr >> 2];
-							addr += 4; --nitem;
-							++words;
+							addr += 4;
 						}
-						gpu.handlers[packetId].call(this, data);
+						gpu.handlers[packetId].call(this, data, dataSize);
 						gpu.updated = true;
+						nitem -= dataSize;
+						words += dataSize;
 					}
 				}
 				if (!nnext || (nnext == 0x00ffffff)) break;
