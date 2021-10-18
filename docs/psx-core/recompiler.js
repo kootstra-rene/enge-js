@@ -625,15 +625,7 @@
 		];
 		let other = getCacheEntry(state.branchTarget);
 		if (other && other.pc !== pc && other.jump && other.jump.pc === pc) {
-			let otherEntry = {
-				pc: other.pc >>> 0,
-				calls: 0,
-				clock: 0,
-				addr: hex(pc),
-				code: null,
-				jump: null,
-				next: null,
-			};
+			let otherEntry = CacheEntryFactory.createCacheEntry(other.pc);
 			let otherLines = compileBlockLines(otherEntry);
 			let combinedLines = [];
 			combinedLines.push(...lines);
@@ -707,13 +699,7 @@
 		let entry = cached[lutIndex];
 
 		if (!entry) {
-			cached[lutIndex] = entry = Object.seal({
-				code: null,
-				pc: lutIndex << 2,
-				addr: hex(lutIndex << 2),
-				jump: null,
-				next: null,
-			});
+			cached[lutIndex] = entry = CacheEntryFactory.createCacheEntry(lutIndex << 2);
 			entry.code = lazyCompile.bind(entry);
 		}
 		return entry;
@@ -723,5 +709,14 @@
 	scope.getCacheEntry = getCacheEntry;
 	scope.clearCodeCache = clearCodeCache;
 	scope.vector = null;
+
+	const CacheEntryFactory = {
+		createCacheEntry: pc => Object.seal({
+			pc  : pc >>> 0,
+			code: null,
+			jump: null,
+			next: null,
+		})
+	};
 
 })(window);
