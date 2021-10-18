@@ -39,7 +39,7 @@
 
 		iqtab_init: function (addr, size) {
 			for (let i = 0; i < size; ++i) {
-				let q = map8[((addr + i) & 0x001fffff) >>> 0] & 0xff;
+				const q = map8[((addr + i) & 0x001fffff) >>> 0] & 0xff;
 				this.iq[i] = (q * this.aanscales[this.zscan[i & 63]]) >> 12;
 			}
 		},
@@ -55,21 +55,21 @@
 				z12 = (blk[o + 2] - blk[o + 6]) >> 0;
 				z12 = (((z12 * 362) >> 8) - z13) >> 0;
 
-				let tmp0 = (z10 + z13) >> 0;
-				let tmp3 = (z10 - z13) >> 0;
-				let tmp1 = (z11 + z12) >> 0;
-				let tmp2 = (z11 - z12) >> 0;
+				const tmp0 = (z10 + z13) >> 0;
+				const tmp3 = (z10 - z13) >> 0;
+				const tmp1 = (z11 + z12) >> 0;
+				const tmp2 = (z11 - z12) >> 0;
 
 				z13 = (blk[o + 3] + blk[o + 5]) >> 0;
 				z10 = (blk[o + 3] - blk[o + 5]) >> 0;
 				z11 = (blk[o + 1] + blk[o + 7]) >> 0;
 				z12 = (blk[o + 1] - blk[o + 7]) >> 0;
-				let z5 = ((z12 - z10) * 473) >> 8;
+				const z5 = ((z12 - z10) * 473) >> 8;
 
-				let tmp7 = (z11 + z13) >> 0;
-				let tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
-				let tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
-				let tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
+				const tmp7 = (z11 + z13) >> 0;
+				const tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
+				const tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
+				const tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
 
 				blk[o + 0] = (tmp0 + tmp7) >> 5;
 				blk[o + 1] = (tmp1 + tmp6) >> 5;
@@ -89,21 +89,21 @@
 				z12 = (blk[o + 16] - blk[o + 48]) >> 0;
 				z12 = (((z12 * 362) >> 8) - z13) >> 0;
 
-				let tmp0 = (z10 + z13) >> 0;
-				let tmp3 = (z10 - z13) >> 0;
-				let tmp1 = (z11 + z12) >> 0;
-				let tmp2 = (z11 - z12) >> 0;
+				const tmp0 = (z10 + z13) >> 0;
+				const tmp3 = (z10 - z13) >> 0;
+				const tmp1 = (z11 + z12) >> 0;
+				const tmp2 = (z11 - z12) >> 0;
 
 				z13 = (blk[o + 24] + blk[o + 40]) >> 0;
 				z10 = (blk[o + 24] - blk[o + 40]) >> 0;
 				z11 = (blk[o + 8] + blk[o + 56]) >> 0;
 				z12 = (blk[o + 8] - blk[o + 56]) >> 0;
-				let z5 = ((z12 - z10) * 473) >> 8;
+				const z5 = ((z12 - z10) * 473) >> 8;
 
-				let tmp7 = (z11 + z13) >> 0;
-				let tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
-				let tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
-				let tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
+				const tmp7 = (z11 + z13) >> 0;
+				const tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
+				const tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
+				const tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
 
 				blk[o + 0] = (tmp0 + tmp7) >> 0;
 				blk[o + 8] = (tmp1 + tmp6) >> 0;
@@ -117,7 +117,7 @@
 		},
 
 		rl2blk: function (blk, addr) {
-			var iqtab = this.iq;
+			const iqtab = this.iq;
 
 			blk.fill(0);
 
@@ -127,20 +127,20 @@
 				const iqoff = i >= 2 ? 0 : 64;
 				const o = 64 * i;
 
-				let rl = map16[base++] & 0xffff;
+				const rl = map16[base++] & 0xffff;
 
 				let k = 0;
 				const q = rl >> 10;
-				let dc = ((rl << 22) >> 22);
+				const dc = ((rl << 22) >> 22);
 				blk[o] = iqtab[iqoff] * dc;
 
 				for (; ;) {
-					let rl = map16[base++] & 0xffff;
+					const rl = map16[base++] & 0xffff;
 
 					k += ((rl >> 10) + 1);
 					if (k <= 63) {
-						let dc = ((rl << 22) >> 22);
-						let val = (iqtab[iqoff + k] * q * dc) >> 3;
+						const dc = ((rl << 22) >> 22);
+						const val = (iqtab[iqoff + k] * q * dc) >> 3;
 						blk[o + this.zscan[k]] = val;
 					}
 					if (k > 63) break;
@@ -186,10 +186,10 @@
 		},
 
 		yuv2rgb15: function (blk, addr) {
-			var x, y;
-			var ro = 0;
-			var bo = 64;
-			var yo = 64 * 2;
+			let x, y;
+			let ro = 0;
+			let bo = 64;
+			let yo = 64 * 2;
 
 			for (y = 0; y < 16; y += 2, ro += 8, bo += 8, yo += 16, addr += 64) {
 				if (y == 8) yo += 64;
@@ -238,10 +238,10 @@
 		yuv2rgb24: function (blk, addr) {
 			if (addr & 3) abort('alignment');
 
-			var x, y;
-			var ro = 0;
-			var bo = 64;
-			var yo = 64 * 2;
+			let x, y;
+			let ro = 0;
+			let bo = 64;
+			let yo = 64 * 2;
 
 			for (y = 0; y < 16; y += 2, ro += 8, bo += 8, yo += 16, addr += 96) {
 				if (y == 8) yo += 64;
@@ -314,13 +314,13 @@
 			const numberOfWords = (blck >>> 16) * (blck & 0xffff);
 			clearCodeCache( addr, numberOfWords << 2);
 
-			var blk = mdc.block;
-			var end = addr + (numberOfWords << 2);
+			const blk = mdc.block;
+			const end = addr + (numberOfWords << 2);
 			mdc.end = end;
-			var decodedMacroBlocks = 0;
-			var depth = (mdc.r1820 >>> 27) & 3;
+			let decodedMacroBlocks = 0;
+			const depth = (mdc.r1820 >>> 27) & 3;
+			mdc.STP = (mdc.r1820 & (1 << 25)) ? 0x8000 : 0x0000;
 			while (addr < end) {
-				mdc.STP = (mdc.r1820 & (1 << 25)) ? 0x8000 : 0x0000;
 				mdc.rl = video.rl2blk(blk, mdc.rl);
 				switch (depth) {
 					case 0: console.warn('unsupported depth', depth);
