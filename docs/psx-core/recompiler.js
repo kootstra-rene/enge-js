@@ -419,7 +419,7 @@
 
 	const recmap = new Array(256);
 	for (let i = 0; i < 256; ++i) {
-		recmap[i] = rec[`compile${hex(i, 2).toUpperCase()}`]  || rec.invalid;
+		recmap[i] = rec[`compile${hex(i, 2).toUpperCase()}`] || rec.invalid;
 	}
 
 	function compileInstruction(state, lines, delaySlot) {
@@ -459,8 +459,6 @@
 		'cause': false,
 		'sr': false,
 		'cycles': 0,
-		'const': new Uint8Array(32),
-		'cdata': new Int32Array(32),
 		entry: null,
 		branchTarget: 0,
 		jump: false,
@@ -496,9 +494,6 @@
 			this.cause = false;
 			this.sr = false;
 			this.cycles = 0;
-
-			this.const.fill(0);
-			this.const[0] = 1;
 		}
 	};
 
@@ -553,8 +548,7 @@
 	}
 
 
-	const cached = new Array(0x02000000 >>> 2);
-	cached.fill(null);
+	const cached = new Map();
 
 	Object.seal(state);
 	Object.seal(rec);
@@ -571,10 +565,9 @@
 
 		const ibase = getCacheIndex(addr);
 		for (let i = 0 >>> 0; i < words; i += 4) {
-			const entry = cached[ibase + (i >>> 2)];
+			const entry = cached.get(ibase + (i >>> 2));
 			if (entry) {
 				entry.code = lazyCompile.bind(entry);
-				entry.flag = 0;
 			}
 		}
 	}
@@ -586,10 +579,10 @@
 
 	function getCacheEntry(pc) {
 		const lutIndex = getCacheIndex(pc);
-		let entry = cached[lutIndex];
+		let entry = cached.get(lutIndex);
 
 		if (!entry) {
-			cached[lutIndex] = entry = CacheEntryFactory.createCacheEntry(lutIndex << 2);
+			cached.set(lutIndex, entry = CacheEntryFactory.createCacheEntry(lutIndex << 2));
 			entry.code = lazyCompile.bind(entry);
 		}
 		return entry;
@@ -599,16 +592,12 @@
 	scope.getCacheEntry = getCacheEntry;
 	scope.clearCodeCache = clearCodeCache;
 	scope.vector = null;
-	scope.HWACCESS_FLAG = 2;
-	scope.MEMACCESS_FLAG = 1;
-	scope.RECOMPILE_FLAG = 4;
 	scope.cached = cached; // debugging
 
 	const CacheEntryFactory = {
 		createCacheEntry: pc => Object.seal({
-			pc  : pc >>> 0,
+			pc: pc >>> 0,
 			code: null,
-			flag: 0,
 		})
 	};
 

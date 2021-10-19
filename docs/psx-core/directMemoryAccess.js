@@ -235,7 +235,8 @@
 				let transferSize = 10;
 
 				switch (this.r10e8) {
-					case 0x00000002: this.r10e0n = this.r10e0 = map[(this.r10e0 & 0x01ffffff) >> 2];
+					case 0x00000002: //this.r10e0n = this.r10e0 = map[(this.r10e0 & 0x01ffffff) >> 2];
+						this.r10e0n = 0x00ffffff;
 						break;
 					case 0x10000002:
 					case 0x50000002: transferSize = gpu.dmaLinkedListMode0002(this.r10e0, this.r10e4);

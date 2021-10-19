@@ -104,6 +104,7 @@
 			psx.clock += 5;
 			return map16[(base & 0x001fffff) >>> 1];
 		}
+
 		if ((base >= 0x01800000) && (base < 0x01803000)) {
 			switch (base & 0x3fff) {
 				case 0x1014: return map16[base >>> 1];
