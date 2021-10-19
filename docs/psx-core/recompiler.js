@@ -6,9 +6,9 @@
 		const lines = [
 			"  return function $" + hex(pc).toUpperCase() + "(psx) { \n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
 		];
+		lines.unshift('');
 
 		const points = [...new Set(jumps || [])];
-
 		points.forEach(addr => {
 			lines.unshift(`  const _${hex(addr)} = getCacheEntry(0x${hex(addr)});`);
 		});
@@ -534,7 +534,7 @@
 			return `((${offset} + ${this.reg(this.rs)}) >>> 0)`;
 		},
 		isConstRS: function () {
-			return this.const[this.rs];
+			return !this.rs || this.const[this.rs];
 		},
 		getConstRS: function () {
 			return this.cdata[this.rs];
@@ -542,6 +542,8 @@
 		setReg: function (mips, nr, value, isconst) {
 			const iword = map[(this.pc & 0x01ffffff) >>> 2];
 			let command = '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
+
+			isconst = false;
 
 			if (nr) {
 				this.const[nr] = 0;
@@ -613,8 +615,6 @@
 	function compileBlock(entry) {
 		const pc = entry.pc >>> 0;
 		let lines = compileBlockLines(entry);
-		entry.jump = getCacheEntry(state.branchTarget);
-		entry.next = getCacheEntry(state.pc);
 
 		let cycles = state.cycles;
 
@@ -623,40 +623,10 @@
 			state.pc >>> 0,
 			pc
 		];
-		let other = getCacheEntry(state.branchTarget);
-		if (other && other.pc !== pc && other.jump && other.jump.pc === pc) {
-			let otherEntry = CacheEntryFactory.createCacheEntry(other.pc);
-			let otherLines = compileBlockLines(otherEntry);
-			let combinedLines = [];
-			combinedLines.push(...lines);
-			combinedLines.push('psx.clock += ' + (cycles) + ';');
-			combinedLines.push(`if (target === _${hex(entry.next.pc)}) break;\n`);
-			combinedLines.push(...otherLines);
-			combinedLines.push('psx.clock += ' + (state.cycles) + ';');
-			combinedLines.push(`if (target === _${hex(state.pc)}) break;`);
-			combinedLines.unshift(`while(psx.clock < psx.eventClock) {`);
-			combinedLines.push('}');
-			combinedLines.push('return psx.handleEvents(target);');
-			lines = combinedLines;
-			jumps.push(
-				state.branchTarget >>> 0,
-				state.pc >>> 0
-			);
-		}
-		else
-			if (entry.jump.pc === (pc >>> 0)) {
-				lines.unshift(`while (psx.clock < psx.eventClock) {`);
-				lines.push('psx.clock += ' + cycles + ';');
-				lines.push(`if (target === _${hex(state.pc)}) break;`);
-				lines.push('}');
-				lines.push('return psx.handleEvents(target);');
-			}
-			else {
-				lines.push('if((psx.clock += ' + cycles + ') >= psx.eventClock) {');
-				lines.push('  return psx.handleEvents(target);');
-				lines.push('}');
-				lines.push('return target;');
-			}
+		lines.push('if((psx.clock += ' + cycles + ') >= psx.eventClock) {');
+		lines.push('  return psx.handleEvents(target);');
+		lines.push('}');
+		lines.push('return target;');
 
 		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};`);
 
@@ -685,6 +655,7 @@
 			const entry = cached[ibase + (i >>> 2)];
 			if (entry) {
 				entry.code = lazyCompile.bind(entry);
+				entry.flag = 0;
 			}
 		}
 	}
@@ -709,13 +680,16 @@
 	scope.getCacheEntry = getCacheEntry;
 	scope.clearCodeCache = clearCodeCache;
 	scope.vector = null;
+	scope.HWACCESS_FLAG = 2;
+	scope.MEMACCESS_FLAG = 1;
+	scope.RECOMPILE_FLAG = 4;
+	scope.cached = cached; // debugging
 
 	const CacheEntryFactory = {
 		createCacheEntry: pc => Object.seal({
 			pc  : pc >>> 0,
 			code: null,
-			jump: null,
-			next: null,
+			flag: 0,
 		})
 	};
 
