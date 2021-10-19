@@ -59,9 +59,10 @@
 			case 0x1803: return cdr.rd08r1803();
 			case 0x1814: return (gpu.rd32r1814() << 24) >> 24;
 			case 0x1824: return (mdc.rd32r1824() << 24) >> 24;
-			default: if (base < 0x01801000) {
-				return map8[base >>> 0];
-			}
+			default:
+				if (base < 0x01801000) {
+					return map8[base >>> 0];
+				}
 				if (base >= 0x01802000) {
 					psx.clock += 10;
 					return map8[base >>> 0];
@@ -209,9 +210,10 @@
 			case 0x1814: return gpu.rd32r1814() >> 0;
 			case 0x1820: return mdc.rd32r1820() >> 0;
 			case 0x1824: return mdc.rd32r1824() >> 0;
-			default: if (addr < 0x01801000) {
-				return map[addr >>> 2] >> 0;
-			}
+			default:
+				if (addr < 0x01801000) {
+					return map[addr >>> 2] >> 0;
+				}
 				if (addr >= 0x01802000) {
 					psx.clock += 56;
 					return map[addr >>> 2] >> 0;
@@ -305,10 +307,11 @@
 			case 0x1120: return rc2.setValue(data);
 			case 0x1124: return rc2.setMode(data);
 			case 0x1128: return rc2.setTarget(data);
-			default: if ((base >= 0x01801C00) && (base < 0x01802000)) {
-				map16[base >>> 1] = data;
-				return spu.setInt16(base & 0x3fff, data);
-			}
+			default:
+				if ((base >= 0x01801C00) && (base < 0x01802000)) {
+					map16[base >>> 1] = data;
+					return spu.setInt16(base & 0x3fff, data);
+				}
 				abort(`w16: unable to store at $${hex(addr, 8)}`);
 				break;
 		}
