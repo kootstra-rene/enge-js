@@ -2,7 +2,7 @@
 
 	'use strict';
 
-	const gte = {
+	const gte = Object.seal({
 		v0: new Float64Array(4),
 		v1: new Float64Array(4),
 		v2: new Float64Array(4),
@@ -753,7 +753,7 @@
 					return 5;
 			}
 		}
-	}
+	});
 
 	// flag bits
 	for (var i = 0; i <= 31; ++i) {
@@ -766,17 +766,6 @@
 
 	for (var i = 13; i <= 18; ++i) {
 		gte.flag[i] |= 0x80000000;
-	}
-
-	gte.coords = new Map();
-	gte.frame = 0;
-
-	gte.clear = (frame) => {
-		gte.coords.forEach((v, k, m) => {
-			if (v && v.frame <= frame) {
-				m.delete(k);
-			}
-		});
 	}
 
 	scope.gte = Object.seal(gte);

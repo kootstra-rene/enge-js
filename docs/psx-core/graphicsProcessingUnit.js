@@ -138,7 +138,6 @@
 			}
 			if (++gpu.hline >= vsync) {
 				if (gpu.updated) {
-					gte.clear(gpu.internalFrame - 1);
 					++gpu.internalFrame;
 				}
 				gpu.updated = false;
