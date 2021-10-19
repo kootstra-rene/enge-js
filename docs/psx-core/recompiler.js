@@ -12,6 +12,7 @@
 		points.forEach(addr => {
 			lines.unshift(`  const _${hex(addr)} = getCacheEntry(0x${hex(addr)});`);
 		});
+		lines.unshift(`'use strict;'`);
 		var generator = new Function(lines.join('\n'));
 		return generator();
 	}
@@ -400,6 +401,9 @@
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': cop2    0x' + hex(opc & 0x1ffffff) + '\n' +
 				'gte.command(0x' + hex(opc & 0x1ffffff) + ')';
 		},
+		'invalid': (rec, opc) => {
+			abort('invalid instruction');
+		}
 	}
 	rec.compileD1 = rec.compileD0;
 	rec.compileD2 = rec.compileD0;
@@ -424,7 +428,7 @@
 
 	function compileInstruction(state, lines, delaySlot) {
 		const iwordIndex = getCacheIndex(state.pc);
-		var opcode = map[iwordIndex];
+		const opcode = map[iwordIndex];
 		var opc = 0;
 		switch ((opcode >>> 26) & 0x3f) {
 			default: opc = 0x00 + ((opcode >>> 26) & 0x3f); break;
@@ -438,17 +442,10 @@
 		state.rs = (opcode >>> 21) & 0x1F;
 		state.rt = (opcode >>> 16) & 0x1F;
 
-		try {
-			lines.push(recmap[opc](state, opcode));
-		}
-		catch (e) {
-			console.log(lines.join('\n'));
-			console.log(e);
-			abort('compileInstruction: $' + hex(opc, 2));
-		}
+		lines.push(recmap[opc](state, opcode));
 	}
 
-	var state = {
+	const state = {
 		'pc': 0,
 		'rt': 0,
 		'rs': 0,
@@ -537,12 +534,13 @@
 			state.pc >>> 0,
 			pc
 		];
+		lines.push('');
 		lines.push('if((psx.clock += ' + cycles + ') >= psx.eventClock) {');
 		lines.push('  return psx.handleEvents(target);');
 		lines.push('}');
 		lines.push('return target;');
 
-		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};`);
+		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)}; target.last = psx.clock`);
 
 		return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
 	}
@@ -588,7 +586,6 @@
 		return entry;
 	}
 
-	scope.rec = rec;
 	scope.getCacheEntry = getCacheEntry;
 	scope.clearCodeCache = clearCodeCache;
 	scope.vector = null;
@@ -598,6 +595,7 @@
 		createCacheEntry: pc => Object.seal({
 			pc: pc >>> 0,
 			code: null,
+			last: 0
 		})
 	};
 
