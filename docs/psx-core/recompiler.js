@@ -64,17 +64,11 @@
 
 		'compile08': function (rec, opc) {
 			var mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-			if (rec.isConstRS()) {
-				return rec.setReg(mips, rec.rt, '0x' + hex(((opc << 16) >> 16) + rec.getConstRS()), true);
-			}
 			return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
 		},
 
 		'compile09': function (rec, opc) {
 			var mips = 'addiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-			if (rec.isConstRS()) {
-				return rec.setReg(mips, rec.rt, '0x' + hex(((opc << 16) >> 16) + rec.getConstRS()), true);
-			}
 			return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
 		},
 
@@ -95,10 +89,6 @@
 
 		'compile0D': function (rec, opc) {
 			var mips = 'ori     r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-			if (rec.isConstRS()) {
-				let value = ((opc << 16) >>> 16) | rec.getConstRS();
-				return rec.setReg(mips, rec.rt, value, true);
-			}
 			return rec.setReg(mips, rec.rt, rec.getRS() + ' | 0x' + hex(opc, 4));
 		},
 
@@ -114,25 +104,11 @@
 
 		'compile20': function (rec, opc) {
 			var mips = 'lb      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-			if (rec.isConstRS()) {
-				const addr = rec.getConstRS() & 0x01ffffff;
-				if (addr < 0x00800000) {
-					rec.cycles += 5;
-					return rec.setReg(mips, rec.rt, `map8[(${rec.getOF(opc)} & 0x001fffff) >> 0]`);
-				}
-			}
 			return rec.setReg(mips, rec.rt, '(memRead8(' + rec.getOF(opc) + ') << 24) >> 24');
 		},
 
 		'compile21': function (rec, opc) {
 			var mips = 'lh      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-			if (rec.isConstRS()) {
-				const addr = rec.getConstRS() & 0x01ffffff;
-				if (addr < 0x00800000) {
-					rec.cycles += 5;
-					return rec.setReg(mips, rec.rt, `map16[(${rec.getOF(opc)} & 0x001fffff) >> 1]`);
-				}
-			}
 			return rec.setReg(mips, rec.rt, '(memRead16 (' + rec.getOF(opc) + ') << 16) >> 16');
 		},
 
@@ -144,37 +120,16 @@
 
 		'compile23': function (rec, opc) {
 			var mips = 'lw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-			if (rec.isConstRS()) {
-				const addr = rec.getConstRS() & 0x01ffffff;
-				if (addr < 0x00800000) {
-					rec.cycles += 5;
-					return rec.setReg(mips, rec.rt, `map[(${rec.getOF(opc)} & 0x001fffff) >> 2]`);
-				}
-			}
 			return rec.setReg(mips, rec.rt, 'memRead32(' + rec.getOF(opc) + ')');
 		},
 
 		'compile24': function (rec, opc) {
 			var mips = 'lbu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-			if (rec.isConstRS()) {
-				const addr = rec.getConstRS() & 0x01ffffff;
-				if (addr < 0x00800000) {
-					rec.cycles += 5;
-					return rec.setReg(mips, rec.rt, `map8[(${rec.getOF(opc)} & 0x001fffff) >> 0] & 0xff`);
-				}
-			}
 			return rec.setReg(mips, rec.rt, 'memRead8(' + rec.getOF(opc) + ') & 0xff');
 		},
 
 		'compile25': function (rec, opc) {
 			var mips = 'lhu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-			if (rec.isConstRS()) {
-				const addr = rec.getConstRS() & 0x01ffffff;
-				if (addr < 0x00800000) {
-					rec.cycles += 5;
-					return rec.setReg(mips, rec.rt, `map16[(${rec.getOF(opc)} & 0x001fffff) >> 1] & 0xffff`);
-				}
-			}
 			return rec.setReg(mips, rec.rt, 'memRead16(' + rec.getOF(opc) + ') & 0xffff');
 		},
 
@@ -516,45 +471,20 @@
 		},
 		getRS: function () {
 			const r = this.rs;
-			if (this.const[r]) return `0x${hex(this.cdata[r])}`;
 			return `${this.reg(r)}`;
 		},
 		getRT: function () {
 			const r = this.rt;
-			if (this.const[r]) return `0x${hex(this.cdata[r])}`;
 			return `${this.reg(r)}`;
 		},
 		getOF: function (opcode) {
 			const offset = ((opcode << 16) >> 16);
-			const r = this.rs;
-			if (this.const[r]) {
-				return `(0x${hex(offset + this.cdata[r])} >>> 0)`;
-			}
-			if (!offset) return `(${this.reg(this.rs)} >>> 0)`;
 			return `((${offset} + ${this.reg(this.rs)}) >>> 0)`;
-		},
-		isConstRS: function () {
-			return !this.rs || this.const[this.rs];
-		},
-		getConstRS: function () {
-			return this.cdata[this.rs];
 		},
 		setReg: function (mips, nr, value, isconst) {
 			const iword = map[(this.pc & 0x01ffffff) >>> 2];
 			let command = '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
-
-			isconst = false;
-
-			if (nr) {
-				this.const[nr] = 0;
-				if (isconst) {
-					this.const[nr] = 1;
-					this.cdata[nr] = value;
-				}
-			}
-			if (!isconst) {
-				command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
-			}
+			command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
 			return command;
 		},
 		clear: function () {
@@ -596,17 +526,6 @@
 
 		if (pc === 0xa0 || pc === 0xb0 || pc === 0xc0) {
 			lines.unshift(`trace(${pc}, gpr[9]);`);
-		}
-
-		let hasConstants = false;
-		for (let i = 1; i < 32; ++i) {
-			if (state.const[i]) {
-				if (!hasConstants) {
-					lines.push('// flush constants');
-					hasConstants = true;
-				}
-				lines.push(`gpr[${i}] = 0x${hex(state.cdata[i])} >> 0;`)
-			}
 		}
 
 		return lines;
