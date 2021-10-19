@@ -2,20 +2,20 @@
 
 	'use strict';
 
+	const v0 = new Float64Array(4);
+	const v1 = new Float64Array(4);
+	const v2 = new Float64Array(4);
+
+	const ll = new Float64Array(9);
+	const lc = new Float64Array(9);
+	const rt = new Float64Array(9);
+	const zr = new Float64Array(9);
+
+	const bk = new Float64Array(3);
+	const fc = new Float64Array(3);
+	const tr = new Float64Array(3);
+
 	const gte = Object.seal({
-		v0: new Float64Array(4),
-		v1: new Float64Array(4),
-		v2: new Float64Array(4),
-
-		ll: new Float64Array(9),
-		lc: new Float64Array(9),
-		rt: new Float64Array(9),
-		zr: new Float64Array(9),
-
-		bk: new Float64Array(3),
-		fc: new Float64Array(3),
-		tr: new Float64Array(3),
-
 		sx: new Float64Array(3),
 		sy: new Float64Array(3),
 		sz: new Float64Array(4),
@@ -55,11 +55,11 @@
 		get: function (regId) {
 			switch (regId) {
 				case 0x00: return this.regs[regId];
-				case 0x01: return (this.v0[3] << 16) >> 16;
+				case 0x01: return (v0[3] << 16) >> 16;
 				case 0x02: return this.regs[regId];
-				case 0x03: return (this.v1[3] << 16) >> 16;
+				case 0x03: return (v1[3] << 16) >> 16;
 				case 0x04: return this.regs[regId];
-				case 0x05: return (this.v2[3] << 16) >> 16;
+				case 0x05: return (v2[3] << 16) >> 16;
 				case 0x06: return this.regs[regId];
 				case 0x07: return (this.regs[regId] << 16) >>> 16;
 				case 0x08: return (this.ir[0] << 16) >> 16;
@@ -129,12 +129,12 @@
 			this.regs[regId] = data;
 
 			switch (regId) {
-				case 0x00: this.v0[1] = (data << 16) >> 16; this.v0[2] = (data << 0) >> 16; break;
-				case 0x01: this.v0[3] = (data << 16) >> 16; break;
-				case 0x02: this.v1[1] = (data << 16) >> 16; this.v1[2] = (data << 0) >> 16; break;
-				case 0x03: this.v1[3] = (data << 16) >> 16; break;
-				case 0x04: this.v2[1] = (data << 16) >> 16; this.v2[2] = (data << 0) >> 16; break;
-				case 0x05: this.v2[3] = (data << 16) >> 16; break;
+				case 0x00: v0[1] = (data << 16) >> 16; v0[2] = (data << 0) >> 16; break;
+				case 0x01: v0[3] = (data << 16) >> 16; break;
+				case 0x02: v1[1] = (data << 16) >> 16; v1[2] = (data << 0) >> 16; break;
+				case 0x03: v1[3] = (data << 16) >> 16; break;
+				case 0x04: v2[1] = (data << 16) >> 16; v2[2] = (data << 0) >> 16; break;
+				case 0x05: v2[3] = (data << 16) >> 16; break;
 				case 0x06: this.rgb[3] = data; break;
 				case 0x07: break;
 				case 0x08: this.ir[0] = (data << 16) >> 16; break;
@@ -167,30 +167,30 @@
 				case 0x1d: break; // readonly
 				case 0x1e: this.countLeadingZeros(data); break;
 				case 0x1f: break; // readonly
-				case 0x20: this.rt[0] = (data << 16) >> 16; this.rt[1] = (data << 0) >> 16; break;
-				case 0x21: this.rt[2] = (data << 16) >> 16; this.rt[3] = (data << 0) >> 16; break;
-				case 0x22: this.rt[4] = (data << 16) >> 16; this.rt[5] = (data << 0) >> 16; break;
-				case 0x23: this.rt[6] = (data << 16) >> 16; this.rt[7] = (data << 0) >> 16; break;
-				case 0x24: this.regs[regId] = this.rt[8] = (data << 16) >> 16; break;
-				case 0x25: this.tr[0] = (data << 0) >> 0; break;
-				case 0x26: this.tr[1] = (data << 0) >> 0; break;
-				case 0x27: this.tr[2] = (data << 0) >> 0; break;
-				case 0x28: this.ll[0] = (data << 16) >> 16; this.ll[1] = (data << 0) >> 16; break;
-				case 0x29: this.ll[2] = (data << 16) >> 16; this.ll[3] = (data << 0) >> 16; break;
-				case 0x2a: this.ll[4] = (data << 16) >> 16; this.ll[5] = (data << 0) >> 16; break;
-				case 0x2b: this.ll[6] = (data << 16) >> 16; this.ll[7] = (data << 0) >> 16; break;
-				case 0x2c: this.regs[regId] = this.ll[8] = (data << 16) >> 16; break;
-				case 0x2d: this.bk[0] = (data << 0) >> 0; break;
-				case 0x2e: this.bk[1] = (data << 0) >> 0; break;
-				case 0x2f: this.bk[2] = (data << 0) >> 0; break;
-				case 0x30: this.lc[0] = (data << 16) >> 16; this.lc[1] = (data << 0) >> 16; break;
-				case 0x31: this.lc[2] = (data << 16) >> 16; this.lc[3] = (data << 0) >> 16; break;
-				case 0x32: this.lc[4] = (data << 16) >> 16; this.lc[5] = (data << 0) >> 16; break;
-				case 0x33: this.lc[6] = (data << 16) >> 16; this.lc[7] = (data << 0) >> 16; break;
-				case 0x34: this.regs[regId] = this.lc[8] = (data << 16) >> 16; break;
-				case 0x35: this.fc[0] = (data << 0) >> 0; break;
-				case 0x36: this.fc[1] = (data << 0) >> 0; break;
-				case 0x37: this.fc[2] = (data << 0) >> 0; break;
+				case 0x20: rt[0] = (data << 16) >> 16; rt[1] = (data << 0) >> 16; break;
+				case 0x21: rt[2] = (data << 16) >> 16; rt[3] = (data << 0) >> 16; break;
+				case 0x22: rt[4] = (data << 16) >> 16; rt[5] = (data << 0) >> 16; break;
+				case 0x23: rt[6] = (data << 16) >> 16; rt[7] = (data << 0) >> 16; break;
+				case 0x24: this.regs[regId] = rt[8] = (data << 16) >> 16; break;
+				case 0x25: tr[0] = (data << 0) >> 0; break;
+				case 0x26: tr[1] = (data << 0) >> 0; break;
+				case 0x27: tr[2] = (data << 0) >> 0; break;
+				case 0x28: ll[0] = (data << 16) >> 16; ll[1] = (data << 0) >> 16; break;
+				case 0x29: ll[2] = (data << 16) >> 16; ll[3] = (data << 0) >> 16; break;
+				case 0x2a: ll[4] = (data << 16) >> 16; ll[5] = (data << 0) >> 16; break;
+				case 0x2b: ll[6] = (data << 16) >> 16; ll[7] = (data << 0) >> 16; break;
+				case 0x2c: this.regs[regId] = ll[8] = (data << 16) >> 16; break;
+				case 0x2d: bk[0] = (data << 0) >> 0; break;
+				case 0x2e: bk[1] = (data << 0) >> 0; break;
+				case 0x2f: bk[2] = (data << 0) >> 0; break;
+				case 0x30: lc[0] = (data << 16) >> 16; lc[1] = (data << 0) >> 16; break;
+				case 0x31: lc[2] = (data << 16) >> 16; lc[3] = (data << 0) >> 16; break;
+				case 0x32: lc[4] = (data << 16) >> 16; lc[5] = (data << 0) >> 16; break;
+				case 0x33: lc[6] = (data << 16) >> 16; lc[7] = (data << 0) >> 16; break;
+				case 0x34: this.regs[regId] = lc[8] = (data << 16) >> 16; break;
+				case 0x35: fc[0] = (data << 0) >> 0; break;
+				case 0x36: fc[1] = (data << 0) >> 0; break;
+				case 0x37: fc[2] = (data << 0) >> 0; break;
 				case 0x38: this.regs[regId] = (data << 0) >> 0; break;
 				case 0x39: this.regs[regId] = (data << 0) >> 0; break;
 				case 0x3a: this.regs[regId] = (data << 16) >>> 16; break;
@@ -221,7 +221,6 @@
 		},
 
 		depthCue: function () {
-			const fc = this.fc;
 			const ir = this.ir;
 			const mac = this.mac;
 			const sf = this.sf ? 4096.0 : 1.0;
@@ -307,8 +306,6 @@
 		},
 
 		cc: function () { // todo: validate
-			const bk = this.bk;
-			const lc = this.lc;
 			const ir = this.ir;
 			const mac = this.mac;
 			const rgb = this.rgb[3];
@@ -336,8 +333,6 @@
 		},
 
 		cdp: function () { // todo: validate
-			const bk = this.bk;
-			const lc = this.lc;
 			const ir = this.ir;
 			const mac = this.mac;
 			const rgb = this.rgb[3];
@@ -470,34 +465,30 @@
 
 		mvmva: function (commandId) {
 			switch ((commandId >> 17) & 0x3) {
-				case 0: var mat = this.rt; break;
-				case 1: var mat = this.ll; break;
-				case 2: var mat = this.lc; break;
-				case 3: var mat = this.zr; break;
+				case 0: var mat = rt; break;
+				case 1: var mat = ll; break;
+				case 2: var mat = lc; break;
+				case 3: var mat = zr; break;
 			}
 
 			switch ((commandId >> 15) & 0x3) {
-				case 0: var vec = this.v0; break;
-				case 1: var vec = this.v1; break;
-				case 2: var vec = this.v2; break;
+				case 0: var vec = v0; break;
+				case 1: var vec = v1; break;
+				case 2: var vec = v2; break;
 				case 3: var vec = this.ir; break;
 			}
 
 			switch ((commandId >> 13) & 0x3) {
-				case 0: var add = this.tr; break;
-				case 1: var add = this.bk; break;
-				case 2: var add = this.fc; abort('faulty'); break;
-				case 3: var add = this.zr; break;
+				case 0: var add = tr; break;
+				case 1: var add = bk; break;
+				case 2: var add = fc; abort('faulty'); break;
+				case 3: var add = zr; break;
 			}
 
 			this.transform(add, mat, vec);
 		},
 
 		nccs: function (vec) {
-			const zr = this.zr;
-			const ll = this.ll;
-			const bk = this.bk;
-			const lc = this.lc;
 			const ir = this.ir;
 			const mac = this.mac;
 			const rgb = this.rgb[3];
@@ -529,10 +520,6 @@
 		},
 
 		ncds: function (vec) {
-			const zr = this.zr;
-			const ll = this.ll;
-			const bk = this.bk;
-			const lc = this.lc;
 			const ir = this.ir;
 			const mac = this.mac;
 			const rgb = this.rgb[3];
@@ -574,10 +561,6 @@
 		},
 
 		ncs: function (vec) {
-			const zr = this.zr;
-			const ll = this.ll;
-			const bk = this.bk;
-			const lc = this.lc;
 			const ir = this.ir;
 
 			// [MAC1,MAC2,MAC3] = (LLM*V0) SAR (sf*12)
@@ -595,7 +578,6 @@
 		op: function () {
 			const mac = this.mac;
 			const ir = this.ir;
-			const rt = this.rt;
 			const sf = this.sf ? 4096.0 : 1.0;
 
 			// [MAC1,MAC2,MAC3] = [IR3*D2-IR2*D3, IR1*D3-IR3*D1, IR2*D1-IR1*D2] SAR (sf*12)
@@ -610,8 +592,6 @@
 		rtps: function (vec) {
 			// if (!this.sf) abort('not supported');
 
-			const tr = this.tr;
-			const rt = this.rt;
 			const mac = this.mac;
 			const ir = this.ir;
 			const h = this.regs[0x3a] & 0xffff;
@@ -692,28 +672,28 @@
 			this.regs[0x3f] = 0;
 
 			switch (commandId & 0x3f) {
-				case 0x01: this.rtps(this.v0); break;
+				case 0x01: this.rtps(v0); break;
 				case 0x06: this.nclip(); break;
 				case 0x0c: this.op(); break;
 				case 0x10: this.dpcs(this.rgb[3]); break;
 				case 0x11: this.intpl(); break;
 				case 0x12: this.mvmva(commandId); break;
-				case 0x13: this.ncds(this.v0); break;
+				case 0x13: this.ncds(v0); break;
 				case 0x14: this.cdp(); break;
-				case 0x16: this.ncds(this.v0); this.ncds(this.v1); this.ncds(this.v2); break;
-				case 0x1b: this.nccs(this.v0); break;
+				case 0x16: this.ncds(v0); this.ncds(v1); this.ncds(v2); break;
+				case 0x1b: this.nccs(v0); break;
 				case 0x1c: this.cc(); break;
-				case 0x1e: this.ncs(this.v0); break;
-				case 0x20: this.ncs(this.v0); this.ncs(this.v1); this.ncs(this.v2); break;
+				case 0x1e: this.ncs(v0); break;
+				case 0x20: this.ncs(v0); this.ncs(v1); this.ncs(v2); break;
 				case 0x28: this.sqr(); break;
 				case 0x29: this.dcpl(); break;
 				case 0x2a: this.dpcs(this.rgb[0]); this.dpcs(this.rgb[0]); this.dpcs(this.rgb[0]); break;
 				case 0x2d: this.avsz3(); break;
 				case 0x2e: this.avsz4(); break;
-				case 0x30: this.rtps(this.v0); this.rtps(this.v1); this.rtps(this.v2); break;
+				case 0x30: this.rtps(v0); this.rtps(v1); this.rtps(v2); break;
 				case 0x3d: this.gpf(); break;
 				case 0x3e: this.gpl(); break;
-				case 0x3f: this.nccs(this.v0); this.nccs(this.v1); this.nccs(this.v2); break;
+				case 0x3f: this.nccs(v0); this.nccs(v1); this.nccs(v2); break;
 				default: abort('gte.$' + hex(commandId, 5) + ' not yet implemented')
 			}
 		},
