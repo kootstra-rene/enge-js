@@ -1053,7 +1053,8 @@
 			x = l; w = r - l;
 			y = t; h = b - t;
 		}
-		const size = (w * h) >>> 0;
+		const size = (w * h);
+		if (size <= 0) return;
 
 		if ((clrState.color !== color) || (clrState.size < size)) {
 			clrState.color = color;
