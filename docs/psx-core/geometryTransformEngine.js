@@ -126,7 +126,6 @@
 		},
 
 		set: function (regId, data) {
-			var data = data >> 0;
 			this.regs[regId] = data;
 
 			switch (regId) {
@@ -254,7 +253,6 @@
 		},
 
 		transform: function (add, mat, vec) {
-			const ir = this.ir;
 			const mac = this.mac;
 			const sf = this.sf ? 4096.0 : 1.0;
 
@@ -309,8 +307,6 @@
 		},
 
 		cc: function () { // todo: validate
-			const zr = this.zr;
-			const ll = this.ll;
 			const bk = this.bk;
 			const lc = this.lc;
 			const ir = this.ir;
@@ -340,8 +336,6 @@
 		},
 
 		cdp: function () { // todo: validate
-			const zr = this.zr;
-			const ll = this.ll;
 			const bk = this.bk;
 			const lc = this.lc;
 			const ir = this.ir;
@@ -437,7 +431,6 @@
 		},
 
 		gpl: function () {
-			const ir = this.ir;
 			const mac = this.mac;
 			const sf = this.sf ? 4096.0 : 1.0;
 
