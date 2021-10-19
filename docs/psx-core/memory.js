@@ -43,6 +43,36 @@
 	const map8 = new Int8Array(map.buffer);
 	const map16 = new Int16Array(map.buffer);
 
+	function hwRead8(base) {
+		switch (base & 0x3fff) {
+			case 0x1040: return joy.rd08r1040();
+			case 0x1044: return (joy.rd16r1044() << 24) >> 24;
+			case 0x1054: return 0 >> 0;
+			case 0x1060: return map8[addr >>> 0] >> 0;
+			case 0x1070: return (cpu.istat << 24) >> 24;
+			case 0x10f0: return (dma.rd16r10f0() << 24) >> 24;
+			case 0x10f6: return dma.rd08r10f6();
+			case 0x1100: return (rc0.getValue() << 24) >> 24;
+			case 0x1800: return cdr.rd08r1800();
+			case 0x1801: return cdr.rd08r1801();
+			case 0x1802: return cdr.rd08r1802();
+			case 0x1803: return cdr.rd08r1803();
+			case 0x1814: return (gpu.rd32r1814() << 24) >> 24;
+			case 0x1824: return (mdc.rd32r1824() << 24) >> 24;
+			default: if (base < 0x01801000) {
+				return map8[base >>> 0];
+			}
+				if (base >= 0x01802000) {
+					psx.clock += 10;
+					return map8[base >>> 0];
+				}
+				if ((base >= 0x01801C00) && (base < 0x01802000)) { //chronocross
+					return spu.getInt16(base & 0x3fff);
+				}
+				break;
+		}
+	}
+
 	function memRead8(addr) {
 		const base = (addr & 0x01ffffff) >>> 0;
 
@@ -52,33 +82,7 @@
 		}
 
 		if ((base >= 0x01800000) && (base < 0x01803000)) {
-			switch (base & 0x3fff) {
-				case 0x1040: return joy.rd08r1040();
-				case 0x1044: return (joy.rd16r1044() << 24) >> 24;
-				case 0x1054: return 0 >> 0;
-				case 0x1060: return map8[addr >>> 0] >> 0;
-				case 0x1070: return (cpu.istat << 24) >> 24;
-				case 0x10f0: return (dma.rd16r10f0() << 24) >> 24;
-				case 0x10f6: return dma.rd08r10f6();
-				case 0x1100: return (rc0.getValue() << 24) >> 24;
-				case 0x1800: return cdr.rd08r1800();
-				case 0x1801: return cdr.rd08r1801();
-				case 0x1802: return cdr.rd08r1802();
-				case 0x1803: return cdr.rd08r1803();
-				case 0x1814: return (gpu.rd32r1814() << 24) >> 24;
-				case 0x1824: return (mdc.rd32r1824() << 24) >> 24;
-				default: if (base < 0x01801000) {
-					return map8[base >>> 0];
-				}
-					if (base >= 0x01802000) {
-						psx.clock += 10;
-						return map8[base >>> 0];
-					}
-					if ((base >= 0x01801C00) && (base < 0x01802000)) { //chronocross
-						return spu.getInt16(base & 0x3fff);
-					}
-					break;
-			}
+			return (hwRead8(base) << 24) >> 24;
 		}
 		if (base >= 0x01A00000 && base < 0x01A80000) {
 			psx.clock += 5;
@@ -98,6 +102,47 @@
 		abort(`r8: unable to load from $${hex(addr, 8)}`)
 	}
 
+	function hwRead16(base) {
+		switch (base & 0x3fff) {
+			case 0x1014: return map16[base >>> 1];
+			case 0x1044: return joy.rd16r1044();
+			case 0x104a: return joy.rd16r104a();
+			case 0x104e: return joy.rd16r104e();
+			case 0x1054: return 0x00;
+			case 0x105a: return 0x00;
+			case 0x105e: return 0x00;
+			case 0x1060: return map16[addr >>> 1] >> 0;
+			case 0x1070: return cpu.istat;
+			case 0x1074: return cpu.imask;
+			case 0x10f0: return dma.rd16r10f0();
+			case 0x1100: return rc0.getValue();
+			case 0x1104: return rc0.getMode();
+			case 0x1108: return rc0.getTarget();
+			case 0x1110: return rc1.getValue();
+			case 0x1114: return rc1.getMode();
+			case 0x1118: return rc1.getTarget();
+			case 0x1120: return rc2.getValue();
+			case 0x1124: return rc2.getMode();
+			case 0x1128: return rc2.getTarget();
+			case 0x1130: return 0 >> 0;
+			case 0x1800: return cdr.rd08r1800();
+			case 0x1814: return (gpu.rd32r1814() << 16) >> 16;
+			case 0x1824: return (mdc.rd32r1824() << 16) >> 16;
+			default:
+				if (base < 0x01801000) {
+					return map16[base >>> 1];
+				}
+				if (base >= 0x01802000) {
+					psx.clock += 24;
+					return map16[base >>> 1];
+				}
+				if ((base >= 0x01801C00) && (base < 0x01802000)) {
+					return spu.getInt16(base & 0x3fff);
+				}
+				break;
+		}
+	}
+
 	function memRead16(addr) {
 		const base = addr & 0x01ffffff;
 		if (base < 0x00800000) {
@@ -106,44 +151,9 @@
 		}
 
 		if ((base >= 0x01800000) && (base < 0x01803000)) {
-			switch (base & 0x3fff) {
-				case 0x1014: return map16[base >>> 1];
-				case 0x1044: return joy.rd16r1044();
-				case 0x104a: return joy.rd16r104a();
-				case 0x104e: return joy.rd16r104e();
-				case 0x1054: return 0x00;
-				case 0x105a: return 0x00;
-				case 0x105e: return 0x00;
-				case 0x1060: return map16[addr >>> 1] >> 0;
-				case 0x1070: return cpu.istat;
-				case 0x1074: return cpu.imask;
-				case 0x10f0: return dma.rd16r10f0();
-				case 0x1100: return rc0.getValue();
-				case 0x1104: return rc0.getMode();
-				case 0x1108: return rc0.getTarget();
-				case 0x1110: return rc1.getValue();
-				case 0x1114: return rc1.getMode();
-				case 0x1118: return rc1.getTarget();
-				case 0x1120: return rc2.getValue();
-				case 0x1124: return rc2.getMode();
-				case 0x1128: return rc2.getTarget();
-				case 0x1130: return 0 >> 0;
-				case 0x1800: return cdr.rd08r1800();
-				case 0x1814: return (gpu.rd32r1814() << 16) >> 16;
-				case 0x1824: return (mdc.rd32r1824() << 16) >> 16;
-				default: if (base < 0x01801000) {
-					return map16[base >>> 1];
-				}
-					if (base >= 0x01802000) {
-						psx.clock += 24;
-						return map16[base >>> 1];
-					}
-					if ((base >= 0x01801C00) && (base < 0x01802000)) {
-						return spu.getInt16(base & 0x3fff);
-					}
-					break;
-			}
+			return (hwRead16(base) << 16) >> 16;
 		}
+
 		if (base >= 0x01A00000 && base < 0x01A80000) {
 			psx.clock += 5;
 			return map16[base >>> 1] >> 0;
