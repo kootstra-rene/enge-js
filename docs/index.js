@@ -74,10 +74,8 @@
 
 		context.realtime += delta;
 
-		let diffTime = context.realtime - context.emutime;
-		const timeToEmulate = diffTime;
-
-		const totalCycles = timeToEmulate * (PSX_SPEED / 1000);
+		const diffTime = context.realtime - context.emutime;
+		const totalCycles = diffTime * (PSX_SPEED / 1000);
 
 		endAnimationFrame = false;
 		psx.setEvent(frameEvent, +totalCycles);
