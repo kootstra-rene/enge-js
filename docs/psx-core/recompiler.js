@@ -558,13 +558,18 @@
 		lines.push('}');
 		lines.push('return target;');
 
+		if (pc < 0x00200000) {
+			const id = fastCache[pc];
+			lines.unshift(`if (fastCache[${pc}] !== ${id}) { return invalidateCache(target); }`);
+		}
 		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};`);
-
 		return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
 	}
 
 
 	const cached = new Map();
+	const fastCache = new Uint8Array(0x00200000);
+	fastCache.fill(0);
 
 	Object.seal(state);
 	Object.seal(rec);
@@ -580,11 +585,10 @@
 		const words = !size ? 4 >>> 0 : size >>> 0;
 
 		const ibase = getCacheIndex(addr);
+		if (ibase >= 0x00200000) return;
+
 		for (let i = 0 >>> 0; i < words; i += 4) {
-			const entry = cached.get(ibase + i);
-			if (entry) {
-				entry.code = lazyCompile.bind(entry);
-			}
+			++fastCache[ibase + i];
 		}
 	}
 
@@ -607,7 +611,12 @@
 	scope.getCacheEntry = getCacheEntry;
 	scope.clearCodeCache = clearCodeCache;
 	scope.vector = null;
-	scope.cached = cached; // debugging
+	scope.fastCache = fastCache;
+
+	scope.invalidateCache = entry => {
+		entry.code = lazyCompile.bind(entry);
+		return entry;
+	}
 
 	const CacheEntryFactory = {
 		createCacheEntry: pc => Object.seal({
