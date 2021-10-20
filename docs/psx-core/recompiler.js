@@ -428,7 +428,7 @@
 
 	function compileInstruction(state, lines, delaySlot) {
 		const iwordIndex = getCacheIndex(state.pc);
-		const opcode = map[iwordIndex];
+		const opcode = map[iwordIndex >> 2];
 		var opc = 0;
 		switch ((opcode >>> 26) & 0x3f) {
 			default: opc = 0x00 + ((opcode >>> 26) & 0x3f); break;
@@ -528,7 +528,7 @@
 		const pc = entry.pc >>> 0;
 		let lines = compileBlockLines(entry);
 		if (lines.length === 8) {
-			const lineIndex = lines[0].indexOf('8fa20010');
+			const lineIndex = lines[0].indexOf('-8fa20010');
 			if (-1 !== lineIndex) {
 				if (lineIndex === lines[1].indexOf('00000000') &&
 					lineIndex === lines[2].indexOf('2442ffff') &&
@@ -539,7 +539,7 @@
 					lineIndex === lines[7].indexOf('00000000')
 				) {
 					console.warn('HLE idle detected...');
-					lines.splice(0,6, ['gpr[2] = --map[((16 + gpr[29]) & 0x001ffffc) >>> 2];']);
+					lines.splice(0, 6, ['gpr[2] = --map[((16 + gpr[29]) & 0x01fffffc) >>> 2];']);
 					state.cycles *= 4;
 					entry.hle = true;
 				}
@@ -571,24 +571,19 @@
 	Object.seal(cached);
 
 	function getCacheIndex(pc) {
-		let ipc = pc & 0x01ffffff;
+		let ipc = pc & 0x01fffffc;
 		if (ipc < 0x800000) ipc &= 0x1fffff;
-		return ipc >>> 2;
+		return ipc;
 	}
 
 	function clearCodeCache(addr, size) {
 		const words = !size ? 4 >>> 0 : size >>> 0;
 
-		let ibase = getCacheIndex(addr);
+		const ibase = getCacheIndex(addr);
 		for (let i = 0 >>> 0; i < words; i += 4) {
-			const entry = cached.get(ibase);
+			const entry = cached.get(ibase + i);
 			if (entry) {
 				entry.code = lazyCompile.bind(entry);
-				ibase += (entry.size >> 2);
-				i += entry.size;
-			}
-			else {
-				++ibase;
 			}
 		}
 	}
@@ -603,7 +598,7 @@
 		let entry = cached.get(lutIndex);
 
 		if (!entry) {
-			cached.set(lutIndex, entry = CacheEntryFactory.createCacheEntry(lutIndex << 2));
+			cached.set(lutIndex, entry = CacheEntryFactory.createCacheEntry(lutIndex));
 			entry.code = lazyCompile.bind(entry);
 		}
 		return entry;
