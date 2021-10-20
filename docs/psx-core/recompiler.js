@@ -520,13 +520,30 @@
 			lines.unshift(`trace(${pc}, gpr[9]);`);
 		}
 
+		entry.size = state.pc - pc;
 		return lines;
 	}
 
 	function compileBlock(entry) {
 		const pc = entry.pc >>> 0;
 		let lines = compileBlockLines(entry);
-
+		if (lines.length === 8) {
+			const lineIndex = lines[0].indexOf('8fa20010');
+			if (-1 !== lineIndex) {
+				if (lineIndex === lines[1].indexOf('00000000') &&
+					lineIndex === lines[2].indexOf('2442ffff') &&
+					lineIndex === lines[3].indexOf('afa20010') &&
+					lineIndex === lines[4].indexOf('8fa20010') &&
+					lineIndex === lines[5].indexOf('00000000') &&
+					lineIndex === lines[6].indexOf('1443000b') &&
+					lineIndex === lines[7].indexOf('00000000')
+				) {
+					lines.splice(0,6, [`gpr[2] = --map[((16 + gpr[29]) & 0x001ffffc) >>> 2];`]);
+					state.cycles *= 4;
+					entry.hle = true;
+				}
+			}
+		}
 		let cycles = state.cycles;
 
 		let jumps = [
@@ -535,12 +552,12 @@
 			pc
 		];
 		lines.push('');
-		lines.push('if((psx.clock += ' + cycles + ') >= psx.eventClock) {');
+		lines.push('if ((psx.clock += ' + cycles + ') >= psx.eventClock) {');
 		lines.push('  return psx.handleEvents(target);');
 		lines.push('}');
 		lines.push('return target;');
 
-		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)}; target.last = psx.clock`);
+		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};`);
 
 		return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
 	}
@@ -561,11 +578,16 @@
 	function clearCodeCache(addr, size) {
 		const words = !size ? 4 >>> 0 : size >>> 0;
 
-		const ibase = getCacheIndex(addr);
+		let ibase = getCacheIndex(addr);
 		for (let i = 0 >>> 0; i < words; i += 4) {
-			const entry = cached.get(ibase + (i >>> 2));
+			const entry = cached.get(ibase);
 			if (entry) {
 				entry.code = lazyCompile.bind(entry);
+				ibase += (entry.size >> 2);
+				i += entry.size;
+			}
+			else {
+				++ibase;
 			}
 		}
 	}
@@ -595,7 +617,8 @@
 		createCacheEntry: pc => Object.seal({
 			pc: pc >>> 0,
 			code: null,
-			last: 0
+			size: 0,
+			hle: false
 		})
 	};
 
