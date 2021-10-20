@@ -43,8 +43,8 @@
 	const map8 = new Int8Array(map.buffer);
 	const map16 = new Int16Array(map.buffer);
 
-	function hwRead8(base) {
-		switch (base & 0x3fff) {
+	function hwRead8(addr) {
+		switch (addr & 0x3fff) {
 			case 0x1040: return joy.rd08r1040();
 			case 0x1044: return (joy.rd16r1044() << 24) >> 24;
 			case 0x1054: return 0 >> 0;
@@ -60,15 +60,15 @@
 			case 0x1814: return (gpu.rd32r1814() << 24) >> 24;
 			case 0x1824: return (mdc.rd32r1824() << 24) >> 24;
 			default:
-				if (base < 0x01801000) {
-					return map8[base >>> 0];
+				if (addr < 0x01801000) {
+					return map8[addr >>> 0];
 				}
-				if (base >= 0x01802000) {
+				if (addr >= 0x01802000) {
 					psx.clock += 10;
-					return map8[base >>> 0];
+					return map8[addr >>> 0];
 				}
-				if ((base >= 0x01801C00) && (base < 0x01802000)) { //chronocross
-					return spu.getInt16(base & 0x3fff);
+				if ((addr >= 0x01801C00) && (addr < 0x01802000)) { //chronocross
+					return spu.getInt16(addr & 0x3fff);
 				}
 				break;
 		}
@@ -103,9 +103,9 @@
 		abort(`r8: unable to load from $${hex(addr, 8)}`)
 	}
 
-	function hwRead16(base) {
-		switch (base & 0x3fff) {
-			case 0x1014: return map16[base >>> 1];
+	function hwRead16(addr) {
+		switch (addr & 0x3fff) {
+			case 0x1014: return map16[addr >>> 1];
 			case 0x1044: return joy.rd16r1044();
 			case 0x104a: return joy.rd16r104a();
 			case 0x104e: return joy.rd16r104e();
@@ -130,15 +130,15 @@
 			case 0x1814: return (gpu.rd32r1814() << 16) >> 16;
 			case 0x1824: return (mdc.rd32r1824() << 16) >> 16;
 			default:
-				if (base < 0x01801000) {
-					return map16[base >>> 1];
+				if (addr < 0x01801000) {
+					return map16[addr >>> 1];
 				}
-				if (base >= 0x01802000) {
+				if (addr >= 0x01802000) {
 					psx.clock += 24;
-					return map16[base >>> 1];
+					return map16[addr >>> 1];
 				}
-				if ((base >= 0x01801C00) && (base < 0x01802000)) {
-					return spu.getInt16(base & 0x3fff);
+				if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
+					return spu.getInt16(addr & 0x3fff);
 				}
 				break;
 		}
@@ -255,8 +255,8 @@
 		abort(`r32: unable to load from $${hex(addr, 8)}`)
 	}
 
-	function hwWrite8(base, data) {
-		switch (base & 0x3fff) {
+	function hwWrite8(addr, data) {
+		switch (addr & 0x3fff) {
 			case 0x1040: return joy.wr08r1040(data);
 			case 0x10f6: return dma.wr08r10f6(data);
 			case 0x1800: return cdr.wr08r1800(data);
@@ -269,8 +269,9 @@
 
 	function memWrite8(addr, data) {
 		const base = (addr & 0x01ffffff) >>> 0;
+
 		if (base < 0x00800000) {
-			map8[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 0] = data;
+			map8[((base & 0x001fffff) | cpu.forceWriteBits) >>> 0] = data;
 			clearCodeCache(base, 4);
 			psx.clock += 1;
 			return;
@@ -286,9 +287,9 @@
 		abort(`w8: unable to store at $${hex(addr, 8)}`)
 	}
 
-	function hwWrite16(base, data) {
-		switch (base & 0x3fff) {
-			case 0x1014: return map16[base >>> 1] = data;
+	function hwWrite16(addr, data) {
+		switch (addr & 0x3fff) {
+			case 0x1014: return map16[addr >>> 1] = data;
 			case 0x1048: return joy.wr16r1048(data);
 			case 0x104a: return joy.wr16r104a(data);
 			case 0x104e: return joy.wr16r104e(data);
@@ -308,9 +309,9 @@
 			case 0x1124: return rc2.setMode(data);
 			case 0x1128: return rc2.setTarget(data);
 			default:
-				if ((base >= 0x01801C00) && (base < 0x01802000)) {
-					map16[base >>> 1] = data;
-					return spu.setInt16(base & 0x3fff, data);
+				if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
+					map16[addr >>> 1] = data;
+					return spu.setInt16(addr & 0x3fff, data);
 				}
 				abort(`w16: unable to store at $${hex(addr, 8)}`);
 				break;
@@ -319,8 +320,9 @@
 
 	function memWrite16(addr, data) {
 		const base = (addr & 0x01ffffff) >>> 0;
+
 		if (base < 0x00800000) {
-			map16[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 1] = data;
+			map16[((base & 0x001fffff) | cpu.forceWriteBits) >>> 1] = data;
 			clearCodeCache(base, 4);
 			psx.clock += 1;
 			return;
@@ -389,7 +391,7 @@
 		const base = (addr & 0x01ffffff) >>> 0;
 
 		if (base < 0x00800000) {
-			map[((addr & 0x001fffff) | cpu.forceWriteBits) >>> 2] = data;
+			map[((base & 0x001fffff) | cpu.forceWriteBits) >>> 2] = data;
 			clearCodeCache(base, 4);
 			psx.clock += 1;
 			return;

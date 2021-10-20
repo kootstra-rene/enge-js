@@ -509,6 +509,7 @@
 		},
 
 		dmaTransferMode0200: function (addr, blck) {
+			if (!addr) return;
 			var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
 			clearCodeCache( addr, transferSize << 1);
 
@@ -529,6 +530,7 @@
 		},
 
 		dmaTransferMode0201: function (addr, blck) {
+			if (!addr) return;
 			if ((addr & ~3) === 0) {
 				return (blck >> 16) * (blck & 0xFFFF);
 			}
@@ -551,6 +553,7 @@
 		},
 
 		dmaTransferMode0401: function (addr, blck) {
+			if (!addr) return;
 			if (gpu.dmaIndex !== 0) abort('not implemented')
 			if ((addr & ~3) === 0) {
 				return (blck >> 16) * (blck & 0xFFFF);
@@ -613,6 +616,7 @@
 		},
 
 		dmaLinkedListMode0002: function (addr, blck) {
+			if (!addr) return;
 			if ((addr & ~3) === 0) {
 				return (blck >> 16) * (blck & 0xFFFF);
 			}
