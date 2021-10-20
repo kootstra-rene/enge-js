@@ -131,8 +131,8 @@
 		if ((data[0] & 0xffff) === 0x5350) { // PS
 			cpu.pc = data.getInt32(0x10);
 			cpu.gpr[28] = data.getInt32(0x14);
-			cpu.gpr[29] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001fff00;
-			cpu.gpr[30] = data.getInt32(0x30) ? data.getInt32(0x30) : 0x001fff00;
+			cpu.gpr[29] = data.getInt32(0x30);
+			cpu.gpr[30] = data.getInt32(0x30);
 			cpu.gpr[31] = cpu.pc;
 			console.log('init-pc  : $', hex(cpu.pc >>> 0));
 			console.log('init-gp  : $', hex(cpu.gpr[28] >>> 0));
@@ -145,7 +145,7 @@
 			console.log('data-size: $', hex(data.getInt32(0x24) >>> 0));
 
 			var textSegmentOffset = data.getInt32(0x18);
-			var fileContentLength = view8.length;
+			var fileContentLength = data.getInt32(0x1C);
 			for (var i = 0; i < fileContentLength; ++i) {
 				map8[(textSegmentOffset & 0x001fffff) >>> 0] = view8[(0x800 + i) >>> 0];
 				textSegmentOffset++;
