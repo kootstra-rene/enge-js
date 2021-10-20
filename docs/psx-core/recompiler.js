@@ -528,7 +528,7 @@
 		const pc = entry.pc >>> 0;
 		let lines = compileBlockLines(entry);
 		if (lines.length === 8) {
-			const lineIndex = lines[0].indexOf('-8fa20010');
+			const lineIndex = lines[0].indexOf('8fa20010');
 			if (-1 !== lineIndex) {
 				if (lineIndex === lines[1].indexOf('00000000') &&
 					lineIndex === lines[2].indexOf('2442ffff') &&
