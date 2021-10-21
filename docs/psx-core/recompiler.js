@@ -552,17 +552,17 @@
 			state.pc >>> 0,
 			pc
 		];
-		lines.push('');
+		lines.push(' ');
 		lines.push('if ((psx.clock += ' + cycles + ') >= psx.eventClock) {');
 		lines.push('  return psx.handleEvents(target);');
 		lines.push('}');
 		lines.push('return target;');
 
+		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
 		if (pc < 0x00200000) {
 			const id = fastCache[pc];
-			lines.unshift(`if (fastCache[${pc}] !== ${id}) { return invalidateCache(target); }`);
+			lines.unshift(`if (fastCache[${pc}] !== ${id}) { return invalidateCache(_${hex(pc)}); }`);
 		}
-		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};`);
 		return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
 	}
 
