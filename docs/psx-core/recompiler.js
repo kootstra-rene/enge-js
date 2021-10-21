@@ -535,7 +535,7 @@
 					lineIndex === lines[3].indexOf('afa20010') &&
 					lineIndex === lines[4].indexOf('8fa20010') &&
 					lineIndex === lines[5].indexOf('00000000') &&
-					lineIndex === lines[6].indexOf('1443') &&
+					lineIndex === lines[6].indexOf('144') &&
 					lineIndex === lines[7].indexOf('00000000')
 				) {
 					console.warn('HLE idle detected...');
