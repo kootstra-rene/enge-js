@@ -78,7 +78,7 @@
 		const base = (addr & 0x01ffffff) >>> 0;
 
 		if (base < 0x00800000) {
-			psx.clock += 5;
+			psx.clock += 2;
 			return map8[(base & 0x001fffff) >>> 0];
 		}
 
@@ -147,7 +147,7 @@
 	function memRead16(addr) {
 		const base = addr & 0x01ffffff;
 		if (base < 0x00800000) {
-			psx.clock += 5;
+			psx.clock += 3;
 			return map16[(base & 0x001fffff) >>> 1];
 		}
 
