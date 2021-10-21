@@ -514,8 +514,6 @@
 	}
 
 	WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
-		var gl = this.gl;
-
 		var o = 0;
 		var img = gpu.img;
 		img.x = dx;
@@ -537,8 +535,6 @@
 	}
 
 	WebGLRenderer.prototype.storeImage = function (img) {
-		var gl = this.gl;
-
 		var o = 0;
 		var data = img.buffer;
 		var vram = this.vram;
