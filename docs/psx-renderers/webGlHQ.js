@@ -341,6 +341,10 @@
 		var cy = ((cl >>> 6) & 0x1ff);
 
 		if (tm === 2) return 3;
+
+		let cachedClutInfo = clutCache[cl & 0x7fff];
+		if (cachedClutInfo) return cachedClutInfo;
+
 		if (tm === 1) var len = 256;
 		if (tm === 0) var len = 16;
 
@@ -358,6 +362,8 @@
 				}
 			}
 		}
+
+		clutCache[cl & 0x7fff] = info;
 		return info;
 	}
 
@@ -968,11 +974,6 @@
 			buffer.addVertex(x + w, y + 0, c);
 			buffer.addVertex(x + 0, y + h, c);
 			buffer.addVertex(x + w, y + h, c);
-
-			if (!c) {
-				this.flushVertexBuffer(true);
-				this.clearVRAM(x, y, w, h, c, true);
-			}
 			return;
 		}
 
@@ -1031,59 +1032,8 @@
 		}
 	}
 
-	let clr = new Uint16Array(1024 * 512);
-	const clrState = {
-		color: 0,
-		c: 0,
-		size: 1024 * 512
-	};
-	clr.fill(0);
-
-	WebGLRenderer.prototype.clearVRAM = function (x, y, w, h, color, clip) {
-		var gl = this.gl;
-
-		// update clear buffer;
-		if (clip && !(gpu.status & (1 << 21))) {
-			let l, r, t, b;
-			l = (x <= gpu.drawAreaX1) ? gpu.drawAreaX1 : x;
-			r = ((x + w) >= gpu.drawAreaX2) ? gpu.drawAreaX2 : x + w;
-			t = (y <= gpu.drawAreaY1) ? gpu.drawAreaY1 : y;
-			b = ((y + h) >= gpu.drawAreaY2) ? gpu.drawAreaY2 : y + h;
-
-			x = l; w = r - l;
-			y = t; h = b - t;
-		}
-		const size = (w * h);
-		if (size <= 0) return;
-
-		if ((clrState.color !== color) || (clrState.size < size)) {
-			clrState.color = color;
-			clrState.size = size;
-
-			const r = (color >>> 3) & 0x1f;
-			const g = (color >>> 11) & 0x1f;
-			const b = (color >>> 19) & 0x1f;
-			const c = (b << 10) | (g << 5) | r;
-			clrState.c = c;
-
-			clr.fill(c, 0, size);
-		}
-
-		// can comment out for performance reasons but introduces glitches
-		for (let j = 0; j < h; ++j) {
-			const offsetY = ((y + j) % 512) * 1024;
-			for (let i = 0; i < w; ++i) {
-				this.vram[offsetY + ((x + i) % 1024)] = clrState.c;
-			}
-		}
-
-		gl.activeTexture(this.gl.TEXTURE1);
-		gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);
-
-		// copy image to GPU
-		const view = new Uint8Array(clr.buffer, 0, size << 1);
-		gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
-	}
+	let clutCache = new Uint8Array(65536);
+	clutCache.fill(0);
 
 	WebGLRenderer.prototype.fillRectangle = function (data) {
 		var gl = this.gl;
@@ -1106,8 +1056,6 @@
 			h = 512 - y;
 		}
 		this.flushVertexBuffer(true);
-		this.clearVRAM(x, y, w, h, c, false);
-
 		var buffer = this.getVertexBuffer(6, 0);
 		buffer.addVertex(x + 0, y + 0, c);
 		buffer.addVertex(x + w, y + 0, c);
