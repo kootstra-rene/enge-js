@@ -910,6 +910,9 @@
 		var v2 = (data[uv2] >>> 8) & 255;
 		var u3 = (data[uv3] >>> 0) & 255;
 		var v3 = (data[uv3] >>> 8) & 255;
+
+		if (u1 === u2 && u2 === u3 && v1 === v2 && v2 === v3) return;
+
 		var cx = ((cl >>> 0) & 0x03f) * 16;
 		var cy = ((cl >>> 6) & 0x1ff);
 
@@ -954,6 +957,7 @@
 		var c = (data[0] & 0xfefefe);
 		var w = (data[2] << 16) >> 16;
 		var h = (data[2] >> 16);
+		if (!w || !h) return;
 
 		var showT1 = !this.outsideDrawArea(x + 0, y + 0, x + w - 1, y + 0, x + 0, y + h - 1);
 		var showT2 = !this.outsideDrawArea(x + 0, y + h - 1, x + w - 1, y + 0, x + w - 1, y + h - 1);
