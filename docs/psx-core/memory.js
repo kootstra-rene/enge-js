@@ -74,14 +74,11 @@
 		}
 	}
 
-	function memRead8(addr) {
-		const base = (addr & 0x01ffffff) >>> 0;
-
+	function memRead8(base) {
 		if (base < 0x00800000) {
 			psx.clock += 2;
 			return map8[(base & 0x001fffff) >>> 0];
 		}
-
 		if ((base >= 0x01800000) && (base < 0x01803000)) {
 			return (hwRead8(base) << 24) >> 24;
 		}
@@ -100,7 +97,7 @@
 		if (base === 0x01fe0130) {
 			return map8[base >>> 0] >> 0;
 		}
-		abort(`r8: unable to load from $${hex(addr, 8)}`)
+		abort(`r8: unable to load from $${hex(base, 8)}`)
 	}
 
 	function hwRead16(addr) {
@@ -144,17 +141,14 @@
 		}
 	}
 
-	function memRead16(addr) {
-		const base = addr & 0x01ffffff;
+	function memRead16(base) {
 		if (base < 0x00800000) {
 			psx.clock += 3;
 			return map16[(base & 0x001fffff) >>> 1];
 		}
-
 		if ((base >= 0x01800000) && (base < 0x01803000)) {
 			return (hwRead16(base) << 16) >> 16;
 		}
-
 		if (base >= 0x01A00000 && base < 0x01A80000) {
 			psx.clock += 5;
 			return map16[base >>> 1] >> 0;
@@ -170,7 +164,7 @@
 		if (base === 0x01fe0130) {
 			return map16[base >>> 1] >> 0;
 		}
-		abort(`r16: unable to load from $${hex(addr, 8)}`)
+		abort(`r16: unable to load from $${hex(base, 8)}`)
 	}
 
 	function hwRead32(addr) {
@@ -226,9 +220,7 @@
 		abort(`r32: unable to load from $${hex(addr, 8)}`)
 	}
 
-	function memRead32(addr) {
-		const base = (addr & 0x01ffffff) >>> 0;
-
+	function memRead32(base) {
 		if (base < 0x00800000) {
 			psx.clock += 5;
 			return map[(base & 0x001fffff) >>> 2] >> 0;
@@ -252,7 +244,7 @@
 			psx.clock += 24;
 			return map[base >>> 2];
 		}
-		abort(`r32: unable to load from $${hex(addr, 8)}`)
+		abort(`r32: unable to load from $${hex(base, 8)}`)
 	}
 
 	function hwWrite8(addr, data) {
@@ -267,9 +259,7 @@
 		}
 	}
 
-	function memWrite8(addr, data) {
-		const base = (addr & 0x01ffffff) >>> 0;
-
+	function memWrite8(base, data) {
 		if (base < 0x00800000) {
 			map8[((base & 0x001fffff) | cpu.forceWriteBits) >>> 0] = data;
 			clearCodeCache(base, 4);
@@ -284,7 +274,7 @@
 		if (base === 0x1802041) {
 			return map8[base >>> 0] = data;
 		}
-		abort(`w8: unable to store at $${hex(addr, 8)}`)
+		abort(`w8: unable to store at $${hex(base, 8)}`)
 	}
 
 	function hwWrite16(addr, data) {
@@ -318,9 +308,7 @@
 		}
 	}
 
-	function memWrite16(addr, data) {
-		const base = (addr & 0x01ffffff) >>> 0;
-
+	function memWrite16(base, data) {
 		if (base < 0x00800000) {
 			map16[((base & 0x001fffff) | cpu.forceWriteBits) >>> 1] = data;
 			clearCodeCache(base, 4);
@@ -332,7 +320,7 @@
 			if (base >= 0x01801000) hwWrite16(base, data);
 			return;
 		}
-		abort(`w16: unable to store at $${hex(addr, 8)}`)
+		abort(`w16: unable to store at $${hex(base, 8)}`)
 	}
 
 	function hwWrite32(addr, data) {
@@ -387,9 +375,7 @@
 		}
 	}
 
-	function memWrite32(addr, data) {
-		const base = (addr & 0x01ffffff) >>> 0;
-
+	function memWrite32(base, data) {
 		if (base < 0x00800000) {
 			map[((base & 0x001fffff) | cpu.forceWriteBits) >>> 2] = data;
 			clearCodeCache(base, 4);

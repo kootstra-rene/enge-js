@@ -228,7 +228,7 @@
 				'target = cpuException(8 << 2, 0x' + hex(rec.pc) + ');';
 		},
 
-		'compile4D': function (rec, opc) {
+		'compile4D': function (rec, opc) { return '//nop';
 			rec.stop = true;
 			rec.break = true;
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': break\n' +
@@ -474,7 +474,7 @@
 		},
 		getOF: function (opcode) {
 			const offset = ((opcode << 16) >> 16);
-			return `((${offset} + ${this.reg(this.rs)}) >>> 0)`;
+			return `((${offset} + ${this.reg(this.rs)}) & 0x01ffffff)`;
 		},
 		setReg: function (mips, nr, value, isconst) {
 			const iword = map[(this.pc & 0x01ffffff) >>> 2];
@@ -520,7 +520,6 @@
 			lines.unshift(`trace(${pc}, gpr[9]);`);
 		}
 
-		entry.size = state.pc - pc;
 		return lines;
 	}
 
@@ -538,10 +537,8 @@
 					lineIndex === lines[6].indexOf('144') &&
 					lineIndex === lines[7].indexOf('00000000')
 				) {
-					console.warn('HLE idle detected...');
+					console.warn(`HLE idle detected @$${hex(pc)}...`);
 					lines.splice(0, 6, ['gpr[2] = --map[((16 + gpr[29]) & 0x01fffffc) >>> 2];']);
-					state.cycles *= 4;
-					entry.hle = true;
 				}
 			}
 		}
@@ -550,18 +547,22 @@
 		let jumps = [
 			state.branchTarget >>> 0,
 			state.pc >>> 0,
-			pc
-		];
+			pc >>> 0
+		].filter(a => a);
+
 		lines.push(' ');
+		lines.push(`_${hex(pc)}.clock = psx.clock + ${cycles};`);
+		lines.push(`++_${hex(pc)}.count;`);
 		lines.push('if ((psx.clock += ' + cycles + ') >= psx.eventClock) {');
 		lines.push('  return psx.handleEvents(target);');
 		lines.push('}');
 		lines.push('return target;');
 
-		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
+		// lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
+		lines.unshift(`const gpr = cpu.gpr; let target = null;\n`);
 		if (pc < 0x00200000) {
-			const id = fastCache[pc];
-			lines.unshift(`if (fastCache[${pc}] !== ${id}) { return invalidateCache(_${hex(pc)}); }`);
+			lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(_${hex(pc)}); }`);
+			fastCache[pc] = 1;
 		}
 		return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
 	}
@@ -582,13 +583,11 @@
 	}
 
 	function clearCodeCache(addr, size) {
-		const words = !size ? 4 >>> 0 : size >>> 0;
-
 		const ibase = getCacheIndex(addr);
 		if (ibase >= 0x00200000) return;
 
-		for (let i = 0 >>> 0; i < words; i += 4) {
-			++fastCache[ibase + i];
+		for (let i = 0 >>> 0; i < size; i += 4) {
+			fastCache[ibase + i] = 0;
 		}
 	}
 
@@ -612,8 +611,10 @@
 	scope.clearCodeCache = clearCodeCache;
 	scope.vector = null;
 	scope.fastCache = fastCache;
+	scope.cached = cached;
 
 	scope.invalidateCache = entry => {
+		// console.log(`recompiling @${hex(entry.pc)}`); 
 		entry.code = lazyCompile.bind(entry);
 		return entry;
 	}
@@ -622,8 +623,8 @@
 		createCacheEntry: pc => Object.seal({
 			pc: pc >>> 0,
 			code: null,
-			size: 0,
-			hle: false
+			count: 0 >>> 0,
+			clock: 0 >>> 0,
 		})
 	};
 
