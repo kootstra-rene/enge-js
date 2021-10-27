@@ -654,7 +654,7 @@
 			}
 		},
 
-		cycles: function (commandId) { //return 0;
+		cycles: function (commandId) {
 			switch (commandId & 0x3f) {
 				case 0x01: return 15;
 				case 0x06: return 8;
