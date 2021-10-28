@@ -10,3 +10,4 @@
 |SLUS-01041| Chrono Cross | US | Playable | 2021-06-02 |
 |SLUS-01152| 102 Dalmatians - Puppies to the Rescue | US | Playable | 2021-06-02 |
 |SLUS-01272| 007 - The World is not Enough | US | Playable | 2021-06-02 |
+|SCES-01495| Medievil | US | Playable | 2021-10-28 |
