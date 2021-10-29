@@ -21,6 +21,7 @@
 		'compile02': function (rec, opc) {
 			rec.stop = true;
 			rec.jump = true;
+			rec.skipNext = true;
 			rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': j       $' + hex(rec.branchTarget) + '\n' +
 				`target = _${hex(rec.branchTarget)};`;
@@ -39,28 +40,28 @@
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': beq     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) === (${rec.getRT()} >> 0)) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
+				`target = (${rec.getRS()} === ${rec.getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
 		},
 
 		'compile05': function (rec, opc) {
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bne     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) !== (${rec.getRT()} >> 0)) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
+				`target = (${rec.getRS()} !== ${rec.getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
 		},
 
 		'compile06': function (rec, opc) {
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': blez    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) <= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
+				`target = (${rec.getRS()} <= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
 		},
 
 		'compile07': function (rec, opc) {
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgtz    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) > 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
+				`target = (${rec.getRS()} > 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
 		},
 
 		'compile08': function (rec, opc) {
@@ -209,6 +210,7 @@
 		'compile48': function (rec, opc) {
 			rec.stop = true;
 			rec.jump = true;
+			rec.skipNext = true;
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': jr      r' + rec.rs + '\n' +
 				'target = getCacheEntry(' + rec.getRS() + ');';
 		},
@@ -335,21 +337,21 @@
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bltz    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
+				`target = (${rec.getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
 		},
 
 		'compile81': function (rec, opc) {
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgez    r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
+				`target = (${rec.getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};`;
 		},
 
 		'compile90': function (rec, opc) {
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bltzal  r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};` +
+				`target = (${rec.getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};` +
 				rec.reg(31) + ' = 0x' + hex(rec.pc + 8) + '\n';
 		},
 
@@ -357,7 +359,7 @@
 			rec.stop = true;
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': bgezal  r' + rec.rs + ', $' + hex(opc, 4) + '\n' +
-				`target = ((${rec.getRS()} >> 0) >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};` +
+				`target = (${rec.getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};` +
 				rec.reg(31) + ' = 0x' + hex(rec.pc + 8) + '\n';
 		},
 
@@ -456,6 +458,7 @@
 		'cause': false,
 		'sr': false,
 		'cycles': 0,
+		'skipNext': false,
 		entry: null,
 		branchTarget: 0,
 		jump: false,
@@ -491,6 +494,7 @@
 			this.cause = false;
 			this.sr = false;
 			this.cycles = 0;
+			this.skipNext = false;
 		}
 	};
 
@@ -526,33 +530,17 @@
 	function compileBlock(entry) {
 		const pc = entry.pc >>> 0;
 		let lines = compileBlockLines(entry);
-		if (lines.length === 8) {
-			const lineIndex = lines[0].indexOf('8fa20010');
-			if (-1 !== lineIndex) {
-				if (lineIndex === lines[1].indexOf('00000000') &&
-					lineIndex === lines[2].indexOf('2442ffff') &&
-					lineIndex === lines[3].indexOf('afa20010') &&
-					lineIndex === lines[4].indexOf('8fa20010') &&
-					lineIndex === lines[5].indexOf('00000000') &&
-					lineIndex === lines[6].indexOf('144') &&
-					lineIndex === lines[7].indexOf('00000000')
-				) {
-					console.warn(`HLE idle detected @$${hex(pc)}...`);
-					lines.splice(0, 6, ['gpr[2] = --map[((16 + gpr[29]) & 0x01fffffc) >>> 2];']);
-				}
-			}
-		}
 		let cycles = state.cycles;
 
 		let jumps = [
 			state.branchTarget >>> 0,
-			state.pc >>> 0,
-			pc >>> 0
+			state.skipNext ? 0 : state.pc >>> 0,
 		].filter(a => a);
 
 		lines.push(' ');
-		lines.push(`_${hex(pc)}.clock = psx.clock + ${cycles};`);
-		lines.push(`++_${hex(pc)}.count;`);
+		lines.push(`this.clock = psx.clock + ${cycles};`);
+		lines.push(`++this.count;`);
+		lines.push(' ');
 		lines.push('if ((psx.clock += ' + cycles + ') >= psx.eventClock) {');
 		lines.push('  return psx.handleEvents(target);');
 		lines.push('}');
@@ -561,7 +549,7 @@
 		// lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
 		lines.unshift(`const gpr = cpu.gpr; let target = null;\n`);
 		if (pc < 0x00200000) {
-			lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(_${hex(pc)}); }`);
+			lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(this); }`);
 			fastCache[pc] = 1;
 		}
 		return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
@@ -602,7 +590,7 @@
 
 		if (!entry) {
 			cached.set(lutIndex, entry = CacheEntryFactory.createCacheEntry(lutIndex));
-			entry.code = lazyCompile.bind(entry);
+			entry.code = lazyCompile;
 		}
 		return entry;
 	}
@@ -615,7 +603,9 @@
 
 	scope.invalidateCache = entry => {
 		// console.log(`recompiling @${hex(entry.pc)}`); 
-		entry.code = lazyCompile.bind(entry);
+		entry.code  = lazyCompile;
+		entry.count = 0;
+		entry.clock = 0;
 		return entry;
 	}
 
