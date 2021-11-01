@@ -2,7 +2,7 @@
 
 	'use strict';
 
-	class MemoryBlock extends Uint32Array {
+	class MemoryBlock extends Int32Array {
 
 		getInt8(index) {
 			switch (index & 3) {

@@ -63,6 +63,10 @@
 		const $ = psx;
 		while (!endAnimationFrame) {
 			entry = entry.code($);
+			
+			if (psx.clock >= psx.eventClock) {
+				entry = psx.handleEvents(entry);
+			}
 		}
 		cpu.pc = entry.pc;
 	}
@@ -96,6 +100,9 @@
 		const $ = psx;
 		while (entry.pc !== 0x00030000) {
 			entry = entry.code($);
+			if (psx.clock >= psx.eventClock) {
+				entry = psx.handleEvents(entry);
+			}
 		}
 		context.realtime = context.emutime = psx.clock / (PSX_SPEED / 1000);
 		vector = getCacheEntry(0x80);
@@ -154,7 +161,7 @@
 			clearCodeCache(data.getInt32(0x18), view8.length);
 			running = true;
 		}
-		else if (data[0] === 0xffffff00) { // ISO
+		else if (data[0] === (0xffffff00 >> 0)) { // ISO
 			// auto build TOC (attempt to not need .cue files)
 			let loc = 0;
 			let lastLoc = data.length / (2352 / 4);

@@ -610,24 +610,20 @@
 		].filter(a => a);
 
 		if (state.branchTarget === pc) {
-			console.warn(`loop at $${hex(pc)}`);
+			// console.warn(`loop at $${hex(pc)}`);
 			lines.unshift(`while (psx.clock < psx.eventClock) {`);
-			lines.push(`if (target === _${hex(state.pc)}) break;`);
-			lines.push(' ');
-			lines.push(`this.clock = psx.clock;`);
 			lines.push(`++this.count;`);
+			lines.push(`if (target === _${hex(state.pc)}) break;`);
 			lines.push('}');
+			lines.push(`this.clock = psx.clock;`);
 			lines.push(' ');
-			lines.push('return psx.handleEvents(target);');
+			lines.push('return target;');
 		}
 		else {
 			lines.push(' ');
 			lines.push(`this.clock = psx.clock;`);
 			lines.push(`++this.count;`);
 			lines.push(' ');
-			lines.push('if (psx.clock >= psx.eventClock) {');
-			lines.push('  return psx.handleEvents(target);');
-			lines.push('}');
 			lines.push('return target;');
 		}
 
