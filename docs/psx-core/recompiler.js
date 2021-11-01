@@ -66,12 +66,24 @@
 
 		'compile08': function (rec, opc) {
 			var mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+			if (ConstantFolding.isConst(rec.rs)) {
+				const immediate = ((opc << 16) >> 16);
+				const value = ConstantFolding.getConst(rec.rs) + immediate;
+				ConstantFolding.setConst(rec.rt, value);
+				return rec.setReg(mips, rec.rt, `0x${hex(value)}`);
+			}
 			ConstantFolding.resetConst(rec.rt);
 			return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
 		},
 
 		'compile09': function (rec, opc) {
 			var mips = 'addiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+			if (ConstantFolding.isConst(rec.rs)) {
+				const immediate = ((opc << 16) >> 16);
+				const value = ConstantFolding.getConst(rec.rs) + immediate;
+				ConstantFolding.setConst(rec.rt, value);
+				return rec.setReg(mips, rec.rt, `0x${hex(value)}`);
+			}
 			ConstantFolding.resetConst(rec.rt);
 			return rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
 		},
@@ -90,12 +102,24 @@
 
 		'compile0C': function (rec, opc) {
 			var mips = 'andi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+			if (ConstantFolding.isConst(rec.rs)) {
+				const immediate = ((opc << 16) >>> 16);
+				const value = ConstantFolding.getConst(rec.rs) & immediate;
+				ConstantFolding.setConst(rec.rt, value);
+				return rec.setReg(mips, rec.rt, `0x${hex(value)}`);
+			}
 			ConstantFolding.resetConst(rec.rt);
 			return rec.setReg(mips, rec.rt, rec.getRS() + ' & 0x' + hex(opc, 4));
 		},
 
 		'compile0D': function (rec, opc) {
 			var mips = 'ori     r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
+			if (ConstantFolding.isConst(rec.rs)) {
+				const immediate = ((opc << 16) >>> 16);
+				const value = ConstantFolding.getConst(rec.rs) | immediate;
+				ConstantFolding.setConst(rec.rt, value);
+				return rec.setReg(mips, rec.rt, `0x${hex(value)}`);
+			}
 			ConstantFolding.resetConst(rec.rt);
 			return rec.setReg(mips, rec.rt, rec.getRS() + ' | 0x' + hex(opc, 4));
 		},
@@ -261,7 +285,8 @@
 				'target = cpuException(8 << 2, 0x' + hex(rec.pc) + ');';
 		},
 
-		'compile4D': function (rec, opc) { return '//nop';
+		'compile4D': function (rec, opc) {
+			return '//nop';
 			rec.stop = true;
 			rec.break = true;
 			return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': break\n' +
@@ -663,7 +688,7 @@
 
 	scope.invalidateCache = entry => {
 		// console.log(`recompiling @${hex(entry.pc)}`); 
-		entry.code  = lazyCompile;
+		entry.code = lazyCompile;
 		entry.count = 0;
 		entry.clock = 0;
 		return entry;
@@ -675,17 +700,17 @@
 		resetState: function () {
 			this.state.fill(0);
 		},
-		isConst: function(regId) {
+		isConst: function (regId) {
 			return this.state[regId];
 		},
-		getConst: function(regId) {
+		getConst: function (regId) {
 			return this.values[regId];
 		},
-		setConst: function(regId, value) {
+		setConst: function (regId, value) {
 			this.values[regId] = value;
 			this.state[regId] = 1;
 		},
-		resetConst: function(regId) {
+		resetConst: function (regId) {
 			this.state[regId] = 0;
 		},
 	};
