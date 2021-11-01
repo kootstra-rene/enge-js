@@ -354,7 +354,7 @@
 
 		// Rectangle
 		handlePacket60: function (data) {
-			renderer.drawRectangle([data[0], data[1], data[2]]);
+			renderer.drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
 		},
 
 		// Sprite
@@ -366,12 +366,12 @@
 
 		// Dot
 		handlePacket68: function (data) {
-			renderer.drawRectangle([data[0], data[1], 0x00010001]);
+			renderer.drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
 		},
 
 		// 8*8 rectangle
 		handlePacket70: function (data) {
-			renderer.drawRectangle([data[0], data[1], 0x00080008]);
+			renderer.drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
 		},
 
 		// 8*8 sprite
@@ -383,7 +383,7 @@
 
 		// 16*16 rectangle
 		handlePacket78: function (data) {
-			renderer.drawRectangle([data[0], data[1], 0x00100010]);
+			renderer.drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
 		},
 
 		// 16*16 sprite
