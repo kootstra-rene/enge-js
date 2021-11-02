@@ -24,7 +24,7 @@
 			rec.skipNext = true;
 			rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
 			const mips = 'j       $' + hex(rec.branchTarget);
-			const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)};`);
+			const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)}`);
 			return code;
 		},
 
@@ -34,6 +34,7 @@
 			rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
 			const mips = 'jal     $' + hex(rec.branchTarget);
 			const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+			ConstantFolding.resetConst(31);
 			return code;
 		},
 
@@ -72,7 +73,7 @@
 		'compile08': function (rec, opc) {
 			const mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
 			if (ConstantFolding.isConst(rec.rs)) {
-				const immediate = ((opc << 16) >> 16);
+				const immediate = (opc << 16) >> 16;
 				const value = ConstantFolding.getConst(rec.rs) + immediate;
 				const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
 				ConstantFolding.setConst(rec.rt, value);
@@ -86,7 +87,7 @@
 		'compile09': function (rec, opc) {
 			const mips = 'addiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
 			if (ConstantFolding.isConst(rec.rs)) {
-				const immediate = ((opc << 16) >> 16);
+				const immediate = (opc << 16) >> 16;
 				const value = ConstantFolding.getConst(rec.rs) + immediate;
 				const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
 				ConstantFolding.setConst(rec.rt, value);
@@ -232,7 +233,7 @@
 
 		'compile2B': function (rec, opc) {
 			const mips = 'sw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-			const code = rec.setReg(mips, 0, 'memWrite32(' + rec.getOF(opc) + ', ' + rec.getRT() + ')');
+			const code = rec.setReg(mips, 0, `memWrite32(${rec.getOF(opc)}, ${rec.getRT()})`);
 			return code;
 		},
 
@@ -311,6 +312,7 @@
 			rec.jump = true;
 			const mips = 'jalr    r' + rec.rs + ', r' + rec.rd;
 			const code = rec.setReg(mips, rec.rd, '0x' + hex(rec.pc + 8) + ';\ntarget = getCacheEntry(' + rec.getRS() + ')');
+			ConstantFolding.resetConst(rec.rd);
 			return code;
 		},
 
@@ -417,6 +419,12 @@
 
 		'compile65': function (rec, opc) {
 			const mips = 'or      r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
+			if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
+				const value = ConstantFolding.getConst(rec.rs) | ConstantFolding.getConst(rec.rt);
+				const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
+				ConstantFolding.setConst(rec.rd, value);
+				return code;
+			}
 			const code = rec.setReg(mips, rec.rd, rec.getRS() + ' | ' + rec.getRT());
 			ConstantFolding.resetConst(rec.rd);
 			return code;
@@ -471,6 +479,7 @@
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			const mips = 'bltzal  r' + rec.rs + ', $' + hex(opc, 4);
 			const code = rec.setReg(mips, 0, `target = (${rec.getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+			ConstantFolding.resetConst(31);
 			return code;
 		},
 
@@ -479,6 +488,7 @@
 			rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
 			const mips = 'bgezal  r' + rec.rs + ', $' + hex(opc, 4);
 			const code = rec.setReg(mips, 0, `target = (${rec.getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+			ConstantFolding.resetConst(31);
 			return code;
 		},
 
@@ -598,18 +608,25 @@
 			return r ? 'gpr[' + r + ']' : '0';
 		},
 		getRS: function () {
-			const r = this.rs;
-			return `${this.reg(r)}`;
+			if (ConstantFolding.isConst(this.rs)) {
+				return `(0x${hex(ConstantFolding.getConst(this.rs))}|0)`;
+			}
+			return `${this.reg(this.rs)}`;
 		},
 		getRT: function () {
-			const r = this.rt;
-			return `${this.reg(r)}`;
+			if (ConstantFolding.isConst(this.rt)) {
+				return `(0x${hex(ConstantFolding.getConst(this.rt))}|0)`;
+			}
+			return `${this.reg(this.rt)}`;
 		},
 		getOF: function (opcode) {
 			const offset = ((opcode << 16) >> 16);
+			if (ConstantFolding.isConst(this.rs)) {
+				return `0x${hex((offset + ConstantFolding.getConst(this.rs)) & 0x01ffffff)}`;
+			}
 			return `((${offset} + ${this.reg(this.rs)}) & 0x01ffffff)`;
 		},
-		setReg: function (mips, nr, value, isconst) {
+		setReg: function (mips, nr, value) {
 			const iword = map[(this.pc & 0x01ffffff) >>> 2];
 			let command = '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
 			command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
@@ -756,14 +773,16 @@
 			this.state.fill(0);
 		},
 		isConst: function (regId) {
-			return this.state[regId];
+			return !regId || this.state[regId];
 		},
 		getConst: function (regId) {
-			return this.values[regId];
+			return !regId ? 0 : this.values[regId];
 		},
 		setConst: function (regId, value) {
-			this.values[regId] = value;
-			this.state[regId] = 1;
+			if (regId) {
+				this.values[regId] = value;
+				this.state[regId] = 1;
+			}
 		},
 		resetConst: function (regId) {
 			this.state[regId] = 0;
