@@ -658,13 +658,13 @@
 		},
 		getRS: function () {
 			if (ConstantFolding.isConst(this.rs)) {
-				return `(0x${hex(ConstantFolding.getConst(this.rs))}|0)`;
+				return this.rs ? `(0x${hex(ConstantFolding.getConst(this.rs))}|0)` : '0';
 			}
 			return `${this.reg(this.rs)}`;
 		},
 		getRT: function () {
 			if (ConstantFolding.isConst(this.rt)) {
-				return `(0x${hex(ConstantFolding.getConst(this.rt))}|0)`;
+				return this.rt ? `(0x${hex(ConstantFolding.getConst(this.rt))}|0)` : '0';
 			}
 			return `${this.reg(this.rt)}`;
 		},
@@ -850,4 +850,11 @@
 		})
 	};
 
+	scope.stats = scope.stats || {};
+	scope.stats.top25 = (seconds = 1) => {
+		const sinceClock = psx.clock - 33868800 * seconds;
+		const codeBlocks = [...cached.values()].filter(a => a.clock > sinceClock);
+		const count = codeBlocks.reduce((a, b) => a + b.count, 0);
+		codeBlocks.sort((a, b) => b.count - a.count).slice(0, 25).forEach(a => console.log(`${(a.count / count).toFixed(3)}`, a));
+	}
 })(window);
