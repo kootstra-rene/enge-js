@@ -554,7 +554,7 @@
 
 		dmaTransferMode0401: function (addr, blck) {
 			if (!addr) return;
-			if (gpu.dmaIndex !== 0) abort('not implemented')
+			// if (gpu.dmaIndex !== 0) abort('not implemented')
 			if ((addr & ~3) === 0) {
 				return (blck >> 16) * (blck & 0xFFFF);
 			}
@@ -582,7 +582,7 @@
 					if (packetSizes[packetId] === 0) {
 						addr += 4; ++words;
 						nitem = 0;
-						continue;
+						return words;
 					}
 					if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
 						let i = 0;
