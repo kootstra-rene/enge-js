@@ -100,14 +100,14 @@
 
 		'compile0A': function (rec, opc) {
 			const mips = 'slti    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-			const code = rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' >> 0) < (' + ((opc << 16) >> 16) + ' >> 0)');
+			const code = rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' < ' + ((opc << 16) >> 16) + ') ? 1 : 0');
 			ConstantFolding.resetConst(rec.rt);
 			return code;
 		},
 
 		'compile0B': function (rec, opc) {
 			const mips = 'sltiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-			const code = rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' >>> 0) < (' + ((opc << 16) >> 16) + ' >>> 0)');
+			const code = rec.setReg(mips, rec.rt, '((' + rec.getRS() + ' >>> 0) < (' + ((opc << 16) >> 16) + ' >>> 0)) ? 1 : 0');
 			ConstantFolding.resetConst(rec.rt);
 			return code;
 		},
@@ -495,7 +495,7 @@
 
 		'compile6A': function (rec, opc) {
 			const mips = 'slt     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-			const code = rec.setReg(mips, rec.rd, '((' + rec.getRS() + ' >> 0) < (' + rec.getRT() + ' >> 0)) ? 1 : 0');
+			const code = rec.setReg(mips, rec.rd, '(' + rec.getRS() + ' < ' + rec.getRT() + ') ? 1 : 0');
 			ConstantFolding.resetConst(rec.rd);
 			return code;
 		},
@@ -658,13 +658,21 @@
 		},
 		getRS: function () {
 			if (ConstantFolding.isConst(this.rs)) {
-				return this.rs ? `(0x${hex(ConstantFolding.getConst(this.rs))}|0)` : '0';
+				const value = ConstantFolding.getConst(this.rs);
+				if (value < -127 || value > 127) {
+					return `(0x${hex(value)}|0)`;
+				}
+				return `${value}`;
 			}
 			return `${this.reg(this.rs)}`;
 		},
 		getRT: function () {
 			if (ConstantFolding.isConst(this.rt)) {
-				return this.rt ? `(0x${hex(ConstantFolding.getConst(this.rt))}|0)` : '0';
+				const value = ConstantFolding.getConst(this.rt);
+				if (value < -127 || value > 127) {
+					return `(0x${hex(value)}|0)`;
+				}
+				return `${value}`;
 			}
 			return `${this.reg(this.rt)}`;
 		},
@@ -681,7 +689,7 @@
 		setReg: function (mips, nr, value) {
 			const iword = map[(this.pc & 0x01ffffff) >>> 2];
 			let command = '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
-			command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
+			if (value) command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
 			return command;
 		},
 		clear: function () {
@@ -730,7 +738,7 @@
 
 	function compileBlock(entry) {
 		const pc = entry.pc >>> 0;
-		let lines = compileBlockLines(entry);
+		let lines = compileBlockLines(entry).join('\n').split('\n');
 
 		let jumps = [
 			state.branchTarget >>> 0,
@@ -738,10 +746,10 @@
 		].filter(a => a);
 
 		if (state.branchTarget === pc) {
-			// console.warn(`loop at $${hex(pc)}`);
+			lines = lines.map(a =>  `  ${a}`);
 			lines.unshift(`while (psx.clock < psx.eventClock) {`);
-			lines.push(`++this.count;`);
-			lines.push(`if (target === _${hex(state.pc)}) break;`);
+			lines.push(`  ++this.count;`);
+			lines.push(`  if (target === _${hex(state.pc)}) break;`);
 			lines.push('}');
 			lines.push(`this.clock = psx.clock;`);
 			lines.push(' ');
@@ -855,6 +863,8 @@
 		const sinceClock = psx.clock - 33868800 * seconds;
 		const codeBlocks = [...cached.values()].filter(a => a.clock > sinceClock);
 		const count = codeBlocks.reduce((a, b) => a + b.count, 0);
-		codeBlocks.sort((a, b) => b.count - a.count).slice(0, 25).forEach(a => console.log(`${(a.count / count).toFixed(3)}`, a));
+		codeBlocks.sort((a, b) => b.count - a.count).slice(0, 25).forEach(a => {
+			console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, {code: a.code});
+		});
 	}
 })(window);
