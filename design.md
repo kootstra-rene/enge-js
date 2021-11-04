@@ -249,3 +249,24 @@ Running *getCodeStats(**2**,5).map(a => \`${a.addr} - ${a.calls}\`).join()* give
 ```
 
 In conclusion detecting the inner-loop and outer-loop functions and optimising the compiler would possibly give a good performance improvement without refactoring to much code.
+
+
+interesting profiles
+
+  legend of kain
+  - lots of small functions that slow down emulation
+  chrono cross
+  - during fmv single loop function waiting for a change
+  - lots of small functions that slow down emulation
+  - but also the two main functions seen in demo's (idle loop)
+  102 dalmatians
+  - small loops taking up most of emulation time
+
+ideas
+
+  - loop functions that only read (RAM) don't need to loop but can immediatly go to the next event.
+  - determine hot functions i.e. invoked more then 100 times, then force recompile to optimise.
+    - detect memory regions for writes and reads, RAM, BIOS, HW. 
+      - ideally detect if writes/reads occur at the same address for maximum optimisation.
+    - detect small functions an mark them as inline.
+  - create blocks including branches but not jumps to reduce function calls and sanity checks.
