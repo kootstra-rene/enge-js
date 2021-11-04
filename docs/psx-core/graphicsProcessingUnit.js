@@ -33,7 +33,7 @@
 		dispT: 16,
 		dispX: 0,
 		dispY: 0,
-		dmaBuffer: new Int32Array(256 * 4),
+		dmaBuffer: new Int32Array(1024),
 		dmaIndex: 0,
 		drawAreaX1: 0,
 		drawAreaX2: 0,
@@ -565,7 +565,7 @@
 			let words = 0;
 			for (; ;) {
 				addr = addr & 0x001fffff;
-				if (check[addr] === sequence) return;
+				if (check[addr] === sequence) return words;
 				check[addr] = sequence;
 				var header = map[addr >> 2];
 				var nitem = header >>> 24;
@@ -575,15 +575,17 @@
 
 				while (nitem > 0) {
 					// check for endless loop.
-					if (check[addr] === sequence) return;
+					if (check[addr] === sequence) return words;
 					check[addr] = sequence;
 
 					const packetId = map[addr >> 2] >>> 24;
 					if (packetSizes[packetId] === 0) {
+						// console.log('unknown packet', hex(packetId, 2))
 						addr += 4; ++words;
-						nitem = 0;
-						return words;
+						nitem--;
+						if (packetId === 0xff) continue; else return words;
 					}
+					else
 					if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
 						let i = 0;
 						for (; i < 256; ++i) {
