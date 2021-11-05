@@ -740,6 +740,9 @@
 		const pc = entry.pc >>> 0;
 		let lines = compileBlockLines(entry).join('\n').split('\n');
 
+		entry.jump = getCacheEntry(state.branchTarget);
+		entry.next = state.skipNext ? null : getCacheEntry(state.pc);
+
 		let jumps = [
 			state.branchTarget >>> 0,
 			state.skipNext ? 0 : state.pc >>> 0,
@@ -853,6 +856,8 @@
 		createCacheEntry: pc => Object.seal({
 			pc: pc >>> 0,
 			code: null,
+			jump: null,
+			next: null,
 			count: 0 >>> 0,
 			clock: 0 >>> 0,
 		})
@@ -867,4 +872,17 @@
 			console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, {code: a.code});
 		});
 	}
+
+	scope.stats.loop = (seconds = 1, top = 25) => {
+		const sinceClock = psx.clock - 33868800 * seconds;
+		const codeBlocks = [...cached.values()].filter(a => a.clock > sinceClock);
+		codeBlocks.sort((a, b) => b.count - a.count).slice(0, top).forEach(a => {
+			const loopSelf = !!(a.jump === a);
+			const loopJumpJump = !!(a.jump && a.jump !== a && a.jump.jump === a);
+			const loopJumpNext = !!(a.jump && a.jump !== a && a.jump.next === a);
+			const loopNextJump = !!(a.next && a.next.jump === a);
+			console.log(`$${hex(a.pc)}\t`, {code: a.code}, `\t${loopSelf}\t${loopJumpJump}\t${loopJumpNext}\t${loopNextJump}`);
+		});
+	}
+
 })(window);
