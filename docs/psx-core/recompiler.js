@@ -748,10 +748,15 @@
 			state.skipNext ? 0 : state.pc >>> 0,
 		].filter(a => a);
 
+		entry.text = lines.join('\n');
+		if (!entry.opt) {
+			lines.push(`if (this.count >= 10000) {`);
+			lines.push('  CodeTrace.optimise(this);');
+			lines.push('}');
+		}
 		lines.push(' ');
 		lines.push(`this.clock = psx.clock;`);
 		lines.push(`++this.count;`);
-		entry.text = lines.join('\n');
 		lines.push(' ');
 		lines.push('return target;');
 
@@ -814,6 +819,7 @@
 		entry.code = lazyCompile;
 		entry.count = 0;
 		entry.clock = 0;
+		entry.opt = false;
 		return entry;
 	}
 
@@ -848,18 +854,47 @@
 			next: null,
 			count: 0 >>> 0,
 			clock: 0 >>> 0,
+			opt: false,
 			text: ''
 		})
 	};
 
-	const TRACE_SIZE = 16;
+	const TRACE_SIZE = 1024;
 
 	scope.CodeTrace = {
+		loop: [],
 		history: new Array(TRACE_SIZE),
 		index: 0,
 		add: function (entry) {
-			this.history[++this.index] = entry;
-			this.index %= TRACE_SIZE;
+			this.index = (this.index + 1) % TRACE_SIZE;
+			this.history[this.index] = entry;
+		},
+		detectLoop: function (entry) {
+			for (let i = 1; i < 8; ++i) {
+				const index = (this.index - i + TRACE_SIZE) % TRACE_SIZE;
+				if (this.history[index].opt) return 0;
+				if (this.history[index] === entry) {
+					return i;
+				}
+			}
+			return 0;
+		},
+		optimise: function (entry) {
+			if ((psx.clock - entry.clock) < 1024) {
+				const loopSize = CodeTrace.detectLoop(entry);
+				if (loopSize) {
+					const startIndex = (this.index - loopSize + TRACE_SIZE) % TRACE_SIZE;
+					const address = [];
+					for (let i = 0; i < loopSize; ++i) {
+						const e = this.history[(startIndex + i) % TRACE_SIZE];
+						// console.log('-', e.text);
+						address.push('@'+hex(e.pc));
+					}
+					console.log(`loop @${hex(entry.pc)}`, address);
+				}
+			}
+			invalidateCache(entry);
+			entry.opt = true;
 		}
 	};
 
