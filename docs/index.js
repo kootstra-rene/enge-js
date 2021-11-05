@@ -63,9 +63,10 @@
 		const $ = psx;
 		while (!endAnimationFrame) {
 			entry = entry.code($);
+			CodeTrace.add(entry);
 			
-			if (psx.clock >= psx.eventClock) {
-				entry = psx.handleEvents(entry);
+			if ($.clock >= $.eventClock) {
+				entry = $.handleEvents(entry);
 			}
 		}
 		cpu.pc = entry.pc;
@@ -100,8 +101,10 @@
 		const $ = psx;
 		while (entry.pc !== 0x00030000) {
 			entry = entry.code($);
-			if (psx.clock >= psx.eventClock) {
-				entry = psx.handleEvents(entry);
+			CodeTrace.add(entry);
+
+			if ($.clock >= $.eventClock) {
+				entry = $.handleEvents(entry);
 			}
 		}
 		context.realtime = context.emutime = psx.clock / (PSX_SPEED / 1000);

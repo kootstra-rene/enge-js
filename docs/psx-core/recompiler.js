@@ -749,7 +749,7 @@
 		].filter(a => a);
 
 		if (state.branchTarget === pc) {
-			lines = lines.map(a =>  `  ${a}`);
+			lines = lines.map(a => `  ${a}`);
 			lines.unshift(`while (psx.clock < psx.eventClock) {`);
 			lines.push(`  ++this.count;`);
 			lines.push(`  if (target === _${hex(state.pc)}) break;`);
@@ -864,26 +864,25 @@
 		})
 	};
 
+	const TRACE_SIZE = 16;
+
+	scope.CodeTrace = {
+		history: new Array(TRACE_SIZE),
+		index: 0,
+		add: function (entry) {
+			this.history[this.index++] = entry;
+			this.index %= TRACE_SIZE;
+		}
+	};
+
 	scope.stats = scope.stats || {};
 	scope.stats.top = (seconds = 1, top = 25) => {
 		const sinceClock = psx.clock - 33868800 * seconds;
 		const codeBlocks = [...cached.values()].filter(a => a.clock > sinceClock);
 		const count = codeBlocks.reduce((a, b) => a + b.count, 0);
 		codeBlocks.sort((a, b) => b.count - a.count).slice(0, top).forEach(a => {
-			console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, {code: a.code}, `\t${a.count}`);
+			console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, { code: a.code }, `\t${a.count}`);
 		});
 	}
 
-	scope.stats.loop = (seconds = 1, top = 25) => {
-		const sinceClock = psx.clock - 33868800 * seconds;
-		const codeBlocks = [...cached.values()].filter(a => a.clock > sinceClock);
-		codeBlocks.sort((a, b) => b.count - a.count).slice(0, top).forEach(a => {
-			const loopSelf = !!(a.jump === a);
-			const loopJumpJump = !!(a.jump && a.jump !== a && a.jump.jump === a);
-			const loopJumpNext = !!(a.jump && a.jump !== a && a.jump.next === a);
-			const loopNextJump = !!(a.next && a.next.jump === a);
-			console.log(`$${hex(a.pc)}\t`, {code: a.code}, `\t${loopSelf}\t${loopJumpJump}\t${loopJumpNext}\t${loopNextJump}`);
-		});
-	}
-
-	})(window);
+})(window);
