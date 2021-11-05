@@ -748,24 +748,12 @@
 			state.skipNext ? 0 : state.pc >>> 0,
 		].filter(a => a);
 
-		if (state.branchTarget === pc) {
-			lines = lines.map(a => `  ${a}`);
-			lines.unshift(`while (psx.clock < psx.eventClock) {`);
-			lines.push(`  ++this.count;`);
-			lines.push(`  if (target === _${hex(state.pc)}) break;`);
-			lines.push('}');
-			lines.push(`this.clock = psx.clock;`);
-			lines.push(' ');
-			lines.push('return target;');
-		}
-		else {
-			lines.push(' ');
-			lines.push(`this.clock = psx.clock;`);
-			lines.push(`++this.count;`);
-			entry.text = lines.join('\n');
-			lines.push(' ');
-			lines.push('return target;');
-		}
+		lines.push(' ');
+		lines.push(`this.clock = psx.clock;`);
+		lines.push(`++this.count;`);
+		entry.text = lines.join('\n');
+		lines.push(' ');
+		lines.push('return target;');
 
 		lines.unshift(`const gpr = cpu.gpr; let target = null;\n`);
 		if (pc < 0x00200000) {
