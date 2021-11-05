@@ -62,8 +62,8 @@
 
 		const $ = psx;
 		while (!endAnimationFrame) {
-			entry = entry.code($);
 			CodeTrace.add(entry);
+			entry = entry.code($);
 			
 			if ($.clock >= $.eventClock) {
 				entry = $.handleEvents(entry);
@@ -100,8 +100,8 @@
 		let entry = getCacheEntry(0xbfc00000);
 		const $ = psx;
 		while (entry.pc !== 0x00030000) {
-			entry = entry.code($);
 			CodeTrace.add(entry);
+			entry = entry.code($);
 
 			if ($.clock >= $.eventClock) {
 				entry = $.handleEvents(entry);

@@ -858,7 +858,7 @@
 		history: new Array(TRACE_SIZE),
 		index: 0,
 		add: function (entry) {
-			this.history[this.index++] = entry;
+			this.history[++this.index] = entry;
 			this.index %= TRACE_SIZE;
 		}
 	};
