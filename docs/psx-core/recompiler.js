@@ -864,12 +864,12 @@
 	};
 
 	scope.stats = scope.stats || {};
-	scope.stats.top25 = (seconds = 1) => {
+	scope.stats.top = (seconds = 1, top = 25) => {
 		const sinceClock = psx.clock - 33868800 * seconds;
 		const codeBlocks = [...cached.values()].filter(a => a.clock > sinceClock);
 		const count = codeBlocks.reduce((a, b) => a + b.count, 0);
-		codeBlocks.sort((a, b) => b.count - a.count).slice(0, 25).forEach(a => {
-			console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, {code: a.code});
+		codeBlocks.sort((a, b) => b.count - a.count).slice(0, top).forEach(a => {
+			console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, {code: a.code}, `\t${a.count}`);
 		});
 	}
 
