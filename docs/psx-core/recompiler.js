@@ -762,11 +762,11 @@
 			lines.push(' ');
 			lines.push(`this.clock = psx.clock;`);
 			lines.push(`++this.count;`);
+			entry.text = lines.join('\n');
 			lines.push(' ');
 			lines.push('return target;');
 		}
 
-		// lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
 		lines.unshift(`const gpr = cpu.gpr; let target = null;\n`);
 		if (pc < 0x00200000) {
 			lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(this); }`);
@@ -860,6 +860,7 @@
 			next: null,
 			count: 0 >>> 0,
 			clock: 0 >>> 0,
+			text: ''
 		})
 	};
 
@@ -885,4 +886,4 @@
 		});
 	}
 
-})(window);
+	})(window);
