@@ -903,6 +903,7 @@
 	};
 
 	const TRACE_SIZE = 1024;
+	const MAX_BLOCKSIZE = 4;
 
 	scope.CodeTrace = {
 		loop: [],
@@ -913,7 +914,7 @@
 			this.history[this.index] = entry;
 		},
 		detectLoop: function (entry) {
-			for (let i = 1; i < 8; ++i) {
+			for (let i = 1; i <= MAX_BLOCKSIZE; ++i) {
 				const index = (this.index - i + TRACE_SIZE) % TRACE_SIZE;
 				if (this.history[index].opt) return 0;
 				if (!this.history[index].jump || !this.history[index].next) return 0;
@@ -928,14 +929,14 @@
 				const loopSize = CodeTrace.detectLoop(entry);
 				if (loopSize) {
 					const startIndex = (this.index - loopSize + TRACE_SIZE) % TRACE_SIZE;
-					const address = [];
+					// const address = [];
 					const blocks = [];
 					for (let i = 0; i < loopSize; ++i) {
 						const e = this.history[(startIndex + i) % TRACE_SIZE];
-						address.push('@' + hex(e.pc));
+						// address.push('@' + hex(e.pc));
 						blocks.push(e);
 					}
-					console.log(`loop @${hex(entry.pc)}`, address);
+					// console.log(`loop @${hex(entry.pc)}`, address);
 					entry.loop = blocks;
 					invalidateCache(entry);
 				}
