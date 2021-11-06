@@ -19,6 +19,7 @@
 
 	const rec = {
 		'compile02': function (rec, opc) {
+			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
 			rec.skipNext = true;
@@ -29,6 +30,7 @@
 		},
 
 		'compile03': function (rec, opc) {
+			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
 			rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
@@ -306,6 +308,7 @@
 		},
 
 		'compile48': function (rec, opc) {
+			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
 			rec.skipNext = true;
@@ -315,6 +318,7 @@
 		},
 
 		'compile49': function (rec, opc) {
+			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
 			const mips = 'jalr    r' + rec.rs + ', r' + rec.rd;
@@ -324,6 +328,7 @@
 		},
 
 		'compile4C': function (rec, opc) {
+			rec.entry.opt = true;
 			rec.stop = true;
 			rec.syscall = true;
 			const mips = 'syscall';
@@ -750,7 +755,7 @@
 
 		entry.text = lines.join('\n');
 		if (!entry.opt) {
-			lines.push(`if (this.count >= 10000) {`);
+			lines.push(`if (this.count >= 1000) {`);
 			lines.push('  CodeTrace.optimise(this);');
 			lines.push('}');
 		}
@@ -794,23 +799,31 @@
 
 	function lazyCompile() {
 		if (this.loop.length) {
-			if (1 === this.loop.length) {
-				let block = this;
-				const jumps = [];
-				if (block.jump) jumps.push(block.jump.pc);
-				if (block.next) jumps.push(block.next.pc);
-
-				let prolog = '';
-				if (this.pc < 0x00200000) {
-					prolog = `if (!fastCache[${this.pc}]) { this.loop = [];return invalidateCache(this); }\n`;
-					fastCache[this.pc] = 1;
-				}
-				const escape = `if (target !== _${hex(block.pc)}) break;`;
-				const code = `${prolog}const gpr = cpu.gpr; let target = null;\nwhile (psx.clock < psx.eventClock) {\n${block.text}\n${escape}\n}return target;`;
-				block.code = createFunction(block.pc, code, jumps);
-				block.jump = this;
-				return this;
+			const set = new Set();
+			const prolog = [];
+			const sections = [];
+			for (let i = 0; i < this.loop.length; ++i) {
+				let block = this.loop[i];
+				set.add(block.pc);
+				sections.push(block.text);
+				sections.push('');
+				let nextpc = (i + 1) < this.loop.length ? this.loop[i + 1].pc : this.pc;
+				sections.push(`if (target !== _${hex(nextpc)}) break;`)
+				if (block.jump) set.add(block.jump.pc);
+				if (block.next) set.add(block.next.pc);
+				if (block.pc < 0x00200000) prolog.push(`if (!fastCache[${block.pc}]) { return resetCacheEntry(_${hex(this.pc)}); }\n`);
+				sections.push('');
+				this.code = null;
+				fastCache[block.pc] = 1;
 			}
+			// console.log(set);
+			let code = prolog.join('');
+			code += '\nconst gpr = cpu.gpr; let target = null;\nwhile (psx.clock < psx.eventClock) {\n';
+			code += sections.join('\n');
+			code += '\n}\nreturn target;';
+			this.code = createFunction(this.pc, code, [...set]);
+			this.jump = this;
+			return this;
 		}
 		this.code = compileBlock(this);
 		return this;
@@ -836,9 +849,18 @@
 	scope.invalidateCache = entry => {
 		// console.log(`recompiling @${hex(entry.pc)}`); 
 		entry.code = lazyCompile;
-		entry.count = 0;
-		entry.clock = 0;
+		entry.count = 0 >>> 0;
+		entry.clock = 0 >>> 0;
 		entry.opt = false;
+		return entry;
+	}
+
+	scope.resetCacheEntry = entry => {
+		entry.code = lazyCompile;
+		entry.count = 0 >>> 0;
+		entry.clock = 0 >>> 0;
+		entry.opt = false;
+		entry.loop = [];
 		return entry;
 	}
 
@@ -875,7 +897,8 @@
 			clock: 0 >>> 0,
 			opt: false,
 			text: '',
-			loop: []
+			loop: [],
+			
 		})
 	};
 
@@ -893,6 +916,7 @@
 			for (let i = 1; i < 8; ++i) {
 				const index = (this.index - i + TRACE_SIZE) % TRACE_SIZE;
 				if (this.history[index].opt) return 0;
+				if (!this.history[index].jump || !this.history[index].next) return 0;
 				if (this.history[index] === entry) {
 					return i;
 				}
