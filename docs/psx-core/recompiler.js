@@ -759,8 +759,8 @@
 		lines.push(`++this.count;`);
 		lines.push(' ');
 		lines.push('return target;');
-
 		lines.unshift(`const gpr = cpu.gpr; let target = null;\n`);
+
 		if (pc < 0x00200000) {
 			lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(this); }`);
 			fastCache[pc] = 1;
@@ -793,6 +793,25 @@
 	}
 
 	function lazyCompile() {
+		if (this.loop.length) {
+			if (1 === this.loop.length) {
+				let block = this;
+				const jumps = [];
+				if (block.jump) jumps.push(block.jump.pc);
+				if (block.next) jumps.push(block.next.pc);
+
+				let prolog = '';
+				if (this.pc < 0x00200000) {
+					prolog = `if (!fastCache[${this.pc}]) { this.loop = [];return invalidateCache(this); }\n`;
+					fastCache[this.pc] = 1;
+				}
+				const escape = `if (target !== _${hex(block.pc)}) break;`;
+				const code = `${prolog}const gpr = cpu.gpr; let target = null;\nwhile (psx.clock < psx.eventClock) {\n${block.text}\n${escape}\n}return target;`;
+				block.code = createFunction(block.pc, code, jumps);
+				block.jump = this;
+				return this;
+			}
+		}
 		this.code = compileBlock(this);
 		return this;
 	}
@@ -855,7 +874,8 @@
 			count: 0 >>> 0,
 			clock: 0 >>> 0,
 			opt: false,
-			text: ''
+			text: '',
+			loop: []
 		})
 	};
 
@@ -885,12 +905,15 @@
 				if (loopSize) {
 					const startIndex = (this.index - loopSize + TRACE_SIZE) % TRACE_SIZE;
 					const address = [];
+					const blocks = [];
 					for (let i = 0; i < loopSize; ++i) {
 						const e = this.history[(startIndex + i) % TRACE_SIZE];
-						// console.log('-', e.text);
-						address.push('@'+hex(e.pc));
+						address.push('@' + hex(e.pc));
+						blocks.push(e);
 					}
 					console.log(`loop @${hex(entry.pc)}`, address);
+					entry.loop = blocks;
+					invalidateCache(entry);
 				}
 			}
 			invalidateCache(entry);
