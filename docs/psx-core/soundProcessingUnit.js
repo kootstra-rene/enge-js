@@ -276,11 +276,11 @@
 			psx.updateEvent(self, (PSX_SPEED / 44100 * CYCLES_PER_EVENT));
 			if (!left || !right) return;
 
+			this.SPUSTAT &= ~(0x003F);
+			this.SPUSTAT |= (this.SPUSTATm & 0x003F);
+
 			for (let tt = CYCLES_PER_EVENT; tt > 0; --tt) {
 				++this.totalSamples;
-
-				this.SPUSTAT &= ~(0x003F);
-				this.SPUSTAT |= (this.SPUSTATm & 0x003F);
 
 				let l = 0, r = 0;
 
