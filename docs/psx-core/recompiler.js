@@ -4,7 +4,7 @@
 
 	function createFunction(pc, code, jumps) {
 		const lines = [
-			"  return function $" + hex(pc).toUpperCase() + "(psx) { \n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
+			"  return function $" + hex(pc).toUpperCase() + "(psx) { ++calls;\n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
 		];
 		lines.unshift('');
 
@@ -203,6 +203,16 @@
 
 		'compile24': function (rec, opc) {
 			const mips = 'lbu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+			if (ConstantFolding.isConst(rec.rs)) {
+				const offset = ((opc << 16) >> 16);
+				const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
+				if (address <= 0x00800000) {
+					rec.cycles += 5;
+					const code = rec.setReg(mips, rec.rt, `map8[0x${hex(address & 0x001fffff)}] & 0xff`);
+					ConstantFolding.resetConst(rec.rt);
+					return code;
+				}
+			}
 			const code = rec.setReg(mips, rec.rt, 'memRead8(' + rec.getOF(opc) + ') & 0xff');
 			ConstantFolding.resetConst(rec.rt);
 			return code;
@@ -242,6 +252,16 @@
 
 		'compile2B': function (rec, opc) {
 			const mips = 'sw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
+			if (ConstantFolding.isConst(rec.rs)) {
+				const offset = ((opc << 16) >> 16);
+				const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
+				if (address <= 0x00800000) {
+					rec.cycles += 1;
+					const code = rec.setReg(mips, 0, `map[0x${hex(address & 0x001fffff)} >> 2] = ${rec.getRT()}`);
+					ConstantFolding.resetConst(rec.rt);
+					return code;
+				}
+			}
 			const code = rec.setReg(mips, 0, `memWrite32(${rec.getOF(opc)}, ${rec.getRT()})`);
 			return code;
 		},
@@ -313,6 +333,12 @@
 			rec.jump = true;
 			rec.skipNext = true;
 			const mips = 'jr      r' + rec.rs;
+			if (ConstantFolding.isConst(rec.rs)) {
+				console.log('constant jump @' + hex(rec.entryPC));
+				rec.branchTarget = ConstantFolding.getConst(rec.rs) & 0x01ffffff;
+				const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)}`);
+				return code;
+			}
 			const code = rec.setReg(mips, 0, 'target = getCacheEntry(' + rec.getRS() + ')');
 			return code;
 		},
@@ -753,6 +779,24 @@
 			state.skipNext ? 0 : state.pc >>> 0,
 		].filter(a => a);
 
+		if (lines.length >= 6) {
+			const lineIndex = lines[0].indexOf('8fa20010');
+			if (-1 !== lineIndex) {
+				if (lineIndex === lines[2].indexOf('00000000') &&
+					lineIndex === lines[3].indexOf('2442ffff') &&
+					lineIndex === lines[5].indexOf('afa20010') &&
+					lineIndex === lines[7].indexOf('8fa20010') &&
+					lineIndex === lines[9].indexOf('00000000')
+				) {
+					const asm = lines.filter((a, i) => i < 10 && -1 !== a.indexOf('//')).join('\n');
+					console.log(`HLE detected @$${hex(pc)}...`);
+					lines.splice(0, 10, ['gpr[2] = --map[((16 + gpr[29]) & 0x001ffffc) >>> 2];']);
+					lines.push('psx.clock += 10;');
+					lines.unshift(asm);
+				}
+			}
+		}
+		
 		entry.text = lines.join('\n');
 		if (!entry.opt) {
 			lines.push(`if (this.count >= 1000) {`);
@@ -788,12 +832,14 @@
 		return ipc;
 	}
 
+	let clears = 0;
 	function clearCodeCache(addr, size) {
 		const ibase = getCacheIndex(addr);
 		if (ibase >= 0x00200000) return;
 
 		for (let i = 0 >>> 0; i < size; i += 4) {
 			fastCache[ibase + i] = 0;
+			++clears;
 		}
 	}
 
@@ -806,6 +852,8 @@
 				let block = this.loop[i];
 				set.add(block.pc);
 				sections.push(block.text);
+				sections.push(`_${hex(block.pc)}.clock = psx.clock;`);
+				sections.push(`++_${hex(block.pc)}.count;`);
 				sections.push('');
 				let nextpc = (i + 1) < this.loop.length ? this.loop[i + 1].pc : this.pc;
 				sections.push(`if (target !== _${hex(nextpc)}) break;`)
@@ -898,12 +946,12 @@
 			opt: false,
 			text: '',
 			loop: [],
-			
+
 		})
 	};
 
 	const TRACE_SIZE = 1024;
-	const MAX_BLOCKSIZE = 4;
+	const MAX_BLOCKSIZE = 8;
 
 	scope.CodeTrace = {
 		loop: [],
@@ -955,5 +1003,16 @@
 			console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, { code: a.code }, `\t${a.count}`);
 		});
 	}
+
+	scope.calls = 0;
+	const cyclesPerTrace = 3386880; // 100ms
+	const local = window.location.href.indexOf('file://') === 0;
+
+	psx.addEvent(0, self => {
+		if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears}`);
+		psx.setEvent(self, cyclesPerTrace);
+		clears = 0;
+		calls = 0;
+	});
 
 })(window);
