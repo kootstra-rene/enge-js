@@ -270,3 +270,4 @@ ideas
       - ideally detect if writes/reads occur at the same address for maximum optimisation.
     - detect small functions an mark them as inline.
   - create blocks including branches but not jumps to reduce function calls and sanity checks.
+  - detect hot paths, sequence of codeblocks that are called frequently. this will also become a loop detetector over multiple codeblocks if the sequence jumps to point that is part of the sequence.
