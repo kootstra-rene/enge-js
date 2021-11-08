@@ -261,9 +261,9 @@
 
 	function memWrite8(base, data) {
 		if (base < 0x00800000) {
-			map8[((base & 0x001fffff) | cpu.forceWriteBits) >>> 0] = data;
-			clearCodeCache(base, 4);
-			psx.clock += 1;
+			const addr = base & 0x001fffff;
+			map8[(addr | cpu.forceWriteBits) >>> 0] = data;
+			fastCache[addr] = 0;
 			return;
 		}
 		if ((base >= 0x01800000) && (base < 0x01802000)) {
@@ -310,9 +310,9 @@
 
 	function memWrite16(base, data) {
 		if (base < 0x00800000) {
-			map16[((base & 0x001fffff) | cpu.forceWriteBits) >>> 1] = data;
-			clearCodeCache(base, 4);
-			psx.clock += 1;
+			const addr = base & 0x001fffff;
+			map16[(addr | cpu.forceWriteBits) >>> 1] = data;
+			fastCache[addr] = 0;
 			return;
 		}
 		if ((base >= 0x01800000) && (base < 0x01802000)) {
@@ -377,9 +377,9 @@
 
 	function memWrite32(base, data) {
 		if (base < 0x00800000) {
-			map[((base & 0x001fffff) | cpu.forceWriteBits) >>> 2] = data;
-			clearCodeCache(base, 4);
-			psx.clock += 1;
+			const addr = base & 0x001fffff;
+			map[(addr | cpu.forceWriteBits) >>> 2] = data;
+			fastCache[addr] = 0;
 			return;
 		}
 		if ((base >= 0x01800000) && (base < 0x01802000)) {
