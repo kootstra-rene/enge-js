@@ -19,21 +19,19 @@
 
 	const rec = {
 		'compile02': function (rec, opc) {
-			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
 			rec.skipNext = true;
-			rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
+			rec.branchTarget = (opc & 0x007FFFFF) << 2;
 			const mips = 'j       $' + hex(rec.branchTarget);
 			const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)}`);
 			return code;
 		},
 
 		'compile03': function (rec, opc) {
-			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
-			rec.branchTarget = (rec.pc & 0xF0000000) | ((opc & 0x03FFFFFF) << 2);
+			rec.branchTarget = (opc & 0x007FFFFF) << 2;
 			const mips = 'jal     $' + hex(rec.branchTarget);
 			const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
 			ConstantFolding.resetConst(31);
@@ -328,13 +326,11 @@
 		},
 
 		'compile48': function (rec, opc) {
-			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
 			rec.skipNext = true;
 			const mips = 'jr      r' + rec.rs;
 			if (ConstantFolding.isConst(rec.rs)) {
-				console.log('constant jump @' + hex(rec.entryPC));
 				rec.branchTarget = ConstantFolding.getConst(rec.rs) & 0x01ffffff;
 				const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)}`);
 				return code;
@@ -344,7 +340,6 @@
 		},
 
 		'compile49': function (rec, opc) {
-			rec.entry.opt = true;
 			rec.stop = true;
 			rec.jump = true;
 			const mips = 'jalr    r' + rec.rs + ', r' + rec.rd;
@@ -354,7 +349,6 @@
 		},
 
 		'compile4C': function (rec, opc) {
-			rec.entry.opt = true;
 			rec.stop = true;
 			rec.syscall = true;
 			const mips = 'syscall';
@@ -718,7 +712,7 @@
 			return `${this.reg(this.rs)} & 0x01ffffff`;
 		},
 		setReg: function (mips, nr, value) {
-			const iword = map[(this.pc & 0x01ffffff) >>> 2];
+			const iword = map[getCacheIndex(this.pc) >>> 2];
 			let command = '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
 			if (value) command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
 			return command;
@@ -827,7 +821,7 @@
 	Object.seal(cached);
 
 	function getCacheIndex(pc) {
-		let ipc = pc & 0x01fffffc;
+		let ipc = pc & 0x01ffffff;
 		if (ipc < 0x800000) ipc &= 0x1fffff;
 		return ipc;
 	}
@@ -977,16 +971,12 @@
 				const loopSize = CodeTrace.detectLoop(entry);
 				if (loopSize) {
 					const startIndex = (this.index - loopSize + TRACE_SIZE) % TRACE_SIZE;
-					// const address = [];
 					const blocks = [];
 					for (let i = 0; i < loopSize; ++i) {
 						const e = this.history[(startIndex + i) % TRACE_SIZE];
-						// address.push('@' + hex(e.pc));
 						blocks.push(e);
 					}
-					// console.log(`loop @${hex(entry.pc)}`, address);
 					entry.loop = blocks;
-					invalidateCache(entry);
 				}
 			}
 			invalidateCache(entry);
