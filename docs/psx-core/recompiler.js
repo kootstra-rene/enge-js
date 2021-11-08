@@ -831,10 +831,8 @@
 		const ibase = getCacheIndex(addr);
 		if (ibase >= 0x00200000) return;
 
-		for (let i = 0 >>> 0; i < size; i += 4) {
-			fastCache[ibase + i] = 0;
-			++clears;
-		}
+		fastCache.fill(0, ibase, size);
+		++clears;
 	}
 
 	function lazyCompile() {
