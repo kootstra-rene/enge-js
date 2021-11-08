@@ -831,7 +831,7 @@
 		const ibase = getCacheIndex(addr);
 		if (ibase >= 0x00200000) return;
 
-		fastCache.fill(0, ibase, size);
+		fastCache.fill(0, ibase, ibase+size);
 		++clears;
 	}
 
