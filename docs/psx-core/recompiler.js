@@ -254,8 +254,7 @@
 				const offset = ((opc << 16) >> 16);
 				const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
 				if (address <= 0x00800000) {
-					rec.cycles += 1;
-					const code = rec.setReg(mips, 0, `map[0x${hex(address & 0x001fffff)} >> 2] = ${rec.getRT()}`);
+					const code = rec.setReg(mips, 0, `map[(0x${hex(address & 0x001fffff)} | cpu.forceWriteBits) >> 2] = ${rec.getRT()}`);
 					ConstantFolding.resetConst(rec.rt);
 					return code;
 				}
@@ -771,6 +770,7 @@
 		let jumps = [
 			state.branchTarget >>> 0,
 			state.skipNext ? 0 : state.pc >>> 0,
+			pc
 		].filter(a => a);
 
 		if (lines.length >= 6) {
@@ -802,7 +802,7 @@
 		lines.push(`++this.count;`);
 		lines.push(' ');
 		lines.push('return target;');
-		lines.unshift(`const gpr = cpu.gpr; let target = null;\n`);
+		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
 
 		if (pc < 0x00200000) {
 			lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(this); }`);
@@ -858,7 +858,7 @@
 			}
 			// console.log(set);
 			let code = prolog.join('');
-			code += '\nconst gpr = cpu.gpr; let target = null;\nwhile (psx.clock < psx.eventClock) {\n';
+			code += `\nconst gpr = cpu.gpr; let target = _${hex(this.pc)};\nwhile (psx.clock < psx.eventClock) {\n`;
 			code += sections.join('\n');
 			code += '\n}\nreturn target;';
 			this.code = createFunction(this.pc, code, [...set]);
