@@ -229,7 +229,7 @@
 		},
 
 		invalidPacketHandler: function (data) {
-			abort('gpu.' + gpu.getPacketHandlerName(data));
+			// abort('gpu.packetHandler' + hex(data >>> 24, 2));
 		},
 
 		updateTexturePage: function (bitfield) {
@@ -594,9 +594,9 @@
 						for (; i < 256; ++i) {
 							const value = map[addr >> 2];
 							addr += 4; --nitem; ++words;
-							data[i] = value;
 
 							if ((value & 0xF000F000) === 0x50005000) break;
+							data[i] = value;
 						}
 						gpu.handlers[packetId].call(this, data, i);
 						gpu.updated = true;
