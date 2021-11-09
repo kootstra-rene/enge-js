@@ -69,12 +69,13 @@
 				case 0x1daa: return this.SPUCNT;
 				case 0x1dae: return this.SPUSTAT;
 				case 0x1d9c: return this.ENDX;
-				default: if ((addr >= 0x1c00) && (addr < 0x1d80)) {
-					const id = ((addr - 0x1c00) / 16) | 0;
-					const voice = this.voices[id];
+				default:
+					if ((addr >= 0x1c00) && (addr < 0x1d80)) {
+						const id = (addr - 0x1c00) >> 4;
+						const voice = this.voices[id];
 
-					return voice.getRegister(addr);
-				}
+						return voice.getRegister(addr);
+					}
 					return map16[((0x01800000 + addr) & 0x01ffffff) >>> 1];
 			}
 		},
