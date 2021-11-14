@@ -44,6 +44,7 @@
 	const map16 = new Int16Array(map.buffer);
 
 	function hwRead8(addr) {
+		psx.clock += 3;
 		switch (addr & 0x3fff) {
 			case 0x1040: return joy.rd08r1040();
 			case 0x1044: return (joy.rd16r1044() << 24) >> 24;
@@ -61,6 +62,7 @@
 			case 0x1824: return (mdc.rd32r1824() << 24) >> 24;
 			default:
 				if (addr < 0x01801000) {
+					psx.clock -= 3;
 					return map8[addr >>> 0];
 				}
 				if (addr >= 0x01802000) {
@@ -101,6 +103,7 @@
 	}
 
 	function hwRead16(addr) {
+		psx.clock += 3;
 		switch (addr & 0x3fff) {
 			case 0x1014: return map16[addr >>> 1];
 			case 0x1044: return joy.rd16r1044();
@@ -128,6 +131,7 @@
 			case 0x1824: return (mdc.rd32r1824() << 16) >> 16;
 			default:
 				if (addr < 0x01801000) {
+					psx.clock -= 3;
 					return map16[addr >>> 1];
 				}
 				if (addr >= 0x01802000) {
@@ -168,6 +172,7 @@
 	}
 
 	function hwRead32(addr) {
+		psx.clock += 3;
 		switch (addr & 0x3fff) {
 			case 0x1014: return map[addr >>> 2] >> 0;
 			case 0x1020: return map[addr >>> 2] >> 0;
@@ -206,6 +211,7 @@
 			case 0x1824: return mdc.rd32r1824() >> 0;
 			default:
 				if (addr < 0x01801000) {
+					psx.clock -= 3;
 					return map[addr >>> 2] >> 0;
 				}
 				if (addr >= 0x01802000) {
