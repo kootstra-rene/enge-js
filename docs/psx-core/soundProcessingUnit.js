@@ -60,7 +60,7 @@
 		},
 
 		getVolume: function (data) {
-			if (data & 0x8000) return 0.75; // no sweep yet
+			// if (data & 0x8000) return 0.75; // no sweep yet
 			return ((data << 17) >> 16) / 0x8000;
 		},
 
