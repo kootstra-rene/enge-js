@@ -31,6 +31,7 @@
 		timeStamp: 0,
 		realtime: 0,
 		emutime: 0,
+		counter: 0
 	};
 
 
@@ -84,6 +85,7 @@
 
 		endAnimationFrame = false;
 		psx.setEvent(frameEvent, +totalCycles);
+		++context.counter;
 		runFrame();
 
 		context.emutime = psx.clock / (PSX_SPEED / 1000);
@@ -348,5 +350,6 @@
 	scope.PSX_SPEED = PSX_SPEED;
 	scope.renderer = undefined;
 	scope.abort = abort;
+	scope.context = context;
 
 })(window);

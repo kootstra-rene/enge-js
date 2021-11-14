@@ -356,7 +356,7 @@
 		},
 
 		'compile4D': function (rec, opc) {
-			return '//nop';
+			return '//break';
 			// rec.stop = true;
 			// rec.break = true;
 			// return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': break\n' +
@@ -771,7 +771,7 @@
 			state.branchTarget >>> 0,
 			state.skipNext ? 0 : state.pc >>> 0,
 			pc
-		].filter(a => a);
+		].filter(a => a !== null || a !== undefined);
 
 		if (lines.length >= 6) {
 			const lineIndex = lines[0].indexOf('8fa20010');
@@ -993,12 +993,14 @@
 	}
 
 	scope.calls = 0;
-	const cyclesPerTrace = 3386880; // 100ms
+	const cyclesPerTrace = 33868800;
 	const local = window.location.href.indexOf('file://') === 0;
+	let prevCounter = 0
 
 	psx.addEvent(0, self => {
-		if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears}`);
+		if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} ${context.counter-prevCounter}`);
 		psx.setEvent(self, cyclesPerTrace);
+		prevCounter = context.counter;
 		clears = 0;
 		calls = 0;
 	});
