@@ -14,17 +14,18 @@
 	function init() {
 		var audioCtx = new AudioContext();
 		var myArrayBuffer = audioCtx.createBuffer(2, frameCount, audioCtx.sampleRate);
+		left = myArrayBuffer.getChannelData(0)
+		right = myArrayBuffer.getChannelData(1)
+
+		source.playbackRate.value = 44100 / audioCtx.sampleRate;
+		source.loop = true;
+		source.$started = false;
 		var source = audioCtx.createBufferSource();
 		source.buffer = myArrayBuffer;
 		source.connect(audioCtx.destination);
-		source.loop = true;
-		source.playbackRate.value = 44100 / audioCtx.sampleRate;
-		source.$started = false;
 		window.source = source;
 		window.audioCtx = audioCtx;
 
-		left = myArrayBuffer.getChannelData(0)
-		right = myArrayBuffer.getChannelData(1)
 	}
 
 	var spu = {
