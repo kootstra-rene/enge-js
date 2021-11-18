@@ -6,25 +6,24 @@
 	var BLOCKSIZE = (28 * 0x1000) >>> 0;
 	const CYCLES_PER_EVENT = 8;
 
-	const AudioContext = window.AudioContext || window.webkitAudioContext;
-
-	var left;
-	var right;
+	let left = null;
+	let right = null;
 
 	function init() {
-		var audioCtx = new AudioContext();
-		var myArrayBuffer = audioCtx.createBuffer(2, frameCount, audioCtx.sampleRate);
-		var source = audioCtx.createBufferSource();
-		source.buffer = myArrayBuffer;
-		source.connect(audioCtx.destination);
-		source.loop = true;
-		source.playbackRate.value = 44100 / audioCtx.sampleRate;
-		source.$started = false;
-		window.source = source;
-		window.audioCtx = audioCtx;
+		const context = new AudioContext();
+		const buffer = context.createBuffer(2, frameCount, context.sampleRate);
+		const source = context.createBufferSource();
 
-		left = myArrayBuffer.getChannelData(0)
-		right = myArrayBuffer.getChannelData(1)
+		left = buffer.getChannelData(0);
+		left.fill(0);
+		right = buffer.getChannelData(1);
+		right.fill(0)
+
+		source.playbackRate.value = 44100 / context.sampleRate;
+		source.buffer = buffer;
+		source.loop = true;
+		source.connect(context.destination);
+		source.start();
 	}
 
 	var spu = {
@@ -165,9 +164,6 @@
 				case 0x1daa: this.SPUCNT = data;
 					if ((!left || !right) && this.SPUCNT & 0x8000) {
 						init();
-						source.$started = true;
-						audioCtx.resume();
-						source.start(0);
 					}
 					if (this.SPUCNT & (1 << 6)) {
 						this.SPUSTAT &= ~(0x0040);
