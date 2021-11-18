@@ -19,9 +19,9 @@
 
 		var source = audioCtx.createBufferSource();
 		source.playbackRate.value = 44100 / audioCtx.sampleRate;
+		source.buffer = myArrayBuffer;
 		source.loop = true;
 		source.$started = false;
-		source.buffer = myArrayBuffer;
 		source.connect(audioCtx.destination);
 		window.source = source;
 		window.audioCtx = audioCtx;
