@@ -17,10 +17,10 @@
 		left = myArrayBuffer.getChannelData(0)
 		right = myArrayBuffer.getChannelData(1)
 
+		var source = audioCtx.createBufferSource();
 		source.playbackRate.value = 44100 / audioCtx.sampleRate;
 		source.loop = true;
 		source.$started = false;
-		var source = audioCtx.createBufferSource();
 		source.buffer = myArrayBuffer;
 		source.connect(audioCtx.destination);
 		window.source = source;
