@@ -209,18 +209,17 @@
 					gpu.status |= ((data & 0x3F) << 0x11);
 					gpu.status |= ((data & 0x40) ? 0x010000 : 0x000000);
 					break;
-				case 0x10: switch (data & 0xf) {
-					case 0x02:
-					case 0x03:
-					case 0x04:
-					case 0x05:
-					case 0x07:
-						gpu.result = gpu.info[data & 0xf];
-						break;
-					case 0x08:
-						gpu.result = 0;
-						break;
-				}
+				case 0x10:
+					switch (data & 0xf) {
+						case 0x02:
+						case 0x03:
+						case 0x04:
+						case 0x05:
+						case 0x07:
+						case 0x08:
+							gpu.result = gpu.info[data & 0xf];
+							break;
+					}
 					break;
 				case 0x40: break; // ???
 				default: console.warn('gpu.cmnd' + hex(data >>> 24, 2));
@@ -511,7 +510,7 @@
 		dmaTransferMode0200: function (addr, blck) {
 			if (!addr) return;
 			var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-			clearCodeCache( addr, transferSize << 1);
+			clearCodeCache(addr, transferSize << 1);
 
 			gpu.transferTotal -= transferSize;
 
@@ -584,34 +583,34 @@
 						addr += 4; ++words;
 						nitem--;
 						if (packetId === 0xff) continue; else {
-							console.log(`unknown packetId: $${hex(packetId,2)}`);
+							console.log(`unknown packetId: $${hex(packetId, 2)}`);
 							return words;
 						}
 					}
 					else
-					if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
-						let i = 0;
-						for (; i < 256; ++i) {
-							const value = map[addr >> 2];
-							addr += 4; --nitem; ++words;
+						if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
+							let i = 0;
+							for (; i < 256; ++i) {
+								const value = map[addr >> 2];
+								addr += 4; --nitem; ++words;
 
-							if ((value & 0xF000F000) === 0x50005000) break;
-							data[i] = value;
+								if ((value & 0xF000F000) === 0x50005000) break;
+								data[i] = value;
+							}
+							gpu.handlers[packetId].call(this, data, i);
+							gpu.updated = true;
 						}
-						gpu.handlers[packetId].call(this, data, i);
-						gpu.updated = true;
-					}
-					else {
-						const dataSize = packetSizes[packetId];
-						for (let i = 0; i < dataSize; ++i) {
-							data[i] = map[addr >> 2];
-							addr += 4;
+						else {
+							const dataSize = packetSizes[packetId];
+							for (let i = 0; i < dataSize; ++i) {
+								data[i] = map[addr >> 2];
+								addr += 4;
+							}
+							gpu.handlers[packetId].call(this, data, dataSize);
+							gpu.updated = true;
+							nitem -= dataSize;
+							words += dataSize;
 						}
-						gpu.handlers[packetId].call(this, data, dataSize);
-						gpu.updated = true;
-						nitem -= dataSize;
-						words += dataSize;
-					}
 				}
 				if (!nnext || (nnext == 0x00ffffff)) break;
 				addr = nnext;
@@ -739,7 +738,7 @@
 	for (var i = 0xC1; i < 0xdf; ++i) {
 		gpu.handlers[i] = gpu.handlePacketC0;
 	}
-	
+
 	gpu.info[7] = 2;
 	gpu.info[8] = 0;
 

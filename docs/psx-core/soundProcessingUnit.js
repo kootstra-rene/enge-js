@@ -1,6 +1,6 @@
 (scope => {
 
-	const frameCount = (1.0 * 44100) >> 2;
+	const frameCount = (1.0 * 44100) >> 1;
 	'use strict';
 
 	var BLOCKSIZE = (28 * 0x1000) >>> 0;
