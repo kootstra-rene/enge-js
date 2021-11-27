@@ -79,7 +79,7 @@ Uint32Array.prototype.view = function () {
   return new Uint32Array(this.buffer, 0, this.index >> 2);
 }
 
-var vertexShaderDisplay =
+const vertexShaderDisplay =
   "precision highp float;" +
   "attribute vec2 aVertexPosition;" +
   "attribute vec2 aVertexTexture;" +
@@ -92,7 +92,7 @@ var vertexShaderDisplay =
   "  vTextureCoord.y = aVertexTexture.y / 512.0;" +
   "}";
 
-var fragmentShader16bit =
+const fragmentShader16bit =
   "precision highp float;" +
   "uniform sampler2D uVRAM;" +
   "varying vec2 tx;" +
@@ -106,7 +106,7 @@ var fragmentShader16bit =
   "  gl_FragColor = vec4(getColor(tx.x, tx.y).rgb, 1.0);" +
   "}";
 
-var fragmentShaderTexture =
+const fragmentShaderTexture =
   "precision highp float;" +
   "uniform sampler2D uVRAM;" +
   "varying vec2 vTextureCoord;" +
@@ -115,7 +115,7 @@ var fragmentShaderTexture =
   "  gl_FragColor = vec4(pixel.aaa, 1.0);" +
   "}";
 
-var fragmentShader24bit =
+const fragmentShader24bit =
   "precision highp float;" +
   "uniform sampler2D uVRAM;" +
   "uniform vec3 ts;" +
@@ -138,7 +138,7 @@ var fragmentShader24bit =
   "  gl_FragColor = getColor(x , floor(tx.y));" +
   "}";
 
-var vertexShaderDraw =
+const vertexShaderDraw =
   "precision highp float;" +
   "attribute vec2 aVertexPosition;" +
   "attribute vec2 aVertexTexture;" +
@@ -194,7 +194,7 @@ var vertexShaderDraw =
   "  vColor = vec4(aVertexColor.rgb / 256.0, uBlendAlpha);" +
   "}";
 
-var fragmentShaderDraw =
+const fragmentShaderDraw =
   "precision highp float;" +
   "uniform sampler2D uTex8;" +
   "uniform float uBlendAlpha;" +
@@ -253,7 +253,8 @@ var fragmentShaderDraw =
   "  }" +
   "  else" +
   "  if (vTextureMode == 2.0) {" +
-  "    cx = tx / 1024.0; cy = ty / 512.0;" +
+  "    vec4 rgba = texture2D(uTex8, vec2(tx / 1024.0, ty / 512.0));" +
+  "    return vec4(rgba.rgb, 0.0);" +
   "  }" +
   "  vec4 rgba = getColor(cx, cy);" +
   "  if (rgba.a == 0.0) {" +
@@ -292,7 +293,7 @@ var fragmentShaderDraw =
 function WebGLRenderer(canvas) {
   this.gl = null
   this.programDisplay = null
-  this.vertexBuffer = new Uint32Array(18 * 1024 >> 2)// // 18.0 Kb, 768 vertices vertices, 256 triangles
+  this.vertexBuffer = new Uint32Array(18 * 1024 >> 2)// // 18.0 Kb, 768 vertices, 256 triangles
 
   this.drawOffsetX = 0
   this.drawOffsetY = 0
@@ -495,6 +496,11 @@ WebGLRenderer.prototype.initTextures = function () {
   this.buf16draw = this.createBuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  this.vramP2 = this.createTexture();
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, qwidth, qheight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
@@ -745,10 +751,40 @@ WebGLRenderer.prototype.flushVertexBuffer = function (clip) {
   }
 
   const drawBuffer = this.vertexBuffer.view();
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawBuffer);
+  // const vertices = this.vertexBuffer.getNumberOfVertices();
+  // gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawBuffer);
+  // gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
 
   const vertices = this.vertexBuffer.getNumberOfVertices();
-  gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
+  gl.bufferData(gl.ARRAY_BUFFER, drawBuffer, gl.STREAM_DRAW);
+
+  switch (this.renderMode >> 4) {
+    case 0: case 1:
+      gl.activeTexture(this.gl.TEXTURE1);
+      gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);
+
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramP2, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+      break;
+    case 2: case 3:
+      gl.activeTexture(this.gl.TEXTURE1);
+
+      gl.bindTexture(this.gl.TEXTURE_2D, this.tex16draw);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramP2, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
+      gl.bindTexture(this.gl.TEXTURE_2D, this.vramP2);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices);
+
+      gl.bindTexture(this.gl.TEXTURE_2D, this.tex8vram);
+      break;
+  }
 
   this.vertexBuffer.reset();
 }
@@ -760,7 +796,7 @@ WebGLRenderer.prototype.setBlendMode = function (mode) {
 
   var gl = this.gl;
 
-  switch (mode) {
+  switch (mode & 0xf) {
     case 0: gl.enable(gl.BLEND);
       gl.blendEquation(gl.FUNC_ADD);
       gl.blendFunc(gl.SRC_ALPHA, gl.SRC_ALPHA);
@@ -788,7 +824,7 @@ WebGLRenderer.prototype.setBlendMode = function (mode) {
 }
 
 WebGLRenderer.prototype.getVertexBuffer = function (cnt, pid) {
-  var select = ((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
+  var select = (((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4) | (gpu.tp << 4);
 
   if (!this.vertexBuffer.canHold(cnt)) {
     this.flushVertexBuffer(true);
@@ -852,23 +888,6 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
   }
 }
 
-let mapped = 0, unmapped = 0;
-WebGLRenderer.prototype.getGteCoord = function (x, y) {
-  let cix = ((x - this.drawOffsetX) >>> 0) & 0xfff;
-  let ciy = ((y - this.drawOffsetY) >>> 0) & 0xfff;
-  let ci = (ciy << 12) | cix;
-  //   let map = gte.coords.get(ci);
-  //   if (map) {
-  //     const deltaClock = psx.clock - map.clock;
-  //     if (deltaClock <= 3386880) { // no older than 100ms ago
-  //       ++mapped;
-  //       return map;
-  //     }
-  //   }
-  ++unmapped;
-  return null;
-}
-
 WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
   switch ((data[0] >> 24) & 0xF) {// raw-texture
     case 0x5:
@@ -891,18 +910,13 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
   if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
 
-  //   let map;
-  //   map = this.getGteCoord(x1, y1); if (map) { x1 = map.x+this.drawOffsetX; y1 = map.y+this.drawOffsetY; }
-  //   map = this.getGteCoord(x2, y2); if (map) { x2 = map.x+this.drawOffsetX; y2 = map.y+this.drawOffsetY; }
-  //   map = this.getGteCoord(x3, y3); if (map) { x3 = map.x+this.drawOffsetX; y3 = map.y+this.drawOffsetY; }
-
   var textured = (data[0] & 0x04000000) === 0x04000000;
 
   if (!textured) {
     var buffer = this.getVertexBuffer(3, data[0]);
-    buffer.addVertex(x1, y1, data[c1]);
-    buffer.addVertex(x2, y2, data[c2]);
-    buffer.addVertex(x3, y3, data[c3]);
+    buffer.addVertex(x1, y1, data[c1] & 0xfefefe);
+    buffer.addVertex(x2, y2, data[c2] & 0xfefefe);
+    buffer.addVertex(x3, y3, data[c3] & 0xfefefe);
     return;
   }
 
@@ -928,17 +942,17 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
 
   if (!semi_transparent || ((info & 2) === 2)) {
     var buffer = this.getVertexBuffer(3, data[0]);
-    buffer.addVertexUV(x1, y1, data[c1], tm | 8, u1, v1, cx, cy);
-    buffer.addVertexUV(x2, y2, data[c2], tm | 8, u2, v2, cx, cy);
-    buffer.addVertexUV(x3, y3, data[c3], tm | 8, u3, v3, cx, cy);
+    buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 8, u1, v1, cx, cy);
+    buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | 8, u2, v2, cx, cy);
+    buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | 8, u3, v3, cx, cy);
   }
 
   if (semi_transparent && ((info & 1) === 1)) {
     // there are opaque colors in the clut
     var buffer = this.getVertexBuffer(3, 0);
-    buffer.addVertexUV(x1, y1, data[c1], tm | 16, u1, v1, cx, cy);
-    buffer.addVertexUV(x2, y2, data[c2], tm | 16, u2, v2, cx, cy);
-    buffer.addVertexUV(x3, y3, data[c3], tm | 16, u3, v3, cx, cy);
+    buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 16, u1, v1, cx, cy);
+    buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | 16, u2, v2, cx, cy);
+    buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | 16, u3, v3, cx, cy);
   }
 }
 
@@ -954,17 +968,14 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
 
   var x = this.drawOffsetX + ((data[1] << 21) >> 21);
   var y = this.drawOffsetY + ((data[1] << 5) >> 21);
-  var c = (data[0] & 0xffffff);
+  var c = (data[0] & 0xfefefe);
   var w = (data[2] << 16) >> 16;
   var h = (data[2] >> 16);
-  // console.log(`drawRectangle: ${x}, ${y}`)
+  if (!w || !h) return;
 
   var showT1 = !this.outsideDrawArea(x + 0, y + 0, x + w - 1, y + 0, x + 0, y + h - 1);
   var showT2 = !this.outsideDrawArea(x + 0, y + h - 1, x + w - 1, y + 0, x + w - 1, y + h - 1);
   if (!showT1 && !showT2) return;
-
-  // let map;
-  // map = this.getGteCoord(x, y); if (map) { x = map.x+this.drawOffsetX; y = map.y+this.drawOffsetY; }
 
   var textured = (data[0] & 0x04000000) === 0x04000000;
 
@@ -1005,8 +1016,7 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   }
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
-  // console.log(`--drawRectangle: ${x}, ${y}, ${w}, ${h}`)
-
+  
   var info = 3;
   if (semi_transparent) {
     info = this.getClutInfo(cl, tm);
@@ -1185,6 +1195,10 @@ WebGLRenderer.prototype.onVBlankEnd = function () {
     gl.viewport(0, 0, this.canvas.width = 1024 * qwf, this.canvas.height = 512 * qhf);
     display16bit(this, drawBuffer)
   }
+  if (this.displaymode === 3) {
+    gl.viewport(0, 0, this.canvas.width = 1024 * qwf, this.canvas.height = 512 * qhf);
+    display16bit(this, drawBuffer)
+  }
   if (this.displaymode === 2) {
     var area = gpu.getDisplayArea();
     this.vertexBuffer.reset()
@@ -1235,6 +1249,8 @@ WebGLRenderer.prototype.setMode = function (mode) {
     case 'clut4': // todo: implement
     case 'clut8': this.displaymode = 0;
       break
+    case 'page2': this.displaymode = 3;
+      break
   }
 }
 
@@ -1261,7 +1277,8 @@ function display16bit(self, drawBuffer, al, at) {
   gl.vertexAttribPointer(self.programDisplay.vertexPosition, 2, gl.SHORT, true, 8, 0);
   gl.vertexAttribPointer(self.programDisplay.vertexTexture, 2, gl.SHORT, false, 8, 4);
 
-  gl.bindTexture(gl.TEXTURE_2D, self.tex16draw);
+  const texture = self.displaymode === 3 ? self.vramP2 : self.tex16draw;
+  gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawBuffer);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
