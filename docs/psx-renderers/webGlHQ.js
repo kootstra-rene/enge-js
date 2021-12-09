@@ -233,6 +233,7 @@ const fragmentShaderDraw =
 
   "vec4 getClutColor(float ox) {" +
   "  float cx, cy, val, tx, ty;" +
+  "  vec4 rgba;" +
   "  if (twin != 0.0) {" +
   "    tx = tox + mod(floor(tcx + ox), tmx);" +
   "    ty = toy + mod(floor(tcy), tmy);" +
@@ -244,19 +245,20 @@ const fragmentShaderDraw =
   "  if (vTextureMode == 1.0) {" +
   "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).a * 255.0;" +
   "    cx = vClut.x + (val / 1024.0); cy = vClut.y;" +
+  "    rgba = getColor(cx, cy);" +
   "  }" +
   "  else" +
   "  if (vTextureMode == 0.0) {" +
   "    val = texture2D(uTex8, vec2(tx / 4096.0, ty / 512.0)).a * 255.0;" +
   "    if (mod((tx), 2.0) == 0.0) { val = mod(val, 16.0); } else { val = mod(floor(val / 16.0), 16.0); }" +
   "    cx = vClut.x + (val / 1024.0); cy = vClut.y;" +
+  "    rgba = getColor(cx, cy);" +
   "  }" +
   "  else" +
   "  if (vTextureMode == 2.0) {" +
-  "    vec4 rgba = texture2D(uTex8, vec2(tx / 1024.0, ty / 512.0));" +
-  "    return vec4(rgba.rgb, 0.0);" +
+  `    cx = tx / 1024.0; cy = ty / 512.0;` +
+  "    rgba = texture2D(uTex8, vec2(cx, cy));" +
   "  }" +
-  "  vec4 rgba = getColor(cx, cy);" +
   "  if (rgba.a == 0.0) {" +
   "    if (vSTP == 3.0) return vec4(0.0,0.0,0.0,0.0);" +
   "  }" +
@@ -818,7 +820,7 @@ WebGLRenderer.prototype.setBlendMode = function (mode) {
       gl.uniform1f(this.programDraw.blendAlpha, 0.75);
       break;
     case 4: gl.disable(gl.BLEND);
-      // gl.uniform1f(this.programDraw.blendAlpha, 0.00);
+      gl.uniform1f(this.programDraw.blendAlpha, 0.00);
       break;
   }
 }
