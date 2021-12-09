@@ -848,6 +848,7 @@
 				sections.push(`++_${hex(block.pc)}.count;`);
 				sections.push('');
 				let nextpc = (i + 1) < this.loop.length ? this.loop[i + 1].pc : this.pc;
+				sections.push(`if (psx.clock >= psx.eventClock) break;`)
 				sections.push(`if (target !== _${hex(nextpc)}) break;`)
 				if (block.jump) set.add(block.jump.pc);
 				if (block.next) set.add(block.next.pc);
@@ -995,12 +996,18 @@
 	scope.calls = 0;
 	const cyclesPerTrace = 33868800;
 	const local = window.location.href.indexOf('file://') === 0;
-	let prevCounter = 0
+	let prevCounter = 0;
+	let prevFpsCounter = 0;
+	let prevFpsRenderCounter = 0;
 
 	psx.addEvent(0, self => {
-		if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} ${context.counter-prevCounter}`);
+		const renderCounter = renderer.fpsRenderCounter - prevFpsRenderCounter;
+		prevFpsRenderCounter = renderer.fpsRenderCounter;
+
+		if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} ${context.counter-prevCounter}/${renderer.fpsCounter-prevFpsCounter}/${renderCounter}`);
 		psx.setEvent(self, cyclesPerTrace);
 		prevCounter = context.counter;
+		prevFpsCounter = renderer.fpsCounter;
 		clears = 0;
 		calls = 0;
 	});
