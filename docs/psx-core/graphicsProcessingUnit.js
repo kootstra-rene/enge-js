@@ -228,7 +228,7 @@
 		},
 
 		invalidPacketHandler: function (data) {
-			// abort('gpu.packetHandler' + hex(data >>> 24, 2));
+			// abort('gpu.' + gpu.getPacketHandlerName(data));
 		},
 
 		updateTexturePage: function (bitfield) {
@@ -240,8 +240,8 @@
 			switch (gpu.tp) {
 				case 0: gpu.tx <<= 2; break;
 				case 1: gpu.tx <<= 1; break;
-				case 2: gpu.tx *= 1; break;
-				case 3: gpu.tx *= 1; break;
+				case 2: gpu.tx <<= 0; break;
+				case 3: gpu.tx <<= 0; break;
 			}
 		},
 
@@ -510,7 +510,7 @@
 		dmaTransferMode0200: function (addr, blck) {
 			if (!addr) return;
 			var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-			clearCodeCache(addr, transferSize << 1);
+			// clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
 
 			gpu.transferTotal -= transferSize;
 
@@ -579,38 +579,32 @@
 
 					const packetId = map[addr >> 2] >>> 24;
 					if (packetSizes[packetId] === 0) {
-						// console.log('unknown packet', hex(packetId, 2))
-						addr += 4; ++words;
-						nitem--;
-						if (packetId === 0xff) continue; else {
-							console.log(`unknown packetId: $${hex(packetId, 2)}`);
-							return words;
-						}
+						addr += 4; --nitem; ++words;
+						//console.warn('invalid packetId:', hex(packetId, 2));
+						return words;
 					}
-					else
-						if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
-							let i = 0;
-							for (; i < 256; ++i) {
-								const value = map[addr >> 2];
-								addr += 4; --nitem; ++words;
+					if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
+						let i = 0;
+						for (; i < 256; ++i) {
+							const value = map[addr >> 2];
+							addr += 4; --nitem; ++words;
 
-								if ((value & 0xF000F000) === 0x50005000) break;
-								data[i] = value;
-							}
-							gpu.handlers[packetId].call(this, data, i);
-							gpu.updated = true;
+							if (value === 0x55555555) break;
+							if (value === 0x50005000) break;
+							data[i] = value;
 						}
-						else {
-							const dataSize = packetSizes[packetId];
-							for (let i = 0; i < dataSize; ++i) {
-								data[i] = map[addr >> 2];
-								addr += 4;
-							}
-							gpu.handlers[packetId].call(this, data, dataSize);
-							gpu.updated = true;
-							nitem -= dataSize;
-							words += dataSize;
+						gpu.handlers[packetId].call(this, data, i);
+						gpu.updated = true;
+					}
+					else {
+						for (var i = 0; i < packetSizes[packetId]; ++i) {
+							data[i] = map[addr >> 2];
+							addr += 4; --nitem;
+							++words;
 						}
+						gpu.handlers[packetId].call(this, data, 0);
+						gpu.updated = true;
+					}
 				}
 				if (!nnext || (nnext == 0x00ffffff)) break;
 				addr = nnext;
@@ -635,7 +629,7 @@
 			}
 			map[addr >> 2] = 0x00ffffff;
 
-			clearCodeCache(addr, transferSize << 2);
+			// clearCodeCache(addr, transferSize << 2); // optimistice assumption (performance reasons)
 			return transferSize;
 		},
 	}
