@@ -231,15 +231,15 @@ const fragmentShaderDraw =
   "  return vec4(r, g, b, a);" +
   "}" +
 
-  "vec4 getClutColor(float ox) {" +
+  "vec4 getClutColor() {" +
   "  float cx, cy, val, tx, ty;" +
   "  vec4 rgba;" +
   "  if (twin != 0.0) {" +
-  "    tx = tox + mod(floor(tcx + ox), tmx);" +
+  "    tx = tox + mod(floor(tcx), tmx);" +
   "    ty = toy + mod(floor(tcy), tmy);" +
   "  }" +
   "  else {" +
-  "    tx = tox + floor(tcx + ox);" +
+  "    tx = tox + floor(tcx);" +
   "    ty = toy + floor(tcy);" +
   "  }" +
   "  if (vTextureMode == 1.0) {" +
@@ -282,7 +282,7 @@ const fragmentShaderDraw =
   "    return;" +
   "  }" +
 
-  "  vec4 c = getClutColor(0.0);" +
+  "  vec4 c = getClutColor();" +
   "  if (c == vec4(0.0, 0.0, 0.0, 0.0)) discard;" +
 
   // "  if (fx < 0.25) { gl_FragColor = vec4(0.25, 0.0, 0.0, uBlendAlpha); return; }"+
@@ -936,6 +936,7 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   var tm = Math.min(((gpu.status >> 7) & 3), 2);
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
+  var clut = ((this.renderMode >> 4) & 3) < 2;
 
   var info = 3;
   if (semi_transparent) {
@@ -949,7 +950,7 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
     buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | 8, u3, v3, cx, cy);
   }
 
-  if (semi_transparent && ((info & 1) === 1)) {
+  if (clut && semi_transparent && ((info & 1) === 1)) {
     // there are opaque colors in the clut
     var buffer = this.getVertexBuffer(3, 0);
     buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 16, u1, v1, cx, cy);
@@ -1018,7 +1019,8 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   }
 
   var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
-  
+  var clut = ((this.renderMode >> 4) & 3) < 2;
+
   var info = 3;
   if (semi_transparent) {
     info = this.getClutInfo(cl, tm);
@@ -1035,7 +1037,7 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
     buffer.addVertexUV(x + w, y + h, c, tm | 8, tr, tb, cx, cy);
   }
 
-  if (semi_transparent && ((info & 1) === 1)) {
+  if (clut && semi_transparent && ((info & 1) === 1)) {
     // there are opaque colors in the clut
     var buffer = this.getVertexBuffer(6, 0);
     buffer.addVertexUV(x + 0, y + 0, c, tm | 16, tl, tt, cx, cy);
