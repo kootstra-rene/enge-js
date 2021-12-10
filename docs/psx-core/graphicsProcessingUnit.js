@@ -26,7 +26,7 @@
 
 	const gpu = {
 		bbb: 0,
-		bbbdata: new Uint16Array(0x200000),
+		bbbdata: new Uint8Array(0x200000),
 		dispB: 256,
 		dispL: 0,
 		dispR: 0,
@@ -564,6 +564,7 @@
 			let words = 0;
 			for (; ;) {
 				addr = addr & 0x001fffff;
+				// check for endless loop.
 				if (check[addr] === sequence) return words;
 				check[addr] = sequence;
 				var header = map[addr >> 2];
@@ -573,10 +574,6 @@
 				addr = addr + 4; ++words;
 
 				while (nitem > 0) {
-					// check for endless loop.
-					if (check[addr] === sequence) return words;
-					check[addr] = sequence;
-
 					const packetId = map[addr >> 2] >>> 24;
 					if (packetSizes[packetId] === 0) {
 						addr += 4; --nitem; ++words;
