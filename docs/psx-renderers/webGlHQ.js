@@ -128,7 +128,7 @@ const fragmentShader24bit =
   "  float r = texture2D(uVRAM, vec2((tx + 0.0) / 2048.0, ty / 512.0)).a;" +
   "  float g = texture2D(uVRAM, vec2((tx + 1.0) / 2048.0, ty / 512.0)).a;" +
   "  float b = texture2D(uVRAM, vec2((tx + 2.0) / 2048.0, ty / 512.0)).a;" +
-  "  return vec4(r, g, b, 0.0);" +
+  "  return vec4(r, g, b, 1.0);" +
   "}" +
 
   "void main(void) {" +
@@ -542,6 +542,7 @@ WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
 }
 
 WebGLRenderer.prototype.storeImage = function (img) {
+  this.seenRender = true;
   var gl = this.gl;
 
   var o = 0;
@@ -836,11 +837,9 @@ WebGLRenderer.prototype.getVertexBuffer = function (cnt, pid) {
   return this.vertexBuffer;
 }
 
-WebGLRenderer.prototype.switchDisplayMode = function () {
-  this.displaymode = (this.displaymode + 1) % 3
-}
-
 WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
+  this.seenRender = true;
+
   var x1 = this.drawOffsetX + ((data[xy1] << 21) >> 21);
   var y1 = this.drawOffsetY + ((data[xy1] << 5) >> 21);
   var x2 = this.drawOffsetX + ((data[xy2] << 21) >> 21);
@@ -891,6 +890,8 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
 }
 
 WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
+  this.seenRender = true;
+
   switch ((data[0] >> 24) & 0xF) {// raw-texture
     case 0x5:
     case 0x7:
@@ -960,6 +961,8 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
 }
 
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
+  this.seenRender = true;
+
   switch ((data[0] >> 24) & 0xF) {
     case 0x5:
     case 0x7:
@@ -1063,11 +1066,11 @@ WebGLRenderer.prototype.clearVRAM = function (x, y, w, h, color, clip) {
 
   // update clear buffer;
   if (clip && !(gpu.status & (1 << 21))) {
-    let l, r, t, b;
-    l = (x <= gpu.drawAreaX1) ? gpu.drawAreaX1 : x;
-    r = (x >= gpu.drawAreaX2) ? gpu.drawAreaX2 : x;
-    t = (y <= gpu.drawAreaY1) ? gpu.drawAreaY1 : y;
-    b = (y >= gpu.drawAreaY2) ? gpu.drawAreaY2 : y;
+    let l=x, r=l+w, t=y, b=y+h;
+    l = (l <= gpu.drawAreaX1) ? gpu.drawAreaX1 : l;
+    r = (r >= gpu.drawAreaX2) ? gpu.drawAreaX2 : r;
+    t = (t <= gpu.drawAreaY1) ? gpu.drawAreaY1 : t;
+    b = (b >= gpu.drawAreaY2) ? gpu.drawAreaY2 : b;
 
     x = l; w = r - l;
     y = t; h = b - t;
@@ -1105,6 +1108,8 @@ WebGLRenderer.prototype.clearVRAM = function (x, y, w, h, color, clip) {
 }
 
 WebGLRenderer.prototype.fillRectangle = function (data) {
+  this.seenRender = true;
+
   var gl = this.gl;
 
   var x = (data[1] << 16) >> 16;
@@ -1161,13 +1166,15 @@ WebGLRenderer.prototype.setDrawAreaBR = function (x, y) {
   this.drawAreaR = x;
 }
 
-WebGLRenderer.prototype.onVBlankBegin = function () {
+WebGLRenderer.prototype.onVBlankEnd = function () {
 }
 
-WebGLRenderer.prototype.onVBlankEnd = function () {
+WebGLRenderer.prototype.onVBlankBegin = function () {
   var gl = this.gl;
 
   this.flushVertexBuffer(true);
+
+  if (!this.seenRender) return;
 
   gl.disable(gl.SCISSOR_TEST);
   // Display
@@ -1241,6 +1248,7 @@ WebGLRenderer.prototype.onVBlankEnd = function () {
   this.vertexBuffer.reset();
   // Draw
   this.setupProgramDraw();
+  this.seenRender = false;
 }
 
 WebGLRenderer.prototype.setMode = function (mode) {
