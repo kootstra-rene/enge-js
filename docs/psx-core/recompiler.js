@@ -859,7 +859,7 @@
 			}
 			// console.log(set);
 			let code = prolog.join('');
-			code += `\nconst gpr = cpu.gpr; let target = _${hex(this.pc)};\nwhile (psx.clock < psx.eventClock) {\n`;
+			code += `\nconst gpr = cpu.gpr; let target = _${hex(this.pc)};\nfor (;;) {\n`;
 			code += sections.join('\n');
 			code += '\n}\nreturn target;';
 			this.code = createFunction(this.pc, code, [...set]);
