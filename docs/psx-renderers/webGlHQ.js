@@ -256,7 +256,7 @@ const fragmentShaderDraw =
   "  }" +
   "  else" +
   "  if (vTextureMode == 2.0) {" +
-  `    cx = tx / 1024.0; cy = ty / 512.0;` +
+  `    cx = (tox + tcx) / 1024.0; cy = (toy + tcy) / 512.0;` +
   "    rgba = texture2D(uTex8, vec2(cx, cy));" +
   "  }" +
   "  if (rgba.a == 0.0) {" +
@@ -305,6 +305,9 @@ function WebGLRenderer(canvas) {
 
   this.vertexClip = false;
   this.drawAreaChange = false;
+  this.seenRender = false;
+  this.fpsRenderCounter = 0;
+  this.fpsCounter = 0;
 
   try {
     this.gl = canvas.getContext("webgl", {
@@ -995,7 +998,7 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
     buffer.addVertex(x + 0, y + h, c);
     buffer.addVertex(x + w, y + h, c);
 
-    if (!c) {
+    if (!c && w > 1 && h > 1) {
       this.flushVertexBuffer(true);
       this.clearVRAM(x, y, w, h, c, true);
     }
@@ -1101,7 +1104,7 @@ WebGLRenderer.prototype.clearVRAM = function (x, y, w, h, color, clip) {
 
   // copy image to GPU
   const view = new Uint8Array(clr.buffer, 0, size << 1);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x << 1, y, w << 1, h, gl.ALPHA, gl.UNSIGNED_BYTE, view); // pdx wacky races - clut cache?
   // if (gl.getError() !== gl.NO_ERROR) debugger;
 
   gl.bindTexture(gl.TEXTURE_2D, null);
@@ -1174,7 +1177,7 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
 
   this.flushVertexBuffer(true);
 
-  if (!this.seenRender) return;
+  // if (!this.seenRender) return;
 
   gl.disable(gl.SCISSOR_TEST);
   // Display
@@ -1203,11 +1206,11 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
     display8bit(this, drawBuffer)
   }
   if (this.displaymode === 1) {
-    gl.viewport(0, 0, this.canvas.width = 1024 * qwf, this.canvas.height = 512 * qhf);
+    gl.viewport(0, 0, this.canvas.width = 4096, this.canvas.height = 2048);
     display16bit(this, drawBuffer)
   }
   if (this.displaymode === 3) {
-    gl.viewport(0, 0, this.canvas.width = 1024 * qwf, this.canvas.height = 512 * qhf);
+    gl.viewport(0, 0, this.canvas.width = 4096, this.canvas.height = 2048);
     display16bit(this, drawBuffer)
   }
   if (this.displaymode === 2) {
@@ -1215,9 +1218,9 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
     this.vertexBuffer.reset()
 
     var al = area.x
-    var ar = area.x + area.w
-    var at = area.y
-    var ab = area.y + area.h
+    var ar = area.x + area.w;
+    var at = area.y;
+    var ab = area.y + area.h;
 
     this.vertexBuffer.addVertexDisp(-32768, +32767, al, at);
     this.vertexBuffer.addVertexDisp(+32767, +32767, ar, at);
@@ -1230,24 +1233,28 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
     var drawBuffer = this.vertexBuffer.subarray(0, this.vertexBuffer.index / 4)
 
     if (gpu.status & (1 << 23)) {
-      gl.viewport(0, 0, this.canvas.width = area.w * qwf, this.canvas.height = area.h * qhf)
+      gl.viewport(0, 0, this.canvas.width = area.w, this.canvas.height = area.h);
       gl.clearColor(0.0, 0.0, 0.0, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     else
       if (gpu.status & (1 << 21)) {
         gl.viewport(0, 0, this.canvas.width = area.w, this.canvas.height = area.h);
-        display24bit(this, drawBuffer, al, at)
+        display24bit(this, drawBuffer, al, at);
       }
       else {
-        gl.viewport(0, 0, this.canvas.width = area.w * qwf, this.canvas.height = area.h * qhf)
-        display16bit(this, drawBuffer, al, at)
+        gl.viewport(0, 0, this.canvas.width = area.w * qwf, this.canvas.height = area.h * qhf);
+        display16bit(this, drawBuffer, al, at);
       }
   }
 
   this.vertexBuffer.reset();
   // Draw
   this.setupProgramDraw();
+  if (this.seenRender) {
+    ++this.fpsRenderCounter;
+  }
+  ++this.fpsCounter;
   this.seenRender = false;
 }
 
