@@ -32,7 +32,6 @@ canvas {
   z-index : 1;
   left    : var(--display-left);
   top     : var(--display-top);
-  right   : 16px;
   border  : solid 1px rgb(24,24,24);
 }
 

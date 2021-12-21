@@ -34,7 +34,12 @@
 		counter: 0
 	};
 
-
+	function isTouchEnabled() {
+		return ( 'ontouchstart' in window ) ||
+			( navigator.maxTouchPoints > 0 ) ||
+			( navigator.msMaxTouchPoints > 0 );
+	}
+	
 	psx.addEvent(0, spu.event.bind(spu));
 	dma.eventDMA0 = psx.addEvent(0, dma.completeDMA0.bind(dma));
 	dma.eventDMA2 = psx.addEvent(0, dma.completeDMA2.bind(dma));
@@ -281,7 +286,6 @@
 			return false;
 		});
 
-
 		emulate(performance.now());
 
 		renderer = new WebGLRenderer(canvas);
@@ -292,6 +296,14 @@
 				spu.silence();
 			}
 		});
+
+		canvas.addEventListener("touchstart", function (e) {
+			running = !running;
+			if (!running) {
+				spu.silence();
+			}
+		});
+
 
 		window.addEventListener("keydown", function (e) {
 			if (e.key === 'F12') return; // allow developer tools
