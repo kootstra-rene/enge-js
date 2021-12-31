@@ -10,3 +10,4 @@
 |SLUS-01041| Chrono Cross | US | Playable | 2021-06-02 |
 |SLUS-01152| 102 Dalmatians - Puppies to the Rescue | US | Playable | 2021-06-02 |
 |SLUS-01272| 007 - The World is not Enough | US | Playable | 2021-06-02 |
+|SCUS-94183| PaRappa The Rapper | US | In-Game | 2021-03-08 |
