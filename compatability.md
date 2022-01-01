@@ -11,3 +11,4 @@
 |SLUS-01152| 102 Dalmatians - Puppies to the Rescue | US | Playable | 2021-06-02 |
 |SLUS-01272| 007 - The World is not Enough | US | Playable | 2021-06-02 |
 |SCUS-94183| PaRappa The Rapper | US | In-Game | 2021-03-08 |
+|SCUS-94448| Um Jammer Lammy | US | Menu | 2021-12-24 |
