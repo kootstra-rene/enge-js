@@ -13,3 +13,4 @@
 |SCUS-94183| PaRappa The Rapper | US | In-Game | 2021-03-08 | Issues with graphics. You have to wait for half of the song for the game to be playable. |
 |SCUS-94448| Um Jammer Lammy | US | Menu | 2021-12-24 | When trying to go into a stage, the game freezes. This renders the game unplayable and the only playable parts are the menu and title screen and FMV movies.|
 |SLUS-00581| Lego Racers | US | Playable | 2021-11-26 | |
+|SLUS-00707| Silent hill | US | Playable | 2022-1-21 | When launching a new game and past the cutscene you get a strange effect on you and other objects like a white transparent square other than lag spikes so far its playable.|
