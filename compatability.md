@@ -15,3 +15,4 @@
 |SLUS-00581| Lego Racers | US | Playable | 2021-11-26 | |
 |SLUS-00707| Silent hill | US | Playable | 2022-1-21 | When launching a new game and past the cutscene you get a strange effect on you and other objects like a white transparent square other than lag spikes so far its playable.|
 |SLUS-00860| Tony Hawk's Pro Skater | US | Playable | 2022-1-25 | Graphical glitches occur throughout menus (Main Menu, Pause, etc.) |
+|SLPM-86272| Rakugaki Showtime | JP | Playable | 2022-5-17 | Graphical glitches in menus and gameplay. |
