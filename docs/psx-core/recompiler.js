@@ -189,7 +189,7 @@
 				const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
 				if (address <= 0x00800000) {
 					rec.cycles += 5;
-					const code = rec.setReg(mips, rec.rt, `map[${(address & 0x001fffff) >> 2}]`);
+					const code = rec.setReg(mips, rec.rt, `ram.getInt32(0x${hex(address & 0x001fffff)}, true)`);
 					ConstantFolding.resetConst(rec.rt);
 					return code;
 				}
@@ -206,7 +206,7 @@
 				const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
 				if (address <= 0x00800000) {
 					rec.cycles += 5;
-					const code = rec.setReg(mips, rec.rt, `map8[0x${hex(address & 0x001fffff)}] & 0xff`);
+					const code = rec.setReg(mips, rec.rt, `ram.getUint8(0x${hex(address & 0x001fffff)})`);
 					ConstantFolding.resetConst(rec.rt);
 					return code;
 				}
