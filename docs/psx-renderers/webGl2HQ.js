@@ -33,6 +33,7 @@ function WebGLRenderer(cv) {
       depth: false,
       stencil: false,
     });
+
   }
   catch (e) {
     alert("Error: Unable to get WebGL context");
@@ -51,8 +52,11 @@ function WebGLRenderer(cv) {
 
     gl.enableVertexAttribArray(0);
 
-    this.programDisplay = createProgramDisplay(gl);
-    this.program = createProgram(gl);
+    this.vertexBuffer = gl.createBuffer();
+    this.textureBuffer = gl.createBuffer();
+
+    this.program = createProgram(gl, this.vertexBuffer, this.textureBuffer);
+    this.programDisplay = createProgramDisplay(gl, this.vertexBuffer, this.textureBuffer);
 
     // create texture
     this.vram = gl.createTexture();
@@ -336,10 +340,10 @@ function showDisplay(renderer, area, mode) {
   gl.activeTexture(gl.TEXTURE0 + 0);
   gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.program.vertexBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.program.textureBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.textureBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getDisplayTexture(area), gl.STATIC_DRAW);
 
   gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -362,10 +366,10 @@ function showVideoRAM(renderer, area, mode) {
   gl.activeTexture(gl.TEXTURE0 + 0);
   gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, program.vertexBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.textureBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
 
   gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -374,22 +378,20 @@ function showVideoRAM(renderer, area, mode) {
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
-function createProgram(gl) {
+function createProgram(gl, vertexBuffer, textureBuffer) {
   const program = utils.createProgramFromScripts(gl, 'vertex', 'displayVideoRam');
   gl.useProgram(program);
 
   program.mode = gl.getUniformLocation(program, "u_mode");
 
-  program.vertexBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, program.vertexBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
 
   program.vertexPosition = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(program.vertexPosition);
   gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 0, 0);
 
-  program.textureBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
 
   program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
   gl.enableVertexAttribArray(program.textureCoord);
@@ -398,7 +400,7 @@ function createProgram(gl) {
   return program;
 }
 
-function createProgramDisplay(gl) {
+function createProgramDisplay(gl, vertexBuffer, textureBuffer) {
   const program = utils.createProgramFromScripts(gl, 'vertex', 'displayScreen');
   gl.useProgram(program);
 
@@ -408,18 +410,14 @@ function createProgramDisplay(gl) {
   program.mode = gl.getUniformLocation(program, "u_mode");
   program.drawArea = gl.getUniformLocation(program, "u_draw");
 
-  // vertex schader
-  program.vertexBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, program.vertexBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
 
   program.vertexPosition = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(program.vertexPosition);
   gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 0, 0);
 
-  // fragment shader
-  program.textureBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
 
   program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
   gl.enableVertexAttribArray(program.textureCoord);

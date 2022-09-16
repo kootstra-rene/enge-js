@@ -145,7 +145,7 @@
     }
     
     vec3 render24Bit() {
-      ivec2 ds = ivec2(v_texcoord / vec2(4.0,4.0)) - u_disp.xy;
+      ivec2 ds = ivec2(v_vramCoord) - u_disp.xy;
   
       float tx = float(u_disp.x) + floor(float(ds.x) * 1.5);
       float ty = floor(v_texcoord.y);

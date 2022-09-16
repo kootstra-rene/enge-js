@@ -100,8 +100,7 @@ const utils = (function () {
    * @param {string} fragmentShaderId The id of the fragment shader script tag.
    * @return {!WebGLProgram} A program
    */
-  function createProgramFromScripts(
-      gl, vertexShaderId, fragmentShaderId) {
+  function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId) {
     var vertexShader = createShaderFromScript(gl, vertexShaderId, gl.VERTEX_SHADER);
     var fragmentShader = createShaderFromScript(gl, fragmentShaderId, gl.FRAGMENT_SHADER);
     return createProgram(gl, vertexShader, fragmentShader);
