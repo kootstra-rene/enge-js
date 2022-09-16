@@ -1,0 +1,383 @@
+"use strict"
+
+const $gpu = {
+};
+
+const sbgr2rgba = new Uint32Array(65536);
+const transfer = new Uint32Array(1024 * 512);
+const view = new Uint8Array(transfer.buffer);
+
+for (let i = 0; i < 65536; ++i) {
+  sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
+  sbgr2rgba[i] |= ((i >>> 5) & 0x1f) << 11;      // g
+  sbgr2rgba[i] |= ((i >>> 10) & 0x1f) << 19;      // b
+  sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
+}
+
+let canvas = null;
+
+function WebGLRenderer(cv) {
+  canvas = cv;
+  let gl = null;
+  this.gl = null;
+  this.mode = 'draw';
+  this.fpsRenderCounter = 0;
+  this.fpsCounter = 0;
+
+  try {
+    this.gl = gl = canvas.getContext("webgl2", {
+      alpha: false,
+      antialias: false,
+      preserveDrawingBuffer: true,
+      premultipliedAlpha: false,
+      depth: false,
+      stencil: false,
+    });
+  }
+  catch (e) {
+    alert("Error: Unable to get WebGL context");
+    return;
+  }
+
+  if (gl) {
+    gl.disable(gl.STENCIL_TEST);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.CULL_FACE);
+    gl.disable(gl.DITHER);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.disable(gl.SAMPLE_COVERAGE);
+    gl.disable(gl.SCISSOR_TEST);
+
+    gl.enableVertexAttribArray(0);
+
+    this.programDisplay = createProgramDisplay(gl);
+    this.program = createProgram(gl);
+
+    // create texture
+    this.vram = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.vram);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+    // create texture
+    this.cache = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.cache);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+    // Clear the canvas
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+  else {
+    alert("Error: Your browser does not appear to support WebGL.");
+  }
+}
+
+WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
+  const gl = this.gl;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  let draw_fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
+
+  gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(transfer.buffer));
+
+  for (let i = 0; i < h; ++i) {
+    for (let j = 0; j < w; ++j) {
+      let offset = i * w + j;
+      let data32 = transfer[offset];
+
+      let sbgr16 = 0;
+      sbgr16 |= ((data32 >>> 24) & 0xff) ? 0x8000 : 0x0000;
+      sbgr16 |= ((data32 >>> 19) & 0x1f) << 10;
+      sbgr16 |= ((data32 >>> 11) & 0x1f) << 5;
+      sbgr16 |= ((data32 >>> 3) & 0x1f) << 0;
+
+      buffer[offset] = sbgr16;
+    }
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
+  const gl = this.gl;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  let draw_fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
+
+  let read_fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, read_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
+
+  // blit from vram -> cache
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, read_fb);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, draw_fb);
+  gl.blitFramebuffer(sx, sy, sx + w, sy + h, sx, sy, sx + w, sy + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  // blit from cache -> vram
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, draw_fb);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read_fb);
+  gl.blitFramebuffer(sx, sy, sx + w, sy + h, dx, dy, dx + w, dy + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+WebGLRenderer.prototype.storeImage = function (img) {
+  for (let i = 0, l = img.pixelCount; i < l; ++i) {
+    const sbgr = img.buffer[i] >>> 0;
+    transfer[i] = sbgr2rgba[sbgr];
+  }
+
+  const gl = this.gl;
+  gl.bindTexture(gl.TEXTURE_2D, this.vram);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
+  this.updateDrawArea();
+}
+
+WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
+  this.updateDrawArea();
+}
+
+WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
+  this.updateDrawArea();
+}
+
+WebGLRenderer.prototype.fillRectangle = function (data) {
+  let gl = this.gl;
+
+  var x = (data[1] << 16) >>> 16;
+  var y = (data[1] << 0) >>> 16;
+  var w = (data[2] << 16) >>> 16;
+  var h = (data[2] << 0) >>> 16;
+  var c = (data[0] & 0xf8f8f8);
+
+  x = (x & 0x3f0);
+  y = (y & 0x1ff);
+  w = ((w & 0x3ff) + 15) & ~15;
+  h = (h & 0x1ff);
+  if (!w && !h) return;
+
+  transfer.fill(c, 0, w * h);
+
+  gl.bindTexture(gl.TEXTURE_2D, this.vram);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+
+WebGLRenderer.prototype.updateDrawArea = function () {
+  if ($gpu.daM) {
+  //   const program = this.programDisplay;
+  //   this.gl.useProgram(program);
+  //   this.gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+    $gpu.daM = false;
+  }
+}
+
+WebGLRenderer.prototype.setDrawAreaOF = function (x, y) {
+  $gpu.daX = x;
+  $gpu.daY = y;
+}
+
+WebGLRenderer.prototype.setDrawAreaTL = function (x, y) {
+  $gpu.daL = x;
+  $gpu.daT = y;
+
+  $gpu.daM = true;
+}
+
+WebGLRenderer.prototype.setDrawAreaBR = function (x, y) {
+  $gpu.daR = x;
+  $gpu.daB = y;
+
+  $gpu.daM = true;
+}
+
+WebGLRenderer.prototype.onVBlankBegin = function () {
+  const area = gpu.getDisplayArea();
+  const gl = this.gl;
+
+  switch (this.mode) {
+    case 'clut4': // todo: implement
+      canvas.width = 4096;
+      canvas.height = 512;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      showVideoRAM(this, area, 4);
+      break;
+    case 'clut8':
+      canvas.width = 2048;
+      canvas.height = 512;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      showVideoRAM(this, area, 2);
+      break;
+    case 'draw':
+      canvas.width = 1024;
+      canvas.height = 512;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      showVideoRAM(this, area, 1);
+      break;
+    case 'disp':
+      canvas.width = area.w * 1;
+      canvas.height = area.h * 2;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      showDisplay(this, area, (gpu.status >> 21) & 0b101);
+      break;
+  }
+
+  ++this.fpsCounter;
+}
+
+WebGLRenderer.prototype.onVBlankEnd = function () {
+}
+
+
+WebGLRenderer.prototype.setMode = function (mode) {
+  this.mode = mode;
+}
+
+
+function getDisplayTexture(area) {
+  // todo: 'global' structure to minimize allocs
+  return new Int16Array([
+    area.x + 0.0, area.y + 0.0,
+    area.x + area.w, area.y + 0.0,
+    area.x + 0.0, area.y + area.h,
+    area.x + 0.0, area.y + area.h,
+    area.x + area.w, area.y + 0.0,
+    area.x + area.w, area.y + area.h,
+  ]);
+}
+
+function getVideoRamTexture(xfactor = 1) {
+  // todo: 'global' structure to minimize allocs
+  return new Int16Array([
+    0.0, 0.0,
+    1024.0 * xfactor, 0.0,
+    0.0, 512.0,
+    0.0, 512.0,
+    1024.0 * xfactor, 0.0,
+    1024.0 * xfactor, 512.0,
+  ]);
+}
+
+function showDisplay(renderer, area, mode) {
+  const gl = renderer.gl;
+  const program = renderer.programDisplay;
+
+  gl.useProgram(program);
+  gl.uniform1f(program.time, (performance.now() >>> 0) / 1000.0);
+  gl.uniform2f(program.resolution, canvas.width, canvas.height);
+  gl.uniform4i(program.displayArea, area.x, area.y, area.w, area.h);
+  gl.uniform1i(program.mode, mode);
+
+  gl.activeTexture(gl.TEXTURE0 + 0);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.program.vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.program.textureBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, getDisplayTexture(area), gl.STATIC_DRAW);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function showVideoRAM(renderer, area, mode) {
+  const gl = renderer.gl;
+  const program = renderer.program;
+
+  gl.useProgram(program);
+  gl.uniform1i(program.mode, mode);
+
+  gl.activeTexture(gl.TEXTURE0 + 0);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, program.vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(mode), gl.STATIC_DRAW);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function createProgram(gl) {
+  const program = utils.createProgramFromScripts(gl, 'vertex', 'displayVideoRam');
+  gl.useProgram(program);
+
+  program.mode = gl.getUniformLocation(program, "u_mode");
+
+  program.vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, program.vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
+
+  program.vertexPosition = gl.getAttribLocation(program, "a_position");
+  gl.enableVertexAttribArray(program.vertexPosition);
+  gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 0, 0);
+
+  program.textureBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
+
+  program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
+  gl.enableVertexAttribArray(program.textureCoord);
+  gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, 0, 0);
+
+  return program;
+}
+
+function createProgramDisplay(gl) {
+  const program = utils.createProgramFromScripts(gl, 'vertex', 'displayScreen');
+  gl.useProgram(program);
+
+  program.displayArea = gl.getUniformLocation(program, "u_disp");
+  program.time = gl.getUniformLocation(program, "u_time");
+  program.resolution = gl.getUniformLocation(program, "u_resolution");
+  program.mode = gl.getUniformLocation(program, "u_mode");
+  program.drawArea = gl.getUniformLocation(program, "u_draw");
+
+  // vertex schader
+  program.vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, program.vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
+
+  program.vertexPosition = gl.getAttribLocation(program, "a_position");
+  gl.enableVertexAttribArray(program.vertexPosition);
+  gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 0, 0);
+
+  // fragment shader
+  program.textureBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
+
+  program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
+  gl.enableVertexAttribArray(program.textureCoord);
+  gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, 0, 0);
+
+  return program;
+}

@@ -68,7 +68,7 @@ Uint32Array.prototype.getNumberOfVertices = function () {
 }
 
 Uint32Array.prototype.canHold = function (cnt) {
-  return this.index + (24 * cnt) < (this.length * 4);
+  return this.index + (24 * cnt * 2) < (this.length * 4);
 }
 
 Uint32Array.prototype.reset = function () {
@@ -600,12 +600,30 @@ WebGLRenderer.prototype.storeImageInTexture = function (img) {
     return;
   }
 
+  var buffer = new Uint32Array(img.pixelCount);
+  const buf8 = new Uint8Array(buffer.buffer, 0, img.pixelCount << 2);
+
+  for (let i = 0; i < img.pixelCount; ++i) {
+    const data = img.buffer[i] >>> 0;
+    const val32 = ((data & 0x8000) >> 15) ? 0xff000000 : 0x00000000;
+    const r = ((data & 0x001f) >>  0) << 3;
+    const g = ((data & 0x03e0) >>  5) << 11;
+    const b = ((data & 0x7c00) >> 10) << 19;
+    buffer[i] = val32 | r | g | b;
+  }
+
+  gl.bindTexture(gl.TEXTURE_2D, this.tex16draw);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, buf8);
+  gl.bindTexture(gl.TEXTURE_2D, this.vramP2);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, buf8);
+
   // console.log(img.x, img.y, img.w, img.h)
   // copy image to GPU
   const view = new Uint8Array(img.buffer.buffer, 0, img.pixelCount << 1);
   gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
 
+return;
   // needed for 16bit video
   var x1 = img.x; var x2 = img.x + img.w;
   var y1 = img.y; var y2 = img.y + img.h;
@@ -668,7 +686,7 @@ WebGLRenderer.prototype.setupBuffers = function () {
   gl.enableVertexAttribArray(this.programDraw.vertexTexture);
 
 
-  this.programDisplay.vertexPosition = gl.getAttribLocation(this.programDraw, "aVertexPosition");
+  this.programDisplay.vertexPosition = gl.getAttribLocation(this.programDisplay, "aVertexPosition");
   gl.enableVertexAttribArray(this.programDisplay.vertexPosition);
 
   this.programDisplay.vertexTexture = gl.getAttribLocation(this.programDisplay, "aVertexTexture");
@@ -683,10 +701,10 @@ WebGLRenderer.prototype.setupBuffers = function () {
 
 
   // 8/4-bit video ram
-  this.programTexture.vertexPosition = gl.getAttribLocation(this.programDraw, "aVertexPosition");
+  this.programTexture.vertexPosition = gl.getAttribLocation(this.programTexture, "aVertexPosition");
   gl.enableVertexAttribArray(this.programTexture.vertexPosition);
 
-  this.programTexture.vertexTexture = gl.getAttribLocation(this.programDisplay, "aVertexTexture");
+  this.programTexture.vertexTexture = gl.getAttribLocation(this.programTexture, "aVertexTexture");
   gl.enableVertexAttribArray(this.programTexture.vertexTexture);
 
   this.canvasBuffer = gl.createBuffer();
