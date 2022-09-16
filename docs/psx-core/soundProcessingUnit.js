@@ -284,7 +284,7 @@
 				const captureIndex = (this.totalSamples % 0x200) << 1;
 				this.checkIrq();
 
-				for (let i = 23; i >= 0; --i) {
+				for (let i = 0; i < 24; ++i) {
 					let voice = this.voices[i];
 					if (!voice.adsrState) continue;
 

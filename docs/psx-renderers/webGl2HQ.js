@@ -4,7 +4,7 @@ const $gpu = {
 };
 
 const sbgr2rgba = new Uint32Array(65536);
-const transfer = new Uint32Array(1024 * 512);
+const transfer = new Uint32Array(4096 * 2048);
 const view = new Uint8Array(transfer.buffer);
 
 for (let i = 0; i < 65536; ++i) {
@@ -61,7 +61,7 @@ function WebGLRenderer(cv) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
     // create texture
     this.cache = gl.createTexture();
@@ -70,11 +70,12 @@ function WebGLRenderer(cv) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
-    // Clear the canvas
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    // copy texture data
+    gl.bindTexture(gl.TEXTURE_2D, this.vram);
+    transfer.fill(0xff7f007f);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4096, 2048, gl.RGBA, gl.UNSIGNED_BYTE, view);
   }
   else {
     alert("Error: Your browser does not appear to support WebGL.");
@@ -86,25 +87,35 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-  let draw_fb = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
+  let read_fb = this.read_fb = this.read_fb || gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, read_fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
+
+  let draw_fb = this.draw_fb = this.draw_fb || gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
+
+  // blit from vram -> cache
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, draw_fb);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read_fb);
+  gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, x + w, y + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+
+  // gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
+  // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
 
   gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(transfer.buffer));
 
-  for (let i = 0; i < h; ++i) {
-    for (let j = 0; j < w; ++j) {
-      let offset = i * w + j;
-      let data32 = transfer[offset];
+  const size = w * h;
+  for (let i = 0; i < size; ++i) {
+    const data32 = transfer[i];
+    let sbgr16 = 0;
+    sbgr16 |= ((data32 >>> 24) & 0xff) ? 0x8000 : 0x0000;
+    sbgr16 |= ((data32 >>> 19) & 0x1f) << 10;
+    sbgr16 |= ((data32 >>> 11) & 0x1f) << 5;
+    sbgr16 |= ((data32 >>> 3) & 0x1f) << 0;
 
-      let sbgr16 = 0;
-      sbgr16 |= ((data32 >>> 24) & 0xff) ? 0x8000 : 0x0000;
-      sbgr16 |= ((data32 >>> 19) & 0x1f) << 10;
-      sbgr16 |= ((data32 >>> 11) & 0x1f) << 5;
-      sbgr16 |= ((data32 >>> 3) & 0x1f) << 0;
-
-      buffer[offset] = sbgr16;
-    }
+    buffer[i] = sbgr16;
   }
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -113,13 +124,20 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
 WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
   const gl = this.gl;
 
+  sx *= 4;
+  sy *= 4;
+  dx *= 4;
+  dy *= 4;
+  w *= 4;
+  h *= 4;
+
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-  let draw_fb = gl.createFramebuffer();
+  let draw_fb = this.draw_fb = this.draw_fb || gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
 
-  let read_fb = gl.createFramebuffer();
+  let read_fb = this.read_fb = this.read_fb || gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, read_fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
 
@@ -145,9 +163,28 @@ WebGLRenderer.prototype.storeImage = function (img) {
   }
 
   const gl = this.gl;
-  gl.bindTexture(gl.TEXTURE_2D, this.vram);
+
+  // copy texture data
+  gl.bindTexture(gl.TEXTURE_2D, this.cache);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, view);
-  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  let draw_fb = this.draw_fb = this.draw_fb || gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
+
+  let read_fb = this.read_fb = this.read_fb || gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, read_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
+
+  // blit from cache -> vram
+  let { x, y, w, h } = img;
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, draw_fb);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read_fb);
+  gl.blitFramebuffer(x, y, x + w, y + h, 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
@@ -177,20 +214,37 @@ WebGLRenderer.prototype.fillRectangle = function (data) {
   h = (h & 0x1ff);
   if (!w && !h) return;
 
-  transfer.fill(c, 0, w * h);
+  transfer.fill(c, 0, 1);
 
-  gl.bindTexture(gl.TEXTURE_2D, this.vram);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+  // gl.bindTexture(gl.TEXTURE_2D, this.vram);
+  // gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
 
-  gl.bindTexture(gl.TEXTURE_2D, null);
+  // gl.bindTexture(gl.TEXTURE_2D, null);
+
+  let draw_fb = this.draw_fb = this.draw_fb || gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
+
+  let read_fb = this.read_fb = this.read_fb || gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, read_fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
+
+  // blit from cache -> vram
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, draw_fb);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read_fb);
+  gl.blitFramebuffer(0, 0, 1, 1, 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 
 WebGLRenderer.prototype.updateDrawArea = function () {
   if ($gpu.daM) {
-  //   const program = this.programDisplay;
-  //   this.gl.useProgram(program);
-  //   this.gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+    //   const program = this.programDisplay;
+    //   this.gl.useProgram(program);
+    //   this.gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
     $gpu.daM = false;
   }
 }
@@ -221,25 +275,25 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
   switch (this.mode) {
     case 'clut4': // todo: implement
       canvas.width = 4096;
-      canvas.height = 512;
+      canvas.height = 2048;
       gl.viewport(0, 0, canvas.width, canvas.height);
       showVideoRAM(this, area, 4);
       break;
     case 'clut8':
-      canvas.width = 2048;
-      canvas.height = 512;
+      canvas.width = 4096;
+      canvas.height = 2048;
       gl.viewport(0, 0, canvas.width, canvas.height);
       showVideoRAM(this, area, 2);
       break;
     case 'draw':
-      canvas.width = 1024;
-      canvas.height = 512;
+      canvas.width = 4096;
+      canvas.height = 2048;
       gl.viewport(0, 0, canvas.width, canvas.height);
       showVideoRAM(this, area, 1);
       break;
     case 'disp':
-      canvas.width = area.w * 1;
-      canvas.height = area.h * 2;
+      canvas.width = area.w * 1 * settings.quality;
+      canvas.height = area.h * 2 * settings.quality;
       gl.viewport(0, 0, canvas.width, canvas.height);
       showDisplay(this, area, (gpu.status >> 21) & 0b101);
       break;
@@ -269,15 +323,15 @@ function getDisplayTexture(area) {
   ]);
 }
 
-function getVideoRamTexture(xfactor = 1) {
+function getVideoRamTexture() {
   // todo: 'global' structure to minimize allocs
   return new Int16Array([
     0.0, 0.0,
-    1024.0 * xfactor, 0.0,
+    1024.0, 0.0,
     0.0, 512.0,
     0.0, 512.0,
-    1024.0 * xfactor, 0.0,
-    1024.0 * xfactor, 512.0,
+    1024.0, 0.0,
+    1024.0, 512.0,
   ]);
 }
 
@@ -317,7 +371,7 @@ function showVideoRAM(renderer, area, mode) {
   gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, program.vertexBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(mode), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, program.textureBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);

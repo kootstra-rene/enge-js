@@ -135,10 +135,13 @@
     const view = new DataView(arrayBuffer);
 
     if (view.getUint16(0, true) === 0x5350) { // PS
+      for (let i = 0; i <0x40; i+=4) {
+        console.log(hex(i,2), hex(view.getInt32(i,8)));
+      }
       cpu.pc = view.getInt32(0x10, true);
       cpu.gpr[28] = view.getInt32(0x14, true);
-      cpu.gpr[29] = view.getInt32(0x30, true);
-      cpu.gpr[30] = view.getInt32(0x30, true);
+      cpu.gpr[29] = view.getInt32(0x30, true) || 0x801ffff0;
+      cpu.gpr[30] = view.getInt32(0x30, true) || 0x801ffff0;
       cpu.gpr[31] = cpu.pc;
 
       var textSegmentOffset = view.getInt32(0x18, true);
@@ -151,7 +154,27 @@
       clearCodeCache(view.getInt32(0x18, true), arrayBuffer.byteLength);
       running = true;
     }
-    else if (view.getUint32(0, true) === (0xffffff00 >>> 0)) { // ISO
+    else if (view.getUint32(0, true) === 0x0000434d) { // MEMCARD
+      console.log('loaded MEMCARD');
+      var copy = new Uint8Array(arrayBuffer);
+      let card = joy.devices ? joy.devices[0].data : joy.cardOneMemory;
+      for (var i = 0; i < copy.length; ++i) {
+        card[i] = copy[i];
+      }
+    }
+    else if (arrayBuffer.byteLength === 524288) {
+      writeStorageStream('bios', arrayBuffer);
+      for (var i = 0; i < 0x00080000; i += 4) {
+        const data = view.getInt32(i, true);
+        rom.setInt32(i, data, true);
+      }
+      bios();
+      let header = document.querySelector('span.nobios');
+      if (header) {
+        header.classList.remove('nobios');
+      }
+    }
+    else if (true || view.getUint32(0, true) === (0xffffff00 >>> 0)) { // ISO
       // auto build TOC (attempt to not need .cue files)
       let loc = 0;
       let lastLoc = (arrayBuffer.byteLength / 4) / (2352 / 4);
@@ -207,26 +230,6 @@
 
       running = true;
     }
-    else if (view.getUint32(0, true) === 0x0000434d) { // MEMCARD
-      console.log('loaded MEMCARD');
-      var copy = new Uint8Array(arrayBuffer);
-      let card = joy.devices ? joy.devices[0].data : joy.cardOneMemory;
-      for (var i = 0; i < copy.length; ++i) {
-        card[i] = copy[i];
-      }
-    }
-    else if (arrayBuffer.byteLength === 524288) {
-      writeStorageStream('bios', arrayBuffer);
-      for (var i = 0; i < 0x00080000; i += 4) {
-        const data = view.getInt32(i, true);
-        rom.setInt32(i, data, true);
-      }
-      bios();
-      let header = document.querySelector('span.nobios');
-      if (header) {
-        header.classList.remove('nobios');
-      }
-    }
     else {
       abort('Unsupported fileformat');
     }
@@ -255,11 +258,14 @@
 
     document.addEventListener('dragover', handleDragOver, false);
     document.addEventListener('drop', handleFileSelect, false);
-    document.getElementById('file').addEventListener('change', handleFileSelect, false);
+
+    const fileElem = document.getElementById('file');
+    fileElem?.addEventListener('change', handleFileSelect, false);
 
     settings.updateQuality();
 
-    document.getElementById('quality').addEventListener('click', evt => {
+    const qualityElem = document.getElementById('quality');
+    qualityElem?.addEventListener('click', evt => {
       settings.updateQuality(true);
 
       evt.stopPropagation();

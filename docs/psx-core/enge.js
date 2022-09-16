@@ -24,7 +24,7 @@
 				case 14: return this.epc >> 0;
 				case 15: return 2 >> 0;
 				default: console.warn('getCtrl:' + reg);
-						 return this.cop[reg];
+					return this.cop[reg];
 			}
 		},
 
@@ -172,15 +172,14 @@
 					this.lo = 0x00000001;
 				}
 			}
-			else
-				if (((b >> 0) === -1) && ((a >>> 0) === 0x80000000)) {
-					this.hi = 0 >> 0;
-					this.lo = 0x80000000 >> 0;
-				}
-				else {
-					this.hi = ((a >> 0) % (b >> 0)) >> 0;
-					this.lo = ((a >> 0) / (b >> 0)) >> 0;
-				}
+			else if (((b >> 0) === -1) && ((a >>> 0) === 0x80000000)) {
+				this.hi = 0 >> 0;
+				this.lo = 0x80000000 >> 0;
+			}
+			else {
+				this.hi = ((a >> 0) % (b >> 0)) >> 0;
+				this.lo = ((a >> 0) / (b >> 0)) >> 0;
+			}
 		},
 
 		divu: function (a, b) {

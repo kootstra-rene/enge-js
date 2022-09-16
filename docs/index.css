@@ -1,9 +1,9 @@
 :root {
-  --display-width: calc((100vh / 9 * 14) - 32px);
-  --display-height: calc(100vh - 32px);
+  --display-width: calc((100vh / 9 * 12) - 2vh);
+  --display-height: calc(100vh - 2vh);
 
   --display-left: calc((100vw - var(--display-width)) / 2);
-  --display-top: 16px;
+  --display-top: 1vh;
 }
 
 html {
@@ -39,9 +39,9 @@ header {
   position: absolute;
   font-weight: 900;
   z-index: 2;
-  left: 16px;
+  left: 1vh;
   top: var(--display-top);
-  bottom: 16px;
+  bottom: 1vh;
   width: calc(var(--display-left) - 32px);
 }
 
@@ -60,50 +60,50 @@ nav {
   position: absolute;
   z-index: 2;
   color:red;
-  right: 16px;
-  top: 16px;
-  bottom: 16px;
+  right: 1vh;
+  top: 1vh;
+  bottom: 1vh;
   width: calc(var(--display-left) - 32px);
   background-color: transparent;
   display: flex;
   flex-direction: column;
 }
 
-/* overrides for developper view */
+/* overrides for developer view */
 @media screen and (max-width: 133.34vh) {
   :root {
-    --display-width: calc((100vw) - 32px);
-    --display-height: calc((100vw / 14 * 9) - 32px);
-    --display-left: 16px;
+    --display-width: calc((100vw) - 2vh);
+    --display-height: calc((100vw / 14 * 9) - 2vh);
+    --display-left: 1vh;
     --display-top: calc((100vh - var(--display-height)) / 2);
   }
 
-  canvas {
-  }
+  /* canvas {
+  } */
 
   header {
-    top: 16px;
-    right: 16px;
-    left: 16px;
-    height: calc(var(--display-top) - 32px);
+    top: calc(var(--display-top) - 10vh);
+    right: 1vh;
+    left: 1vh;
+    height: 10vh;
     bottom: unset;
     width: unset;
-    line-height: calc(var(--display-top) - 32px);
+    line-height: 10vh;
   }
 
   header > span {
     transform: scale(1) translate(50%, -50%);
-    font-size: calc(var(--display-top) - 32px);
+    font-size: 10vh;
     text-shadow: 2px 1px 2px rgba(80,80,80,0.75), -2px -1px 2px rgba(0,0,0,0.75);
   }
 
   nav {
-    bottom: 16px;
-    right: 16px;
-    left: 16px;
-    height: calc(var(--display-top) - 32px);
+    top: calc(var(--display-top) + var(--display-height) + 1vh);
+    right: 1vh;
+    left: 1vh;
+    height: 10vh;
     width: unset;
-    top: unset;
+    bottom: unset;
     flex-direction: row;
   }
 }

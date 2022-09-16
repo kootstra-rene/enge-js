@@ -1,0 +1,9 @@
+version: "3.3"
+services:
+  mdlr.server:
+    container_name: enge-dev
+    image: retakenroots/mdlr:latest
+    volumes:
+      - ./user/:/app/user/
+    ports:
+      - "8443:443"

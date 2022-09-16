@@ -1,0 +1,209 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <title>eNGE</title>
+  <link rel="stylesheet" type="text/css" href="index-webgl2.css">
+
+  <script type="text/javascript" src="base64.js"></script>
+  <script type="text/javascript" src="trace.js"></script>
+  <script type="text/javascript" src="utils.js"></script>
+
+  <script type="text/javascript" src="psx-core/core.js"></script>
+  <script type="text/javascript" src="psx-core/config.js"></script>
+
+  <!-- <script type="text/javascript" src="psx-renderers/webGlHQ.js"></script> -->
+  <script type="text/javascript" src="psx-renderers/webgl2-utils.js"></script>
+  <script type="text/javascript" src="psx-renderers/webGl2HQ.js"></script>
+
+  <script type="text/javascript" src="psx-core/memory.js"></script>
+  <script type="text/javascript" src="psx-core/enge.js"></script>
+  <script type="text/javascript" src="psx-core/cdrom.js"></script>
+  <script type="text/javascript" src="psx-core/recompiler.js"></script>
+  <script type="text/javascript" src="psx-core/directMemoryAccess.js"></script>
+  <script type="text/javascript" src="psx-core/geometryTransformEngine.js"></script>
+  <script type="text/javascript" src="psx-core/graphicsProcessingUnit.js"></script>
+  <script type="text/javascript" src="psx-core/macroBlockDecoder.js"></script>
+  <script type="text/javascript" src="psx-core/serialPorts.js"></script>
+  <script type="text/javascript" src="psx-core/soundProcessingUnit.js"></script>
+  <script type="text/javascript" src="psx-core/rootCounters.js"></script>
+  <script type="text/javascript" src="psx-core/gamepad.js"></script>
+
+  <script type="text/javascript" src="index.js"></script>
+
+  <script id="vertex" type="x-shader/x-vertex">#version 300 es
+    precision highp float;
+  
+    in vec2   a_position;
+    in vec2   a_texcoord;
+   
+    out vec2  v_texcoord;
+    out vec2  v_vramCoord;
+  
+    void main() {
+      gl_Position = vec4(a_position, 0.0, 1.0);
+      gl_Position.x = (gl_Position.x - 512.0) / +512.0;
+      gl_Position.y = (gl_Position.y - 256.0) / -256.0;
+      v_vramCoord = a_texcoord; // 24-bit video
+      v_texcoord = a_texcoord * vec2(4.0, 4.0); // texture is 4096x2048 iso 1024x512 
+    }
+  </script>
+
+  <script id="displayVideoRam" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+     
+    uniform sampler2D u_texture;
+    uniform int       u_mode;
+  
+    in vec2 v_texcoord;
+    out vec4 outColor;
+  
+    int getSBGRfromRGBA(vec4 c) {
+      int sbgr = 0;
+      sbgr += int(c.r * 32.0);
+      sbgr += int(c.g * 32.0) * 32;
+      sbgr += int(c.b * 32.0) * 32 * 32;
+      if (c.a >= 0.5) sbgr += 32768;
+      return sbgr;
+    }
+     
+    void main() {
+//      // code to visualize coordinates
+//      float v = 1.0 - (float(int(v_texcoord.x) & 255) / 255.0) * (float(int(v_texcoord.y) & 255) / 255.0);
+//      float v = 1.0 - (float(int(coord.x) & 255) / 255.0) * (float(int(coord.y) & 255) / 255.0);
+//      outColor = vec4(v, v, v, 1.0);
+//      return;
+
+      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
+
+      if (u_mode == 4) { 
+        int sbgr = getSBGRfromRGBA(color);
+
+        int bit = int(v_texcoord.x) & 3;
+        int clutIndex = (sbgr >> (bit * 4)) & 0xf;
+
+        float v = float(clutIndex) / 15.0;
+        outColor = vec4(v, v, v, 1.0); 
+        return;
+      }
+      if (u_mode == 2) {
+        int sbgr = getSBGRfromRGBA(color);
+
+        int bit = int(v_texcoord.x) & 1;
+        int clutIndex = (sbgr >> (bit * 8)) & 0xff;
+
+        float v = float(clutIndex) / 255.0;
+        outColor = vec4(v, v, v, 1.0); 
+        return;
+      }
+      outColor = color;
+    }
+    </script>
+
+  <script id="displayScreen" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+    precision highp int;
+     
+    uniform sampler2D u_texture;
+    uniform ivec4     u_disp;
+    uniform float     u_time;
+    uniform vec2      u_resolution;
+    uniform int       u_mode;
+  
+    in vec2 v_texcoord;
+    in vec2  v_vramCoord;
+
+    out vec4 outColor;
+   
+    int getSBGRfromRGBA(vec4 c) {
+      int sbgr = 0;
+      sbgr += int(c.r * 32.0);
+      sbgr += int(c.g * 32.0) * 32;
+      sbgr += int(c.b * 32.0) * 32 * 32;
+      if (c.a >= 0.5) sbgr += 32768;
+      return sbgr;
+    }
+  
+    vec3 InterleavedGradientNoise(vec2 uv) {
+      const vec3 magic = vec3( 0.06711056, 0.00583715, 52.9829189 );
+      float rnd = fract( magic.z * fract( dot( uv, magic.xy ) ) ) / 32.0;
+      return vec3(rnd, rnd, rnd);
+    }
+  
+    vec4 tv_effect(vec3 col) {
+      vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+
+      col *= step(0.0, uv.x) * step(0.0, uv.y);
+      col *= 1.0 - step(1.0, uv.x) * 1.0 - step(1.0, uv.y);
+    
+      col *= 0.5 + 0.5 * 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
+      col *= vec3(0.98, 1.02, 0.98);
+    
+      col *= (0.85 + 0.15 * sin(uv.y * float(u_disp.w * 2) * 3.1415));
+    
+      return vec4(col, 1.0);			
+    }
+    
+    vec3 render24Bit() {
+      ivec2 ds = ivec2(v_texcoord / vec2(4.0,4.0)) - u_disp.xy;
+  
+      float tx = float(u_disp.x) + floor(float(ds.x) * 1.5);
+      float ty = floor(v_texcoord.y);
+  
+      vec4 c1 = texelFetch(u_texture, ivec2(4.0 * tx + 0.0, ty), 0);
+      int  sbgr1 = getSBGRfromRGBA(c1);
+      vec4 c2 = texelFetch(u_texture, ivec2(4.0 * tx + 4.0, ty), 0);
+      int  sbgr2 = getSBGRfromRGBA(c2);
+  
+      if ((ds.x & 1) == 1) {
+        float r = float((sbgr1 >> 8) & 255) / 256.0;
+        float g = float((sbgr2 >> 0) & 255) / 256.0;
+        float b = float((sbgr2 >> 8) & 255) / 256.0;
+    
+        return vec3(r, g, b);
+      }
+      else {
+        float r = float((sbgr1 >> 0) & 255) / 256.0;
+        float g = float((sbgr1 >> 8) & 255) / 256.0;
+        float b = float((sbgr2 >> 0) & 255) / 256.0;
+    
+        return vec3(r, g, b);
+      }
+    }
+
+    vec3 render16Bit() {
+      ivec2 texel = ivec2(v_texcoord.xy);
+      
+      /*if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
+      outColor = vec4(1.0, 0.0, 0.0, 1.0);
+      return;
+      }
+      if (texel.x >= u_disp.x && texel.y >= u_disp.y && texel.x < (u_disp.x+u_disp.z) && texel.y < (u_disp.y+u_disp.w)) {
+      outColor = vec4(0.0, 0.0, 1.0, 1.0);
+      return;
+      }*/
+  
+      return texelFetch(u_texture, texel, 0).xyz;
+    }
+
+    void main() {
+      vec3 color;
+
+      if (u_mode == 0) { color = render16Bit(); }
+      if (u_mode == 1) { color = render24Bit(); }
+      if (u_mode == 2) { color = vec3(0.0, 0.0, 0.0); }
+
+      vec3 noise = InterleavedGradientNoise(floor(v_vramCoord));
+
+      outColor = tv_effect(color + noise);
+    }
+    </script>
+</head>
+
+<body onload="init();">
+  <div id="background"></div>
+  <canvas id="display"></canvas>
+  <!-- <div id="menu"></div> -->
+</body>
+
+</html>

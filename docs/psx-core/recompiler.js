@@ -392,24 +392,28 @@
 		'compile58': function (rec, opc) {
 			const mips = 'mult    r' + rec.rs + ', r' + rec.rt;
 			const code = rec.setReg(mips, 0, 'cpu.mult(' + rec.getRS() + ', ' + rec.getRT() + ')');
+			rec.cycles += 8;
 			return code;
 		},
 
 		'compile59': function (rec, opc) {
 			const mips = 'multu   r' + rec.rs + ', r' + rec.rt;
 			const code = rec.setReg(mips, 0, 'cpu.multu(' + rec.getRS() + ', ' + rec.getRT() + ')');
+			rec.cycles += 8;
 			return code;
 		},
 
 		'compile5A': function (rec, opc) {
 			const mips = 'div     r' + rec.rs + ', r' + rec.rt;
 			const code = rec.setReg(mips, 0, 'cpu.div(' + rec.getRS() + ', ' + rec.getRT() + ')');
+			rec.cycles += 35;
 			return code;
 		},
 
 		'compile5B': function (rec, opc) {
 			const mips = 'divu    r' + rec.rs + ', r' + rec.rt;
 			const code = rec.setReg(mips, 0, 'cpu.divu(' + rec.getRS() + ', ' + rec.getRT() + ')');
+			rec.cycles += 35;
 			return code;
 		},
 
@@ -740,10 +744,21 @@
 		ConstantFolding.resetState();
 
 		// todo: limit the amount of cycles per block
-		while (!state.stop) {
+		while (!state.stop && state.cycles < 127) {
 			compileInstruction(state, lines, false);
 			state.cycles += 1;
 			state.pc += 4;
+		}
+
+		if (!state.stop && state.cycles >= 64) {
+			state.branchTarget = (state.pc >>> 0) & 0x01ffffff;
+			state.skipNext = true;
+			state.jump = true;
+			const code = state.setReg('*snip*', 0, `target = _${hex(state.branchTarget)}`);
+			lines.push(code);
+
+			// console.log('abort', lines);
+			// debugger;
 		}
 
 		if (state.stop && (!state.break && !state.syscall && !state.sr)) {
