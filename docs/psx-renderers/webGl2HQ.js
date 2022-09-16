@@ -74,7 +74,7 @@ function WebGLRenderer(cv) {
 
     // copy texture data
     gl.bindTexture(gl.TEXTURE_2D, this.vram);
-    transfer.fill(0xff7f007f);
+    transfer.fill(0);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4096, 2048, gl.RGBA, gl.UNSIGNED_BYTE, view);
   }
   else {
@@ -100,11 +100,7 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read_fb);
   gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, x + w, y + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
-
-  // gl.bindFramebuffer(gl.FRAMEBUFFER, draw_fb);
-  // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-
-  gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(transfer.buffer));
+  gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
 
   const size = w * h;
   for (let i = 0; i < size; ++i) {
@@ -274,27 +270,15 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
 
   switch (this.mode) {
     case 'clut4': // todo: implement
-      canvas.width = 4096;
-      canvas.height = 2048;
-      gl.viewport(0, 0, canvas.width, canvas.height);
       showVideoRAM(this, area, 4);
       break;
     case 'clut8':
-      canvas.width = 4096;
-      canvas.height = 2048;
-      gl.viewport(0, 0, canvas.width, canvas.height);
       showVideoRAM(this, area, 2);
       break;
     case 'draw':
-      canvas.width = 4096;
-      canvas.height = 2048;
-      gl.viewport(0, 0, canvas.width, canvas.height);
       showVideoRAM(this, area, 1);
       break;
     case 'disp':
-      canvas.width = area.w * 1 * settings.quality;
-      canvas.height = area.h * 2 * settings.quality;
-      gl.viewport(0, 0, canvas.width, canvas.height);
       showDisplay(this, area, (gpu.status >> 21) & 0b101);
       break;
   }
@@ -339,6 +323,10 @@ function showDisplay(renderer, area, mode) {
   const gl = renderer.gl;
   const program = renderer.programDisplay;
 
+  canvas.width = area.w * 1 * settings.quality;
+  canvas.height = area.h * 2 * settings.quality;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+
   gl.useProgram(program);
   gl.uniform1f(program.time, (performance.now() >>> 0) / 1000.0);
   gl.uniform2f(program.resolution, canvas.width, canvas.height);
@@ -363,6 +351,10 @@ function showDisplay(renderer, area, mode) {
 function showVideoRAM(renderer, area, mode) {
   const gl = renderer.gl;
   const program = renderer.program;
+
+  canvas.width = 4096;
+  canvas.height = 2048;
+  gl.viewport(0, 0, canvas.width, canvas.height);
 
   gl.useProgram(program);
   gl.uniform1i(program.mode, mode);
