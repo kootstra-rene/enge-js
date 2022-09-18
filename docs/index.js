@@ -18,7 +18,7 @@
   let hasFocus = true;
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === 'visible') {
-      document.title = 'active';
+      document.title = `eNGE - [${gameCode}]`;
       hasFocus = true;
     } else {
       document.title = 'paused';

@@ -6,7 +6,6 @@
 
 	let line = '';
 	let lastLine = null;
-	let gameCode = "";
 
 	function traceBiosCalls(programCounter, functionId) {
 		switch (programCounter) {
@@ -43,12 +42,13 @@
 		if (result) {
 			let gc = result[0].replace('.', '').toUpperCase();
 			if (gameCode !== gc) {
-				console.warn(`gamecode: '${gc}'`);
+				document.title = `eNGE - [${gc}]`;
 				gameCode = gc;
 			}
 		}
 	}
 
 	scope.trace = traceBiosCalls;
+	scope.gameCode = '';
 
 })(window);
