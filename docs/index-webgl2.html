@@ -49,57 +49,6 @@
     }
   </script>
 
-  <script id="displayVideoRam" type="x-shader/x-fragment">#version 300 es
-    precision highp float;
-     
-    uniform sampler2D u_texture;
-    uniform int       u_mode;
-  
-    in vec2 v_texcoord;
-    out vec4 outColor;
-  
-    int getSBGRfromRGBA(vec4 c) {
-      int sbgr = 0;
-      sbgr += int(c.r * 32.0);
-      sbgr += int(c.g * 32.0) * 32;
-      sbgr += int(c.b * 32.0) * 32 * 32;
-      if (c.a >= 0.5) sbgr += 32768;
-      return sbgr;
-    }
-     
-    void main() {
-//      // code to visualize coordinates
-//      float v = 1.0 - (float(int(v_texcoord.x) & 255) / 255.0) * (float(int(v_texcoord.y) & 255) / 255.0);
-//      float v = 1.0 - (float(int(coord.x) & 255) / 255.0) * (float(int(coord.y) & 255) / 255.0);
-//      outColor = vec4(v, v, v, 1.0);
-//      return;
-
-      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
-
-      if (u_mode == 4) { 
-        int sbgr = getSBGRfromRGBA(color);
-
-        int bit = int(v_texcoord.x) & 3;
-        int clutIndex = (sbgr >> (bit * 4)) & 0xf;
-
-        float v = float(clutIndex) / 15.0;
-        outColor = vec4(v, v, v, 1.0); 
-        return;
-      }
-      if (u_mode == 2) {
-        int sbgr = getSBGRfromRGBA(color);
-
-        int bit = int(v_texcoord.x) & 1;
-        int clutIndex = (sbgr >> (bit * 8)) & 0xff;
-
-        float v = float(clutIndex) / 255.0;
-        outColor = vec4(v, v, v, 1.0); 
-        return;
-      }
-      outColor = color;
-    }
-    </script>
-
   <script id="displayScreen" type="x-shader/x-fragment">#version 300 es
     precision highp float;
     precision highp int;
@@ -186,12 +135,43 @@
       return texelFetch(u_texture, texel, 0).xyz;
     }
 
-    void main() {
-      vec3 color;
+    vec4 vram15bit() {
+      return texelFetch(u_texture, ivec2(v_texcoord), 0);
+    }
 
-      if (u_mode == 0) { color = render16Bit(); }
-      if (u_mode == 1) { color = render24Bit(); }
-      if (u_mode == 2) { color = vec3(0.0, 0.0, 0.0); }
+    vec4 vram8bit() {
+      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(v_texcoord.x) & 1;
+      int clutIndex = (sbgr >> (bit * 8)) & 0xff;
+
+      float v = float(clutIndex) / 255.0;
+      return vec4(v, v, v, 1.0); 
+    }
+
+    vec4 vram4bit() {
+      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(v_texcoord.x) & 3;
+      int clutIndex = (sbgr >> (bit * 4)) & 0xf;
+
+      float v = float(clutIndex) / 15.0;
+      return vec4(v, v, v, 1.0); 
+    }
+
+    void main() {
+      vec3 color = vec3(0.0, 0.0, 0.0);
+
+      switch (u_mode) {
+        case 6: outColor = vram15bit(); return;
+        case 2: outColor = vram8bit(); return;
+        case 3: outColor = vram4bit(); return;
+
+        case 1: color = render24Bit(); break;
+        case 0: color = render16Bit(); break;
+      }
 
       vec3 noise = InterleavedGradientNoise(floor(v_vramCoord));
 

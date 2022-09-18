@@ -54,7 +54,6 @@ function WebGLRenderer(cv) {
 
     this.renderBuffer = gl.createBuffer();
 
-    this.program = createProgram(gl, this.renderBuffer);
     this.programDisplay = createProgramDisplay(gl, this.renderBuffer);
 
     // create texture
@@ -236,9 +235,9 @@ WebGLRenderer.prototype.fillRectangle = function (data) {
 
 WebGLRenderer.prototype.updateDrawArea = function () {
   if ($gpu.daM) {
-      const program = this.programDisplay;
-      this.gl.useProgram(program);
-      this.gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+    const program = this.programDisplay;
+    this.gl.useProgram(program);
+    this.gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
     $gpu.daM = false;
   }
 }
@@ -268,13 +267,13 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
 
   switch (this.mode) {
     case 'clut4':
-      showVideoRAM(this, area, 4);
+      showDisplay(this, { x: 0, y: 0, w: 1024, h: 512 }, 3);
       break;
     case 'clut8':
-      showVideoRAM(this, area, 2);
+      showDisplay(this, { x: 0, y: 0, w: 1024, h: 512 }, 2);
       break;
     case 'draw':
-      showVideoRAM(this, area, 1);
+      showDisplay(this, { x: 0, y: 0, w: 1024, h: 512 }, 6);
       break;
     case 'disp':
       showDisplay(this, area, (gpu.status >> 21) & 0b101);
@@ -327,38 +326,6 @@ function showDisplay(renderer, area, mode) {
 
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, null);
-}
-
-function showVideoRAM(renderer, area, mode) {
-  const gl = renderer.gl;
-  const program = renderer.program;
-
-  canvas.width = 4096;
-  canvas.height = 2048;
-  gl.viewport(0, 0, canvas.width, canvas.height);
-
-  gl.useProgram(program);
-  gl.uniform1i(program.mode, mode);
-
-  gl.activeTexture(gl.TEXTURE0 + 0);
-  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.renderBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays({ x: 0, y: 0, w: 1024, h: 512 }), gl.STATIC_DRAW);
-
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-}
-
-function createProgram(gl, renderBuffer) {
-  const program = utils.createProgramFromScripts(gl, 'vertex', 'displayVideoRam');
-  gl.useProgram(program);
-
-  program.mode = gl.getUniformLocation(program, "u_mode");
-
-  return program;
 }
 
 function createProgramDisplay(gl, renderBuffer) {
