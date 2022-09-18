@@ -71,7 +71,7 @@ const utils = (function () {
     // look up the script tag by id.
     var shaderScript = document.getElementById(scriptId);
     if (!shaderScript) {
-      throw("*** Error: unknown script element" + scriptId);
+      throw("*** Error: unknown script element: " + scriptId);
     }
    
     // extract the contents of the script tag.
@@ -107,15 +107,16 @@ const utils = (function () {
   }
 
   function createVertexBuffer() {
-    let buffer = new Uint8Array(18 * 1024);
+    let buffer = new Uint8Array(256 * 1024);
     let view = new DataView(buffer.buffer);
 
-    buffer.addVertex = function(x, y, u, v) {
+    buffer.addVertex = function(x, y, u, v, c = 0x80808080) {
       view.setInt16(this.index + 0, x, true);
       view.setInt16(this.index + 2, y, true);
       view.setInt16(this.index + 4, u, true);
       view.setInt16(this.index + 6, v, true);
-      this.index += 8;
+      view.setUint32(this.index + 8, c, true);
+      this.index += 12;
     }
 
     buffer.reset = function () {
@@ -126,6 +127,7 @@ const utils = (function () {
       return new Uint8Array(this.buffer, 0, this.index);
     }
 
+    buffer.reset();
     return buffer;
   }
 

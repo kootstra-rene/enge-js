@@ -31,21 +31,71 @@
 
   <script type="text/javascript" src="index.js"></script>
 
+  <script id="pixel" type="x-shader/x-vertex">#version 300 es
+    precision highp float;
+
+    in vec2 a_position;
+    in vec2 a_texcoord;
+    in vec4 a_color;
+
+    out vec2 v_texcoord;
+    out vec2 v_vramCoord;
+    out vec4 v_color;
+    out vec2 v_pixelCoord;
+
+    void main() {
+      gl_Position = vec4(a_position, 0.0, 1.0);
+      gl_Position.x = (gl_Position.x - 512.0) / +512.0;
+      gl_Position.y = (gl_Position.y - 256.0) / +256.0;
+//      v_vramCoord = a_texcoord; 
+      v_pixelCoord = a_position;
+//      v_texcoord = a_texcoord * vec2(4.0, 4.0); // texture is 4096x2048 iso 1024x512
+      v_color = a_color;
+    }
+  </script>
+
+  <script id="videoram" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+    precision highp int;
+
+    uniform ivec4 u_draw;
+
+    in vec2 v_texcoord;
+    in vec2 v_vramCoord;
+    in vec4 v_color;
+    in vec2 v_pixelCoord;
+
+    out vec4 outColor;
+
+    void main() {
+      ivec2 texel = ivec2(v_pixelCoord).xy;
+      if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
+        outColor = v_color;
+      }
+      else discard;
+    }
+  </script>
+
   <script id="vertex" type="x-shader/x-vertex">#version 300 es
     precision highp float;
   
-    in vec2   a_position;
-    in vec2   a_texcoord;
+    in vec2 a_position;
+    in vec2 a_texcoord;
+    in vec4 a_color;
    
-    out vec2  v_texcoord;
-    out vec2  v_vramCoord;
+    out vec2 v_texcoord;
+    out vec2 v_vramCoord;
+    out vec4 v_color;
+    out vec2 v_pixelCoord;
   
     void main() {
       gl_Position = vec4(a_position, 0.0, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / -256.0;
       v_vramCoord = a_texcoord; 
-      v_texcoord = a_texcoord * vec2(4.0, 4.0); // texture is 4096x2048 iso 1024x512 
+      v_pixelCoord = a_position;
+      v_texcoord = a_texcoord * vec2(4.0, 4.0); // texture is 4096x2048 iso 1024x512
+      v_color = a_color;
     }
   </script>
 
@@ -60,7 +110,8 @@
     uniform int       u_mode;
   
     in vec2 v_texcoord;
-    in vec2  v_vramCoord;
+    in vec2 v_vramCoord;
+    in vec4 v_color;
 
     out vec4 outColor;
    
@@ -177,6 +228,8 @@
         case 2: color = vram8bit(); break;
         case 3: color = vram4bit(); break;
       }
+
+      color = color * v_color;
 
       if (u_mode <= 1) {
         outColor = tv_effect(color.rgb + InterleavedGradientNoise().rgb);
