@@ -44,7 +44,7 @@
       gl_Position = vec4(a_position, 0.0, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / -256.0;
-      v_vramCoord = a_texcoord; // 24-bit video
+      v_vramCoord = a_texcoord; 
       v_texcoord = a_texcoord * vec2(4.0, 4.0); // texture is 4096x2048 iso 1024x512 
     }
   </script>
@@ -55,8 +55,8 @@
      
     uniform sampler2D u_texture;
     uniform ivec4     u_disp;
+    uniform ivec4     u_draw;
     uniform float     u_time;
-    uniform vec2      u_resolution;
     uniform int       u_mode;
   
     in vec2 v_texcoord;
@@ -80,7 +80,8 @@
     }
   
     vec4 tv_effect(vec3 col) {
-      vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+      vec2 resolution = vec2(u_disp.zw - u_disp.xy + ivec2(1,1));
+      vec2 uv = (v_vramCoord - vec2(u_disp.xy)) / resolution;
 
       col *= step(0.0, uv.x) * step(0.0, uv.y);
       col *= 1.0 - step(1.0, uv.x) * 1.0 - step(1.0, uv.y);
@@ -88,8 +89,10 @@
       col *= 0.5 + 0.5 * 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
       col *= vec3(0.98, 1.02, 0.98);
     
-      col *= (0.85 + 0.15 * sin(uv.y * float(u_disp.w * 2) * 3.1415));
+      //col *= (0.85 + 0.15 * sin(uv.y * resolution.y * 2.0 * 3.1415));
     
+      col *= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 1.0 : 0.8;
+
       return vec4(col, 1.0);			
     }
     
@@ -121,18 +124,7 @@
     }
 
     vec3 render16Bit() {
-      ivec2 texel = ivec2(v_texcoord.xy);
-      
-      /*if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
-      outColor = vec4(1.0, 0.0, 0.0, 1.0);
-      return;
-      }
-      if (texel.x >= u_disp.x && texel.y >= u_disp.y && texel.x < (u_disp.x+u_disp.z) && texel.y < (u_disp.y+u_disp.w)) {
-      outColor = vec4(0.0, 0.0, 1.0, 1.0);
-      return;
-      }*/
-  
-      return texelFetch(u_texture, texel, 0).xyz;
+      return texelFetch(u_texture, ivec2(v_texcoord), 0).xyz;
     }
 
     vec4 vram15bit() {
@@ -161,10 +153,28 @@
       return vec4(v, v, v, 1.0); 
     }
 
+    vec4 gpuState() {
+      ivec2 texel = ivec2(v_vramCoord).xy;
+
+      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
+      float r = 0.0, g = 0.0, b = 0.0;
+      if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
+        if (texel.x == u_draw.x || texel.x == u_draw.z) color.rgb = vec3(1.0, 0.0, 0.0);
+        if (texel.y == u_draw.y || texel.y == u_draw.w) color.rgb = vec3(1.0, 0.0, 0.0);
+      }
+      if (texel.x >= u_disp.x && texel.y >= u_disp.y && texel.x <= u_disp.z && texel.y <= u_disp.w) {
+        if (texel.x == u_disp.x || texel.x == u_disp.z) color.rgb = vec3(0.0, 0.0, 1.0);
+        if (texel.y == u_disp.y || texel.y == u_disp.w) color.rgb = vec3(0.0, 0.0, 1.0);
+      }
+      return color;
+    }
+
     void main() {
       vec3 color = vec3(0.0, 0.0, 0.0);
 
       switch (u_mode) {
+        case 7: outColor = gpuState(); return;
+
         case 6: outColor = vram15bit(); return;
         case 2: outColor = vram8bit(); return;
         case 3: outColor = vram4bit(); return;

@@ -267,16 +267,19 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
 
   switch (this.mode) {
     case 'clut4':
-      showDisplay(this, { x: 0, y: 0, w: 1024, h: 512 }, 3);
+      showDisplay(this, 3);
       break;
     case 'clut8':
-      showDisplay(this, { x: 0, y: 0, w: 1024, h: 512 }, 2);
+      showDisplay(this, 2);
       break;
     case 'draw':
-      showDisplay(this, { x: 0, y: 0, w: 1024, h: 512 }, 6);
+      showDisplay(this, 6);
+      break;
+    case 'page2': // display-area and draw-area
+      showDisplay(this, 7);
       break;
     case 'disp':
-      showDisplay(this, area, (gpu.status >> 21) & 0b101);
+      showDisplay(this, (gpu.status >> 21) & 0b101, area);
       break;
   }
 
@@ -302,25 +305,25 @@ function getDisplayArrays(area) {
   ]);
 }
 
-function showDisplay(renderer, area, mode) {
+function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   const gl = renderer.gl;
   const program = renderer.programDisplay;
 
-  canvas.width = area.w * 1 * settings.quality;
-  canvas.height = area.h * 2 * settings.quality;
+  canvas.width = region.w * settings.quality;
+  canvas.height = region.h * settings.quality * 2;
   gl.viewport(0, 0, canvas.width, canvas.height);
 
   gl.useProgram(program);
   gl.uniform1f(program.time, (performance.now() >>> 0) / 1000.0);
-  gl.uniform2f(program.resolution, canvas.width, canvas.height);
-  gl.uniform4i(program.displayArea, area.x, area.y, area.w, area.h);
+  const area = gpu.getDisplayArea();
+  gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
   gl.uniform1i(program.mode, mode);
 
   gl.activeTexture(gl.TEXTURE0 + 0);
   gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, renderer.renderBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(area), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(region), gl.STATIC_DRAW);
 
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -334,7 +337,6 @@ function createProgramDisplay(gl, renderBuffer) {
 
   program.displayArea = gl.getUniformLocation(program, "u_disp");
   program.time = gl.getUniformLocation(program, "u_time");
-  program.resolution = gl.getUniformLocation(program, "u_resolution");
   program.mode = gl.getUniformLocation(program, "u_mode");
   program.drawArea = gl.getUniformLocation(program, "u_draw");
 

@@ -185,6 +185,24 @@
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14802000;
           gpu.dmaIndex = 0;
+/*
+  GP1(01h)      ;clear fifo
+  GP1(02h)      ;ack irq (0)
+  GP1(03h)      ;display off (1)
+  GP1(04h)      ;dma off (0)
+  GP1(05h)      ;display address (0)
+  GP1(06h)      ;display x1,x2 (x1=200h, x2=200h+256*10)
+  GP1(07h)      ;display y1,y2 (y1=010h, y2=010h+240)
+  GP1(08h)      ;display mode 320x200 NTSC (0)
+  GP0(E1h..E6h) ;rendering attributes (0)
+*/
+
+          gpu.dispL = 512;
+          gpu.dispR = 512 + 2560;
+          gpu.dispT = 16;
+          gpu.dispB = 256;
+          gpu.dispX = 0;
+          gpu.dispY = 0;
           break;
         case 0x01: gpu.status |= 0x70000000;
           gpu.dmaIndex = 0;
