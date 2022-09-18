@@ -73,10 +73,10 @@
       return sbgr;
     }
   
-    vec3 InterleavedGradientNoise(vec2 uv) {
+    vec4 InterleavedGradientNoise(vec2 uv) {
       const vec3 magic = vec3( 0.06711056, 0.00583715, 52.9829189 );
       float rnd = fract( magic.z * fract( dot( uv, magic.xy ) ) ) / 32.0;
-      return vec3(rnd, rnd, rnd);
+      return vec4(rnd, rnd, rnd, 1.0);
     }
   
     vec4 tv_effect(vec3 col) {
@@ -89,14 +89,12 @@
       col *= 0.5 + 0.5 * 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
       col *= vec3(0.98, 1.02, 0.98);
     
-      //col *= (0.85 + 0.15 * sin(uv.y * resolution.y * 2.0 * 3.1415));
-    
-      col *= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 1.0 : 0.8;
+      col *= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 1.0 : 0.75;
 
-      return vec4(col, 1.0);			
+      return vec4(col, 1.0);
     }
     
-    vec3 render24Bit() {
+    vec4 vram24Bit() {
       ivec2 ds = ivec2(v_vramCoord) - u_disp.xy;
   
       float tx = float(u_disp.x) + floor(float(ds.x) * 1.5);
@@ -112,22 +110,18 @@
         float g = float((sbgr2 >> 0) & 255) / 256.0;
         float b = float((sbgr2 >> 8) & 255) / 256.0;
     
-        return vec3(r, g, b);
+        return vec4(r, g, b, 1.0);
       }
       else {
         float r = float((sbgr1 >> 0) & 255) / 256.0;
         float g = float((sbgr1 >> 8) & 255) / 256.0;
         float b = float((sbgr2 >> 0) & 255) / 256.0;
     
-        return vec3(r, g, b);
+        return vec4(r, g, b, 1.0);
       }
     }
 
-    vec3 render16Bit() {
-      return texelFetch(u_texture, ivec2(v_texcoord), 0).xyz;
-    }
-
-    vec4 vram15bit() {
+    vec4 vram16Bit() {
       return texelFetch(u_texture, ivec2(v_texcoord), 0);
     }
 
@@ -170,22 +164,22 @@
     }
 
     void main() {
-      vec3 color = vec3(0.0, 0.0, 0.0);
+      vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
 
       switch (u_mode) {
         case 7: outColor = gpuState(); return;
 
-        case 6: outColor = vram15bit(); return;
+        case 6: outColor = vram16Bit(); return;
         case 2: outColor = vram8bit(); return;
         case 3: outColor = vram4bit(); return;
 
-        case 1: color = render24Bit(); break;
-        case 0: color = render16Bit(); break;
+        case 1: color = vram24Bit(); break;
+        case 0: color = vram16Bit(); break;
       }
 
-      vec3 noise = InterleavedGradientNoise(floor(v_vramCoord));
+      vec4 noise = InterleavedGradientNoise(floor(v_vramCoord));
 
-      outColor = tv_effect(color + noise);
+      outColor = tv_effect(color.rgb + noise.rgb);
     }
     </script>
 </head>
