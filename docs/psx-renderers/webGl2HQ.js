@@ -6,6 +6,7 @@ const $gpu = {
 const sbgr2rgba = new Uint32Array(65536);
 const transfer = new Uint32Array(4096 * 2048);
 const view = new Uint8Array(transfer.buffer);
+const vertexBuffer = utils.createVertexBuffer();
 
 for (let i = 0; i < 65536; ++i) {
   sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
@@ -302,14 +303,17 @@ WebGLRenderer.prototype.setMode = function (mode) {
 }
 
 function getDisplayArrays(area) {
-  return new Int16Array([
-    0, 0, area.x + 0, area.y + 0,
-    1024, 0, area.x + area.w, area.y + 0,
-    0, 512, area.x + 0, area.y + area.h,
-    0, 512, area.x + 0, area.y + area.h,
-    1024, 0, area.x + area.w, area.y + 0,
-    1024, 512, area.x + area.w, area.y + area.h,
-  ]);
+  vertexBuffer.reset();
+
+  vertexBuffer.addVertex(0, 0, area.x + 0, area.y + 0);
+  vertexBuffer.addVertex(1024, 0, area.x + area.w, area.y + 0);
+  vertexBuffer.addVertex(0, 512, area.x + 0, area.y + area.h);
+
+  vertexBuffer.addVertex(0, 512, area.x + 0, area.y + area.h);
+  vertexBuffer.addVertex(1024, 0, area.x + area.w, area.y + 0);
+  vertexBuffer.addVertex(1024, 512, area.x + area.w, area.y + area.h);
+
+  return vertexBuffer.view();
 }
 
 function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {

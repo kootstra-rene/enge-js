@@ -107,18 +107,23 @@ const utils = (function () {
   }
 
   function createVertexBuffer() {
-    let buffer = new Uint32Array(18*1024 >> 2)// // 18.0 Kb, 768 vertices vertices, 256 triangles
-    buffer.index = 0;
+    let buffer = new Uint8Array(18 * 1024);
+    let view = new DataView(buffer.buffer);
 
-    buffer.addDisplayVertex = function(x, y, u, v) {
-      var xy = (y << 16) | (x & 0xffff);
-      var uv = (v << 16) | (u & 0xffff);
-
-      var index = this.index >>> 2;
+    buffer.addVertex = function(x, y, u, v) {
+      view.setInt16(this.index + 0, x, true);
+      view.setInt16(this.index + 2, y, true);
+      view.setInt16(this.index + 4, u, true);
+      view.setInt16(this.index + 6, v, true);
       this.index += 8;
+    }
 
-      this[index + 0] = xy;
-      this[index + 1] = uv;
+    buffer.reset = function () {
+      this.index = 0;
+    }
+
+    buffer.view = function () {
+      return new Uint8Array(this.buffer, 0, this.index);
     }
 
     return buffer;

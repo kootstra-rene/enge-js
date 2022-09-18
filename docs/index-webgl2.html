@@ -171,17 +171,19 @@
       switch (u_mode) {
         case 7: outColor = gpuState(); return;
 
-        case 6: outColor = vram16Bit(); return;
-        case 2: outColor = vram8bit(); return;
-        case 3: outColor = vram4bit(); return;
-
         case 1: color = vram24Bit(); break;
         case 0: color = vram16Bit(); break;
+        case 6: color = vram16Bit(); break;
+        case 2: color = vram8bit(); break;
+        case 3: color = vram4bit(); break;
       }
 
-      vec4 noise = InterleavedGradientNoise();
-
-      outColor = tv_effect(color.rgb + noise.rgb);
+      if (u_mode <= 1) {
+        outColor = tv_effect(color.rgb + InterleavedGradientNoise().rgb);
+      }
+      else {
+        outColor = color;
+      }
     }
     </script>
 </head>
