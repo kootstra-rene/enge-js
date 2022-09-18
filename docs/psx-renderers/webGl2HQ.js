@@ -302,24 +302,35 @@ WebGLRenderer.prototype.setMode = function (mode) {
 function getDisplayTexture(area) {
   // todo: 'global' structure to minimize allocs
   return new Int16Array([
-    area.x + 0.0, area.y + 0.0,
-    area.x + area.w, area.y + 0.0,
-    area.x + 0.0, area.y + area.h,
-    area.x + 0.0, area.y + area.h,
-    area.x + area.w, area.y + 0.0,
-    area.x + area.w, area.y + area.h,
+    0, 0, area.x + 0.0, area.y + 0.0,
+    0, 0, area.x + area.w, area.y + 0.0,
+    0, 0, area.x + 0.0, area.y + area.h,
+    0, 0, area.x + 0.0, area.y + area.h,
+    0, 0, area.x + area.w, area.y + 0.0,
+    0, 0, area.x + area.w, area.y + area.h,
   ]);
 }
 
 function getVideoRamTexture() {
   // todo: 'global' structure to minimize allocs
   return new Int16Array([
-    0.0, 0.0,
-    1024.0, 0.0,
-    0.0, 512.0,
-    0.0, 512.0,
-    1024.0, 0.0,
-    1024.0, 512.0,
+    0.0, 0.0, 0.0, 0.0,
+    1024.0, 0.0, 0.0, 0.0,
+    0.0, 512.0, 0.0, 0.0,
+    0.0, 512.0, 0.0, 0.0,
+    1024.0, 0.0, 0.0, 0.0,
+    1024.0, 512.0, 0.0, 0.0,
+  ]);
+}
+
+function getDisplayArrays(area) {
+  return new Int16Array([
+    0, 0, area.x + 0, area.y + 0,
+    1024, 0, area.x + area.w, area.y + 0,
+    0, 512, area.x + 0, area.y + area.h,
+    0, 512, area.x + 0, area.y + area.h,
+    1024, 0, area.x + area.w, area.y + 0,
+    1024, 512, area.x + area.w, area.y + area.h,
   ]);
 }
 
@@ -370,7 +381,7 @@ function showVideoRAM(renderer, area, mode) {
   gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, renderer.textureBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, getDisplayTexture({ x: 0, y: 0, w: 1024, h: 512 }), gl.STATIC_DRAW);
 
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -381,21 +392,6 @@ function showVideoRAM(renderer, area, mode) {
 function createProgram(gl, vertexBuffer, textureBuffer) {
   const program = utils.createProgramFromScripts(gl, 'vertex', 'displayVideoRam');
   gl.useProgram(program);
-
-  program.mode = gl.getUniformLocation(program, "u_mode");
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, getVideoRamTexture(), gl.STATIC_DRAW);
-
-  program.vertexPosition = gl.getAttribLocation(program, "a_position");
-  gl.enableVertexAttribArray(program.vertexPosition);
-  gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 0, 0);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
-
-  program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
-  gl.enableVertexAttribArray(program.textureCoord);
-  gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, 0, 0);
 
   return program;
 }
@@ -415,13 +411,13 @@ function createProgramDisplay(gl, vertexBuffer, textureBuffer) {
 
   program.vertexPosition = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(program.vertexPosition);
-  gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 0, 0);
+  gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, 8, 0);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
 
   program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
   gl.enableVertexAttribArray(program.textureCoord);
-  gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, 0, 0);
+  gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, 8, 4);
 
   return program;
 }
