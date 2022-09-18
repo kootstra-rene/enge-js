@@ -279,6 +279,13 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
       showDisplay(this, 7);
       break;
     case 'disp':
+      const overscanx = settings.overscan * area.w;
+      const overscany = settings.overscan * area.h;
+
+      area.x += (overscanx >> 1);
+      area.y += (overscany >> 1);
+      area.w -= (overscanx >> 0);
+      area.h -= (overscany >> 0);
       showDisplay(this, (gpu.status >> 21) & 0b101, area);
       break;
   }

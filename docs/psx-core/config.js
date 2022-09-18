@@ -3,8 +3,10 @@
 	'use strict';
 
 	const settings = (() => {
-		let object = JSON.parse(localStorage.getItem('config') || '{"quality": 1}');
-		return object;
+		const object = JSON.parse(localStorage.getItem('config') || '{}');
+		const defaults = { quality: 1, overscan: 0.03 };
+
+		return Object.assign(defaults, object);
 	})();
 
 
