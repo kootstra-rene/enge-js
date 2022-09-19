@@ -106,6 +106,10 @@ const utils = (function () {
     return createProgram(gl, vertexShader, fragmentShader);
   }
 
+  /**
+   * 
+   * @returns vertex-buffer
+   */
   function createVertexBuffer() {
     let buffer = new Uint8Array(256 * 1024);
     let view = new DataView(buffer.buffer);

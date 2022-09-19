@@ -121,6 +121,8 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
 }
 
 WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
+  flushVertexBuffer(this);
+
   const gl = this.gl;
 
   sx *= 4;
@@ -156,6 +158,8 @@ WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
 }
 
 WebGLRenderer.prototype.storeImage = function (img) {
+  flushVertexBuffer(this);
+
   for (let i = 0, l = img.pixelCount; i < l; ++i) {
     const sbgr = img.buffer[i] >>> 0;
     transfer[i] = sbgr2rgba[sbgr];
@@ -190,9 +194,44 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
   this.updateDrawArea();
 }
 
+WebGLRenderer.prototype.updateTransparencyMode = function(data) {
+  const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
+  const gl = this.gl;
+
+  if (this.renderMode === mode) return;
+  flushVertexBuffer(this);
+  this.renderMode = mode;
+
+  switch (mode & 0xf) {
+    case 0: gl.enable(gl.BLEND);
+      gl.blendEquation(gl.FUNC_ADD);
+      gl.blendFunc(gl.SRC_ALPHA, gl.SRC_ALPHA);
+      gl.uniform1f(this.programRenderer.alpha, 0.50);
+      break;
+    case 1: gl.enable(gl.BLEND);
+      gl.blendEquation(gl.FUNC_ADD);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      gl.uniform1f(this.programRenderer.alpha, 1.00);
+      break;
+    case 2: gl.enable(gl.BLEND);
+      gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
+      gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR);
+      gl.uniform1f(this.programRenderer.alpha, 1.00);
+      break;
+    case 3: gl.enable(gl.BLEND);
+      gl.blendEquation(gl.FUNC_ADD);
+      gl.blendFunc(gl.ONE_MINUS_SRC_ALPHA, gl.ONE);
+      gl.uniform1f(this.programRenderer.alpha, 0.75);
+      break;
+    case 4: gl.disable(gl.BLEND);
+      gl.uniform1f(this.programRenderer.alpha, 0.00);
+      break;
+  }
+}
 WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
   this.updateDrawArea();
-
+  this.updateTransparencyMode(data);
+ 
   var x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
   var y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
   var x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
@@ -213,6 +252,7 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
 
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   this.updateDrawArea();
+  this.updateTransparencyMode(data);
 
   var x = $gpu.daX + ((data[1] << 21) >> 21);
   var y = $gpu.daY + ((data[1] << 5) >> 21);
@@ -236,6 +276,8 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
 }
 
 WebGLRenderer.prototype.fillRectangle = function (data) {
+  flushVertexBuffer(this);
+
   let gl = this.gl;
 
   var x = (data[1] << 16) >>> 16;
@@ -306,7 +348,8 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
   const gl = this.gl;
 
   flushVertexBuffer(this);
-
+  this.updateTransparencyMode([0]);
+ 
   const area = gpu.getDisplayArea();
 
   switch (this.mode) {
@@ -443,6 +486,7 @@ function createProgramRenderer(gl, renderBuffer) {
   // program.time = gl.getUniformLocation(program, "u_time");
   // program.mode = gl.getUniformLocation(program, "u_mode");
   program.drawArea = gl.getUniformLocation(program, "u_draw");
+  program.alpha = gl.getUniformLocation(program, "u_alpha");
 
   // gl.bindBuffer(gl.ARRAY_BUFFER, renderBuffer);
 
