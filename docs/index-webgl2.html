@@ -115,16 +115,21 @@
       ivec2 texel = ivec2(v_pixelCoord).xy;
 
       if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
-        vec4 tc = vec4(0.0, 1.0, 0.0, u_alpha);
+        if (v_vramCoord.x < 0.0) {
+          outColor = vec4(v_color.rgb, u_alpha);
+        }
+        else {
+          vec4 tc = vec4(0.0, 1.0, 0.0, u_alpha);
 
-        if (v_textureMode == 0.0) tc = vram4bit();
-        if (v_textureMode == 1.0) tc = vram8bit();
-        if (v_textureMode == 2.0) tc = vram16Bit();
-        if (v_textureMode == 3.0) tc = vram16Bit();
+          if (v_textureMode == 0.0) tc = vram4bit();
+          if (v_textureMode == 1.0) tc = vram8bit();
+          if (v_textureMode == 2.0) tc = vram16Bit();
+          if (v_textureMode == 3.0) tc = vram16Bit();
 
-        if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
-        
-        outColor = (v_vramCoord.x < 0.0) ? vec4(v_color.rgb, u_alpha) : tc * (v_color / vec4(0.5, 0.5, 0.5, 1.0));
+          if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
+          
+          outColor = tc * (v_color / vec4(0.5, 0.5, 0.5, 1.0));
+        }
       }
       else discard;
     }

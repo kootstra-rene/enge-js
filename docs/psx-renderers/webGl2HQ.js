@@ -348,15 +348,15 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
     var tl = tx + 0;
     var tr = tx + w;
     if (gpu.txflip) {
-      tl = tx + 0
-      tr = tx - w + 1
+      tl = tx + 0;
+      tr = tx - w + 1;
     }
 
     var tt = ty + 0;
     var tb = ty + h;
     if (gpu.tyflip) {
-      tt = ty + 0
-      tb = ty - h + 1
+      tt = ty + 0;
+      tb = ty - h + 1;
     }
 
     const tox = 0*(gpu.status & 0x0f) << 6;
