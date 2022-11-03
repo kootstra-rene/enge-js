@@ -56,7 +56,8 @@
       v_color = a_color;
       v_textureMode = mod(a_tmode, 4.0);
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
-      v_texturePage = ivec2(int(tpx * 256.0), 0);
+      float tpy = mod(floor(a_tmode / 64.0), 2.0);
+      v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
     }
   </script>
 
