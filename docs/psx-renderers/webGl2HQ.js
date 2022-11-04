@@ -314,9 +314,9 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   const u3 = (data[uv3] >>> 0) & 255;
   const v3 = (data[uv3] >>> 8) & 255;
 
-  buffer.addVertex(x1, y1, u1, v1, data[c1]);
-  buffer.addVertex(x2, y2, u2, v2, data[c2]);
-  buffer.addVertex(x3, y3, u3, v3, data[c3]);
+  buffer.addVertex(x1, y1, u1, v1, data[c1], cl);
+  buffer.addVertex(x2, y2, u2, v2, data[c2], cl);
+  buffer.addVertex(x3, y3, u3, v3, data[c3], cl);
 }
 
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
@@ -351,13 +351,13 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   }
 
   var buffer = vertexBuffer;
-  buffer.addVertex(x + 0, y + 0, tl, tt, c);
-  buffer.addVertex(x + w, y + 0, tr, tt, c);
-  buffer.addVertex(x + 0, y + h, tl, tb, c);
+  buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
+  buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
+  buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
 
-  buffer.addVertex(x + w, y + 0, tr, tt, c);
-  buffer.addVertex(x + 0, y + h, tl, tb, c);
-  buffer.addVertex(x + w, y + h, tr, tb, c);
+  buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
+  buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
+  buffer.addVertex(x + w, y + h, tr, tb, c, cl);
 }
 
 WebGLRenderer.prototype.fillRectangle = function (data) {
@@ -583,13 +583,8 @@ function createProgramRenderer(gl, renderBuffer) {
   const program = utils.createProgramFromScripts(gl, 'pixel', 'videoram');
   gl.useProgram(program);
 
-  // program.displayArea = gl.getUniformLocation(program, "u_disp");
-  // program.time = gl.getUniformLocation(program, "u_time");
-  // program.mode = gl.getUniformLocation(program, "u_mode");
   program.drawArea = gl.getUniformLocation(program, "u_draw");
   program.alpha = gl.getUniformLocation(program, "u_alpha");
-
-  // gl.bindBuffer(gl.ARRAY_BUFFER, renderBuffer);
 
   program.vertexPosition = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(program.vertexPosition);
@@ -606,6 +601,10 @@ function createProgramRenderer(gl, renderBuffer) {
   program.textureMode = gl.getAttribLocation(program, "a_tmode");
   gl.enableVertexAttribArray(program.textureMode);
   gl.vertexAttribPointer(program.textureMode, 1, gl.BYTE, false, vertexStride, 12);
+
+  program.clut = gl.getAttribLocation(program, "a_clut");
+  gl.enableVertexAttribArray(program.clut);
+  gl.vertexAttribPointer(program.clut, 1, gl.SHORT, false, vertexStride, 16);
 
   return program;
 }

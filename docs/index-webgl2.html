@@ -12,7 +12,6 @@
   <script type="text/javascript" src="psx-core/core.js"></script>
   <script type="text/javascript" src="psx-core/config.js"></script>
 
-  <!-- <script type="text/javascript" src="psx-renderers/webGlHQ.js"></script> -->
   <script type="text/javascript" src="psx-renderers/webgl2-utils.js"></script>
   <script type="text/javascript" src="psx-renderers/webGl2HQ.js"></script>
 
@@ -39,6 +38,7 @@
     in vec2 a_texcoord;
     in vec4 a_color;
     in float a_tmode;
+    in float a_clut;
 
     out vec2 v_vramCoord;
     out vec4 v_color;
@@ -46,6 +46,7 @@
     flat out float v_textureMode;
     flat out ivec2 v_texturePage;
     flat out uint packetId;
+    flat out ivec2 clut;
 
     void main() {
       gl_Position = vec4(a_position, 0.0, 1.0);
@@ -59,6 +60,9 @@
       float tpy = mod(floor(a_tmode / 64.0), 2.0);
       v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
       packetId = uint(a_color.a * 255.0);
+      float cx = mod(floor(a_clut / 1.0), 64.0) * 16.0;
+      float cy = mod(floor(a_clut / 64.0), 512.0);
+      clut = ivec2(int(cx), int(cy));
     }
   </script>
 
@@ -76,6 +80,7 @@
     flat in float v_textureMode;
     flat in ivec2 v_texturePage;
     flat in uint packetId;
+    flat in ivec2 clut;
 
     out vec4 outColor;
 
@@ -99,8 +104,7 @@
       int bit = int(v_vramCoord.x) & 1;
       int clutIndex = (sbgr >> (bit * 8)) & 0xff;
 
-      float v = float(clutIndex) / 255.0;
-      return vec4(v, v, v, u_alpha); 
+      return texelFetch(u_texture, ivec2(4,4) * (clut + ivec2(clutIndex, 0)), 0);
     }
 
     vec4 vram4bit() {
@@ -110,8 +114,7 @@
       int bit = int(v_vramCoord.x) & 3;
       int clutIndex = (sbgr >> (bit * 4)) & 0xf;
 
-      float v = float(clutIndex) / 15.0;
-      return vec4(v, v, v, u_alpha); 
+      return texelFetch(u_texture, ivec2(4,4) * (clut + ivec2(clutIndex, 0)), 0);
     }
 
     void main() {
@@ -131,7 +134,7 @@
 
           if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
           
-          outColor = tc * (v_color / vec4(0.5, 0.5, 0.5, 1.0));
+          outColor = vec4(tc.rgb * (v_color.rgb / vec3(0.5, 0.5, 0.5)), u_alpha);
         }
       }
       else discard;
