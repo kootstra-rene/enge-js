@@ -114,6 +114,7 @@ const utils = (function () {
     let buffer = new Uint8Array(128 * 1024);
     let view = new DataView(buffer.buffer);
 
+    const bytesPerVertex = 32;
     buffer.addVertex = function(x, y, u, v, c = 0x80808080) {
       view.setInt16(this.index + 0, x, true);
       view.setInt16(this.index + 2, y, true);
@@ -121,11 +122,15 @@ const utils = (function () {
       view.setInt16(this.index + 6, v, true);
       view.setUint32(this.index + 8, c, true);
       view.setUint8(this.index + 12, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
-      this.index += 32;
+      this.index += bytesPerVertex;
     }
 
     buffer.reset = function () {
       this.index = 0;
+    }
+
+    buffer.size  = function () {
+      return this.index / bytesPerVertex;
     }
 
     buffer.view = function () {
@@ -133,7 +138,7 @@ const utils = (function () {
     }
 
     buffer.canHold = function(vertices) {
-      return (this.index + (vertices * 32)) < this.length;
+      return (this.index + (vertices * bytesPerVertex)) < this.length;
     }
 
     buffer.reset();
