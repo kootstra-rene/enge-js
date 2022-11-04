@@ -59,7 +59,7 @@
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
       float tpy = mod(floor(a_tmode / 64.0), 2.0);
       v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
-      packetId = uint(a_color.a * 255.0);
+      packetId = uint(a_color.a * 256.0);
       float cx = mod(floor(a_clut / 1.0), 64.0) * 16.0;
       float cy = mod(floor(a_clut / 64.0), 512.0);
       clut = ivec2(int(cx), int(cy));

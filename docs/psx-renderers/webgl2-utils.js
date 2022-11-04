@@ -115,14 +115,14 @@ const utils = (function () {
     let view = new DataView(buffer.buffer);
 
     const bytesPerVertex = 32;
-    buffer.addVertex = function(x, y, u, v, c = 0x80808080, cl) {
+    buffer.addVertex = function(x, y, u, v, c = 0x00808080, cl) {
       view.setInt16(this.index + 0, x, true);
       view.setInt16(this.index + 2, y, true);
       view.setInt16(this.index + 4, u, true);
       view.setInt16(this.index + 6, v, true);
       view.setUint32(this.index + 8, c, true);
       view.setUint8(this.index + 12, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
-      view.setUint16(this.index + 16, cl >> 0, true);
+      view.setUint16(this.index + 16, cl >>> 0, true);
       this.index += bytesPerVertex;
     }
 

@@ -243,6 +243,52 @@ WebGLRenderer.prototype.outsideDrawArea = function (x1, y1, x2, y2, x3, y3, x4 =
 
 WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
   this.updateDrawArea();
+  this.updateTransparencyMode(data);
+
+  var x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
+  var y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
+  var x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
+  var y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
+
+  if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
+  if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+  if (!vertexBuffer.canHold(6)) flushVertexBuffer(this);
+
+  var w = Math.abs(x1 - x2);
+  var h = Math.abs(y1 - y2);
+
+  var buffer = vertexBuffer;
+
+  if (x1 !== x2 || y1 !== y2) {
+    if (w >= h) {
+      buffer.addVertex(x1, y1 + 1, 0, 0, data[c1]);
+      buffer.addVertex(x1, y1 + 0, 0, 0, data[c1]);
+      buffer.addVertex(x2, y2 + 0, 0, 0, data[c2]);
+
+      buffer.addVertex(x2, y2 + 0, 0, 0, data[c2]);
+      buffer.addVertex(x2, y2 + 1, 0, 0, data[c2]);
+      buffer.addVertex(x1, y1 + 1, 0, 0, data[c1]);
+
+    }
+    else {
+      buffer.addVertex(x1 + 0, y1, 0, 0, data[c1]);
+      buffer.addVertex(x1 + 1, y1, 0, 0, data[c1]);
+      buffer.addVertex(x2 + 1, y2, 0, 0, data[c2]);
+
+      buffer.addVertex(x2 + 1, y2, 0, 0, data[c2]);
+      buffer.addVertex(x2 + 0, y2, 0, 0, data[c2]);
+      buffer.addVertex(x1 + 0, y1, 0, 0, data[c1]);
+    }
+  }
+  else {
+    buffer.addVertex(x2 + 0, y2 + 0, 0, 0, data[c2]);
+    buffer.addVertex(x2 + 1, y2 + 0, 0, 0, data[c2]);
+    buffer.addVertex(x2 + 0, y2 + 1, 0, 0, data[c2]);
+
+    buffer.addVertex(x2 + 0, y2 + 1, 0, 0, data[c2]);
+    buffer.addVertex(x2 + 1, y2 + 0, 0, 0, data[c2]);
+    buffer.addVertex(x2 + 1, y2 + 1, 0, 0, data[c2]);
+  }
 }
 
 WebGLRenderer.prototype.updateTransparencyMode = function (data) {
@@ -286,7 +332,7 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   data[c2] = (data[0] & 0xff000000) | (data[c2] & 0x00fffffff);
   data[c3] = (data[0] & 0xff000000) | (data[c3] & 0x00fffffff);
 
-  if (data[0] & 0x01000000) { //- raw-texture
+  if ((data[0] & 0x05000000) === 0x05000000) { //- raw-texture
     data[c1] = (data[c1] & 0xff000000) | 0x00808080;
     data[c2] = (data[c2] & 0xff000000) | 0x00808080;
     data[c3] = (data[c3] & 0xff000000) | 0x00808080;
@@ -320,7 +366,7 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
 }
 
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
-  if (data[0] & 0x01000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
+  if ((data[0] & 0x05000000) === 0x05000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
 
   this.updateDrawArea();
   this.updateTransparencyMode(data);
