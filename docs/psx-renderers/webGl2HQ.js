@@ -694,5 +694,9 @@ function createProgramRenderer(gl, renderBuffer) {
   gl.enableVertexAttribArray(program.clut);
   gl.vertexAttribPointer(program.clut, 1, gl.SHORT, false, vertexStride, 16);
 
+  program.twin = gl.getAttribLocation(program, "a_twin");
+  gl.enableVertexAttribArray(program.twin);
+  gl.vertexAttribPointer(program.twin, 4, gl.UNSIGNED_BYTE, false, vertexStride, 18);
+
   return program;
 }

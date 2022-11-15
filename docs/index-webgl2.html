@@ -37,6 +37,7 @@
     in vec2 a_position;
     in vec2 a_texcoord;
     in vec4 a_color;
+    in vec4 a_twin;
     in float a_tmode;
     in float a_clut;
 
@@ -47,6 +48,7 @@
     flat out ivec2 v_texturePage;
     flat out uint packetId;
     flat out ivec2 clut;
+    flat out ivec4 twin;
 
     void main() {
       gl_Position = vec4(a_position, 0.0, 1.0);
@@ -63,6 +65,7 @@
       float cx = mod(floor(a_clut / 1.0), 64.0) * 16.0;
       float cy = mod(floor(a_clut / 64.0), 512.0);
       clut = ivec2(int(cx), int(cy));
+      twin = ivec4(a_twin);
     }
   </script>
 
@@ -81,6 +84,7 @@
     flat in ivec2 v_texturePage;
     flat in uint packetId;
     flat in ivec2 clut;
+    flat in ivec4 twin;
 
     out vec4 outColor;
 
@@ -93,25 +97,25 @@
       return sbgr;
     }
 
-    vec4 vram16Bit() {
-      return texelFetch(u_texture, ivec2(v_texturePage) + ivec2(4,4) * ivec2(v_vramCoord), 0);
+    vec4 vram16Bit(int tx, int ty) {
+      return texelFetch(u_texture, ivec2(v_texturePage) + ivec2(4,4) * ivec2(tx, ty), 0);
     }
 
-    vec4 vram8bit() {
-      vec4 color = texelFetch(u_texture, ivec2(v_texturePage) + ivec2(2,4) * ivec2(v_vramCoord), 0);
+    vec4 vram8bit(int tx, int ty) {
+      vec4 color = texelFetch(u_texture, ivec2(v_texturePage) + ivec2(2,4) * ivec2(tx, ty), 0);
       int sbgr = getSBGRfromRGBA(color);
 
-      int bit = int(v_vramCoord.x) & 1;
+      int bit = int(tx) & 1;
       int clutIndex = (sbgr >> (bit * 8)) & 0xff;
 
       return texelFetch(u_texture, ivec2(4,4) * (clut + ivec2(clutIndex, 0)), 0);
     }
 
-    vec4 vram4bit() {
-      vec4 color = texelFetch(u_texture, ivec2(v_texturePage) + ivec2(1,4) * ivec2(v_vramCoord), 0);
+    vec4 vram4bit(int tx, int ty) {
+      vec4 color = texelFetch(u_texture, ivec2(v_texturePage) + ivec2(1,4) * ivec2(tx, ty), 0);
       int sbgr = getSBGRfromRGBA(color);
 
-      int bit = int(v_vramCoord.x) & 3;
+      int bit = int(tx) & 3;
       int clutIndex = (sbgr >> (bit * 4)) & 0xf;
 
       return texelFetch(u_texture, ivec2(4,4) * (clut + ivec2(clutIndex, 0)), 0);
@@ -127,10 +131,13 @@
         else {
           vec4 tc;
 
-          if (v_textureMode == 0.0) tc = vram4bit();
-          if (v_textureMode == 1.0) tc = vram8bit();
-          if (v_textureMode == 2.0) tc = vram16Bit();
-          if (v_textureMode == 3.0) tc = vram16Bit();
+          int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
+          int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
+
+          if (v_textureMode == 0.0) tc = vram4bit(tx, ty);
+          if (v_textureMode == 1.0) tc = vram8bit(tx, ty);
+          if (v_textureMode == 2.0) tc = vram16Bit(tx, ty);
+          if (v_textureMode == 3.0) tc = vram16Bit(tx, ty);
 
           if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
           

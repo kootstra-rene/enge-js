@@ -123,6 +123,7 @@ const utils = (function () {
       view.setUint32(this.index + 8, c, true);
       view.setUint8(this.index + 12, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
       view.setUint16(this.index + 16, cl >>> 0, true);
+      view.setUint32(this.index + 18, gpu.twin, true);
       this.index += bytesPerVertex;
     }
 
