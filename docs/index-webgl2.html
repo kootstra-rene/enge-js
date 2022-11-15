@@ -54,12 +54,12 @@
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
       v_vramCoord = a_texcoord; // texture is 4096x2048
       v_pixelCoord = a_position;
-      v_color = a_color;
+      v_color = vec4(a_color.rgb, 1.0);
       v_textureMode = mod(a_tmode, 4.0);
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
       float tpy = mod(floor(a_tmode / 64.0), 2.0);
       v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
-      packetId = uint(a_color.a * 256.0);
+      packetId = uint(a_color.a * 255.0);
       float cx = mod(floor(a_clut / 1.0), 64.0) * 16.0;
       float cy = mod(floor(a_clut / 64.0), 512.0);
       clut = ivec2(int(cx), int(cy));
@@ -125,7 +125,7 @@
           outColor = vec4(v_color.rgb, u_alpha);
         }
         else {
-          vec4 tc = vec4(0.0, 1.0, 0.0, u_alpha);
+          vec4 tc;
 
           if (v_textureMode == 0.0) tc = vram4bit();
           if (v_textureMode == 1.0) tc = vram8bit();
@@ -134,7 +134,14 @@
 
           if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
           
-          outColor = vec4(tc.rgb * (v_color.rgb / vec3(0.5, 0.5, 0.5)), u_alpha);
+          if (0u == (packetId & 1u)) {
+            // shaded vertex, opaque, texture-blending
+            outColor = vec4(tc.rgb * (v_color.rgb / vec3(0.5, 0.5, 0.5)), u_alpha);
+          }
+          else {
+            // vertex, opaque, texture-raw
+            outColor = vec4(tc.rgb, u_alpha);
+          }
         }
       }
       else discard;
@@ -193,7 +200,7 @@
       vec2 uv = floor(v_vramCoord - vec2(u_disp.xy));
 
       const vec3 magic = vec3( 0.06711056, 0.00583715, 52.9829189 );
-      float rnd = fract(magic.z * fract( dot( uv, magic.xy ) ) ) * (1.0 / 32.0);
+      float rnd = fract(magic.z * fract( dot( uv, magic.xy ) ) ) * (1.0 / 48.0);
       return vec4(rnd, rnd, rnd, 1.0);
     }
   
@@ -207,7 +214,14 @@
       col *= 0.5 + 0.5 * 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
       col *= vec3(0.98, 1.02, 0.98);
     
-      col *= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 1.0 : 0.75;
+      if (resolution.y <= 288.0) {
+        col -= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 0.0 : 0.10; //scanline
+        col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
+      }
+      else {
+        col -= ((int(uv.y * resolution.y) & 1) == 0) ? 0.0 : 0.10; //scanline
+        col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
+      }
 
       return vec4(col, 1.0);
     }
@@ -307,6 +321,7 @@
 </head>
 
 <body onload="init();">
+  <canvas id="ambilight"></canvas>
   <div id="background"></div>
   <canvas id="display"></canvas>
   <!-- <div id="menu"></div> -->
