@@ -98,27 +98,32 @@
     }
 
     vec4 vram16Bit(int tx, int ty) {
-      return texelFetch(u_texture, ivec2(v_texturePage) + ivec2(4,4) * ivec2(tx, ty), 0);
+      ivec2 coord = ivec2(v_texturePage) + ivec2(4,4) * ivec2(tx, ty);
+      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
     }
 
     vec4 vram8bit(int tx, int ty) {
-      vec4 color = texelFetch(u_texture, ivec2(v_texturePage) + ivec2(2,4) * ivec2(tx, ty), 0);
+      ivec2 coord = ivec2(v_texturePage) + ivec2(2,4) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
       int sbgr = getSBGRfromRGBA(color);
 
       int bit = int(tx) & 1;
       int clutIndex = (sbgr >> (bit * 8)) & 0xff;
 
-      return texelFetch(u_texture, ivec2(4,4) * (clut + ivec2(clutIndex, 0)), 0);
+      coord = ivec2(v_texturePage) + ivec2(4,4) * (clut + ivec2(clutIndex, 0));
+      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
     }
 
     vec4 vram4bit(int tx, int ty) {
-      vec4 color = texelFetch(u_texture, ivec2(v_texturePage) + ivec2(1,4) * ivec2(tx, ty), 0);
+      ivec2 coord = ivec2(v_texturePage) + ivec2(1,4) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
       int sbgr = getSBGRfromRGBA(color);
 
       int bit = int(tx) & 3;
       int clutIndex = (sbgr >> (bit * 4)) & 0xf;
 
-      return texelFetch(u_texture, ivec2(4,4) * (clut + ivec2(clutIndex, 0)), 0);
+      coord = ivec2(v_texturePage) + ivec2(4,4) * (clut + ivec2(clutIndex, 0));
+      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
     }
 
     void main() {
