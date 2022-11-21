@@ -197,7 +197,7 @@
 					default: abort('cd-ctrl:' + hex(ctrl));
 				}
 
-				psx.setEvent(this.eventDMA3, ((transferSize * 0x2800) / 0x100) >>> 0);
+				psx.setEvent(this.eventDMA3, ((transferSize * (cdr.mode & 0x80) ? 0x1400 : 0x2800) / 0x100) >>> 0);
 			}
 			else {
 				this.r10b8 &= 0xfeffffff;

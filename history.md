@@ -1,5 +1,7 @@
 history.md
 
+2022-11-21: fixed a timing bug in the CD dma, where the dma speed was always single speed. Videos play a whole lot better now.
+2022-11-20: -- a whole bucnmh of stuff which i did not add to the history --
 2021-03-23: first attempt at caching GTE coordinates and trying to remap them. 3D game look better but problems with rectangular primitives.
             those are commonly used for background tiles and text.
 2021-03-12: improved cdrom dma transfer speed, increases FMV performance. 
