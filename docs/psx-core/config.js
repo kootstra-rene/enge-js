@@ -4,7 +4,7 @@
 
 	const settings = (() => {
 		const object = JSON.parse(localStorage.getItem('config') || '{}');
-		const defaults = { quality: 1, overscan: 0.03 };
+		const defaults = { quality: 1, overscan: 0.00 };
 
 		return Object.assign(defaults, object);
 	})();

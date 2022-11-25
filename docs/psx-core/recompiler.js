@@ -744,7 +744,7 @@
 		ConstantFolding.resetState();
 
 		// todo: limit the amount of cycles per block
-		while (!state.stop && state.cycles < 127) {
+		while (!state.stop && state.cycles < 2048) {
 			compileInstruction(state, lines, false);
 			state.cycles += 1;
 			state.pc += 4;

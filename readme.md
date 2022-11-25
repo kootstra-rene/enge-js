@@ -6,7 +6,7 @@ You have the emscriptem based ones but that is not pure JavaScript and also thos
 All the code resides in the docs folder so that, when pushing to GitHub, the emulator gets automatically deployed to GitHub pages. Keep in mind it is a hobby project and does not have tests nor is it very structured. When I will find the time some parts will be rewritten using TDD and more ES6 style coding.
 
 # How to run
-Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). Note you'll need chrome for running this emulator and read the rest of this readme before you do. On a Mac use Safari instead of chrome and give the permission to play audio on the site.
+Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). You can alse find the experimental WebGL2 version [here](https://kootstra-rene.github.io/enge-js/index-webgl2.html). It still has some performance and transparency issues but I hope to fix those soon. Note you'll need chrome for running this emulator and read the rest of this readme before you do. On a Mac use Safari instead of chrome and give the permission to play audio on the site.
 
 ## Loading the BIOS
 When the emulator is running and no BIOS has been loaded the eNGE logo will be pulsating with a red color.

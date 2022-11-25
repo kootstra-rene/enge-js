@@ -1,5 +1,5 @@
 (scope => {
-	
+
 	'use strict';
 
 	var itob = function (i) {
@@ -167,6 +167,7 @@
 				case 0x0f:  //- CdlGetparam
 				case 0x10:  //- CdlGetLocL
 				case 0x11:  //- CdlGetLocP
+				case 0x12:  //- CdlSetSession
 				case 0x13:  //- CdlGetTN
 				case 0x14:  //- CdlGetTD
 				case 0x19:  //- CdlTest
@@ -219,6 +220,7 @@
 				return;
 			}
 			const readCycles = PSX_SPEED / ((cdr.mode & 0x80) ? 150 : 75);
+			const loc = cdr.currLoc - 150;
 
 			var currentCommand = cdr.ncmdctrl;
 			cdr.ncmdctrl = 0;
@@ -356,6 +358,26 @@
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
 				} break;
+
+				case 0x12: console.log(`CdlSetSession`);
+					psx.setEvent(this.eventCmd, 0x1000 >>> 0);
+					cdr.ncmdctrl = 0x120;
+					cdr.statusCode |= 0x02;
+					cdr.results.push(cdr.statusCode);
+					cdr.status |= 0x20;
+					cdr.setIrq(3);
+					break;
+
+				case 0x120: //console.log(`CdlSetSession`);
+					cdr.statusCode |= 0x02;
+					let amm = (loc / (60 * 75)) >> 0;
+					let ass = ((loc / (75)) >> 0) % 60;
+					let ast = loc % 75;
+					cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
+					cdr.status &= ~0x80;
+					cdr.status |= 0x20;
+					cdr.setIrq(1);
+					break;
 
 				case 0x13: console.log(`CdlGetTN`);
 					cdr.statusCode |= 0x02;
@@ -754,6 +776,8 @@
 		},
 
 		dmaTransferMode0000: function (addr, blck) {
+			if (!(addr & 0x007fffff)) return 0x10;
+
 			var transferSize = (blck & 0xFFFF) << 2;
 
 			clearCodeCache(addr, transferSize);

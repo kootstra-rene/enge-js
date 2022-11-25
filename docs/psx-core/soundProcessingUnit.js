@@ -206,6 +206,8 @@
 		},
 
 		dmaTransferMode0200: function (addr, blck) {
+			if (!(addr & 0x007fffff)) return 0x10;
+
 			var transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
 			clearCodeCache(addr, transferSize);
 
@@ -223,6 +225,7 @@
 		},
 
 		dmaTransferMode0201: function (addr, blck) {
+			if (!(addr & 0x007fffff)) return 0x10;
 			var transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
 
 			while (transferSize > 0) {

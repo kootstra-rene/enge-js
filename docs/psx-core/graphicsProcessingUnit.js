@@ -8,8 +8,8 @@
     0x04, 0x04, 0x04, 0x04, 0x07, 0x07, 0x07, 0x07, 0x05, 0x05, 0x05, 0x05, 0x09, 0x09, 0x09, 0x09,
     0x06, 0x06, 0x06, 0x06, 0x09, 0x09, 0x09, 0x09, 0x08, 0x08, 0x08, 0x08, 0x0C, 0x0C, 0x0C, 0x0C,
 
-    0x03, 0x03, 0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x05, 0x05, 0x05, 0x05, 0x06, 0x06, 0x06, 0x06,
-    0x04, 0x04, 0x04, 0x04, 0x00, 0x00, 0x00, 0x00, 0x07, 0x07, 0x07, 0x07, 0x09, 0x09, 0x09, 0x09,
+    0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+    0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
     0x03, 0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04, 0x02, 0x02, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00,
     0x02, 0x02, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, 0x02, 0x02, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03,
 
@@ -21,19 +21,17 @@
     0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
     0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
     0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   ];
 
   const gpu = {
-    bbb: 0,
-    bbbdata: new Uint8Array(0x200000),
     dispB: 256,
     dispL: 0,
     dispR: 0,
     dispT: 16,
     dispX: 0,
     dispY: 0,
-    dmaBuffer: new Int32Array(1024),
+    dmaBuffer: new Int32Array(4096),
     dmaIndex: 0,
     drawAreaX1: 0,
     drawAreaX2: 0,
@@ -185,17 +183,17 @@
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14802000;
           gpu.dmaIndex = 0;
-/*
-  GP1(01h)      ;clear fifo
-  GP1(02h)      ;ack irq (0)
-  GP1(03h)      ;display off (1)
-  GP1(04h)      ;dma off (0)
-  GP1(05h)      ;display address (0)
-  GP1(06h)      ;display x1,x2 (x1=200h, x2=200h+256*10)
-  GP1(07h)      ;display y1,y2 (y1=010h, y2=010h+240)
-  GP1(08h)      ;display mode 320x200 NTSC (0)
-  GP0(E1h..E6h) ;rendering attributes (0)
-*/
+          /*
+            GP1(01h)      ;clear fifo
+            GP1(02h)      ;ack irq (0)
+            GP1(03h)      ;display off (1)
+            GP1(04h)      ;dma off (0)
+            GP1(05h)      ;display address (0)
+            GP1(06h)      ;display x1,x2 (x1=200h, x2=200h+256*10)
+            GP1(07h)      ;display y1,y2 (y1=010h, y2=010h+240)
+            GP1(08h)      ;display mode 320x200 NTSC (0)
+            GP0(E1h..E6h) ;rendering attributes (0)
+          */
 
           gpu.dispL = 512;
           gpu.dispR = 512 + 2560;
@@ -482,7 +480,9 @@
       var offsx = ((data[0] >> 10) & 0x1f) << 3;
       var offsy = ((data[0] >> 15) & 0x1f) << 3;
 
-      gpu.twin = (maskx << 0) + (masky << 8) + (offsx << 16) + (offsy << 24);
+      // Texcoord = (Texcoord AND (NOT (Mask*8))) OR ((Offset AND Mask)*8)
+      const twin = (maskx << 0) + (masky << 8) + (offsx << 16) + (offsy << 24);
+      gpu.twin = twin;
 
     },
     // Set drawing area top left
@@ -526,7 +526,7 @@
     },
 
     dmaTransferMode0200: function (addr, blck) {
-      if (!addr) return;
+			if (!(addr & 0x007fffff)) return 0x10;
       var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
       // clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
 
@@ -547,7 +547,7 @@
     },
 
     dmaTransferMode0201: function (addr, blck) {
-      if (!addr) return;
+			if (!(addr & 0x007fffff)) return 0x10;
       if ((addr & ~3) === 0) {
         return (blck >> 16) * (blck & 0xFFFF);
       }
@@ -570,24 +570,19 @@
     },
 
     dmaTransferMode0401: function (addr, blck) {
-      if (!addr) return;
-      // if (gpu.dmaIndex !== 0) abort('not implemented')
+			if (!(addr & 0x007fffff)) return 0x10;
+      if (gpu.dmaIndex !== 0) abort('not implemented')
       if ((addr & ~3) === 0) {
         return (blck >> 16) * (blck & 0xFFFF);
       }
 
-      const sequence = (++this.bbb) & 0xffff;
-      const check = this.bbbdata;
       var data = gpu.dmaBuffer;
       let words = 0;
       for (; ;) {
         addr = addr & 0x001fffff;
-        // check for endless loop.
-        if (check[addr] === sequence) return words;
-        check[addr] = sequence;
         var header = ram.getInt32(addr, true);
         var nitem = header >>> 24;
-        var nnext = header & 0x00ffffff;
+        var nnext = header & 0x001fffff;
 
         addr = addr + 4; ++words;
 
@@ -595,12 +590,12 @@
           const packetId = ram.getInt32(addr, true) >>> 24;
           if (packetSizes[packetId] === 0) {
             addr += 4; --nitem; ++words;
-            //console.warn('invalid packetId:', hex(packetId, 2));
+            console.warn('invalid packetId:', hex(packetId, 2));
             return words;
           }
           if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
             let i = 0;
-            for (; i < 256; ++i) {
+            for (; i < 4096; ++i) {
               const value = ram.getInt32(addr, true);
               addr += 4; --nitem; ++words;
 
@@ -621,7 +616,7 @@
             gpu.updated = true;
           }
         }
-        if (!nnext || (nnext == 0x00ffffff)) break;
+        if (!nnext || (nnext == 0x001fffff)) break;
         addr = nnext;
       }
 
@@ -686,6 +681,10 @@
   gpu.handlePacket41 = gpu.handlePacket40;
   gpu.handlePacket42 = gpu.handlePacket40;
   gpu.handlePacket43 = gpu.handlePacket40;
+  gpu.handlePacket44 = gpu.handlePacket40;
+  gpu.handlePacket45 = gpu.handlePacket40;
+  gpu.handlePacket46 = gpu.handlePacket40;
+  gpu.handlePacket47 = gpu.handlePacket40;
 
   gpu.handlePacket49 = gpu.handlePacket48;
   gpu.handlePacket4A = gpu.handlePacket48;
@@ -698,6 +697,10 @@
   gpu.handlePacket51 = gpu.handlePacket50;
   gpu.handlePacket52 = gpu.handlePacket50;
   gpu.handlePacket53 = gpu.handlePacket50;
+  gpu.handlePacket54 = gpu.handlePacket50;
+  gpu.handlePacket55 = gpu.handlePacket50;
+  gpu.handlePacket56 = gpu.handlePacket50;
+  gpu.handlePacket57 = gpu.handlePacket50;
 
   gpu.handlePacket59 = gpu.handlePacket58;
   gpu.handlePacket5A = gpu.handlePacket58;
@@ -740,13 +743,13 @@
     gpu.handlers[i] = gpu[packetHandlerName] || gpu.invalidPacketHandler;
   }
 
-  for (var i = 0x81; i < 0x9f; ++i) {
+  for (var i = 0x81; i <= 0x9f; ++i) {
     gpu.handlers[i] = gpu.handlePacket80;
   }
-  for (var i = 0xA1; i < 0xbf; ++i) {
+  for (var i = 0xA1; i <= 0xbf; ++i) {
     gpu.handlers[i] = gpu.handlePacketA0;
   }
-  for (var i = 0xC1; i < 0xdf; ++i) {
+  for (var i = 0xC1; i <= 0xdf; ++i) {
     gpu.handlers[i] = gpu.handlePacketC0;
   }
 

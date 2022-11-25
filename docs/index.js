@@ -42,6 +42,7 @@
 
   psx.addEvent(0, spu.event.bind(spu));
   dma.eventDMA0 = psx.addEvent(0, dma.completeDMA0.bind(dma));
+  // dma.eventDMA1 = psx.addEvent(0, dma.completeDMA1.bind(dma));
   dma.eventDMA2 = psx.addEvent(0, dma.completeDMA2.bind(dma));
   dma.eventDMA3 = psx.addEvent(0, dma.completeDMA3.bind(dma));
   dma.eventDMA4 = psx.addEvent(0, dma.completeDMA4.bind(dma));

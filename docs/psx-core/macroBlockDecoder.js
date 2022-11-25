@@ -287,6 +287,7 @@
 		},
 
 		dmaTransferMode0201: function (addr, blck) {
+			if (!(addr & 0x007fffff)) return 0x10;
 			addr = addr & 0x001fffff;
 
 			const transferSize = (blck >>> 16) * (blck & 0xffff);
@@ -310,6 +311,8 @@
 		},
 
 		dmaTransferMode0200: function (addr, blck) {
+			if (!(addr & 0x007fffff)) return 0x10;
+
 			addr = addr & 0x001fffff;
 			const numberOfWords = (blck >>> 16) * (blck & 0xffff);
 			clearCodeCache( addr, numberOfWords << 2);

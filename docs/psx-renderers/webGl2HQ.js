@@ -30,6 +30,7 @@ function WebGLRenderer(cv) {
   this.fpsCounter = 0;
   this.skipped = 0;
   this.renderMode = 4;
+  this.layer = 0;
 
   try {
     this.gl = gl = canvas.getContext("webgl2", {
@@ -40,7 +41,6 @@ function WebGLRenderer(cv) {
       depth: false,
       stencil: false,
     });
-
   }
   catch (e) {
     alert("Error: Unable to get WebGL context");
@@ -258,6 +258,7 @@ WebGLRenderer.prototype.updateTransparencyMode = function (data) {
   if (this.renderMode === mode) return;
   flushVertexBuffer(this);
   this.renderMode = mode;
+  ++this.layer;
 
   this.setTransparencyMode(mode, this.programRenderer);
 }
@@ -329,33 +330,33 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
 
   if (x1 !== x2 || y1 !== y2) {
     if (w >= h) {
-      buffer.addVertex(x1, y1 + 1, 0, 0, data[c1]);
-      buffer.addVertex(x1, y1 + 0, 0, 0, data[c1]);
-      buffer.addVertex(x2, y2 + 0, 0, 0, data[c2]);
+      buffer.addVertex(x1, y1 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
+      buffer.addVertex(x1, y1 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
+      buffer.addVertex(x2, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
 
-      buffer.addVertex(x2, y2 + 0, 0, 0, data[c2]);
-      buffer.addVertex(x2, y2 + 1, 0, 0, data[c2]);
-      buffer.addVertex(x1, y1 + 1, 0, 0, data[c1]);
+      buffer.addVertex(x2, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+      buffer.addVertex(x2, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+      buffer.addVertex(x1, y1 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
 
     }
     else {
-      buffer.addVertex(x1 + 0, y1, 0, 0, data[c1]);
-      buffer.addVertex(x1 + 1, y1, 0, 0, data[c1]);
-      buffer.addVertex(x2 + 1, y2, 0, 0, data[c2]);
+      buffer.addVertex(x1 + 0, y1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
+      buffer.addVertex(x1 + 1, y1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
+      buffer.addVertex(x2 + 1, y2, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
 
-      buffer.addVertex(x2 + 1, y2, 0, 0, data[c2]);
-      buffer.addVertex(x2 + 0, y2, 0, 0, data[c2]);
-      buffer.addVertex(x1 + 0, y1, 0, 0, data[c1]);
+      buffer.addVertex(x2 + 1, y2, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+      buffer.addVertex(x2 + 0, y2, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+      buffer.addVertex(x1 + 0, y1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
     }
   }
   else {
-    buffer.addVertex(x2 + 0, y2 + 0, 0, 0, data[c2]);
-    buffer.addVertex(x2 + 1, y2 + 0, 0, 0, data[c2]);
-    buffer.addVertex(x2 + 0, y2 + 1, 0, 0, data[c2]);
+    buffer.addVertex(x2 + 0, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+    buffer.addVertex(x2 + 1, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+    buffer.addVertex(x2 + 0, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
 
-    buffer.addVertex(x2 + 0, y2 + 1, 0, 0, data[c2]);
-    buffer.addVertex(x2 + 1, y2 + 0, 0, 0, data[c2]);
-    buffer.addVertex(x2 + 1, y2 + 1, 0, 0, data[c2]);
+    buffer.addVertex(x2 + 0, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+    buffer.addVertex(x2 + 1, y2 + 0, 0, 0,((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+    buffer.addVertex(x2 + 1, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
   }
 }
 
@@ -363,9 +364,9 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   this.updateDrawArea();
 
   // set packetId on each vertex
-  c1 = ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)) & 0xfff8f8f8;
-  c2 = ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)) & 0xfff8f8f8;
-  c3 = ((data[0] & 0xff000000) | (data[c3] & 0x00ffffff)) & 0xfff8f8f8;
+  c1 = ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff));
+  c2 = ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff));
+  c3 = ((data[0] & 0xff000000) | (data[c3] & 0x00ffffff));
 
   const x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
   const y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
@@ -398,7 +399,7 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
 
   var x = $gpu.daX + ((data[1] << 21) >> 21);
   var y = $gpu.daY + ((data[1] << 5) >> 21);
-  var c = data[0] & 0xfff8f8f8;
+  var c = data[0];
   var w = (data[2] << 16) >> 16;
   var h = (data[2] >> 16);
   if (!w || !h) return;
@@ -442,7 +443,7 @@ WebGLRenderer.prototype.fillRectangle = function (data) {
   var y = (data[1] << 0) >>> 16;
   var w = (data[2] << 16) >>> 16;
   var h = (data[2] << 0) >>> 16;
-  var c = (data[0] & 0xfff8f8f8);
+  var c = (data[0]);
 
   x = (x & 0x3f0);
   y = (y & 0x1ff);
@@ -480,8 +481,8 @@ WebGLRenderer.prototype.updateDrawArea = function () {
     flushVertexBuffer(this);
     $gpu.daM = false;
 
-    // this.gl.useProgram(this.programDisplay);
-    // this.gl.uniform4i(this.programDisplay.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+    this.gl.useProgram(this.programDisplay);
+    this.gl.uniform4i(this.programDisplay.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
     this.gl.useProgram(this.programRenderer);
     this.gl.uniform4i(this.programRenderer.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
   }
@@ -540,6 +541,8 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
   }
 
   this.setTransparencyMode(this.renderMode, this.programRenderer);
+  this.layer = 0;
+
 
   ++this.fpsCounter;
 }
@@ -670,17 +673,17 @@ function createProgramRenderer(gl, renderBuffer) {
   gl.enableVertexAttribArray(program.vertexColor);
   gl.vertexAttribPointer(program.vertexColor, 4, gl.UNSIGNED_BYTE, true, vertexStride, 8);
 
-  program.textureMode = gl.getAttribLocation(program, "a_tmode");
-  gl.enableVertexAttribArray(program.textureMode);
-  gl.vertexAttribPointer(program.textureMode, 1, gl.BYTE, false, vertexStride, 12);
+  program.twin = gl.getAttribLocation(program, "a_twin");
+  gl.enableVertexAttribArray(program.twin);
+  gl.vertexAttribPointer(program.twin, 4, gl.UNSIGNED_BYTE, false, vertexStride, 12);
 
   program.clut = gl.getAttribLocation(program, "a_clut");
   gl.enableVertexAttribArray(program.clut);
   gl.vertexAttribPointer(program.clut, 1, gl.SHORT, false, vertexStride, 16);
 
-  program.twin = gl.getAttribLocation(program, "a_twin");
-  gl.enableVertexAttribArray(program.twin);
-  gl.vertexAttribPointer(program.twin, 4, gl.UNSIGNED_BYTE, false, vertexStride, 18);
+  program.textureMode = gl.getAttribLocation(program, "a_tmode");
+  gl.enableVertexAttribArray(program.textureMode);
+  gl.vertexAttribPointer(program.textureMode, 1, gl.BYTE, false, vertexStride, 19);
 
   return program;
 }

@@ -121,9 +121,9 @@ const utils = (function () {
       view.setInt16(this.index + 4, u, true);
       view.setInt16(this.index + 6, v, true);
       view.setUint32(this.index + 8, c, true);
-      view.setUint8(this.index + 12, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
+      view.setUint32(this.index + 12, gpu.twin, true);
       view.setUint16(this.index + 16, cl >>> 0, true);
-      view.setUint32(this.index + 18, gpu.twin, true);
+      view.setUint8(this.index + 19, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
       this.index += bytesPerVertex;
     }
 
