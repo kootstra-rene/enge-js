@@ -2,6 +2,8 @@
 
   'use strict';
 
+  const missing = new Set;
+
   var packetSizes = [
     0x01, 0x01, 0x03, 0x01, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -526,7 +528,7 @@
     },
 
     dmaTransferMode0200: function (addr, blck) {
-			if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) return 0x10;
       var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
       // clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
 
@@ -547,7 +549,7 @@
     },
 
     dmaTransferMode0201: function (addr, blck) {
-			if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) return 0x10;
       if ((addr & ~3) === 0) {
         return (blck >> 16) * (blck & 0xFFFF);
       }
@@ -570,16 +572,18 @@
     },
 
     dmaTransferMode0401: function (addr, blck) {
-			if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) return 0x10;
       if (gpu.dmaIndex !== 0) abort('not implemented')
       if ((addr & ~3) === 0) {
         return (blck >> 16) * (blck & 0xFFFF);
       }
 
+      const seen = new Set();
       var data = gpu.dmaBuffer;
       let words = 0;
       for (; ;) {
         addr = addr & 0x001fffff;
+        seen.add(addr);
         var header = ram.getInt32(addr, true);
         var nitem = header >>> 24;
         var nnext = header & 0x001fffff;
@@ -587,11 +591,16 @@
         addr = addr + 4; ++words;
 
         while (nitem > 0) {
+          if (seen.has(addr)) return words;
+          seen.add(addr);
           const packetId = ram.getInt32(addr, true) >>> 24;
           if (packetSizes[packetId] === 0) {
             addr += 4; --nitem; ++words;
-            console.warn('invalid packetId:', hex(packetId, 2));
-            return words;
+            if (missing.has(packetId)) continue;
+            missing.add(packetId);
+
+            console.warn('invalid packetId:', hex(packetId, 2), hex(header));
+            continue;//return words;
           }
           if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
             let i = 0;
