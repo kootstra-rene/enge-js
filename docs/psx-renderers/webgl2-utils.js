@@ -111,10 +111,11 @@ const utils = (function () {
    * @returns vertex-buffer
    */
   function createVertexBuffer() {
-    let buffer = new Uint8Array(128 * 1024);
+    // let buffer = new Uint8Array(64 * 1024);
+    let buffer = new Uint8Array(18 * 1024);
     let view = new DataView(buffer.buffer);
 
-    const bytesPerVertex = 32;
+    const bytesPerVertex = 24;
     buffer.addVertex = function(x, y, u, v, c = 0x00808080, cl) {
       view.setInt16(this.index + 0, x, true);
       view.setInt16(this.index + 2, y, true);

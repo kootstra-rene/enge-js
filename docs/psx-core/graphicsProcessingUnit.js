@@ -306,6 +306,10 @@
     handlePacket24: function (data) {
       gpu.updateTexturePage(data[4] >>> 16);
       renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      if ((data[0] & 0x06000000) === 0x06000000) {
+        data[0] = (data[0] & ~0x02000000) | 0x80000000;
+        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      }
     },
 
     // Monochrome 4 point polygon
@@ -319,6 +323,11 @@
       gpu.updateTexturePage(data[4] >>> 16);
       renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
       renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+      if ((data[0] & 0x06000000) === 0x06000000) {
+        data[0] = (data[0] & ~0x02000000) | 0x80000000;
+        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+        renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+      }
     },
 
     // Gradated 3 point polygon
@@ -330,6 +339,10 @@
     handlePacket34: function (data) {
       gpu.updateTexturePage(data[5] >>> 16);
       renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+      if ((data[0] & 0x06000000) === 0x06000000) {
+        data[0] = (data[0] & ~0x02000000) | 0x80000000;
+        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+      }
     },
 
     // Gradated 4 point polygon
@@ -343,6 +356,11 @@
       gpu.updateTexturePage(data[5] >>> 16);
       renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
       renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
+      if ((data[0] & 0x06000000) === 0x06000000) {
+        data[0] = (data[0] & ~0x02000000) | 0x80000000;
+        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+        renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
+        }
     },
 
     // Monochrome line
@@ -379,6 +397,10 @@
       var tx = (data[2] >>> 0) & 255;
       var ty = (data[2] >>> 8) & 255;
       renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+      if ((data[0] & 0x06000000) === 0x06000000) {
+        data[0] = (data[0] & ~0x02000000) | 0x80000000;
+        renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+      }
     },
 
     // Dot
@@ -396,6 +418,10 @@
       var tx = (data[2] >>> 0) & 255;
       var ty = (data[2] >>> 8) & 255;
       renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
+      if ((data[0] & 0x06000000) === 0x06000000) {
+        data[0] = (data[0] & ~0x02000000) | 0x80000000;
+        renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
+      }
     },
 
     // 16*16 rectangle
@@ -408,6 +434,10 @@
       var tx = (data[2] >>> 0) & 255;
       var ty = (data[2] >>> 8) & 255;
       renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
+      if ((data[0] & 0x06000000) === 0x06000000) {
+        data[0] = (data[0] & ~0x02000000) | 0x80000000;
+        renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
+      }
     },
 
     // Move image in framebuffer
@@ -593,13 +623,14 @@
         while (nitem > 0) {
           if (seen.has(addr)) return words;
           seen.add(addr);
-          const packetId = ram.getInt32(addr, true) >>> 24;
+          const packetWord = ram.getInt32(addr, true) >>> 0;
+          const packetId = packetWord >>> 24;
           if (packetSizes[packetId] === 0) {
             addr += 4; --nitem; ++words;
             if (missing.has(packetId)) continue;
             missing.add(packetId);
 
-            console.warn('invalid packetId:', hex(packetId, 2), hex(header));
+            console.warn('invalid packetId:', hex(packetId, 2), hex(header), hex(packetWord));
             continue;//return words;
           }
           if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {

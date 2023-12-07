@@ -19,6 +19,15 @@ var qhf = settings.quality || 1;
 var qwidth = 1024 * qwf;
 var qheight = 512 * qhf;
 
+const $stats = {
+  flushes: 0,
+
+  dump: () => {
+    // if ($stats.flushes) console.log(`flushes: ${$stats.flushes}`); else console.log('.');
+    $stats.flushes = 0;
+  }
+}
+
 Uint32Array.prototype.addVertexDisp = function (x, y, u, v) {
   var xy = (y << 16) | (x & 0xffff);
   var uv = (v << 16) | (u & 0xffff);
@@ -757,6 +766,8 @@ WebGLRenderer.prototype.setupProgramDraw = function () {
 WebGLRenderer.prototype.flushVertexBuffer = function (clip) {
   const gl = this.gl;
 
+  $stats.flushes++;
+
   if (this.vertexBuffer.index <= 0) {
     return;
   }
@@ -1183,6 +1194,7 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
   this.flushVertexBuffer(true);
 
   // if (!this.seenRender) return;
+  $stats.dump();
 
   gl.disable(gl.SCISSOR_TEST);
   // Display

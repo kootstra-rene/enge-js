@@ -44,7 +44,7 @@
     out vec2 v_vramCoord;
     out vec4 v_color;
     out vec2 v_pixelCoord;
-    flat out float v_textureMode;
+    flat out uint v_textureMode;
     flat out ivec2 v_texturePage;
     flat out uint packetId;
     flat out ivec2 clut;
@@ -57,7 +57,7 @@
       v_vramCoord = a_texcoord; // texture is 4096x2048
       v_pixelCoord = a_position;
       v_color = vec4(a_color.rgb, 1.0);
-      v_textureMode = mod(a_tmode, 4.0);
+      v_textureMode = uint(mod(a_tmode, 4.0));
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
       float tpy = mod(floor(a_tmode / 64.0), 2.0);
       v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
@@ -80,7 +80,7 @@
     in vec2 v_vramCoord;
     in vec4 v_color;
     in vec2 v_pixelCoord;
-    flat in float v_textureMode;
+    flat in uint v_textureMode;
     flat in ivec2 v_texturePage;
     flat in uint packetId;
     flat in ivec2 clut;
@@ -126,7 +126,7 @@
       return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
     }
 
-    void main() {
+    void main() { outColor = vec4(1.0,1.0,1.0,1.0);
       ivec2 texel = ivec2(v_pixelCoord).xy;
 
       if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
@@ -139,20 +139,33 @@
           int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
           int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
 
-          if (v_textureMode == 0.0) tc = vram4bit(tx, ty);
-          if (v_textureMode == 1.0) tc = vram8bit(tx, ty);
-          if (v_textureMode == 2.0) tc = vram16Bit(tx, ty);
-          if (v_textureMode == 3.0) tc = vram16Bit(tx, ty);
+          if (v_textureMode == 0u) tc = vram4bit(tx, ty);
+          if (v_textureMode == 1u) tc = vram8bit(tx, ty);
+          if (v_textureMode == 2u) tc = vram16Bit(tx, ty);
+          if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
 
           if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
-          
-          if (0u == (packetId & 1u)) {
-            // shaded vertex, opaque, texture-blending
-            outColor = vec4(tc.rgb * (v_color.rgb / vec3(0.5, 0.5, 0.5)), u_alpha);
+
+          vec3 blendingColor = 0u == (packetId & 1u) ? v_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0);
+          bool transparentPrimitive = 0x02u == (packetId & 0x02u);
+          bool transparentPixel = tc.a > 0.0;
+          bool skipTransparent = 0x80u == (packetId & 0x80u);
+
+          if (!transparentPrimitive) {
+            if (transparentPixel && skipTransparent) {
+              discard;
+            }
+            else {
+              outColor = vec4(tc.rgb * blendingColor, transparentPixel ? 1.0 : 0.0);
+            }
           }
           else {
-            // vertex, opaque, texture-raw
-            outColor = vec4(tc.rgb, u_alpha);
+            if (!transparentPixel) {
+              return;
+            }
+            else {
+              outColor = vec4(tc.rgb * blendingColor, u_alpha);
+            }
           }
         }
       }
@@ -216,7 +229,7 @@
       return vec4(rnd, rnd, rnd, 1.0);
     }
   
-    vec4 tv_effect(vec3 col) {
+    vec4 tv_effect(vec3 col) {//return vec4(col, 1.0);
       vec2 resolution = vec2(u_disp.zw - u_disp.xy + ivec2(1,1));
       vec2 uv = (v_vramCoord - vec2(u_disp.xy)) / resolution;
 

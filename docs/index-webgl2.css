@@ -6,16 +6,16 @@
 }
 
 :root {
-  --screen-top: 2vh;
-  --screen-height: 96vh;
+  --screen-top: 3vh;
+  --screen-height: 94vh;
   --screen-width: calc((var(--screen-height) / 9 * 12));
   --screen-left: calc((100vw - var(--screen-width)) / 2);
 }
 
 @media screen and (max-width: 133.33vh) {
   :root {
-    --screen-left: 2vw;
-    --screen-width: 96vw;
+    --screen-left: 3vw;
+    --screen-width: 94vw;
     --screen-height: calc((var(--screen-width) / 12 * 9));
     --screen-top: calc((100vh - var(--screen-height)) / 2);
   }
@@ -77,6 +77,6 @@ body {
   width: 100%;
   height: 100%;
   z-index: -1;
-  filter: blur(12.5px);
+  filter: blur(25px);
 
 }
