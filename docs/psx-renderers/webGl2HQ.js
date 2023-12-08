@@ -670,7 +670,7 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   gl.bindTexture(gl.TEXTURE_2D, null);
 
   vertexBuffer.reset();
-return
+// return
   if (canvas.width && canvas.height) {
     ambilight.canvas.width = canvas.width;
     ambilight.canvas.height = canvas.height;

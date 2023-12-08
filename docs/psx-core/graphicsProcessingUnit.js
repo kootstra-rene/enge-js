@@ -78,6 +78,9 @@
     },
 
     getClutInfo: function (cl, data) {
+      const transparentPrimitive = !!(data[0] & 0x02000000);
+      const opaqueLimit = !transparentPrimitive ? 0x8000 : 0x7fff;
+
       var tm = Math.min(((gpu.status >> 7) & 3), 2);
 
       var cx = ((cl >>> 0) & 0x03f) * 16;
@@ -93,13 +96,18 @@
       while (--len >= 0) {
         var pixel = vram[offs++];
         if (pixel !== 0) {
-          if (pixel <= 0x7fff) {
+          if (pixel <= opaqueLimit) {
             info |= 1; // STP:0  // opaque colors in clut
           }
           else {
             info |= 2; // STP:1  // transparent colors in clut
           }
         }
+      }
+
+      if (!transparentPrimitive) {
+        // no transparent colors in non-transparent primitves
+        info &= ~2;
       }
       return info;
     },
@@ -332,12 +340,16 @@
 
     // Textured 3 point polygon
     handlePacket24: function (data) {
+      gpu.updateTexturePage(data[4] >>> 16);
+
       const ci = this.getClutInfo(data[2] >>> 16, data);
       const hasOpaquePixels = (ci & 1) === 1;
+      const hasTransparentPixels = (ci & 2) === 2;
+      const isTransparentPrimitive = !!(data[0] & 0x02000000);
 
-      gpu.updateTexturePage(data[4] >>> 16);
-      renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-
+      if (!isTransparentPrimitive || hasTransparentPixels) {
+        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      }
       if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
         data[0] = (data[0] & ~0x02000000) | 0x80000000;
         renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
@@ -352,12 +364,17 @@
 
     // Textured 4 point polygon
     handlePacket2C: function (data) {
+      gpu.updateTexturePage(data[4] >>> 16);
+
       const ci = this.getClutInfo(data[2] >>> 16, data);
       const hasOpaquePixels = (ci & 1) === 1;
+      const hasTransparentPixels = (ci & 2) === 2;
+      const isTransparentPrimitive = !!(data[0] & 0x02000000);
 
-      gpu.updateTexturePage(data[4] >>> 16);
-      renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-      renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+      if (!isTransparentPrimitive || hasTransparentPixels) {
+        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+        renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+      }
 
       if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
         data[0] = (data[0] & ~0x02000000) | 0x80000000;
@@ -373,12 +390,16 @@
 
     // Gradated textured 3 point polygon
     handlePacket34: function (data) {
+      gpu.updateTexturePage(data[5] >>> 16);
+
       const ci = this.getClutInfo(data[2] >>> 16, data);
       const hasOpaquePixels = (ci & 1) === 1;
+      const hasTransparentPixels = (ci & 2) === 2;
+      const isTransparentPrimitive = !!(data[0] & 0x02000000);
 
-      gpu.updateTexturePage(data[5] >>> 16);
-      renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-
+      if (!isTransparentPrimitive || hasTransparentPixels) {
+        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+      }
       if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
         data[0] = (data[0] & ~0x02000000) | 0x80000000;
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
@@ -393,13 +414,17 @@
 
     // Gradated textured 4 point polygon
     handlePacket3C: function (data) {
+      gpu.updateTexturePage(data[5] >>> 16);
+
       const ci = this.getClutInfo(data[2] >>> 16, data);
       const hasOpaquePixels = (ci & 1) === 1;
+      const hasTransparentPixels = (ci & 2) === 2;
+      const isTransparentPrimitive = !!(data[0] & 0x02000000);
 
-      gpu.updateTexturePage(data[5] >>> 16);
-      renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-      renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
-
+      if (!isTransparentPrimitive || hasTransparentPixels) {
+        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+        renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
+      }
       if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
         data[0] = (data[0] & ~0x02000000) | 0x80000000;
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
@@ -440,10 +465,15 @@
     handlePacket64: function (data) {
       const ci = this.getClutInfo(data[2] >>> 16, data);
       const hasOpaquePixels = (ci & 1) === 1;
+      const hasTransparentPixels = (ci & 2) === 2;
+      const isTransparentPrimitive = !!(data[0] & 0x02000000);
 
       var tx = (data[2] >>> 0) & 255;
       var ty = (data[2] >>> 8) & 255;
-      renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+
+      if (!isTransparentPrimitive || hasTransparentPixels) {
+        renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+      }
 
       if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
         data[0] = (data[0] & ~0x02000000) | 0x80000000;
@@ -465,11 +495,14 @@
     handlePacket74: function (data) {
       const ci = this.getClutInfo(data[2] >>> 16, data);
       const hasOpaquePixels = (ci & 1) === 1;
+      const hasTransparentPixels = (ci & 2) === 2;
+      const isTransparentPrimitive = !!(data[0] & 0x02000000);
 
       var tx = (data[2] >>> 0) & 255;
       var ty = (data[2] >>> 8) & 255;
-      renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
-
+      if (!isTransparentPrimitive || hasTransparentPixels) {
+        renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
+      }
       if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
         data[0] = (data[0] & ~0x02000000) | 0x80000000;
         renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
@@ -485,11 +518,15 @@
     handlePacket7C: function (data) {
       const ci = this.getClutInfo(data[2] >>> 16, data);
       const hasOpaquePixels = (ci & 1) === 1;
+      const hasTransparentPixels = (ci & 2) === 2;
+      const isTransparentPrimitive = !!(data[0] & 0x02000000);
 
       var tx = (data[2] >>> 0) & 255;
       var ty = (data[2] >>> 8) & 255;
-      renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
 
+      if (!isTransparentPrimitive || hasTransparentPixels) {
+        renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
+      }
       if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
         data[0] = (data[0] & ~0x02000000) | 0x80000000;
         renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);

@@ -111,8 +111,8 @@ const utils = (function () {
    * @returns vertex-buffer
    */
   function createVertexBuffer() {
-    // let buffer = new Uint8Array(64 * 1024);
-    let buffer = new Uint8Array(18 * 1024);
+    let buffer = new Uint8Array(64 * 1024);
+    // let buffer = new Uint8Array(18 * 1024);
     let view = new DataView(buffer.buffer);
 
     const bytesPerVertex = 24;
