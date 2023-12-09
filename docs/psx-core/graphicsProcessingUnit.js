@@ -735,7 +735,7 @@
             missing.add(packetId);
 
             console.warn('invalid packetId:', hex(packetId, 2), hex(header), hex(packetWord));
-            continue;//return words;
+            return words;
           }
           if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
             let i = 0;
