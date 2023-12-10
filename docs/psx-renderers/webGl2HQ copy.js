@@ -1,24 +1,25 @@
 "use strict"
 
+const TEXW = 4096;
+const TEXH = 2048;
+
 const $gpu = {
 };
 
 const $stats = {
-  imageUpdate: 0,
   flushes: 0,
   vertices: 0,
 
   dump: () => {
     if ($stats.flushes) console.log(`flushes: ${$stats.flushes} (${$stats.vertices})`);
-    if ($stats.imageUpdate) console.log(`stores: ${$stats.imageUpdate}`);
     $stats.flushes = 0;
     $stats.vertices = 0;
-    $stats.imageUpdate = 0;
   }
 }
 const sbgr2rgba = new Uint32Array(65536);
-const transfer = new Uint32Array(1024 * 512);
+const transfer = new Uint32Array(4096 * 2048);
 const view = new Uint8Array(transfer.buffer);
+const vertexBuffer = utils.createVertexBuffer();
 
 for (let i = 0; i < 65536; ++i) {
   sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
@@ -42,6 +43,7 @@ function WebGLRenderer(cv) {
   this.fpsCounter = 0;
   this.skipped = 0;
   this.renderMode = 4;
+  this.layer = 0;
   this.seenRender = false;
 
   try {
@@ -71,32 +73,11 @@ function WebGLRenderer(cv) {
 
     gl.enableVertexAttribArray(0);
 
+    this.displayBuffer = gl.createBuffer();
+    this.programDisplay = createProgramDisplay(gl, this.displayBuffer);
     this.renderBuffer = gl.createBuffer();
     this.programRenderer = createProgramRenderer(gl, this.renderBuffer);
     // gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-
-    // create texture
-    this.cache = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.cache);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    this.fb_cache = gl.createFramebuffer();
-
-    // create texture
-    this.videoRam = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.videoRam);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    this.fb_videoRam = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_videoRam);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoRam, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     // create texture
     this.vram = gl.createTexture();
@@ -105,12 +86,42 @@ function WebGLRenderer(cv) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 1024, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
     this.fb_vram = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vram);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    // create texture
+    this.vramShadow = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.vramShadow);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+    this.fb_vramShadow = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vramShadow);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    // create texture
+    this.cache = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.cache);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+    this.fb_cache = gl.createFramebuffer();
+
+    // copy texture data
+    gl.bindTexture(gl.TEXTURE_2D, this.vram);
+    transfer.fill(0);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4096, 2048, gl.RGBA, gl.UNSIGNED_BYTE, view);
 
   }
   else {
@@ -119,8 +130,10 @@ function WebGLRenderer(cv) {
 }
 
 WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
+  flushVertexBuffer(this);
   const gl = this.gl;
-  vertexBuffer.forceFlush(this);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vram);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
@@ -131,7 +144,7 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
   // blit from vram -> cache
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_cache);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vram);
-  gl.blitFramebuffer(2 * x, 2 * y, 2 * (x + w), 2 * (y + h), x, y, (x + w), (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, x + w, y + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
   gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
@@ -148,47 +161,57 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
     buffer[i] = sbgr16;
   }
 
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
 WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
   this.seenRender = true;
+  flushVertexBuffer(this);
   const gl = this.gl;
-  vertexBuffer.forceFlush(this);
 
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_videoRam);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoRam, 0);
+  sx *= 4;
+  sy *= 4;
+  dx *= 4;
+  dy *= 4;
+  w *= 4;
+  h *= 4;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vramShadow);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
 
-  // blit from videoRam -> cache
+  // blit from vramShadow -> cache
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_cache);
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_videoRam);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vramShadow);
   gl.blitFramebuffer(sx, sy, sx + w, sy + h, sx, sy, sx + w, sy + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
-  // blit from cache -> videoRam
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_videoRam);
+  // blit from cache -> vramShadow
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vramShadow);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
   gl.blitFramebuffer(sx, sy, sx + w, sy + h, dx, dy, dx + w, dy + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   // blit from cache -> vram
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vram);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
-  gl.blitFramebuffer(sx, sy, sx + w, sy + h, 2 * dx, 2 * dy, 2 * (dx + w), 2 * (dy + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.blitFramebuffer(sx, sy, sx + w, sy + h, dx, dy, dx + w, dy + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  ++$stats.imageUpdate;
+
+  gl.activeTexture(gl.TEXTURE0 + 0);
+
 }
 
 WebGLRenderer.prototype.storeImage = function (img) {
   this.seenRender = true;
+  flushVertexBuffer(this);
   const gl = this.gl;
-  vertexBuffer.forceFlush(this);
 
   for (let i = 0, l = img.pixelCount; i < l; ++i) {
     const sbgr = img.buffer[i] >>> 0;
@@ -196,17 +219,32 @@ WebGLRenderer.prototype.storeImage = function (img) {
   }
 
   // copy texture data
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_videoRam);
-  gl.bindTexture(gl.TEXTURE_2D, this.videoRam);
+  gl.bindTexture(gl.TEXTURE_2D, this.cache);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vramShadow);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
+
+  // blit from cache -> vramShadow
+  let { x, y, w, h } = img;
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vramShadow);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
+  gl.blitFramebuffer(x, y, x + w, y + h, 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vram);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
 
   // blit from cache -> vram
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vram);
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_videoRam);
-  gl.blitFramebuffer(img.x, img.y, img.x + img.w, img.y + img.h, 2 * img.x, 2 * img.y, 2 * (img.x + img.w), 2 * (img.y + img.h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
+  gl.blitFramebuffer(x, y, x + w, y + h, 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  ++$stats.imageUpdate;
 }
 
 WebGLRenderer.prototype.largePrimitive = function (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) {
@@ -234,38 +272,59 @@ WebGLRenderer.prototype.outsideDrawArea = function (x1, y1, x2, y2, x3, y3, x4 =
   return false;
 }
 
+WebGLRenderer.prototype.updateTransparencyMode = function (data) {
+  const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
+
+  if (this.renderMode === mode) return;
+  flushVertexBuffer(this);
+  this.renderMode = mode;
+  ++this.layer;
+
+  this.setTransparencyMode(mode, this.programRenderer);
+}
+
 WebGLRenderer.prototype.setTransparencyMode = function (mode, program) {
   const gl = this.gl;
   gl.useProgram(program);
 
-  switch (mode) {
+  switch (mode & 0xf) {
     case 0: {
       gl.enable(gl.BLEND);
       gl.blendEquation(gl.FUNC_ADD);
       gl.blendFunc(gl.SRC_ALPHA, gl.SRC_ALPHA);
-      gl.uniform1f(program.alpha, 0.50);
+      if (program.alpha) {
+        gl.uniform1f(program.alpha, 0.50);
+      }
     } break;
     case 1: {
       gl.enable(gl.BLEND);
       gl.blendEquation(gl.FUNC_ADD);
       gl.blendFunc(gl.ONE, gl.ONE);
-      gl.uniform1f(program.alpha, 1.00);
+      if (program.alpha) {
+        gl.uniform1f(program.alpha, 1.00);
+      }
     } break;
     case 2: {
       gl.enable(gl.BLEND);
       gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
       gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR);
-      gl.uniform1f(program.alpha, 1.00);
+      if (program.alpha) {
+        gl.uniform1f(program.alpha, 1.00);
+      }
     } break;
     case 3: {
       gl.enable(gl.BLEND);
       gl.blendEquation(gl.FUNC_ADD);
       gl.blendFunc(gl.ONE_MINUS_SRC_ALPHA, gl.ONE);
-      gl.uniform1f(program.alpha, 0.75);
+      if (program.alpha) {
+        gl.uniform1f(program.alpha, 0.75);
+      }
     } break;
     case 4: {
       gl.disable(gl.BLEND);
-      gl.uniform1f(program.alpha, 0.00);
+      if (program.alpha) {
+        gl.uniform1f(program.alpha, 0.00);
+      }
     } break;
   }
 }
@@ -282,10 +341,13 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
   if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
   if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
 
-  const buffer = this.getVertexBuffer(6, data);
+  if (!vertexBuffer.canHold(6)) flushVertexBuffer(this);
+  this.updateTransparencyMode(data);
 
   var w = Math.abs(x1 - x2);
   var h = Math.abs(y1 - y2);
+
+  var buffer = vertexBuffer;
 
   if (x1 !== x2 || y1 !== y2) {
     if (w >= h) {
@@ -337,8 +399,10 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
   if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
 
-  const buffer = this.getVertexBuffer(6, data);
+  if (!vertexBuffer.canHold(6)) flushVertexBuffer(this);
+  this.updateTransparencyMode(data);
 
+  const buffer = vertexBuffer;
   const u1 = (data[uv1] >>> 0) & 255;
   const v1 = (data[uv1] >>> 8) & 255;
   const u2 = (data[uv2] >>> 0) & 255;
@@ -353,6 +417,22 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
 
 function getColor(data, index = 0) {
   return (data[0] & 0xff000000) | (data[index] & 0x00ffffff);
+
+  var c;
+  if (data[0] & 0x04000000) {
+    if (data[0] & 0x01000000) {
+      // blend texture
+      c = ((data[0] & 0xff000000) | (data[index] & 0x00ffffff));
+    }
+    else {
+      // raw texture
+      c = ((data[0] & 0xff000000) | (0x00808080));
+    }
+  }
+  else {
+    c = ((data[0] & 0xff000000) | (data[index] & 0x00ffffff));
+  }
+  return c;
 }
 
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
@@ -369,7 +449,8 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   if (this.outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
   if (this.largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
 
-  const buffer = this.getVertexBuffer(6, data);
+  if (!vertexBuffer.canHold(6)) flushVertexBuffer(this);
+  this.updateTransparencyMode(data);
 
   var tl = tx + 0;
   var tr = tx + w;
@@ -385,6 +466,7 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
     tb = ty - h + 1;
   }
 
+  var buffer = vertexBuffer;
   buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
   buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
   buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
@@ -395,8 +477,9 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
 }
 
 WebGLRenderer.prototype.fillRectangle = function (data) {
+  flushVertexBuffer(this);
+
   let gl = this.gl;
-  vertexBuffer.forceFlush(this);
 
   var x = (data[1] << 16) >>> 16;
   var y = (data[1] << 0) >>> 16;
@@ -414,22 +497,21 @@ WebGLRenderer.prototype.fillRectangle = function (data) {
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-  gl.bindTexture(gl.TEXTURE_2D, this.cache);
+  // gl.activeTexture(gl.TEXTURE0 + 0);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.cache);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, view);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   // blit from cache -> vramShadow
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vramShadow);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
-  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-  gl.bindTexture(gl.TEXTURE_2D, this.cache);
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_videoRam);
-  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoRam, 0);
-  gl.bindTexture(gl.TEXTURE_2D, this.videoRam);
-  gl.blitFramebuffer(0, 0, 1, 1, x, y, (x + w), (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.blitFramebuffer(0, 0, 1, 1, 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  // blit from cache -> vram
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vram);
-  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-  gl.bindTexture(gl.TEXTURE_2D, this.videoRam);
-  gl.blitFramebuffer(0, 0, 1, 1, 2 * x, 2 * y, 2 * (x + w), 2 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
+  gl.blitFramebuffer(0, 0, 1, 1, 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
@@ -438,8 +520,11 @@ WebGLRenderer.prototype.fillRectangle = function (data) {
 
 WebGLRenderer.prototype.updateDrawArea = function () {
   if ($gpu.daM) {
+    flushVertexBuffer(this);
     $gpu.daM = false;
 
+    this.gl.useProgram(this.programDisplay);
+    this.gl.uniform4i(this.programDisplay.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
     this.gl.useProgram(this.programRenderer);
     this.gl.uniform4i(this.programRenderer.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
   }
@@ -466,11 +551,11 @@ WebGLRenderer.prototype.setDrawAreaBR = function (x, y) {
 
 WebGLRenderer.prototype.onVBlankBegin = function () {
   const gl = this.gl;
-  vertexBuffer.forceFlush(this);
 
-  // console.log('***');
+  flushVertexBuffer(this);
   $stats.dump();
-  vertexBuffer.dump(this);
+
+  this.layer = 0;
 
   ++this.fpsCounter;
   if (this.seenRender) {
@@ -480,7 +565,7 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
   else return;
 
 
-  // this.setTransparencyMode(4, this.programRenderer);
+  this.setTransparencyMode(4, this.programDisplay);
 
   const area = gpu.getDisplayArea();
 
@@ -509,7 +594,7 @@ WebGLRenderer.prototype.onVBlankBegin = function () {
       break;
   }
 
-  // this.setTransparencyMode(this.renderMode, this.programRenderer);
+  this.setTransparencyMode(this.renderMode, this.programRenderer);
 }
 
 WebGLRenderer.prototype.onVBlankEnd = function () {
@@ -519,127 +604,73 @@ WebGLRenderer.prototype.setMode = function (mode) {
   this.mode = mode;
 }
 
-const vertexBuffer = {
-  flushCount: 0,
-  verticesCount: 0,
-  mode: 4,
-  modes: [
-    utils.createVertexBuffer(),
-    utils.createVertexBuffer(),
-    utils.createVertexBuffer(),
-    utils.createVertexBuffer(),
-    utils.createVertexBuffer(),
-  ],
-  addVertex: function (x, y, u, v, c = 0x00808080, cl) {
-    const primitiveType = (c >>> 29) & 7;
-    const textureMapping = (c & 0x04000000) === 0x04000000;
-    const transparentPrimitive = (c & 0x02000000) === 0x02000000;
-    if (textureMapping && transparentPrimitive && (primitiveType === 1 || primitiveType === 3)) {
-      // add opaque rendering for textured polygons or texture rectangle (possibly not used)
-      this.modes[this.mode].addVertex(x, y, u, v, c | 0x80000000, cl);
-      this.modes[4].addVertex(x, y, u, v, (c & ~0x02000000) | 0x80000000, cl);
-    }
-    else {
-      if (transparentPrimitive) {
-        this.modes[this.mode].addVertex(x, y, u, v, c, cl);
-      }
-      else {
-        this.modes[4].addVertex(x, y, u, v, c, cl);
-      }
-    }
-  },
-  flushVertices: function (gl, buffer) {
-    gl.useProgram(renderer.programRenderer);
-    gl.viewport(0, 0, 2048, 1024); // texture dimensions
+function flushVertexBuffer(renderer) {
+  const gl = renderer.gl;
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, renderer.renderBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, buffer, gl.STREAM_DRAW, 0, buffer.index);
+  if (vertexBuffer.index) {
+    $stats.vertices += vertexBuffer.size();
+
+    gl.useProgram(renderer.programRenderer);
+    gl.viewport(0, 0, 4096, 2048); // texture dimensions
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, 0, vertexBuffer.index);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.fb_vram);
-    // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-    gl.activeTexture(gl.TEXTURE0 + 0);
-    gl.bindTexture(gl.TEXTURE_2D, renderer.videoRam);
-    gl.drawArrays(gl.TRIANGLES, 0, buffer.size());
+    // gl.activeTexture(gl.TEXTURE0 + 0);
+    gl.bindTexture(gl.TEXTURE_2D, renderer.vramShadow);
+    gl.drawArrays(gl.TRIANGLES, 0, vertexBuffer.size());
 
-    // gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.fb_videoRam);
-    // gl.bindTexture(gl.TEXTURE_2D, renderer.videoRam);
-    // gl.drawArrays(gl.TRIANGLES, 0, buffer.size());
+    gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.fb_vramShadow);
+    // gl.activeTexture(gl.TEXTURE0 + 0);
+    gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
+    gl.drawArrays(gl.TRIANGLES, 0, vertexBuffer.size());
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  },
-  flush: function (mode, renderer) {
-    if (mode === 4) return;
-    if ((mode !== this.mode) && this.mode >= 0) {
-      // console.log(`> flush(mode${this.mode})`);
-      this.forceFlush(renderer);
-    }
-    this.mode = mode;
-  },
-  forceFlush: function (renderer) {
-    const buffer = this.modes[4];
-
-    if (buffer.size()) {
-      this.verticesCount += buffer.size();
-
-      renderer.setTransparencyMode(4, renderer.programRenderer);
-      this.flushVertices(renderer.gl, buffer);
-      // if (buffer.size()) console.log(`mode${4}: ${buffer.size()}`);
-      buffer.reset();
-    }
-
-    if (this.mode >= 0 && this.mode <= 3) {
-      const buffer = this.modes[this.mode];
-      if (buffer.size()) {
-        this.verticesCount += buffer.size();
-
-        renderer.setTransparencyMode(this.mode, renderer.programRenderer);
-        this.flushVertices(renderer.gl, buffer);
-        //   // if (buffer.size()) console.log(`mode${this.mode}: ${buffer.size()}`);
-        buffer.reset();
-      }
-    }
-    this.flushCount += 2;
-  },
-  dump: function (renderer) {
-    if (this.flushCount) {
-      console.log(`flushCount: ${this.flushCount}(${this.verticesCount})`);
-    }
-    this.flushCount = 0;
-    this.verticesCount = 0;
+    vertexBuffer.reset();
+    ++$stats.flushes;
   }
 }
-WebGLRenderer.prototype.getVertexBuffer = function (vertices, packetData) {
-  const transparencyMode = (packetData[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
-  const primitiveType = (packetData[0] >>> 29) & 7;
-  const textureMapping = (packetData[0] & 0x04000000) === 0x04000000;
 
-  vertexBuffer.flush(transparencyMode, this);
-  return vertexBuffer;
+function getDisplayArrays(area) {
+  vertexBuffer.addVertex(0, 0, area.x + 0, area.y + 0, 0xffffffff);
+  vertexBuffer.addVertex(1024, 0, area.x + area.w, area.y + 0, 0xffffffff);
+  vertexBuffer.addVertex(0, 512, area.x + 0, area.y + area.h, 0xffffffff);
+
+  vertexBuffer.addVertex(0, 512, area.x + 0, area.y + area.h, 0xffffffff);
+  vertexBuffer.addVertex(1024, 0, area.x + area.w, area.y + 0, 0xffffffff);
+  vertexBuffer.addVertex(1024, 512, area.x + area.w, area.y + area.h, 0xffffffff);
+
+  return vertexBuffer.view();
 }
 
 function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   const gl = renderer.gl;
+  const program = renderer.programDisplay;
 
   canvas.width = region.w * settings.quality;
   canvas.height = region.h * settings.quality;
+  gl.viewport(0, 0, canvas.width, canvas.height);
 
+  gl.useProgram(program);
+  gl.uniform1f(program.time, (performance.now() >>> 0) / 1000.0);
   const area = gpu.getDisplayArea();
+  gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
+  gl.uniform1i(program.mode, mode);
 
-  // blit from vramShadow -> cache
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  // gl.activeTexture(gl.TEXTURE0 + 0);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.vramShadow);
 
-  // gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_videoRam);
-  // // gl.blitFramebuffer(area.x, area.y, (area.x + area.w - 1), (area.y + area.h - 1), 0, (canvas.height - 1), canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-  // gl.blitFramebuffer(0, 0, 1023, 511, 0, canvas.height - 1, canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(region), gl.STATIC_DRAW);
 
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
-  // gl.blitFramebuffer(2*area.x, 2*area.y, 2*(area.x + area.w - 1), 2*(area.y + area.h - 1), 0, (canvas.height - 1), canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-  gl.blitFramebuffer(0, 0, 2048, 1024, 0, canvas.height - 1, canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
 
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
-
+  vertexBuffer.reset();
+// return
   if (canvas.width && canvas.height) {
     ambilight.canvas.width = canvas.width;
     ambilight.canvas.height = canvas.height;
@@ -648,6 +679,32 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
 }
 
 const vertexStride = 24;
+function createProgramDisplay(gl, displayBuffer) {
+  const program = utils.createProgramFromScripts(gl, 'vertex', 'displayScreen');
+  gl.useProgram(program);
+
+  program.displayArea = gl.getUniformLocation(program, "u_disp");
+  program.time = gl.getUniformLocation(program, "u_time");
+  program.mode = gl.getUniformLocation(program, "u_mode");
+  program.drawArea = gl.getUniformLocation(program, "u_draw");
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, displayBuffer);
+
+  program.vertexPosition = gl.getAttribLocation(program, "a_position");
+  gl.enableVertexAttribArray(program.vertexPosition);
+  gl.vertexAttribPointer(program.vertexPosition, 2, gl.SHORT, false, vertexStride, 0);
+
+  program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
+  gl.enableVertexAttribArray(program.textureCoord);
+  gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, vertexStride, 4);
+
+  program.vertexColor = gl.getAttribLocation(program, "a_color");
+  gl.enableVertexAttribArray(program.vertexColor);
+  gl.vertexAttribPointer(program.vertexColor, 4, gl.UNSIGNED_BYTE, true, vertexStride, 8);
+
+  return program;
+}
+
 function createProgramRenderer(gl, renderBuffer) {
   const program = utils.createProgramFromScripts(gl, 'pixel', 'videoram');
   gl.useProgram(program);
@@ -655,7 +712,7 @@ function createProgramRenderer(gl, renderBuffer) {
   program.drawArea = gl.getUniformLocation(program, "u_draw");
   program.alpha = gl.getUniformLocation(program, "u_alpha");
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, renderBuffer);
+  // gl.bindBuffer(gl.ARRAY_BUFFER, renderBuffer);
 
   program.vertexPosition = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(program.vertexPosition);

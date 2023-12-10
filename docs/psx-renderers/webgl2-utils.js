@@ -71,7 +71,7 @@ const utils = (function () {
     // look up the script tag by id.
     var shaderScript = document.getElementById(scriptId);
     if (!shaderScript) {
-      throw("*** Error: unknown script element: " + scriptId);
+      throw new Error("*** Error: unknown script element: " + scriptId);
     }
    
     // extract the contents of the script tag.
@@ -111,7 +111,8 @@ const utils = (function () {
    * @returns vertex-buffer
    */
   function createVertexBuffer() {
-    let buffer = new Uint8Array(64 * 1024);
+    let buffer = new Uint8Array(8 * 1024 * 1024);
+    // let buffer = new Uint8Array(64 * 1024);
     // let buffer = new Uint8Array(18 * 1024);
     let view = new DataView(buffer.buffer);
 

@@ -12,9 +12,9 @@
 
 		const elem = document.getElementById('gamepad');
 
-		elem.classList.remove(...elem.classList);
-		elem.classList.add('connected');
-		elem.classList.add(type);
+		elem?.classList.remove(...elem.classList);
+		elem?.classList.add('connected');
+		elem?.classList.add(type);
 	}
 
 	function enge_gamepad_update() {
