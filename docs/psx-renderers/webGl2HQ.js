@@ -9,8 +9,8 @@ const $stats = {
   vertices: 0,
 
   dump: () => {
-    if ($stats.flushes) console.log(`flushes: ${$stats.flushes} (${$stats.vertices})`);
-    if ($stats.imageUpdate) console.log(`stores: ${$stats.imageUpdate}`);
+    // if ($stats.flushes) console.log(`flushes: ${$stats.flushes} (${$stats.vertices})`);
+    // if ($stats.imageUpdate) console.log(`stores: ${$stats.imageUpdate}`);
     $stats.flushes = 0;
     $stats.vertices = 0;
     $stats.imageUpdate = 0;
@@ -528,19 +528,19 @@ const vertexBuffer = {
     utils.createVertexBuffer(),
     utils.createVertexBuffer(),
     utils.createVertexBuffer(),
-    utils.createVertexBuffer(),
+    utils.createVertexBuffer({reverse:false}),
   ],
   addVertex: function (x, y, u, v, c = 0x00808080, cl) {
     const primitiveType = (c >>> 29) & 7;
     const textureMapping = (c & 0x04000000) === 0x04000000;
     const transparentPrimitive = (c & 0x02000000) === 0x02000000;
-    if (textureMapping && transparentPrimitive && (primitiveType === 1 || primitiveType === 3)) {
+    if (this.mode !== 4 && textureMapping && transparentPrimitive && (primitiveType === 1 || primitiveType === 3)) {
       // add opaque rendering for textured polygons or texture rectangle (possibly not used)
-      this.modes[this.mode].addVertex(x, y, u, v, c | 0x80000000, cl);
-      this.modes[4].addVertex(x, y, u, v, (c & ~0x02000000) | 0x80000000, cl);
+      this.modes[this.mode].addVertex(x, y, u, v, (c | 0x80000000), cl);
+      this.modes[4].addVertex(x, y, u, v, (c & ~ 0x02000000 | 0x80000000), cl);
     }
     else {
-      if (transparentPrimitive) {
+      if (this.mode !== 4 && transparentPrimitive) {
         this.modes[this.mode].addVertex(x, y, u, v, c, cl);
       }
       else {
@@ -553,7 +553,8 @@ const vertexBuffer = {
     gl.viewport(0, 0, 2048, 1024); // texture dimensions
 
     gl.bindBuffer(gl.ARRAY_BUFFER, renderer.renderBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, buffer, gl.STREAM_DRAW, 0, buffer.index);
+    const view = buffer.view();
+    gl.bufferData(gl.ARRAY_BUFFER, view, gl.STREAM_DRAW, 0, view.length);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.fb_vram);
     // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
@@ -567,14 +568,14 @@ const vertexBuffer = {
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   },
-  flush: function (mode, renderer) {
-    if (mode === 4) return;
-    if ((mode !== this.mode) && this.mode >= 0) {
-      // console.log(`> flush(mode${this.mode})`);
-      this.forceFlush(renderer);
-    }
-    this.mode = mode;
-  },
+  // flush: function (mode, renderer) {
+  //   if (mode === 4) return;
+  //   if ((mode !== this.mode) && this.mode >= 0) {
+  //     // console.log(`> flush(mode${this.mode})`);
+  //     this.forceFlush(renderer);
+  //   }
+  //   this.mode = mode;
+  // },
   forceFlush: function (renderer) {
     const buffer = this.modes[4];
 
@@ -583,18 +584,18 @@ const vertexBuffer = {
 
       renderer.setTransparencyMode(4, renderer.programRenderer);
       this.flushVertices(renderer.gl, buffer);
-      // if (buffer.size()) console.log(`mode${4}: ${buffer.size()}`);
+      if (buffer.size()) console.log(`mode${4}: ${buffer.size()}`);
       buffer.reset();
     }
 
-    if (this.mode >= 0 && this.mode <= 3) {
-      const buffer = this.modes[this.mode];
+    for (let m = 0; m <= 3; ++m) {
+      const buffer = this.modes[m];
       if (buffer.size()) {
         this.verticesCount += buffer.size();
 
-        renderer.setTransparencyMode(this.mode, renderer.programRenderer);
+        renderer.setTransparencyMode(m, renderer.programRenderer);
         this.flushVertices(renderer.gl, buffer);
-        //   // if (buffer.size()) console.log(`mode${this.mode}: ${buffer.size()}`);
+        // if (buffer.size()) console.log(`mode${this.mode}: ${buffer.size()}`);
         buffer.reset();
       }
     }
@@ -602,7 +603,7 @@ const vertexBuffer = {
   },
   dump: function (renderer) {
     if (this.flushCount) {
-      console.log(`flushCount: ${this.flushCount}(${this.verticesCount})`);
+      // console.log(`flushCount: ${this.flushCount}(${this.verticesCount})`);
     }
     this.flushCount = 0;
     this.verticesCount = 0;
@@ -610,10 +611,9 @@ const vertexBuffer = {
 }
 WebGLRenderer.prototype.getVertexBuffer = function (vertices, packetData) {
   const transparencyMode = (packetData[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
-  const primitiveType = (packetData[0] >>> 29) & 7;
-  const textureMapping = (packetData[0] & 0x04000000) === 0x04000000;
 
-  vertexBuffer.flush(transparencyMode, this);
+  //vertexBuffer.flush(transparencyMode, this);
+  vertexBuffer.mode = transparencyMode;
   return vertexBuffer;
 }
 
@@ -633,8 +633,8 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   // gl.blitFramebuffer(0, 0, 1023, 511, 0, canvas.height - 1, canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
-  // gl.blitFramebuffer(2*area.x, 2*area.y, 2*(area.x + area.w - 1), 2*(area.y + area.h - 1), 0, (canvas.height - 1), canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-  gl.blitFramebuffer(0, 0, 2048, 1024, 0, canvas.height - 1, canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.blitFramebuffer(2*area.x, 2*area.y, 2*(area.x + area.w), 2*(area.y + area.h), 0, (canvas.height - 1), canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  // gl.blitFramebuffer(0, 0, 2048, 1024, 0, canvas.height - 1, canvas.width - 1, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
