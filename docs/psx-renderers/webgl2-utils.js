@@ -115,7 +115,7 @@ const utils = (function () {
     let view = new DataView(buffer.buffer);
 
     const bytesPerVertex = 24;
-    buffer.addVertex = function (x, y, u, v, c = 0x00808080, cl) {
+    buffer.addVertex = function (x, y, u, v, c = 0x00808080, cl, id) {
       if (options.reverse) {
         this.index -= bytesPerVertex;
       }
@@ -127,6 +127,7 @@ const utils = (function () {
       view.setUint32(this.index + 12, gpu.twin, true);
       view.setUint16(this.index + 16, cl >>> 0, true);
       view.setUint8(this.index + 19, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
+      view.setUint16(this.index + 20, id >>> 0, true);
       if (!options.reverse) {
         this.index += bytesPerVertex;
       }

@@ -274,7 +274,19 @@
 
     // Framebuffer Rectangle draw
     handlePacket02: function (data) {
-      renderer.fillRectangle(data);
+      var x = (data[1] << 16) >>> 16;
+      var y = (data[1] << 0) >>> 16;
+      var w = (data[2] << 16) >>> 16;
+      var h = (data[2] << 0) >>> 16;
+      var c = (data[0] & 0x00ffffff);
+
+      x = (x & 0x3f0);
+      y = (y & 0x1ff);
+      w = ((w & 0x3ff) + 15) & ~15;
+      h = (h & 0x1ff);
+      if (!w && !h) return;
+
+      renderer.clearImage(x, y, w, h, c);
     },
 
     handlePacket03: function (data) {
@@ -299,122 +311,122 @@
 
     // Monochrome 3 point polygon
     handlePacket20: function (data) {
-      renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
+      // renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
     },
 
     // Textured 3 point polygon
     handlePacket24: function (data) {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      // renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
     },
 
     // Monochrome 4 point polygon
     handlePacket28: function (data) {
-      renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
-      renderer.drawTriangle(data, 0, 2, 0, 3, 0, 4);
+      // renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
+      // renderer.drawTriangle(data, 0, 2, 0, 3, 0, 4);
     },
 
     // Textured 4 point polygon
     handlePacket2C: function (data) {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-      renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+      // renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      // renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
     },
 
     // Gradated 3 point polygon
     handlePacket30: function (data) {
-      renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
+      // renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
     },
 
     // Gradated textured 3 point polygon
     handlePacket34: function (data) {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+      // renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
     },
 
     // Gradated 4 point polygon
     handlePacket38: function (data) {
-      renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
-      renderer.drawTriangle(data, 2, 3, 4, 5, 6, 7);
+      // renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
+      // renderer.drawTriangle(data, 2, 3, 4, 5, 6, 7);
     },
 
     // Gradated textured 4 point polygon
     handlePacket3C: function (data) {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-      renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
+      // renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+      // renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
     },
 
     // Monochrome line
     handlePacket40: function (data) {
-      renderer.drawLine(data, 0, 1, 0, 2);
+      // renderer.drawLine(data, 0, 1, 0, 2);
     },
 
     // Monochrome polyline
     handlePacket48: function (data, size) {
-      for (var i = 2; i < size; i += 1) {
-        renderer.drawLine(data, 0, i - 1, 0, i);
-      }
+      // for (var i = 2; i < size; i += 1) {
+      //   renderer.drawLine(data, 0, i - 1, 0, i);
+      // }
     },
 
     // Gradated line
     handlePacket50: function (data) {
-      renderer.drawLine(data, 0, 1, 2, 3);
+      // renderer.drawLine(data, 0, 1, 2, 3);
     },
 
     // Gradated polyline
     handlePacket58: function (data, size) {
-      for (var i = 3; i < size; i += 2) {
-        renderer.drawLine(data, i - 3, i - 2, i - 1, i);
-      }
+      // for (var i = 3; i < size; i += 2) {
+      //   renderer.drawLine(data, i - 3, i - 2, i - 1, i);
+      // }
     },
 
     // Rectangle
     handlePacket60: function (data) {
-      renderer.drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
+      // renderer.drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
     },
 
     // Sprite
     handlePacket64: function (data) {
-      const tx = (data[2] >>> 0) & 255;
-      const ty = (data[2] >>> 8) & 255;
+      // const tx = (data[2] >>> 0) & 255;
+      // const ty = (data[2] >>> 8) & 255;
 
-      renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+      // renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
     },
 
     // Dot
     handlePacket68: function (data) {
-      renderer.drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
+      // renderer.drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
     },
 
     // 8*8 rectangle
     handlePacket70: function (data) {
-      renderer.drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
+      // renderer.drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
     },
 
     // 8*8 sprite
     handlePacket74: function (data) {
-      const tx = (data[2] >>> 0) & 255;
-      const ty = (data[2] >>> 8) & 255;
+      // const tx = (data[2] >>> 0) & 255;
+      // const ty = (data[2] >>> 8) & 255;
 
-      renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
+      // renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
     },
 
     // 16*16 rectangle
     handlePacket78: function (data) {
-      renderer.drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
+      // renderer.drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
     },
 
     // 16*16 sprite
     handlePacket7C: function (data) {
-      const tx = (data[2] >>> 0) & 255;
-      const ty = (data[2] >>> 8) & 255;
+      // const tx = (data[2] >>> 0) & 255;
+      // const ty = (data[2] >>> 8) & 255;
 
-      renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
+      // renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
     },
 
     // Move image in framebuffer
@@ -500,7 +512,7 @@
       gpu.drawAreaX1 = (data[0] << 22) >>> 22;
       gpu.drawAreaY1 = (data[0] << 12) >>> 22;
 
-      renderer.setDrawAreaTL(gpu.drawAreaX1, gpu.drawAreaY1);
+      // renderer.setDrawAreaTL(gpu.drawAreaX1, gpu.drawAreaY1);
     },
 
     // Set drawing area bottom right
@@ -510,7 +522,7 @@
       gpu.drawAreaX2 = (data[0] << 22) >>> 22;
       gpu.drawAreaY2 = (data[0] << 12) >>> 22;
 
-      renderer.setDrawAreaBR(gpu.drawAreaX2, gpu.drawAreaY2);
+      // renderer.setDrawAreaBR(gpu.drawAreaX2, gpu.drawAreaY2);
     },
 
     // Drawing offset
@@ -520,7 +532,7 @@
       gpu.drawOffsetX = (data[0] << 21) >> 21;
       gpu.drawOffsetY = (data[0] << 11) >> 22;
 
-      renderer.setDrawAreaOF(gpu.drawOffsetX, gpu.drawOffsetY);
+      // renderer.setDrawAreaOF(gpu.drawOffsetX, gpu.drawOffsetY);
     },
 
     // Mask setting
@@ -585,7 +597,7 @@
         return (blck >> 16) * (blck & 0xFFFF);
       }
 
-      const seen = new Set();
+      const seen = new Set(); // fluctuates memory
       var data = gpu.dmaBuffer;
       let words = 0;
       for (; ;) {
@@ -596,6 +608,7 @@
         var nnext = header & 0x001fffff;
 
         addr = addr + 4; ++words;
+        addr = addr & 0x001fffff;
 
         while (nitem > 0) {
           if (seen.has(addr)) return words;
@@ -604,6 +617,7 @@
           const packetId = packetWord >>> 24;
           if (packetSizes[packetId] === 0) {
             addr += 4; --nitem; ++words;
+            addr = addr & 0x001fffff;
             if (missing.has(packetId)) continue;
             missing.add(packetId);
 
@@ -615,6 +629,7 @@
             for (; i < 4096; ++i) {
               const value = ram.getInt32(addr, true);
               addr += 4; --nitem; ++words;
+              addr = addr & 0x001fffff;
 
               if (value === 0x55555555) break;
               if (value === 0x50005000) break;
@@ -627,6 +642,7 @@
             for (var i = 0; i < packetSizes[packetId]; ++i) {
               data[i] = ram.getInt32(addr, true);
               addr += 4; --nitem;
+              addr = addr & 0x001fffff;
               ++words;
             }
             gpu.handlers[packetId].call(this, data, 0);
