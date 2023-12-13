@@ -13,6 +13,7 @@
   <script type="text/javascript" src="psx-core/config.js"></script>
 
   <script type="text/javascript" src="psx-renderers/webgl2-utils.js"></script>
+  <script type="text/javascript" src="psx-renderers/webGL2HQ-buffers.js"></script>
   <script type="text/javascript" src="psx-renderers/webGl2HQ.js"></script>
 
   <script type="text/javascript" src="psx-core/memory.js"></script>
@@ -131,6 +132,8 @@
       col *= 0.5 + 0.5 * 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
       col *= vec3(0.98, 1.02, 0.98);
 
+      //return vec4(col, 1.0);
+
       if (resolution.y <= 288.0) {
         col -= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 0.0 : 0.10; //scanline
         col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
@@ -177,12 +180,10 @@
     void main() {
       vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
 
-      switch (u_mode & 7) { // ignore display-off for now;
+      switch (u_mode & 7) {
         case 1: color = vram24Bit(); break;
         case 0: color = vram16Bit(); break;
       }
-
-      //color = color * v_color;
 
       outColor = tv_effect(color.rgb + InterleavedGradientNoise().rgb);
     }

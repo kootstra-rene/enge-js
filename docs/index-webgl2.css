@@ -57,6 +57,7 @@ body {
   border: solid 1px #202028;
   padding: 0.75vh;
   border-radius: 0.75vh;
+  /* filter: blur(1px) brightness(1.05); */
 }
 
 #menu {
