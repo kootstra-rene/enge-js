@@ -61,17 +61,17 @@ const utils = (function () {
    * Creates a shader from the content of a script tag.
    *
    * @param {!WebGLRenderingContext} gl The WebGL Context.
-   * @param {string} scriptId The id of the script tag.
+   * @param {string} scriptSelector The query of the script tag.
    * @param {string} opt_shaderType. The type of shader to create.
    *     If not passed in will use the type attribute from the
    *     script tag.
    * @return {!WebGLShader} A shader.
    */
-  function createShaderFromScript(gl, scriptId, opt_shaderType) {
+  function createShaderFromScript(gl, scriptSelector, opt_shaderType) {
     // look up the script tag by id.
-    var shaderScript = document.getElementById(scriptId);
+    var shaderScript = document.querySelector(scriptSelector);
     if (!shaderScript) {
-      throw new Error("*** Error: unknown script element: " + scriptId);
+      throw new Error("*** Error: unknown script element: " + scriptSelector);
     }
 
     // extract the contents of the script tag.
@@ -96,13 +96,12 @@ const utils = (function () {
    * Creates a program from 2 script tags.
    *
    * @param {!WebGLRenderingContext} gl The WebGL Context.
-   * @param {string} vertexShaderId The id of the vertex shader script tag.
-   * @param {string} fragmentShaderId The id of the fragment shader script tag.
+   * @param {string} shaderId The id of the shader script tags.
    * @return {!WebGLProgram} A program
    */
-  function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId) {
-    var vertexShader = createShaderFromScript(gl, vertexShaderId, gl.VERTEX_SHADER);
-    var fragmentShader = createShaderFromScript(gl, fragmentShaderId, gl.FRAGMENT_SHADER);
+  function createProgramFromScripts(gl, shaderId) {
+    var vertexShader = createShaderFromScript(gl, `#${shaderId}[type="x-shader/x-vertex"]`, gl.VERTEX_SHADER);
+    var fragmentShader = createShaderFromScript(gl, `#${shaderId}[type="x-shader/x-fragment"]`, gl.FRAGMENT_SHADER);
     return createProgram(gl, vertexShader, fragmentShader);
   }
 

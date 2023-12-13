@@ -222,7 +222,7 @@ WebGLRenderer.prototype.onVBlankEnd = function () {
 
 const vertexStride = 24;
 function createProgramRenderer(gl, renderBuffer) {
-  const program = utils.createProgramFromScripts(gl, 'pixel', 'vram-direct');
+  const program = utils.createProgramFromScripts(gl, 'vram-direct');
   gl.useProgram(program);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, renderBuffer);
