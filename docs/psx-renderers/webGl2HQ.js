@@ -53,7 +53,6 @@ function WebGLRenderer(cv) {
 
     this.renderBuffer = gl.createBuffer();
     this.programRenderer = createProgramRenderer(gl, this.renderBuffer);
-    // gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
     // create texture cache
     this.cache = gl.createTexture();
@@ -99,8 +98,18 @@ function WebGLRenderer(cv) {
   }
 }
 
+WebGLRenderer.prototype.memoryToCache = function (x, y, w, h) {
+  const gl = this.gl;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
+  gl.bindTexture(gl.TEXTURE_2D, this.cache);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
 WebGLRenderer.prototype.cacheToVideoRam = function (x, y, w, h) {
-  // store the image in all render buffers.
+  // no blitting here because stuff needs to be done in the shader
   this.buffers[5].addVertex(x + 0, y + 0, 0);
   this.buffers[5].addVertex(x + w, y + 0, 0);
   this.buffers[5].addVertex(x + 0, y + h, 0);
@@ -110,19 +119,27 @@ WebGLRenderer.prototype.cacheToVideoRam = function (x, y, w, h) {
   this.buffers[5].addVertex(x + w, y + h, 0);
 }
 
+WebGLRenderer.prototype.videoRamToCache = function (sx, sy, dx, dy, w, h) {
+  const gl = this.gl;
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_videoram);
+  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoram, 0);
+
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_cache);
+  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
+
+  gl.blitFramebuffer(4 * sx, 4 * sy, 4 * (sx + w), 4 * (sy + h), dx, dy, dx + w, dy + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+}
+
 WebGLRenderer.prototype.clearImage = function (x, y, w, h, c) {
   const gl = this.gl;
 
   transfer.fill(c, 0, w * h);
 
-  // fill image in the cache
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
-  gl.bindTexture(gl.TEXTURE_2D, this.cache);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  // store the image in all render buffers.
+  this.memoryToCache(x, y, w, h);
   this.cacheToVideoRam(x, y, w, h);
 }
 
@@ -130,21 +147,12 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
   // load the image in the cache and renderbuffers
   const gl = this.gl;
 
-  // copy image from render buffer to cache
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_videoram);
-  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoram, 0);
-
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_cache);
-  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-
-  gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, x + w, y + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  this.videoRamToCache(x, y, x, y, w, h);
 
   // read pixels from cache
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
   gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   const size = w * h;
   for (let i = 0; i < size; ++i) {
@@ -159,24 +167,12 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
   }
 }
 
-WebGLRenderer.prototype.moveImage = function (sx, sy, x, y, w, h) {
+WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
   // move the image in the cache and renderbuffers
   const gl = this.gl;
 
-  // copy image from render buffer to cache
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_videoram);
-  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoram, 0);
-
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_cache);
-  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-
-  gl.blitFramebuffer(4 * sx, 4 * sy, 4 * (sx + w), 4 * (sy + h), x, y, x + w, y + h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-
-  // store the image in all render buffers.
-  this.cacheToVideoRam(x, y, w, h);
+  this.videoRamToCache(sx, sy, dx, dy, w, h);
+  this.cacheToVideoRam(dx, dy, w, h);
 }
 
 WebGLRenderer.prototype.storeImage = function (img) {
@@ -189,13 +185,7 @@ WebGLRenderer.prototype.storeImage = function (img) {
     transfer[i] = sbgr2rgba[sbgr];
   }
 
-  gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_cache);
-  gl.bindTexture(gl.TEXTURE_2D, this.cache);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  // store the image in all render buffers.
+  this.memoryToCache(x, y, w, h);
   this.cacheToVideoRam(x, y, w, h);
 }
 
