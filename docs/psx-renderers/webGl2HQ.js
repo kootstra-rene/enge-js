@@ -295,7 +295,7 @@ class VertexBuffer {
   flush() {
     if (this.#index <= 0) return;
 
-    const { gl, fb_videoram, videoram, directVideoRamContext, cache } = this.#renderer;
+    const { gl, fb_videoram, videoram, directVideoRamContext } = this.#renderer;
 
     gl.useProgram(directVideoRamContext.program);
     gl.viewport(0, 0, 4096, 2048);
@@ -308,7 +308,7 @@ class VertexBuffer {
     // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.TEXTURE_2D, this.vramDepth, 0);
 
     gl.activeTexture(gl.TEXTURE0 + 0);
-    gl.bindTexture(gl.TEXTURE_2D, cache);
+    gl.bindTexture(gl.TEXTURE_2D, directVideoRamContext.texture);
     gl.drawArrays(gl.TRIANGLES, 0, this.#index / vertexStride);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
