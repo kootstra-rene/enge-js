@@ -54,8 +54,8 @@ function WebGLRenderer(cv) {
     this.directVideoRamContext = createDirectVideoRamContext(gl);
 
     // create videoram texture
-    this.videoram = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.videoram);
+    this.videoramMain = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.videoramMain);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -64,15 +64,29 @@ function WebGLRenderer(cv) {
 
     this.fb_videoram = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_videoram);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoram, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoramMain, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    // create videoram texture
+    this.videoramShadow = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.videoramShadow);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+    this.fb_videoramShadow = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_videoramShadow);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoramShadow, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     this.buffers = [
-      null,
-      null,
-      null,
-      null,
-      null, // new VertexBuffer(4, this), // opaque rendering
+      null, // transparent rendering mode 0
+      null, // transparent rendering mode 1
+      null, // transparent rendering mode 2
+      null, // transparent rendering mode 3
+      null, // opaque rendering
       new VertexBuffer(4, this), // storing images
     ];
 
@@ -94,21 +108,23 @@ WebGLRenderer.prototype.memoryToCache = function (x, y, w, h) {
 }
 
 WebGLRenderer.prototype.cacheToVideoRam = function (x, y, w, h) {
-  // no blitting here because stuff needs to be done in the shader
-  this.buffers[5].addVertex(x + 0, y + 0, 0);
-  this.buffers[5].addVertex(x + w, y + 0, 0);
-  this.buffers[5].addVertex(x + 0, y + h, 0);
+  // note: no blitting here because stuff needs to be done in the shader
+  const buffer = this.buffers[5];
 
-  this.buffers[5].addVertex(x + 0, y + h, 0);
-  this.buffers[5].addVertex(x + w, y + 0, 0);
-  this.buffers[5].addVertex(x + w, y + h, 0);
+  buffer.addVertex(x + 0, y + 0, 0);
+  buffer.addVertex(x + w, y + 0, 0);
+  buffer.addVertex(x + 0, y + h, 0);
+
+  buffer.addVertex(x + 0, y + h, 0);
+  buffer.addVertex(x + w, y + 0, 0);
+  buffer.addVertex(x + w, y + h, 0);
 }
 
 WebGLRenderer.prototype.videoRamToCache = function (sx, sy, dx, dy, w, h) {
   const gl = this.gl;
 
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_videoram);
-  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoram, 0);
+  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoramMain, 0);
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.directVideoRamContext.framebuffer);
   gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.directVideoRamContext.texture, 0);
@@ -120,8 +136,6 @@ WebGLRenderer.prototype.videoRamToCache = function (sx, sy, dx, dy, w, h) {
 }
 
 WebGLRenderer.prototype.clearImage = function (x, y, w, h, c) {
-  const gl = this.gl;
-
   transfer.fill(c, 0, w * h);
 
   this.memoryToCache(x, y, w, h);
@@ -129,12 +143,10 @@ WebGLRenderer.prototype.clearImage = function (x, y, w, h, c) {
 }
 
 WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
-  // load the image in the cache and renderbuffers
-  const gl = this.gl;
-
   this.videoRamToCache(x, y, x, y, w, h);
 
   // read pixels from cache
+  const gl = this.gl;
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.directVideoRamContext.framebuffer);
   gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -153,21 +165,15 @@ WebGLRenderer.prototype.loadImage = function (x, y, w, h, buffer) {
 }
 
 WebGLRenderer.prototype.moveImage = function (sx, sy, dx, dy, w, h) {
-  // move the image in the cache and renderbuffers
-  const gl = this.gl;
-
   this.videoRamToCache(sx, sy, dx, dy, w, h);
   this.cacheToVideoRam(dx, dy, w, h);
 }
 
 WebGLRenderer.prototype.storeImage = function (img) {
-  // store the image in the cache (texture data only)
   const { x, y, w, h, pixelCount, buffer } = img;
-  const gl = this.gl;
 
   for (let i = 0; i < pixelCount; ++i) {
-    const sbgr = buffer[i] >>> 0;
-    transfer[i] = sbgr2rgba[sbgr];
+    transfer[i] = sbgr2rgba[buffer[i] >>> 0];
   }
 
   this.memoryToCache(x, y, w, h);
@@ -248,11 +254,17 @@ function showDisplay(renderer, region = { x: 0, y: 0, w: 1024, h: 512 }) {
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
 
+  // top-left cache
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.directVideoRamContext.framebuffer);
   gl.blitFramebuffer(0, 0, 1024, 512, 0, canvas.height, canvas.width / 2, canvas.height / 2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
+  // bottom-left videoram
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_videoram);
   gl.blitFramebuffer(0, 0, 4096, 2048, 0, canvas.height / 2, canvas.width / 2, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  // bottom-right videoramShadow
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_videoramShadow);
+  gl.blitFramebuffer(0, 0, 4096, 2048, canvas.width / 2, canvas.height / 2, canvas.width, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
@@ -273,7 +285,7 @@ class VertexBuffer {
   constructor(mode, renderer) {
     this.#mode = mode;
     this.#index = 0;
-    const buffer = new Uint8Array(1024 * 1024);
+    const buffer = new Uint8Array(256 * 1024);
     this.#writer = new DataView(buffer.buffer);
 
     this.#renderer = renderer;
@@ -295,7 +307,7 @@ class VertexBuffer {
   flush() {
     if (this.#index <= 0) return;
 
-    const { gl, fb_videoram, videoram, directVideoRamContext } = this.#renderer;
+    const { gl, fb_videoram, videoramMain, videoramShadow, directVideoRamContext } = this.#renderer;
 
     gl.useProgram(directVideoRamContext.program);
     gl.viewport(0, 0, 4096, 2048);
@@ -304,8 +316,11 @@ class VertexBuffer {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.#writer, 0, this.#index);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb_videoram);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, videoram, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, videoramMain, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, videoramShadow, 0);
     // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.TEXTURE_2D, this.vramDepth, 0);
+
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
 
     gl.activeTexture(gl.TEXTURE0 + 0);
     gl.bindTexture(gl.TEXTURE_2D, directVideoRamContext.texture);
