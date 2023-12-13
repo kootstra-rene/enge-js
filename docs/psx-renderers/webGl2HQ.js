@@ -52,34 +52,7 @@ function WebGLRenderer(cv) {
     gl.enableVertexAttribArray(0);
 
     this.directVideoRamContext = createDirectVideoRamContext(gl);
-
-    // create videoram texture
-    this.videoramMain = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.videoramMain);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-
-    this.fb_videoram = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_videoram);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoramMain, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    // create videoram texture
-    this.videoramShadow = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.videoramShadow);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-
-    this.fb_videoramShadow = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_videoramShadow);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoramShadow, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.renderContext = createVideoRamRenderContext(gl);
 
     this.buffers = [
       null, // transparent rendering mode 0
@@ -123,8 +96,8 @@ WebGLRenderer.prototype.cacheToVideoRam = function (x, y, w, h) {
 WebGLRenderer.prototype.videoRamToCache = function (sx, sy, dx, dy, w, h) {
   const gl = this.gl;
 
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_videoram);
-  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.videoramMain, 0);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.renderContext.mainFramebuffer);
+  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.renderContext.mainTexture, 0);
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.directVideoRamContext.framebuffer);
   gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.directVideoRamContext.texture, 0);
@@ -212,6 +185,27 @@ WebGLRenderer.prototype.onVBlankEnd = function () {
 }
 
 const vertexStride = 24;
+function createTexture(gl, width, height) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return texture;
+}
+
+function createFramebuffer(gl, texture) {
+  const framebuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return framebuffer;
+}
+
 function createDirectVideoRamContext(gl) {
   const program = utils.createProgramFromScripts(gl, 'vram-direct');
   const buffer = gl.createBuffer();
@@ -227,23 +221,20 @@ function createDirectVideoRamContext(gl) {
   gl.enableVertexAttribArray(vertexColor);
   gl.vertexAttribPointer(vertexColor, 4, gl.UNSIGNED_BYTE, true, vertexStride, 6);
 
-  // create texture cache
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1024, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-
-  const framebuffer = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  const texture = createTexture(gl, 1024, 512);
+  const framebuffer = createFramebuffer(gl, texture);
 
   return { buffer, program, texture, framebuffer };
+}
+
+function createVideoRamRenderContext(gl) {
+  const mainTexture = createTexture(gl, 4096, 2048);
+  const mainFramebuffer = createFramebuffer(gl, mainTexture);
+
+  const shadowTexture = createTexture(gl, 4096, 2048);
+  const shadowFramebuffer = createFramebuffer(gl, shadowTexture);
+
+  return { mainTexture, mainFramebuffer, shadowTexture, shadowFramebuffer };
 }
 
 function showDisplay(renderer, region = { x: 0, y: 0, w: 1024, h: 512 }) {
@@ -259,11 +250,11 @@ function showDisplay(renderer, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   gl.blitFramebuffer(0, 0, 1024, 512, 0, canvas.height, canvas.width / 2, canvas.height / 2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   // bottom-left videoram
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_videoram);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.renderContext.mainFramebuffer);
   gl.blitFramebuffer(0, 0, 4096, 2048, 0, canvas.height / 2, canvas.width / 2, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   // bottom-right videoramShadow
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_videoramShadow);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.renderContext.shadowFramebuffer);
   gl.blitFramebuffer(0, 0, 4096, 2048, canvas.width / 2, canvas.height / 2, canvas.width, 0, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
@@ -307,7 +298,7 @@ class VertexBuffer {
   flush() {
     if (this.#index <= 0) return;
 
-    const { gl, fb_videoram, videoramMain, videoramShadow, directVideoRamContext } = this.#renderer;
+    const { gl, directVideoRamContext, renderContext } = this.#renderer;
 
     gl.useProgram(directVideoRamContext.program);
     gl.viewport(0, 0, 4096, 2048);
@@ -315,9 +306,9 @@ class VertexBuffer {
     gl.bindBuffer(gl.ARRAY_BUFFER, directVideoRamContext.buffer);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.#writer, 0, this.#index);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fb_videoram);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, videoramMain, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, videoramShadow, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, renderContext.shadowTexture, 0);
     // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.TEXTURE_2D, this.vramDepth, 0);
 
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
