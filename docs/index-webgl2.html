@@ -67,13 +67,132 @@
     }
   </script>
 
+  <script id="vram-display" type="x-shader/x-vertex">#version 300 es
+    precision highp float;
+
+    in vec2 a_position;
+    in vec2 a_texcoord;
+    in vec4 a_color;
+
+    out vec2 v_texcoord;
+    out vec2 v_vramCoord;
+    out vec4 v_color;
+    out vec2 v_pixelCoord;
+
+    void main() {
+      gl_Position = vec4(a_position, 0.0, 1.0);
+      gl_Position.x = (gl_Position.x - 2048.0) / +2048.0;
+      gl_Position.y = (gl_Position.y - 1024.0) / -1024.0;
+      v_vramCoord = a_texcoord;
+      v_pixelCoord = a_position;
+      v_texcoord = a_texcoord * vec2(4.0, 4.0); // texture is 4096x2048 iso 1024x512
+      v_color = a_color;
+    }
+  </script>
+
+  <script id="vram-display" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+    precision highp int;
+
+    uniform sampler2D u_texture;
+    uniform ivec4     u_disp;
+    uniform int       u_mode;
+
+    in vec2 v_texcoord;
+    in vec2 v_vramCoord;
+    in vec4 v_color;
+
+    out vec4 outColor;
+
+    int getSBGRfromRGBA(vec4 c) {
+      int sbgr = 0;
+      sbgr += int(c.r * 32.0);
+      sbgr += int(c.g * 32.0) * 32;
+      sbgr += int(c.b * 32.0) * 32 * 32;
+      if (c.a >= 0.5) sbgr += 32768;
+      return sbgr;
+    }
+
+    vec4 InterleavedGradientNoise() {
+      vec2 uv = floor(v_vramCoord - vec2(u_disp.xy));
+
+      const vec3 magic = vec3( 0.06711056, 0.00583715, 52.9829189 );
+      float rnd = fract(magic.z * fract( dot( uv, magic.xy ) ) ) * (1.0 / 48.0);
+      return vec4(rnd, rnd, rnd, 1.0);
+    }
+
+    vec4 tv_effect(vec3 col) {
+      vec2 resolution = vec2(u_disp.zw - u_disp.xy + ivec2(1,1));
+      vec2 uv = (v_vramCoord - vec2(u_disp.xy)) / resolution;
+
+      col *= step(0.0, uv.x) * step(0.0, uv.y);
+      col *= 1.0 - step(1.0, uv.x) * 1.0 - step(1.0, uv.y);
+
+      col *= 0.5 + 0.5 * 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
+      col *= vec3(0.98, 1.02, 0.98);
+
+      if (resolution.y <= 288.0) {
+        col -= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 0.0 : 0.10; //scanline
+        col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
+      }
+      else {
+        col -= ((int(uv.y * resolution.y) & 1) == 0) ? 0.0 : 0.10; //scanline
+        col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
+      }
+
+      return vec4(col, 1.0);
+    }
+
+    vec4 vram24Bit() {
+      ivec2 ds = ivec2(v_vramCoord) - u_disp.xy;
+
+      float tx = float(u_disp.x) + floor(float(ds.x) * 1.5);
+      float ty = floor(v_texcoord.y);
+
+      vec4 c1 = texelFetch(u_texture, ivec2(4.0 * tx + 0.0, ty), 0);
+      int  sbgr1 = getSBGRfromRGBA(c1);
+      vec4 c2 = texelFetch(u_texture, ivec2(4.0 * tx + 4.0, ty), 0);
+      int  sbgr2 = getSBGRfromRGBA(c2);
+
+      if ((ds.x & 1) == 1) {
+        float r = float((sbgr1 >> 8) & 255) / 256.0;
+        float g = float((sbgr2 >> 0) & 255) / 256.0;
+        float b = float((sbgr2 >> 8) & 255) / 256.0;
+
+        return vec4(r, g, b, 1.0);
+      }
+      else {
+        float r = float((sbgr1 >> 0) & 255) / 256.0;
+        float g = float((sbgr1 >> 8) & 255) / 256.0;
+        float b = float((sbgr2 >> 0) & 255) / 256.0;
+
+        return vec4(r, g, b, 1.0);
+      }
+    }
+
+    vec4 vram16Bit() {
+      return texelFetch(u_texture, ivec2(v_texcoord), 0);
+    }
+
+    void main() {
+      vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
+
+      switch (u_mode & 7) { // ignore display-off for now;
+        case 1: color = vram24Bit(); break;
+        case 0: color = vram16Bit(); break;
+      }
+
+      //color = color * v_color;
+
+      outColor = tv_effect(color.rgb + InterleavedGradientNoise().rgb);
+    }
+  </script>
 </head>
 
 <body onload="init();">
   <canvas id="ambilight"></canvas>
   <div id="background"></div>
   <canvas id="display"></canvas>
-  <!-- <div id="menu"></div> -->
 </body>
 
 </html>
