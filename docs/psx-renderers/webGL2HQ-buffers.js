@@ -5,11 +5,15 @@ class VertexBuffer {
   context;
 
   constructor(mode) {
-    const buffer = new Uint8Array(256 * 1024);
+    const buffer = new Uint8Array(1024 * 1024);
 
     this.#mode = mode; // todo: set actual mode
     this.#index = 0;
     this.#writer = new DataView(buffer.buffer);
+  }
+
+  get mode() {
+    return this.#mode;
   }
 
   get view() {
@@ -24,17 +28,50 @@ class VertexBuffer {
     this.#index = value;
   }
 
-  addVertex(x, y, u = x, v = y) {
+  addVertex(x, y, u, v, c) {
     const writer = this.#writer;
 
     writer.setInt16(this.#index + 0, x, true);
     writer.setInt16(this.#index + 2, y, true);
     writer.setInt16(this.#index + 4, 0, true);
-    writer.setUint32(this.#index + 6, 0, true);
-    writer.setInt16(this.#index + 10, u, true);
-    writer.setInt16(this.#index + 12, v, true);
+    writer.setUint32(this.#index + 6, c, true);
+    writer.setInt16(this.#index + 10, u ?? x, true);
+    writer.setInt16(this.#index + 12, v ?? y, true);
 
     this.#index += vertexStride;
+  }
+
+  setTransparencyMode(gl, mode, program) {
+    switch (mode) {
+      case 0: {
+        gl.enable(gl.BLEND);
+        gl.blendEquation(gl.FUNC_ADD);
+        gl.blendFunc(gl.SRC_ALPHA, gl.SRC_ALPHA);
+        program && gl.uniform1f(program.alpha, 0.50);
+      } break;
+      case 1: {
+        gl.enable(gl.BLEND);
+        gl.blendEquation(gl.FUNC_ADD);
+        gl.blendFunc(gl.ONE, gl.ONE);
+        program && gl.uniform1f(program.alpha, 1.00);
+      } break;
+      case 2: {
+        gl.enable(gl.BLEND);
+        gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
+        gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR);
+        program && gl.uniform1f(program.alpha, 1.00);
+      } break;
+      case 3: {
+        gl.enable(gl.BLEND);
+        gl.blendEquation(gl.FUNC_ADD);
+        gl.blendFunc(gl.ONE_MINUS_SRC_ALPHA, gl.ONE);
+        program && gl.uniform1f(program.alpha, 0.75);
+      } break;
+      case 4: {
+        gl.disable(gl.BLEND);
+        program && gl.uniform1f(program.alpha, 1.00);
+      } break;
+    }
   }
 
   init() {
@@ -69,7 +106,6 @@ class VertexDirectBuffer extends VertexBuffer {
     gl.bindVertexArray(directContext.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, directContext.buffer);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, 0, this.length);
-    // gl.bufferData(gl.ARRAY_BUFFER, this.#writer, gl.STREAM_DRAW, 0, this.#index);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
@@ -80,6 +116,8 @@ class VertexDirectBuffer extends VertexBuffer {
 
     gl.activeTexture(gl.TEXTURE0 + 0);
     gl.bindTexture(gl.TEXTURE_2D, directContext.texture);
+
+    this.setTransparencyMode(gl, 4);
     gl.drawArrays(gl.TRIANGLES, 0, this.length / vertexStride);
 
     gl.bindTexture(gl.TEXTURE_2D, null);
@@ -122,6 +160,53 @@ class VertexDisplayBuffer extends VertexBuffer {
 
     gl.activeTexture(gl.TEXTURE0 + 0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    this.setTransparencyMode(gl, 4);
+    gl.drawArrays(gl.TRIANGLES, 0, this.length / vertexStride);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.bindVertexArray(null);
+
+    this.length = 0;
+  }
+
+}
+
+class VertexRenderBuffer extends VertexBuffer {
+  init(gl, renderContext) {
+    this.context = { gl, renderContext };
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, renderContext.buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.view, gl.STREAM_DRAW, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    return this;
+  }
+
+  flush() {
+    if (this.length <= 0) return;
+
+    console.log('render', this.mode, this.length);
+
+    const { gl, renderContext } = this.context;
+
+    gl.viewport(0, 0, 4096, 2048);
+    gl.useProgram(renderContext.program);
+
+    gl.bindVertexArray(renderContext.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, renderContext.buffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, 0, this.length);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
+
+    this.setTransparencyMode(gl, this.mode, renderContext.program);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+
+    gl.activeTexture(gl.TEXTURE0 + 0);
+    gl.bindTexture(gl.TEXTURE_2D, renderContext.shadowTexture);
     gl.drawArrays(gl.TRIANGLES, 0, this.length / vertexStride);
 
     gl.bindTexture(gl.TEXTURE_2D, null);

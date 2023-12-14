@@ -35,10 +35,6 @@
     dispY: 0,
     dmaBuffer: new Int32Array(4096),
     dmaIndex: 0,
-    drawAreaX1: 0,
-    drawAreaX2: 0,
-    drawAreaY1: 0,
-    drawAreaY2: 0,
     drawOffsetX: 0,
     drawOffsetY: 0,
     handlers: [],
@@ -311,7 +307,7 @@
 
     // Monochrome 3 point polygon
     handlePacket20: function (data) {
-      // renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
+      renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
     },
 
     // Textured 3 point polygon
@@ -323,8 +319,8 @@
 
     // Monochrome 4 point polygon
     handlePacket28: function (data) {
-      // renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
-      // renderer.drawTriangle(data, 0, 2, 0, 3, 0, 4);
+      renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
+      renderer.drawTriangle(data, 0, 2, 0, 3, 0, 4);
     },
 
     // Textured 4 point polygon
@@ -337,7 +333,7 @@
 
     // Gradated 3 point polygon
     handlePacket30: function (data) {
-      // renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
+      renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
     },
 
     // Gradated textured 3 point polygon
@@ -349,8 +345,8 @@
 
     // Gradated 4 point polygon
     handlePacket38: function (data) {
-      // renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
-      // renderer.drawTriangle(data, 2, 3, 4, 5, 6, 7);
+      renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
+      renderer.drawTriangle(data, 2, 3, 4, 5, 6, 7);
     },
 
     // Gradated textured 4 point polygon
@@ -387,7 +383,7 @@
 
     // Rectangle
     handlePacket60: function (data) {
-      // renderer.drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
+      renderer.drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
     },
 
     // Sprite
@@ -405,7 +401,7 @@
 
     // 8*8 rectangle
     handlePacket70: function (data) {
-      // renderer.drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
+      renderer.drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
     },
 
     // 8*8 sprite
@@ -418,7 +414,7 @@
 
     // 16*16 rectangle
     handlePacket78: function (data) {
-      // renderer.drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
+      renderer.drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
     },
 
     // 16*16 sprite
@@ -509,20 +505,11 @@
     // Set drawing area top left
     handlePacketE3: function (data) {
       gpu.info[3] = data[0] & 0x000fffff;
-      gpu.drawAreaX1 = (data[0] << 22) >>> 22;
-      gpu.drawAreaY1 = (data[0] << 12) >>> 22;
-
-      // renderer.setDrawAreaTL(gpu.drawAreaX1, gpu.drawAreaY1);
     },
 
     // Set drawing area bottom right
     handlePacketE4: function (data) {
       gpu.info[4] = data[0] & 0x000fffff;
-
-      gpu.drawAreaX2 = (data[0] << 22) >>> 22;
-      gpu.drawAreaY2 = (data[0] << 12) >>> 22;
-
-      // renderer.setDrawAreaBR(gpu.drawAreaX2, gpu.drawAreaY2);
     },
 
     // Drawing offset
@@ -539,6 +526,34 @@
     handlePacketE6: function (data) {
       gpu.status &= 0xffffe7ff;
       gpu.status |= ((data[0] & 3) << 11);
+    },
+
+    syncDrawOffset: function (offset) {
+      const X = (gpu.info[5] << 21) >>> 21;
+      const Y = (gpu.info[5] << 11) >>> 22;
+      const changed = (X !== offset.X) || (Y !== offset.Y);
+
+      offset.X = X; offset.Y = Y;
+
+      return changed;
+    },
+
+    syncDrawArea: function (area, prev) {
+      const X1 = (gpu.info[3] << 22) >>> 22;
+      const Y1 = (gpu.info[3] << 12) >>> 22;
+      const X2 = (gpu.info[4] << 22) >>> 22;
+      const Y2 = (gpu.info[4] << 12) >>> 22;
+
+      if ((X1 !== area.X1) || (Y1 !== area.Y1) || (X2 !== area.X2) || (Y2 !== area.Y2)) {
+        if (prev) {
+          prev.X1 = area.X1; prev.Y1 = area.Y1;
+          prev.X2 = area.X2; prev.Y2 = area.Y2;
+        }
+        area.X1 = X1; area.Y1 = Y1;
+        area.X2 = X2; area.Y2 = Y2;
+        return true;
+      }
+      return false;
     },
 
     imgTransferComplete: function (img) {

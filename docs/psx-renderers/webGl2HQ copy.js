@@ -680,7 +680,7 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
 
 const vertexStride = 24;
 function createProgramDisplay(gl, displayBuffer) {
-  const program = utils.createProgramFromScripts(gl, 'vertex', 'displayScreen');
+  const program = utils.createProgramFromScripts(gl, 'display');
   gl.useProgram(program);
 
   program.displayArea = gl.getUniformLocation(program, "u_disp");
@@ -706,7 +706,7 @@ function createProgramDisplay(gl, displayBuffer) {
 }
 
 function createProgramRenderer(gl, renderBuffer) {
-  const program = utils.createProgramFromScripts(gl, 'pixel', 'videoram');
+  const program = utils.createProgramFromScripts(gl, 'videoram');
   gl.useProgram(program);
 
   program.drawArea = gl.getUniformLocation(program, "u_draw");

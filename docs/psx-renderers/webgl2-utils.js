@@ -75,7 +75,7 @@ const utils = (function () {
     }
 
     // extract the contents of the script tag.
-    var shaderSource = shaderScript.text;
+    var shaderSource = shaderScript.text.trim();
 
     // If we didn't pass in a type, use the 'type' from
     // the script tag.

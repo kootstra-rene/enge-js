@@ -13,7 +13,7 @@
   <script type="text/javascript" src="psx-core/config.js"></script>
 
   <script type="text/javascript" src="psx-renderers/webgl2-utils.js"></script>
-  <script type="text/javascript" src="psx-renderers/webGl2HQ.js"></script>
+  <script type="text/javascript" src="psx-renderers/webGl2HQ copy.js"></script>
 
   <script type="text/javascript" src="psx-core/memory.js"></script>
   <script type="text/javascript" src="psx-core/enge.js"></script>
@@ -21,7 +21,7 @@
   <script type="text/javascript" src="psx-core/recompiler.js"></script>
   <script type="text/javascript" src="psx-core/directMemoryAccess.js"></script>
   <script type="text/javascript" src="psx-core/geometryTransformEngine.js"></script>
-  <script type="text/javascript" src="psx-core/graphicsProcessingUnit.js"></script>
+  <script type="text/javascript" src="psx-core/graphicsProcessingUnit copy.js"></script>
   <script type="text/javascript" src="psx-core/macroBlockDecoder.js"></script>
   <script type="text/javascript" src="psx-core/serialPorts.js"></script>
   <script type="text/javascript" src="psx-core/soundProcessingUnit.js"></script>
@@ -30,7 +30,7 @@
 
   <script type="text/javascript" src="index.js"></script>
 
-  <script id="pixel" type="x-shader/x-vertex">#version 300 es
+  <script id="videoram" type="x-shader/x-vertex">#version 300 es
     precision highp float;
     precision highp int;
 
@@ -173,7 +173,7 @@
     }
   </script>
 
-  <script id="vertex" type="x-shader/x-vertex">#version 300 es
+  <script id="display" type="x-shader/x-vertex">#version 300 es
     precision highp float;
   
     in vec2 a_position;
@@ -196,7 +196,7 @@
     }
   </script>
 
-  <script id="displayScreen" type="x-shader/x-fragment">#version 300 es
+  <script id="display" type="x-shader/x-fragment">#version 300 es
     precision highp float;
     precision highp int;
      
