@@ -47,6 +47,8 @@
       gl_Position = vec4(a_position, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
+      gl_Position.z = a_position.z / 65536.0;
+
       v_position = a_position;
       v_color = a_color;
     }
@@ -81,14 +83,16 @@
     in vec2 a_texcoord;
     in vec4 a_color;
 
-    out vec2 v_drawPos;
+    out vec3 v_drawPos;
     out vec4 v_color;
 
     void main() {
       gl_Position = vec4(a_position, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
-      v_drawPos = a_position.xy;
+      gl_Position.z = a_position.z / 65536.0;
+
+      v_drawPos = a_position.xyz;
       v_color = vec4(a_color.rgb, 1.0);
     }
   </script>
@@ -103,16 +107,19 @@
     uniform ivec4 u_draw;
     uniform float u_alpha;
 
-    in vec2 v_drawPos;
+    in vec3 v_drawPos;
     in vec4 v_color;
 
     out vec4 outColor;
 
     void main() {
-      ivec2 texel = ivec2(v_drawPos);
+      ivec3 texel = ivec3(v_drawPos);
+
+      if (v_color == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 
       if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
         outColor = vec4(v_color.rgb, u_alpha);
+        //outColor = vec4(gl_FragCoord.zzz, u_alpha);
       }
       else discard;
     }

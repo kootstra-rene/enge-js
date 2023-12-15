@@ -314,7 +314,7 @@
     handlePacket24: function (data) {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      // renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
     },
 
     // Monochrome 4 point polygon
@@ -327,8 +327,8 @@
     handlePacket2C: function (data) {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      // renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-      // renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+      renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
     },
 
     // Gradated 3 point polygon
@@ -340,7 +340,7 @@
     handlePacket34: function (data) {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      // renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+      renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
     },
 
     // Gradated 4 point polygon
@@ -353,8 +353,8 @@
     handlePacket3C: function (data) {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      // renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-      // renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
+      renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+      renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
     },
 
     // Monochrome line
@@ -388,15 +388,15 @@
 
     // Sprite
     handlePacket64: function (data) {
-      // const tx = (data[2] >>> 0) & 255;
-      // const ty = (data[2] >>> 8) & 255;
+      const tx = (data[2] >>> 0) & 255;
+      const ty = (data[2] >>> 8) & 255;
 
-      // renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+      renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
     },
 
     // Dot
     handlePacket68: function (data) {
-      // renderer.drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
+      renderer.drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
     },
 
     // 8*8 rectangle
@@ -406,10 +406,10 @@
 
     // 8*8 sprite
     handlePacket74: function (data) {
-      // const tx = (data[2] >>> 0) & 255;
-      // const ty = (data[2] >>> 8) & 255;
+      const tx = (data[2] >>> 0) & 255;
+      const ty = (data[2] >>> 8) & 255;
 
-      // renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
+      renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
     },
 
     // 16*16 rectangle
@@ -419,10 +419,10 @@
 
     // 16*16 sprite
     handlePacket7C: function (data) {
-      // const tx = (data[2] >>> 0) & 255;
-      // const ty = (data[2] >>> 8) & 255;
+      const tx = (data[2] >>> 0) & 255;
+      const ty = (data[2] >>> 8) & 255;
 
-      // renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
+      renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
     },
 
     // Move image in framebuffer

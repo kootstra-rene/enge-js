@@ -53,8 +53,6 @@ function WebGLRenderer(cv) {
     gl.disable(gl.SAMPLE_COVERAGE);
     gl.disable(gl.SCISSOR_TEST);
 
-    gl.enableVertexAttribArray(0);
-
     this.directVideoRamContext = createDirectVideoRamContext(gl);
     this.renderContext = createVideoRamRenderContext(gl);
     this.displayContext = createDisplayContext(gl);
@@ -68,7 +66,6 @@ function WebGLRenderer(cv) {
       new VertexDirectBuffer(4).init(gl, this.directVideoRamContext, this.renderContext), // storing images
       new VertexDisplayBuffer(4).init(gl, this.displayContext), // display
     ];
-
 
   }
   else {
@@ -92,6 +89,8 @@ WebGLRenderer.prototype.memoryToCache = function (x, y, w, h) {
 WebGLRenderer.prototype.cacheToVideoRam = function (x, y, w, h) {
   // note: no blitting here because stuff needs to be done in the shader
   const buffer = this.buffers[5];
+
+  VertexBuffer.updateDepth();
 
   buffer.addVertex(x + 0, y + 0);
   buffer.addVertex(x + w, y + 0);
@@ -173,6 +172,8 @@ WebGLRenderer.prototype.storeImage = function (img) {
 WebGLRenderer.prototype.getDrawBuffer = function (data) {
   const flags = (data[0] >>> 24) & 7;
 
+  VertexBuffer.updateDepth();
+
   if (0 === (flags & 2)) {
     return this.buffers[4];
   }
@@ -207,22 +208,52 @@ WebGLRenderer.prototype.syncDrawArea = function () {
     gl.uniform4i(this.renderContext.program.drawArea, X1, Y1, X2, Y2);
 
     this.syncDrawAreaToShadow(drawAreaBeforeChange);
+    // this.syncDrawAreaDepth(drawAreaBeforeChange);
+    this.syncDrawAreaDepth(this.drawArea);
   }
 
   gpu.syncDrawOffset(this.drawOffset);
 }
-
-WebGLRenderer.prototype.syncDrawAreaToShadow = function (area) {
-  const gl = this.gl;
+WebGLRenderer.prototype.syncDrawAreaDepth = function (area) {
   let { X1, Y1, X2, Y2 } = area; ++X2; ++Y2;
 
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.renderContext.mainFramebuffer);
-  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.renderContext.mainTexture, 0);
+  // todo: clear depth buffer in draw area change? 
+  const { gl, renderContext } = this;
 
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.renderContext.shadowFramebuffer);
-  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.renderContext.shadowTexture, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
+  // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainTexture);
+  // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
+  // gl.bindTexture(gl.TEXTURE_2D, renderContext.shadowTexture);
+  // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, renderContext.shadowTexture, 0);
+  // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainDepthComponent);
+  // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, renderContext.mainDepthComponent, 0);
+  gl.viewport(4*X1, 4*Y1, 4*X2, 4*Y2);
+  // gl.viewport(0,0,4096,2048);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  VertexBuffer.resetDepth();
+}
+
+WebGLRenderer.prototype.syncDrawAreaToShadow = function (area) {
+  let { X1, Y1, X2, Y2 } = area; ++X2; ++Y2;
+
+  const { gl, renderContext, directVideoRamContext } = this;
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderContext.mainFramebuffer);
+  // gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
+
+  // (required) copy draw area to shadow
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderContext.shadowFramebuffer);
+  // gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.shadowTexture, 0);
 
   gl.blitFramebuffer(4 * X1, 4 * Y1, 4 * X2, 4 * Y2, 4 * X1, 4 * Y1, 4 * X2, 4 * Y2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+
+  // (optional) copy draw area to cache
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, directVideoRamContext.framebuffer);
+  // gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, directVideoRamContext.texture, 0);
+
+  gl.blitFramebuffer(4 * X1, 4 * Y1, 4 * X2, 4 * Y2, X1, Y1, X2, Y2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
@@ -298,11 +329,25 @@ function createTexture(gl, width, height) {
   return texture;
 }
 
-function createFramebuffer(gl, texture) {
+function createDepthComponent(gl, width, height) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, width, height, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return texture;
+}
+
+function createFramebuffer(gl, texture, depthComponent) {
   const framebuffer = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
   gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.bindTexture(gl.TEXTURE_2D, depthComponent);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthComponent, 0)
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   return framebuffer;
 }
@@ -313,7 +358,7 @@ function setupVertexAttribute(gl, program) {
   const vertexPosition = gl.getAttribLocation(program, "a_position");
   if (vertexPosition >= 0) {
     gl.enableVertexAttribArray(vertexPosition);
-    gl.vertexAttribPointer(vertexPosition, 2, gl.SHORT, false, vertexStride, 0);
+    gl.vertexAttribPointer(vertexPosition, 3, gl.SHORT, false, vertexStride, 0);
   }
 
   const vertexColor = gl.getAttribLocation(program, "a_color");
@@ -350,7 +395,8 @@ function createDirectVideoRamContext(gl) {
 
 function createVideoRamRenderContext(gl) {
   const mainTexture = createTexture(gl, 4096, 2048);
-  const mainFramebuffer = createFramebuffer(gl, mainTexture);
+  const mainDepthComponent = createDepthComponent(gl, 4096, 2048);
+  const mainFramebuffer = createFramebuffer(gl, mainTexture, mainDepthComponent);
 
   const shadowTexture = createTexture(gl, 4096, 2048);
   const shadowFramebuffer = createFramebuffer(gl, shadowTexture);
@@ -372,7 +418,7 @@ function createVideoRamRenderContext(gl) {
 
   gl.bindVertexArray(null);
 
-  return { vao, buffer, program, mainTexture, mainFramebuffer, shadowTexture, shadowFramebuffer };
+  return { vao, buffer, program, mainTexture, mainDepthComponent, mainFramebuffer, shadowTexture, shadowFramebuffer };
 }
 
 function createDisplayContext(gl) {

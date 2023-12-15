@@ -4,6 +4,18 @@ class VertexBuffer {
   #index;
   context;
 
+  static #depthId = 65535;
+
+  static get depthId() {
+    return VertexBuffer.#depthId;
+  }
+
+  static resetDepth() {
+    VertexBuffer.#depthId = 65535;
+  }
+  static updateDepth() {
+    --VertexBuffer.#depthId;
+  }
   constructor(mode) {
     const buffer = new Uint8Array(1024 * 1024);
 
@@ -31,9 +43,11 @@ class VertexBuffer {
   addVertex(x, y, u, v, c) {
     const writer = this.#writer;
 
+    // console.log(x,y,VertexBuffer.depthId);
     writer.setInt16(this.#index + 0, x, true);
     writer.setInt16(this.#index + 2, y, true);
-    writer.setInt16(this.#index + 4, 0, true);
+    writer.setUint16(this.#index + 4, VertexBuffer.depthId, true);
+    // writer.setUint16(this.#index + 4, 0, true);
     writer.setUint32(this.#index + 6, c, true);
     writer.setInt16(this.#index + 10, u ?? x, true);
     writer.setInt16(this.#index + 12, v ?? y, true);
@@ -69,7 +83,7 @@ class VertexBuffer {
       } break;
       case 4: {
         gl.disable(gl.BLEND);
-        program && gl.uniform1f(program.alpha, 1.00);
+        program && gl.uniform1f(program.alpha, 0.00);
       } break;
     }
   }
@@ -100,6 +114,9 @@ class VertexDirectBuffer extends VertexBuffer {
 
     const { gl, directContext, renderContext } = this.context;
 
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.ALWAYS);
+
     gl.viewport(0, 0, 4096, 2048);
     gl.useProgram(directContext.program);
 
@@ -108,16 +125,19 @@ class VertexDirectBuffer extends VertexBuffer {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, 0, this.length);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
+    // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainDepthComponent);
+    // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, renderContext.mainDepthComponent, 0);
+    // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainTexture);
+    // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
+    gl.bindTexture(gl.TEXTURE_2D, renderContext.shadowTexture);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, renderContext.shadowTexture, 0);
-    // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.TEXTURE_2D, this.vramDepth, 0);
 
     gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
 
     gl.activeTexture(gl.TEXTURE0 + 0);
     gl.bindTexture(gl.TEXTURE_2D, directContext.texture);
 
-    this.setTransparencyMode(gl, 4);
+    this.setTransparencyMode(gl, this.mode);
     gl.drawArrays(gl.TRIANGLES, 0, this.length / vertexStride);
 
     gl.bindTexture(gl.TEXTURE_2D, null);
@@ -125,6 +145,8 @@ class VertexDirectBuffer extends VertexBuffer {
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.bindVertexArray(null);
 
+    gl.depthFunc(gl.ALWAYS);
+    gl.disable(gl.DEPTH_TEST);
     this.length = 0;
   }
 
@@ -161,7 +183,7 @@ class VertexDisplayBuffer extends VertexBuffer {
     gl.activeTexture(gl.TEXTURE0 + 0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
-    this.setTransparencyMode(gl, 4);
+    this.setTransparencyMode(gl, this.mode);
     gl.drawArrays(gl.TRIANGLES, 0, this.length / vertexStride);
 
     gl.bindTexture(gl.TEXTURE_2D, null);
@@ -188,9 +210,12 @@ class VertexRenderBuffer extends VertexBuffer {
   flush() {
     if (this.length <= 0) return;
 
-    console.log('render', this.mode, this.length);
+    // console.log('render', this.mode, this.length);
 
     const { gl, renderContext } = this.context;
+    
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LESS);
 
     gl.viewport(0, 0, 4096, 2048);
     gl.useProgram(renderContext.program);
@@ -200,7 +225,10 @@ class VertexRenderBuffer extends VertexBuffer {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, 0, this.length);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
+    // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainDepthComponent);
+    // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, renderContext.mainDepthComponent, 0);
+    // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainTexture);
+    // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderContext.mainTexture, 0);
 
     this.setTransparencyMode(gl, this.mode, renderContext.program);
     gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
@@ -213,6 +241,8 @@ class VertexRenderBuffer extends VertexBuffer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.bindVertexArray(null);
+    gl.depthFunc(gl.ALWAYS);
+    gl.disable(gl.DEPTH_TEST);
 
     this.length = 0;
   }
