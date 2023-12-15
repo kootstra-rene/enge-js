@@ -359,26 +359,26 @@
 
     // Monochrome line
     handlePacket40: function (data) {
-      // renderer.drawLine(data, 0, 1, 0, 2);
+      renderer.drawLine(data, 0, 1, 0, 2);
     },
 
     // Monochrome polyline
     handlePacket48: function (data, size) {
-      // for (var i = 2; i < size; i += 1) {
-      //   renderer.drawLine(data, 0, i - 1, 0, i);
-      // }
+      for (var i = 2; i < size; i += 1) {
+        renderer.drawLine(data, 0, i - 1, 0, i);
+      }
     },
 
     // Gradated line
     handlePacket50: function (data) {
-      // renderer.drawLine(data, 0, 1, 2, 3);
+      renderer.drawLine(data, 0, 1, 2, 3);
     },
 
     // Gradated polyline
     handlePacket58: function (data, size) {
-      // for (var i = 3; i < size; i += 2) {
-      //   renderer.drawLine(data, i - 3, i - 2, i - 1, i);
-      // }
+      for (var i = 3; i < size; i += 2) {
+        renderer.drawLine(data, i - 3, i - 2, i - 1, i);
+      }
     },
 
     // Rectangle

@@ -181,10 +181,81 @@ WebGLRenderer.prototype.getDrawBuffer = function (data) {
   return this.buffers[(gpu.status >> 5) & 3];
 }
 
+WebGLRenderer.prototype.largePrimitive = function (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) {
+  if (Math.abs(x1 - x2) > 1023) return true;
+  if (Math.abs(x2 - x3) > 1023) return true;
+  if (Math.abs(x3 - x1) > 1023) return true;
+  if (Math.abs(x4 - x2) > 1023) return true;
+  if (Math.abs(x4 - x3) > 1023) return true;
+  if (Math.abs(y1 - y2) > 511) return true;
+  if (Math.abs(y2 - y3) > 511) return true;
+  if (Math.abs(y3 - y1) > 511) return true;
+  if (Math.abs(y4 - y2) > 511) return true;
+  if (Math.abs(y4 - y3) > 511) return true;
+  return false;
+}
+
+WebGLRenderer.prototype.outsideDrawArea = function (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) {
+  const { X1, Y1, X2, Y2 } = this.drawArea;
+  if ((x1 < X1) && (x2 < X1) && (x3 < X1) && (x4 < X1)) return true;
+  if ((x1 > X2) && (x2 > X2) && (x3 > X2) && (x4 > X2)) return true;
+  if ((y1 < Y1) && (y2 < Y1) && (y3 < Y1) && (y4 < Y1)) return true;
+  if ((y1 > Y2) && (y2 > Y2) && (y3 > Y2) && (y4 > Y2)) return true;
+  return false;
+}
+
 WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
+  // todo: check if gl.LINES can be an option
   this.flushImageBuffer();
 
   this.syncDrawArea();
+
+  const ox = this.drawOffset.X;
+  const oy = this.drawOffset.Y;
+  const x1 = ox + ((data[xy1] << 21) >> 21);
+  const y1 = oy + ((data[xy1] << 5) >> 21);
+  const x2 = ox + ((data[xy2] << 21) >> 21);
+  const y2 = oy + ((data[xy2] << 5) >> 21);
+
+  if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
+  if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+
+  const buffer = this.getDrawBuffer(data);
+
+  var w = Math.abs(x1 - x2);
+  var h = Math.abs(y1 - y2);
+
+  if (x1 !== x2 || y1 !== y2) {
+    if (w >= h) {
+      buffer.addVertex(x1, y1 + 1, _, _, data[c1]);
+      buffer.addVertex(x1, y1 + 0, _, _, data[c1]);
+      buffer.addVertex(x2, y2 + 0, _, _, data[c2]);
+
+      buffer.addVertex(x2, y2 + 0, _, _, data[c2]);
+      buffer.addVertex(x2, y2 + 1, _, _, data[c2]);
+      buffer.addVertex(x1, y1 + 1, _, _, data[c1]);
+
+    }
+    else {
+      buffer.addVertex(x1 + 0, y1, _, _, data[c1]);
+      buffer.addVertex(x1 + 1, y1, _, _, data[c1]);
+      buffer.addVertex(x2 + 1, y2, _, _, data[c2]);
+
+      buffer.addVertex(x2 + 1, y2, _, _, data[c2]);
+      buffer.addVertex(x2 + 0, y2, _, _, data[c2]);
+      buffer.addVertex(x1 + 0, y1, _, _, data[c1]);
+    }
+  }
+  else {
+    buffer.addVertex(x2 + 0, y2 + 0, _, _, data[c2]);
+    buffer.addVertex(x2 + 1, y2 + 0, _, _, data[c2]);
+    buffer.addVertex(x2 + 0, y2 + 1, _, _, data[c2]);
+
+    buffer.addVertex(x2 + 0, y2 + 1, _, _, data[c2]);
+    buffer.addVertex(x2 + 1, y2 + 0, _, _, data[c2]);
+    buffer.addVertex(x2 + 1, y2 + 1, _, _, data[c2]);
+  }
+
 }
 
 WebGLRenderer.prototype.flushImageBuffer = function () {
@@ -277,6 +348,9 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   const x3 = ox + ((data[xy3] << 21) >> 21);
   const y3 = oy + ((data[xy3] << 5) >> 21);
 
+  if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
+  if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
+
   const buffer = this.getDrawBuffer(data);
 
   buffer.addVertex(x1, y1, _, _, data[c1]);
@@ -295,6 +369,9 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   const y = oy + ((data[1] << 5) >> 21);
   const w = (data[2] << 16) >> 16;
   const h = (data[2] >> 16);
+
+  if (this.outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
+  if (this.largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
 
   const buffer = this.getDrawBuffer(data);
 
