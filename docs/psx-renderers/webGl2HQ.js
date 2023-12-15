@@ -37,6 +37,7 @@ function WebGLRenderer(cv) {
       depth: false,
       stencil: false,
     });
+    canvas.imageSmoothingEnabled = false;
   }
   catch (e) {
     alert("Error: Unable to get WebGL context");
@@ -181,6 +182,9 @@ WebGLRenderer.prototype.getDrawBuffer = function (data) {
 }
 
 WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
+  this.flushImageBuffer();
+
+  this.syncDrawArea();
 }
 
 WebGLRenderer.prototype.flushImageBuffer = function () {
@@ -311,6 +315,8 @@ WebGLRenderer.prototype.onVBlankEnd = function () {
   this.flushRenderBuffer();
 
   this.syncDrawAreaToShadow(this.drawArea);
+  this.syncDrawAreaDepth(this.drawArea);
+//  this.syncDrawAreaDepth({X1:0,Y1:0,X2:1024,Y2:512});
   ++this.fpsCounter;
 
   showDisplay(this);
@@ -499,8 +505,6 @@ function showDisplay(renderer) {
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
 
   if (canvas.width && canvas.height) {
-    ambilight.canvas.width = canvas.width;
-    ambilight.canvas.height = canvas.height;
     ambilight.drawImage(canvas, 0, 0);
   }
 }

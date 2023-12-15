@@ -3,6 +3,7 @@ class VertexBuffer {
   #writer;
   #index;
   context;
+  #reversed;
 
   static #depthId = 65535;
 
@@ -20,12 +21,20 @@ class VertexBuffer {
     const buffer = new Uint8Array(1024 * 1024);
 
     this.#mode = mode; // todo: set actual mode
-    this.#index = 0;
     this.#writer = new DataView(buffer.buffer);
+    this.#reversed = mode === 4; // opaque reverses vertex rendering
+    this.length = 0;
   }
 
   get mode() {
     return this.#mode;
+  }
+
+  get base() {
+    if (this.#reversed) {
+      return this.#index;
+    }
+    return 0;
   }
 
   get view() {
@@ -33,15 +42,27 @@ class VertexBuffer {
   }
 
   get length() {
+    if (this.#reversed) {
+      return this.#writer.byteLength - this.#index;
+    }
     return this.#index;
   }
 
   set length(value) {
-    this.#index = value;
+    if (this.#reversed) {
+      this.#index = this.#writer.byteLength - value;
+    }
+    else {
+      this.#index = value;
+    }
   }
 
   addVertex(x, y, u, v, c) {
     const writer = this.#writer;
+
+    if (this.#reversed) {
+      this.#index -= vertexStride;
+    }
 
     // console.log(x,y,VertexBuffer.depthId);
     writer.setInt16(this.#index + 0, x, true);
@@ -52,7 +73,9 @@ class VertexBuffer {
     writer.setInt16(this.#index + 10, u ?? x, true);
     writer.setInt16(this.#index + 12, v ?? y, true);
 
-    this.#index += vertexStride;
+    if (!this.#reversed) {
+      this.#index += vertexStride;
+    }
   }
 
   setTransparencyMode(gl, mode, program) {
@@ -122,7 +145,7 @@ class VertexDirectBuffer extends VertexBuffer {
 
     gl.bindVertexArray(directContext.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, directContext.buffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, 0, this.length);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, this.base, this.length);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
     // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainDepthComponent);
@@ -176,7 +199,7 @@ class VertexDisplayBuffer extends VertexBuffer {
 
     gl.bindVertexArray(displayContext.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, displayContext.buffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, 0, this.length);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, this.base, this.length);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
@@ -213,7 +236,7 @@ class VertexRenderBuffer extends VertexBuffer {
     // console.log('render', this.mode, this.length);
 
     const { gl, renderContext } = this.context;
-    
+
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LESS);
 
@@ -222,7 +245,7 @@ class VertexRenderBuffer extends VertexBuffer {
 
     gl.bindVertexArray(renderContext.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, renderContext.buffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, 0, this.length);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.view, this.base, this.length);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderContext.mainFramebuffer);
     // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainDepthComponent);
