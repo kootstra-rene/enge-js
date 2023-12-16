@@ -5,14 +5,14 @@ class VertexBuffer {
   context;
   #reversed;
 
-  static #depthId = 65535;
+  static #depthId = 65534;
 
   static get depthId() {
     return VertexBuffer.#depthId;
   }
 
   static resetDepth() {
-    VertexBuffer.#depthId = 65535;
+    VertexBuffer.#depthId = 65534;
   }
   static updateDepth() {
     --VertexBuffer.#depthId;

@@ -170,6 +170,7 @@ WebGLRenderer.prototype.storeImage = function (img) {
   this.cacheToVideoRam(x, y, w, h);
 }
 
+// todo: move to vertexbuffer as static method.
 WebGLRenderer.prototype.getDrawBuffer = function (data) {
   const flags = (data[0] >>> 24) & 7;
 
@@ -214,8 +215,10 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
   const oy = this.drawOffset.Y;
   const x1 = ox + ((data[xy1] << 21) >> 21);
   const y1 = oy + ((data[xy1] << 5) >> 21);
+  const $c1 = (data[c1] & 0x00ffffff) || (data[0] & 0xff000000);
   const x2 = ox + ((data[xy2] << 21) >> 21);
   const y2 = oy + ((data[xy2] << 5) >> 21);
+  const $c2 = (data[c2] & 0x00ffffff) || (data[0] & 0xff000000);
 
   if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
   if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
@@ -227,35 +230,36 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
 
   if (x1 !== x2 || y1 !== y2) {
     if (w >= h) {
-      buffer.addVertex(x1, y1 + 1, _, _, data[c1]);
-      buffer.addVertex(x1, y1 + 0, _, _, data[c1]);
-      buffer.addVertex(x2, y2 + 0, _, _, data[c2]);
+      const d = (y2 - y1) > 0 ? -1 : 1;
+      buffer.addVertex(x1, y1 + d, _, _, $c1);
+      buffer.addVertex(x1, y1 + 0, _, _, $c1);
+      buffer.addVertex(x2, y2 + 0, _, _, $c2);
 
-      buffer.addVertex(x2, y2 + 0, _, _, data[c2]);
-      buffer.addVertex(x2, y2 + 1, _, _, data[c2]);
-      buffer.addVertex(x1, y1 + 1, _, _, data[c1]);
+      buffer.addVertex(x2, y2 + 0, _, _, $c2);
+      buffer.addVertex(x2, y2 + d, _, _, $c2);
+      buffer.addVertex(x1, y1 + d, _, _, $c1);
 
     }
     else {
-      buffer.addVertex(x1 + 0, y1, _, _, data[c1]);
-      buffer.addVertex(x1 + 1, y1, _, _, data[c1]);
-      buffer.addVertex(x2 + 1, y2, _, _, data[c2]);
+      const d = (x2 - x1) > 0 ? -1 : 1;
+      buffer.addVertex(x1 + 0, y1, _, _, $c1);
+      buffer.addVertex(x1 + d, y1, _, _, $c1);
+      buffer.addVertex(x2 + d, y2, _, _, $c2);
 
-      buffer.addVertex(x2 + 1, y2, _, _, data[c2]);
-      buffer.addVertex(x2 + 0, y2, _, _, data[c2]);
-      buffer.addVertex(x1 + 0, y1, _, _, data[c1]);
+      buffer.addVertex(x2 + d, y2, _, _, $c2);
+      buffer.addVertex(x2 + 0, y2, _, _, $c2);
+      buffer.addVertex(x1 + 0, y1, _, _, $c1);
     }
   }
   else {
-    buffer.addVertex(x2 + 0, y2 + 0, _, _, data[c2]);
-    buffer.addVertex(x2 + 1, y2 + 0, _, _, data[c2]);
-    buffer.addVertex(x2 + 0, y2 + 1, _, _, data[c2]);
+    buffer.addVertex(x2 + 0, y2 + 0, _, _, $c2);
+    buffer.addVertex(x2 + 1, y2 + 0, _, _, $c2);
+    buffer.addVertex(x2 + 0, y2 + 1, _, _, $c2);
 
-    buffer.addVertex(x2 + 0, y2 + 1, _, _, data[c2]);
-    buffer.addVertex(x2 + 1, y2 + 0, _, _, data[c2]);
-    buffer.addVertex(x2 + 1, y2 + 1, _, _, data[c2]);
+    buffer.addVertex(x2 + 0, y2 + 1, _, _, $c2);
+    buffer.addVertex(x2 + 1, y2 + 0, _, _, $c2);
+    buffer.addVertex(x2 + 1, y2 + 1, _, _, $c2);
   }
-
 }
 
 WebGLRenderer.prototype.flushImageBuffer = function () {
@@ -279,12 +283,12 @@ WebGLRenderer.prototype.syncDrawArea = function () {
     this.flushImageBuffer();
     this.flushRenderBuffer();
 
-    gl.useProgram(this.renderContext.program);
-    gl.uniform4i(this.renderContext.program.drawArea, X1, Y1, X2, Y2);
-
     this.syncDrawAreaToShadow(drawAreaBeforeChange);
     // this.syncDrawAreaDepth(drawAreaBeforeChange);
     this.syncDrawAreaDepth(this.drawArea);
+
+    gl.useProgram(this.renderContext.program);
+    gl.uniform4i(this.renderContext.program.drawArea, X1, Y1, X2, Y2);
   }
 
   gpu.syncDrawOffset(this.drawOffset);
@@ -305,6 +309,7 @@ WebGLRenderer.prototype.syncDrawAreaDepth = function (area) {
   gl.viewport(4*X1, 4*Y1, 4*X2, 4*Y2);
   // gl.viewport(0,0,4096,2048);
   gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.clearDepth(1.0);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   VertexBuffer.resetDepth();
@@ -343,19 +348,22 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   const oy = this.drawOffset.Y;
   const x1 = ox + ((data[xy1] << 21) >> 21);
   const y1 = oy + ((data[xy1] << 5) >> 21);
+  const $c1 = (data[c1] & 0x00ffffff) || (data[0] & 0xff000000);
   const x2 = ox + ((data[xy2] << 21) >> 21);
   const y2 = oy + ((data[xy2] << 5) >> 21);
+  const $c2 = (data[c2] & 0x00ffffff) || (data[0] & 0xff000000);
   const x3 = ox + ((data[xy3] << 21) >> 21);
   const y3 = oy + ((data[xy3] << 5) >> 21);
+  const $c3 = (data[c3] & 0x00ffffff) || (data[0] & 0xff000000);
 
   if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
   if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
 
   const buffer = this.getDrawBuffer(data);
 
-  buffer.addVertex(x1, y1, _, _, data[c1]);
-  buffer.addVertex(x2, y2, _, _, data[c2]);
-  buffer.addVertex(x3, y3, _, _, data[c3]);
+  buffer.addVertex(x1, y1, _, _, $c1);
+  buffer.addVertex(x2, y2, _, _, $c2);
+  buffer.addVertex(x3, y3, _, _, $c3);
 }
 
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
@@ -369,31 +377,31 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   const y = oy + ((data[1] << 5) >> 21);
   const w = (data[2] << 16) >> 16;
   const h = (data[2] >> 16);
+  const c = data[0];
 
   if (this.outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
   if (this.largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
 
   const buffer = this.getDrawBuffer(data);
 
-  buffer.addVertex(x + 0, y + 0, _, _, data[0]);
-  buffer.addVertex(x + w, y + 0, _, _, data[0]);
-  buffer.addVertex(x + 0, y + h, _, _, data[0]);
+  buffer.addVertex(x + 0, y + 0, _, _, c);
+  buffer.addVertex(x + w, y + 0, _, _, c);
+  buffer.addVertex(x + 0, y + h, _, _, c);
 
-  buffer.addVertex(x + 0, y + h, _, _, data[0]);
-  buffer.addVertex(x + w, y + 0, _, _, data[0]);
-  buffer.addVertex(x + w, y + h, _, _, data[0]);
+  buffer.addVertex(x + 0, y + h, _, _, c);
+  buffer.addVertex(x + w, y + 0, _, _, c);
+  buffer.addVertex(x + w, y + h, _, _, c);
 }
 
 WebGLRenderer.prototype.onVBlankBegin = function () {
 }
 
 WebGLRenderer.prototype.onVBlankEnd = function () {
-  this.flushImageBuffer();
   this.flushRenderBuffer();
+  this.flushImageBuffer();
 
   this.syncDrawAreaToShadow(this.drawArea);
   this.syncDrawAreaDepth(this.drawArea);
-//  this.syncDrawAreaDepth({X1:0,Y1:0,X2:1024,Y2:512});
   ++this.fpsCounter;
 
   showDisplay(this);
