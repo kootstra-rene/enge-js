@@ -83,8 +83,8 @@ WebGLRenderer.prototype.memoryToCache = function (x, y, w, h) {
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.directVideoRamContext.texture, 0);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
 
-  gl.bindTexture(gl.TEXTURE_2D, null);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
 WebGLRenderer.prototype.cacheToVideoRam = function (x, y, w, h) {
@@ -215,10 +215,10 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
   const oy = this.drawOffset.Y;
   const x1 = ox + ((data[xy1] << 21) >> 21);
   const y1 = oy + ((data[xy1] << 5) >> 21);
-  const $c1 = (data[c1] & 0x00ffffff) || (data[0] & 0xff000000);
+  const $c1 = (data[c1] & 0x00ffffff) | (data[0] & 0xff000000);
   const x2 = ox + ((data[xy2] << 21) >> 21);
   const y2 = oy + ((data[xy2] << 5) >> 21);
-  const $c2 = (data[c2] & 0x00ffffff) || (data[0] & 0xff000000);
+  const $c2 = (data[c2] & 0x00ffffff) | (data[0] & 0xff000000);
 
   if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
   if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
@@ -306,10 +306,10 @@ WebGLRenderer.prototype.syncDrawAreaDepth = function (area) {
   // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, renderContext.shadowTexture, 0);
   // gl.bindTexture(gl.TEXTURE_2D, renderContext.mainDepthComponent);
   // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, renderContext.mainDepthComponent, 0);
-  gl.viewport(4*X1, 4*Y1, 4*X2, 4*Y2);
-  // gl.viewport(0,0,4096,2048);
-  gl.clear(gl.DEPTH_BUFFER_BIT);
+  // gl.viewport(4 * X1, 4 * Y1, 4 * X2, 4 * Y2);
+  gl.viewport(0,0,4096,2048);
   gl.clearDepth(1.0);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   VertexBuffer.resetDepth();
@@ -348,22 +348,29 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
   const oy = this.drawOffset.Y;
   const x1 = ox + ((data[xy1] << 21) >> 21);
   const y1 = oy + ((data[xy1] << 5) >> 21);
-  const $c1 = (data[c1] & 0x00ffffff) || (data[0] & 0xff000000);
+  const $c1 = (data[c1] & 0x00ffffff) | (data[0] & 0xff000000);
   const x2 = ox + ((data[xy2] << 21) >> 21);
   const y2 = oy + ((data[xy2] << 5) >> 21);
-  const $c2 = (data[c2] & 0x00ffffff) || (data[0] & 0xff000000);
+  const $c2 = (data[c2] & 0x00ffffff) | (data[0] & 0xff000000);
   const x3 = ox + ((data[xy3] << 21) >> 21);
   const y3 = oy + ((data[xy3] << 5) >> 21);
-  const $c3 = (data[c3] & 0x00ffffff) || (data[0] & 0xff000000);
+  const $c3 = (data[c3] & 0x00ffffff) | (data[0] & 0xff000000);
 
   if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
   if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
 
+  const u1 = (data[uv1] >>> 0) & 255;
+  const v1 = (data[uv1] >>> 8) & 255;
+  const u2 = (data[uv2] >>> 0) & 255;
+  const v2 = (data[uv2] >>> 8) & 255;
+  const u3 = (data[uv3] >>> 0) & 255;
+  const v3 = (data[uv3] >>> 8) & 255;
+
   const buffer = this.getDrawBuffer(data);
 
-  buffer.addVertex(x1, y1, _, _, $c1);
-  buffer.addVertex(x2, y2, _, _, $c2);
-  buffer.addVertex(x3, y3, _, _, $c3);
+  buffer.addVertex(x1, y1, u1, v1, $c1, cl);
+  buffer.addVertex(x2, y2, u2, v2, $c2, cl);
+  buffer.addVertex(x3, y3, u3, v3, $c3, cl);
 }
 
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
@@ -382,15 +389,29 @@ WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   if (this.outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
   if (this.largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
 
+  let tl = tx + 0;
+  let tr = tx + w;
+  if (gpu.txflip) {
+    tl = tx + 0;
+    tr = tx - w + 1;
+  }
+
+  let tt = ty + 0;
+  let tb = ty + h;
+  if (gpu.tyflip) {
+    tt = ty + 0;
+    tb = ty - h + 1;
+  }
+
   const buffer = this.getDrawBuffer(data);
 
-  buffer.addVertex(x + 0, y + 0, _, _, c);
-  buffer.addVertex(x + w, y + 0, _, _, c);
-  buffer.addVertex(x + 0, y + h, _, _, c);
+  buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
+  buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
+  buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
 
-  buffer.addVertex(x + 0, y + h, _, _, c);
-  buffer.addVertex(x + w, y + 0, _, _, c);
-  buffer.addVertex(x + w, y + h, _, _, c);
+  buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
+  buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
+  buffer.addVertex(x + w, y + h, tr, tb, c, cl);
 }
 
 WebGLRenderer.prototype.onVBlankBegin = function () {
@@ -440,6 +461,7 @@ function createFramebuffer(gl, texture, depthComponent) {
   gl.bindTexture(gl.TEXTURE_2D, depthComponent);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthComponent, 0)
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
   return framebuffer;
 }
 
@@ -462,6 +484,24 @@ function setupVertexAttribute(gl, program) {
   if (textureCoord >= 0) {
     gl.enableVertexAttribArray(textureCoord);
     gl.vertexAttribPointer(textureCoord, 2, gl.SHORT, false, vertexStride, 10);
+  }
+
+  const textureClut = gl.getAttribLocation(program, "a_texclut");
+  if (textureClut >= 0) {
+    gl.enableVertexAttribArray(textureClut);
+    gl.vertexAttribPointer(textureClut, 1, gl.SHORT, false, vertexStride, 14);
+  }
+
+  const textureWindow = gl.getAttribLocation(program, "a_twin");
+  if (textureWindow >= 0) {
+    gl.enableVertexAttribArray(textureWindow);
+    gl.vertexAttribPointer(textureWindow, 4, gl.UNSIGNED_BYTE, false, vertexStride, 16);
+  }
+
+  const texturePage = gl.getAttribLocation(program, "a_texinfo");
+  if (texturePage >= 0) {
+    gl.enableVertexAttribArray(texturePage);
+    gl.vertexAttribPointer(texturePage, 1, gl.BYTE, false, vertexStride, 23);
   }
 }
 

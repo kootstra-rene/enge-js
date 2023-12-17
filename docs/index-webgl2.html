@@ -81,10 +81,20 @@
 
     in vec3 a_position;
     in vec2 a_texcoord;
+    in float a_texclut;
+    in float a_texinfo;
+    in vec4 a_twin;
     in vec4 a_color;
 
     out vec3 v_drawPos;
     out vec4 v_color;
+    out vec2 v_textureCoord;
+
+    flat out uint v_flags;
+    flat out uint v_textureMode;
+    flat out ivec2 v_texturePage;
+    flat out ivec2 v_textureClut;
+    flat out ivec4 v_textureWindow;
 
     void main() {
       gl_Position = vec4(a_position, 1.0);
@@ -94,6 +104,19 @@
 
       v_drawPos = a_position.xyz;
       v_color = vec4(a_color.rgb, 1.0);
+      v_flags = uint(a_color.a * 255.0); // todo: seperate texture for STP
+
+      float tpx = mod(floor(a_texinfo / 4.0), 16.0);
+      float tpy = mod(floor(a_texinfo / 64.0), 2.0);
+      v_textureMode = uint(mod(a_texinfo, 4.0));
+      v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
+
+      float cx = mod(floor(a_texclut / 1.0), 64.0) * 16.0;
+      float cy = mod(floor(a_texclut / 64.0), 512.0);
+      v_textureClut = ivec2(int(cx), int(cy));
+
+      v_textureWindow = ivec4(a_twin);
+      v_textureCoord = a_texcoord;
     }
   </script>
 
@@ -109,8 +132,53 @@
 
     in vec3 v_drawPos;
     in vec4 v_color;
+    in vec2 v_textureCoord;
+
+    flat in uint v_flags; // todo: explain
+    flat in uint v_textureMode;
+    flat in ivec2 v_texturePage;
+    flat in ivec2 v_textureClut;
+    flat in ivec4 v_textureWindow;
 
     out vec4 outColor;
+
+    int getSBGRfromRGBA(vec4 c) {
+      int sbgr = 0;
+      sbgr += int(c.r * 32.0);
+      sbgr += int(c.g * 32.0) * 32;
+      sbgr += int(c.b * 32.0) * 32 * 32;
+      if (c.a >= 0.5) sbgr += 32768;
+      return sbgr;
+    }
+
+    vec4 vram16Bit(int tx, int ty) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(4,4) * ivec2(tx, ty);
+      return texelFetch(u_vram, ivec2(coord.x % 4096, coord.y % 2048), 0);
+    }
+
+    vec4 vram8bit(int tx, int ty) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(2,4) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_vram, ivec2(coord.x % 4096, coord.y % 2048), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(tx) & 1;
+      int clutIndex = (sbgr >> (bit * 8)) & 0xff;
+
+      coord = ivec2(4,4) * (v_textureClut + ivec2(clutIndex, 0));
+      return texelFetch(u_vram, ivec2(coord.x % 4096, coord.y % 2048), 0);
+    }
+
+    vec4 vram4bit(int tx, int ty) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(1,4) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_vram, ivec2(coord.x % 4096, coord.y % 2048), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(tx) & 3;
+      int clutIndex = (sbgr >> (bit * 4)) & 0xf;
+
+      coord = ivec2(4,4) * (v_textureClut + ivec2(clutIndex, 0));
+      return texelFetch(u_vram, ivec2(coord.x % 4096, coord.y % 2048), 0);
+    }
 
     void main() {
       ivec3 texel = ivec3(v_drawPos);
@@ -118,8 +186,44 @@
       if (v_color == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 
       if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
-        outColor = vec4(v_color.rgb, u_alpha);
-        //outColor = vec4(gl_FragCoord.zzz, u_alpha);
+        if (0x00u == (v_flags & 0x04u)) { // non-textured
+          outColor = vec4(v_color.rgb, u_alpha);
+        }
+        else {
+          vec4 tc;
+
+          int tx = ((int(v_textureCoord.x) & 255) & ~v_textureWindow.x) | (v_textureWindow.z & v_textureWindow.x);
+          int ty = ((int(v_textureCoord.y) & 255) & ~v_textureWindow.y) | (v_textureWindow.a & v_textureWindow.y);
+
+          if (v_textureMode == 0u) tc = vram4bit(tx, ty);
+          if (v_textureMode == 1u) tc = vram8bit(tx, ty);
+          if (v_textureMode == 2u) tc = vram16Bit(tx, ty);
+          if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
+
+          if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
+
+          vec3 blendingColor = 0u == (v_flags & 1u) ? v_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0, 1.0, 1.0);
+          bool transparentPrimitive = 0x02u == (v_flags & 0x02u);
+          bool transparentPixel = tc.a > 0.0;
+          bool skipTransparent = 0x80u == (v_flags & 0x80u);
+
+          if (!transparentPrimitive) {
+            if (transparentPixel && skipTransparent) {
+              discard;
+            }
+            else {
+              outColor = vec4(tc.rgb * blendingColor, transparentPixel ? 1.0 : 0.0);
+            }
+          }
+          else {
+            if (!transparentPixel) {
+              return;
+            }
+            else {
+              outColor = vec4(tc.rgb * blendingColor, u_alpha);
+            }
+          }
+        }
       }
       else discard;
     }
