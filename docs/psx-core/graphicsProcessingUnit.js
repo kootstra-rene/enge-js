@@ -169,6 +169,7 @@
 
         if (gpu.dmaIndex === gpu.packetSize) {
           var packetId = gpu.dmaBuffer[0] >>> 24;
+          nextPrimitive();
           gpu.handlers[packetId].call(this, gpu.dmaBuffer);
           gpu.dmaIndex = 0;
         }
@@ -706,6 +707,7 @@
               if (value === 0x50005000) break;
               data[i] = value;
             }
+            nextPrimitive();
             gpu.handlers[packetId].call(this, data, i);
             gpu.updated = true;
           }
@@ -715,6 +717,7 @@
               addr += 4; --nitem;
               ++words;
             }
+            nextPrimitive()
             gpu.handlers[packetId].call(this, data, 0);
             gpu.updated = true;
           }
