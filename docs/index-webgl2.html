@@ -34,7 +34,7 @@
     precision highp float;
     precision highp int;
 
-    in vec2 a_position;
+    in vec3 a_position;
     in vec2 a_texcoord;
     in vec4 a_color;
     in vec4 a_twin;
@@ -51,11 +51,13 @@
     flat out ivec4 twin;
 
     void main() {
-      gl_Position = vec4(a_position, 0.0, 1.0);
+      gl_Position = vec4(a_position, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
+      gl_Position.z = a_position.z / 65535.0;
+
       v_vramCoord = a_texcoord; // texture is 4096x2048
-      v_pixelCoord = a_position;
+      v_pixelCoord = a_position.xy;
       v_color = vec4(a_color.rgb, 1.0);
       v_textureMode = uint(mod(a_tmode, 4.0));
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
@@ -147,24 +149,33 @@
           if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 
           vec3 blendingColor = 0u == (packetId & 1u) ? v_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0);
-          bool transparentPrimitive = 0x02u == (packetId & 0x02u);
-          bool transparentPixel = tc.a > 0.0;
-          bool skipTransparent = 0x80u == (packetId & 0x80u);
+          bool transparentPrimitive = 2u == (packetId & 2u);
+          bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
 
-          if (!transparentPrimitive) {
-            if (transparentPixel && skipTransparent) {
-              discard;
+          if (isTransparentPolygonOrRectangle) {
+            if (transparentPrimitive) {
+              if (tc.a <= 0.0) {
+                discard;
+              }
+              else {
+                outColor = vec4(tc.rgb * blendingColor, tc.a * u_alpha);
+              }
             }
             else {
-              outColor = vec4(tc.rgb * blendingColor, transparentPixel ? 1.0 : 0.0);
+              if (tc.a > 0.0) {
+                discard;
+              }
+              else {
+                outColor = vec4(tc.rgb * blendingColor, tc.a);
+              }
             }
           }
           else {
-            if (!transparentPixel) {
-              return;
+            if (transparentPrimitive) {
+              outColor = vec4(tc.rgb * blendingColor, tc.a * u_alpha);
             }
             else {
-              outColor = vec4(tc.rgb * blendingColor, u_alpha);
+              outColor = vec4(tc.rgb * blendingColor, tc.a);
             }
           }
         }

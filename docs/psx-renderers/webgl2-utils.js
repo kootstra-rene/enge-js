@@ -111,7 +111,7 @@ const utils = (function () {
    * @returns vertex-buffer
    */
   function createVertexBuffer() {
-    let buffer = new Uint8Array(64 * 1024);
+    let buffer = new Uint8Array(1024 * 1024);
     // let buffer = new Uint8Array(18 * 1024);
     let view = new DataView(buffer.buffer);
 
@@ -119,12 +119,13 @@ const utils = (function () {
     buffer.addVertex = function(x, y, u, v, c = 0x00808080, cl) {
       view.setInt16(this.index + 0, x, true);
       view.setInt16(this.index + 2, y, true);
-      view.setInt16(this.index + 4, u, true);
-      view.setInt16(this.index + 6, v, true);
-      view.setUint32(this.index + 8, c, true);
-      view.setUint32(this.index + 12, gpu.twin, true);
-      view.setUint16(this.index + 16, cl >>> 0, true);
-      view.setUint8(this.index + 19, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
+      view.setInt16(this.index + 4, primitiveId, true);
+      view.setInt16(this.index + 6, u, true);
+      view.setInt16(this.index + 8, v, true);
+      view.setUint32(this.index + 10, c, true);
+      view.setUint32(this.index + 14, gpu.twin, true);
+      view.setUint16(this.index + 18, cl >>> 0, true);
+      view.setUint8(this.index + 20, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
       this.index += bytesPerVertex;
     }
 
