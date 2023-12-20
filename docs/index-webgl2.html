@@ -158,7 +158,7 @@
                 discard;
               }
               else {
-                outColor = vec4(tc.rgb * blendingColor, tc.a * u_alpha);
+                outColor = vec4(tc.rgb * blendingColor, u_alpha);
               }
             }
             else {
@@ -172,7 +172,7 @@
           }
           else {
             if (transparentPrimitive) {
-              outColor = vec4(tc.rgb * blendingColor, tc.a * u_alpha);
+              outColor = vec4(tc.rgb * blendingColor, u_alpha);
             }
             else {
               outColor = vec4(tc.rgb * blendingColor, tc.a);

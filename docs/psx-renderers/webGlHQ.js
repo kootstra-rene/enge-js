@@ -28,6 +28,8 @@ const $stats = {
   }
 }
 
+const nextPrimitive = () => {} // changes for webGL2
+
 Uint32Array.prototype.addVertexDisp = function (x, y, u, v) {
   var xy = (y << 16) | (x & 0xffff);
   var uv = (v << 16) | (u & 0xffff);

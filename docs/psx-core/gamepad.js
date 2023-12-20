@@ -11,10 +11,11 @@
 		controller = type;
 
 		const elem = document.getElementById('gamepad');
-
-		elem.classList.remove(...elem.classList);
-		elem.classList.add('connected');
-		elem.classList.add(type);
+		if (elem) {
+			elem.classList.remove(...elem.classList);
+			elem.classList.add('connected');
+			elem.classList.add(type);
+		}
 	}
 
 	function enge_gamepad_update() {

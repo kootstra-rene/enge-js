@@ -628,7 +628,7 @@ function flushBuffer(renderer, vertexBuffer, mode) {
 
   if (vertexBuffer.index) {
     gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.GREATER);
+    gl.depthFunc(gl.GEQUAL);
     renderer.setTransparencyMode(mode, renderer.programRenderer);
 
     // console.log(`flush(${mode}):`, vertexBuffer.size());
@@ -696,32 +696,30 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   const gl = renderer.gl;
   const program = renderer.programDisplay;
 
-  canvas.width = region.w * settings.quality;
-  canvas.height = region.h * settings.quality;
+  if ((canvas.width !== region.w * settings.quality) || (canvas.height !== region.h * settings.quality)) {
+    canvas.width = ambilight.canvas.width = region.w * settings.quality;
+    canvas.height = ambilight.canvas.height = region.h * settings.quality;
+  }
   gl.viewport(0, 0, canvas.width, canvas.height);
 
   gl.useProgram(program);
-  gl.uniform1f(program.time, (performance.now() >>> 0) / 1000.0);
   const area = gpu.getDisplayArea();
   gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
   gl.uniform1i(program.mode, mode);
 
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
-
   gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(region), gl.STATIC_DRAW);
 
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
 
   vertexBuffer.reset();
 
   if (canvas.width && canvas.height) {
-    ambilight.canvas.width = canvas.width;
-    ambilight.canvas.height = canvas.height;
     ambilight.drawImage(canvas, 0, 0);
   }
 }
