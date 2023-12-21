@@ -151,7 +151,8 @@
           vec3 blendingColor = 0u == (packetId & 1u) ? v_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0);
           bool transparentPrimitive = 2u == (packetId & 2u);
           bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
-
+          //outColor = vec4(u_alpha, u_alpha, u_alpha, 1.0);
+          //return;
           if (isTransparentPolygonOrRectangle) {
             if (transparentPrimitive) {
               if (tc.a <= 0.0) {
@@ -301,6 +302,7 @@
       int clutIndex = (sbgr >> (bit * 8)) & 0xff;
 
       float v = float(clutIndex) / 255.0;
+      v = v - mod(v,128.0);
       return vec4(v, v, v, 1.0); 
     }
 

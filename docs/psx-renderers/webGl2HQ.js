@@ -55,7 +55,7 @@ class WebGLRenderer {
 
     try {
       this.gl = gl = canvas.getContext("webgl2", {
-        alpha: false,
+        alpha: true,
         antialias: false,
         preserveDrawingBuffer: true,
         premultipliedAlpha: false,
@@ -267,7 +267,7 @@ class WebGLRenderer {
     const gl = this.gl;
     gl.useProgram(program);
 
-    switch (mode & 0xf) {
+    switch (mode & 0x7) {
       case 0: {
         gl.enable(gl.BLEND);
         gl.blendEquation(gl.FUNC_ADD);
@@ -666,7 +666,7 @@ function getVertexBuffer(renderer, data) {
   const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
 
   if (mode !== 4 && mode !== $mode) {
-    // flushVertexBuffer(renderer);
+    flushVertexBuffer(renderer);
     $mode = mode;
   }
   return renderer.buffers[mode];
