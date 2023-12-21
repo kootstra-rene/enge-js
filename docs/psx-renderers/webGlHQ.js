@@ -925,6 +925,7 @@ WebGLRenderer.prototype.drawLine = function (data, c1, xy1, c2, xy2) {
 
 WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
   this.seenRender = true;
+  if ((data[0] & 0x82000000) === 0x80000000>>0) return; //WebGL2 improvement fix;
 
   if (data[0] & 0x01000000) data[c1] = (data[c1] & 0xff000000) | 0x00808080; //- raw-texture
   if (data[0] & 0x01000000) data[c2] = (data[c2] & 0xff000000) | 0x00808080; //- raw-texture
@@ -990,6 +991,7 @@ WebGLRenderer.prototype.drawTriangle = function (data, c1, xy1, c2, xy2, c3, xy3
 WebGLRenderer.prototype.drawRectangle = function (data, tx, ty, cl) {
   this.seenRender = true;
 
+  if ((data[0] & 0x82000000) === 0x80000000>>0) return; //WebGL2 improvement fix;
   if (data[0] & 0x01000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
 
 

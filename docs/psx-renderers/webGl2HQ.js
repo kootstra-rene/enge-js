@@ -42,8 +42,8 @@ class WebGLRenderer {
 
   constructor(cv) {
     canvas = cv;
-    ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
-    ambilight.imageSmoothingEnabled = false;
+    ambilight = document.querySelector('#ambilight');//.getContext('2d', { alpha: false });
+    ambilight && (ambilight.imageSmoothingEnabled = false);
 
     let gl = null;
     this.gl = null;
@@ -136,6 +136,8 @@ class WebGLRenderer {
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4096, 2048, gl.RGBA, gl.UNSIGNED_BYTE, view);
 
       flushDepth(this);
+
+      showDisplay(this);
     }
     else {
       alert("Error: Your browser does not appear to support WebGL.");
@@ -697,8 +699,14 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   const program = renderer.programDisplay;
 
   if ((canvas.width !== region.w * settings.quality) || (canvas.height !== region.h * settings.quality)) {
-    canvas.width = ambilight.canvas.width = region.w * settings.quality;
-    canvas.height = ambilight.canvas.height = region.h * settings.quality;
+    if (ambilight) {
+      ambilight.canvas.width = canvas.width = region.w * settings.quality;
+      ambilight.canvas.height = canvas.height = region.h * settings.quality;  
+    }
+    else {
+      canvas.width = region.w * settings.quality;
+      canvas.height = region.h * settings.quality;  
+    }
   }
   gl.viewport(0, 0, canvas.width, canvas.height);
 
@@ -720,7 +728,7 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   vertexBuffer.reset();
 
   if (canvas.width && canvas.height) {
-    ambilight.drawImage(canvas, 0, 0);
+    ambilight && ambilight.drawImage(canvas, 0, 0);
   }
 }
 
