@@ -185,7 +185,7 @@
 
     wr32r1814: function (data) {
       switch (data >>> 24) {
-        case 0x00: gpu.status = 0x14802000;
+        case 0x00: gpu.status = 0x14820000;
           gpu.dmaIndex = 0;
           /*
             GP1(01h)      ;clear fifo
@@ -224,6 +224,7 @@
           break;
         case 0x07: gpu.dispT = (data >> 0) & 0x3FF;
           gpu.dispB = (data >> 10) & 0x3FF;
+          if (gpu.dispB === 0) gpu.dispB = 288;
           break;
         case 0x08: gpu.status &= 0xFF80FFFF;
           gpu.status |= ((data & 0x3F) << 0x11);
@@ -308,6 +309,7 @@
     handlePacket24: function (data) {
       const packetId = data[0] >>> 24;
       gpu.updateTexturePage(data[4] >>> 16);
+      const textureDepth = (gpu.status >>> 7) & 3;
 
       if ((packetId & 6) === 6) {
         data[0] |= 0x80000000;
@@ -333,6 +335,7 @@
     handlePacket2C: function (data) {
       const packetId = data[0] >>> 24;
       gpu.updateTexturePage(data[4] >>> 16);
+      const textureDepth = (gpu.status >>> 7) & 3;
 
       if ((packetId & 6) === 6) {
         data[0] |= 0x80000000;
@@ -360,11 +363,13 @@
     handlePacket34: function (data) {
       const packetId = data[0] >>> 24;
       gpu.updateTexturePage(data[5] >>> 16);
+      const textureDepth = (gpu.status >>> 7) & 3;
 
       if ((packetId & 6) === 6) {
         data[0] |= 0x80000000;
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
 
+        if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -385,12 +390,14 @@
     handlePacket3C: function (data) {
       const packetId = data[0] >>> 24;
       gpu.updateTexturePage(data[5] >>> 16);
+      const textureDepth = (gpu.status >>> 7) & 3;
 
       if ((packetId & 6) === 6) {
         data[0] |= 0x80000000;
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
         renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
 
+        if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -435,6 +442,7 @@
     // Sprite
     handlePacket64: function (data) {
       const packetId = data[0] >>> 24;
+      const textureDepth = (gpu.status >>> 7) & 3;
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
@@ -442,6 +450,7 @@
         data[0] |= 0x80000000;
         renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
 
+        if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -465,6 +474,7 @@
     // 8*8 sprite
     handlePacket74: function (data) {
       const packetId = data[0] >>> 24;
+      const textureDepth = (gpu.status >>> 7) & 3;
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
@@ -472,6 +482,7 @@
         data[0] |= 0x80000000;
         renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
 
+        if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -490,6 +501,7 @@
     // 16*16 sprite
     handlePacket7C: function (data) {
       const packetId = data[0] >>> 24;
+      const textureDepth = (gpu.status >>> 7) & 3;
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
@@ -497,6 +509,7 @@
         data[0] |= 0x80000000;
         renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
 
+        if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -691,7 +704,7 @@
       let words = 0;
       for (; ;) {
         addr = addr & 0x001fffff;
-        seen.add(addr);
+        // seen.add(addr);
         var header = ram.getInt32(addr, true);
         var nitem = header >>> 24;
         var nnext = header & 0x001fffff;
@@ -711,7 +724,7 @@
             console.warn('invalid packetId:', hex(packetId, 2), hex(header), hex(packetWord));
             return words;
           }
-          if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
+          else if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
             let i = 0;
             for (; i < 4096; ++i) {
               const value = ram.getInt32(addr, true);

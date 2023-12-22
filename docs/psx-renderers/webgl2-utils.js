@@ -110,12 +110,15 @@ const utils = (function () {
    * 
    * @returns vertex-buffer
    */
-  function createVertexBuffer() {
+  function createVertexBuffer(reverse = false) {
     const buffer = new Uint8Array(1024 * 1024);
     const view = new DataView(buffer.buffer);
 
     const bytesPerVertex = 24;
     buffer.addVertex = function(x, y, u, v, c = 0x00808080, cl) {
+      if (reverse) {
+        this.index -= bytesPerVertex;
+      }
       view.setInt16(this.index + 0, x, true);
       view.setInt16(this.index + 2, y, true);
       view.setInt16(this.index + 4, primitiveId, true);
@@ -125,23 +128,38 @@ const utils = (function () {
       view.setUint32(this.index + 14, gpu.twin, true);
       view.setUint16(this.index + 18, cl >>> 0, true);
       view.setUint8(this.index + 20, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
-      this.index += bytesPerVertex;
+      if (!reverse) {
+        this.index += bytesPerVertex;
+      }
     }
 
     buffer.reset = function () {
-      this.index = 0;
+      this.index = reverse ? this.length : 0;
     }
 
     buffer.size  = function () {
+      if (reverse) {
+        return (this.length - this.index) / bytesPerVertex;
+      }
       return this.index / bytesPerVertex;
     }
 
     buffer.view = function () {
+      if (reverse) {
+        return new Uint8Array(this.buffer, this.index, this.length - this.index);
+      }
       return new Uint8Array(this.buffer, 0, this.index);
     }
 
-    buffer.canHold = function(vertices) {
-      return (this.index + (vertices * bytesPerVertex)) < this.length;
+    buffer.base = function () {
+      return reverse ? this.index : 0;
+    }
+    // buffer.canHold = function(vertices) {
+    //   return (this.index + (vertices * bytesPerVertex)) < this.length;
+    // }
+
+    buffer.bytes = function () {
+      return reverse ? this.length - this.index : this.index;
     }
 
     buffer.reset();

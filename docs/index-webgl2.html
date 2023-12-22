@@ -54,7 +54,7 @@
       gl_Position = vec4(a_position, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
-      gl_Position.z = a_position.z / 65535.0;
+      gl_Position.z = (a_position.z / 32768.0);
 
       v_vramCoord = a_texcoord; // texture is 4096x2048
       v_pixelCoord = a_position.xy;
@@ -252,11 +252,11 @@
       col *= vec3(0.98, 1.02, 0.98);
     
       if (resolution.y <= 288.0) {
-        col -= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 0.0 : 0.10; //scanline
+        col -= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 0.0 : 0.05; //scanline
         col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
       }
       else {
-        col -= ((int(uv.y * resolution.y) & 1) == 0) ? 0.0 : 0.10; //scanline
+        col -= ((int(uv.y * resolution.y) & 1) == 0) ? 0.0 : 0.05; //scanline
         col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
       }
 
@@ -302,7 +302,6 @@
       int clutIndex = (sbgr >> (bit * 8)) & 0xff;
 
       float v = float(clutIndex) / 255.0;
-      v = v - mod(v,128.0);
       return vec4(v, v, v, 1.0); 
     }
 

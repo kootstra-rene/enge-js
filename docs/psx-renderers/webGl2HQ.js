@@ -37,12 +37,12 @@ class WebGLRenderer {
     utils.createVertexBuffer(),
     utils.createVertexBuffer(),
     utils.createVertexBuffer(),
-    utils.createVertexBuffer(),
+    utils.createVertexBuffer(true),
   ];
 
   constructor(cv) {
     canvas = cv;
-    ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
+    ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: true });
     ambilight.imageSmoothingEnabled = false;
 
     let gl = null;
@@ -79,6 +79,8 @@ class WebGLRenderer {
       gl.disable(gl.SCISSOR_TEST);
 
       gl.enableVertexAttribArray(0);
+      gl.blendColor(0.0, 0.0, 0.0, 0.0);
+      gl.clearDepth(0.0);
 
       this.displayBuffer = gl.createBuffer();
       this.programDisplay = createProgramDisplay(gl, this.displayBuffer);
@@ -482,7 +484,6 @@ class WebGLRenderer {
   updateDrawArea() {
     if ($gpu.daM) {
       flushVertexBuffer(this);
-      flushDepth(this);
       copyVramToShadowVram(this, true);
       $gpu.daM = false;
 
@@ -515,6 +516,10 @@ class WebGLRenderer {
 
     $gpu.daM = true;
   }
+
+  onVBlankEnd() {
+  }
+
 
   onVBlankBegin() {
     const gl = this.gl;
@@ -562,9 +567,6 @@ class WebGLRenderer {
         showDisplay(this, (gpu.status >> 21) & 0b101, area);
         break;
     }
-  }
-
-  onVBlankEnd() {
   }
 
   setMode(mode) {
@@ -626,9 +628,10 @@ function copyVramToShadowVram(renderer, old = false) {
 function flushBuffer(renderer, vertexBuffer, mode) {
   const gl = renderer.gl;
 
-  if (vertexBuffer.index) {
+  if (vertexBuffer.size()) {
     gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.GEQUAL);
+    gl.depthMask(true);
+    gl.depthFunc(gl.GREATER);
     renderer.setTransparencyMode(mode, renderer.programRenderer);
 
     // console.log(`flush(${mode}):`, vertexBuffer.size());
@@ -638,7 +641,7 @@ function flushBuffer(renderer, vertexBuffer, mode) {
     gl.viewport(0, 0, 4096, 2048); // texture dimensions
 
     gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, 0, vertexBuffer.index);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, vertexBuffer.base(), vertexBuffer.bytes());
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.fb_vram);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
