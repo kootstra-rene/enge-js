@@ -42,7 +42,7 @@ class WebGLRenderer {
 
   constructor(cv) {
     canvas = cv;
-    ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: true });
+    ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
     ambilight.imageSmoothingEnabled = false;
 
     let gl = null;
@@ -55,7 +55,7 @@ class WebGLRenderer {
 
     try {
       this.gl = gl = canvas.getContext("webgl2", {
-        alpha: true,
+        alpha: false,
         antialias: false,
         preserveDrawingBuffer: true,
         premultipliedAlpha: false,
@@ -273,40 +273,28 @@ class WebGLRenderer {
       case 0: {
         gl.enable(gl.BLEND);
         gl.blendEquation(gl.FUNC_ADD);
-        gl.blendFunc(gl.SRC_ALPHA, gl.SRC_ALPHA);
-        if (program.alpha) {
-          gl.uniform1f(program.alpha, 0.50);
-        }
+        gl.blendColor(0.0, 0.0, 0.0, 0.5);
+        gl.blendFuncSeparate(gl.CONSTANT_ALPHA, gl.CONSTANT_ALPHA, gl.ONE, gl.ZERO);
       } break;
       case 1: {
         gl.enable(gl.BLEND);
         gl.blendEquation(gl.FUNC_ADD);
-        gl.blendFunc(gl.ONE, gl.ONE);
-        if (program.alpha) {
-          gl.uniform1f(program.alpha, 1.00);
-        }
+        gl.blendColor(0.0, 0.0, 0.0, 1.0);
+        gl.blendFuncSeparate(gl.CONSTANT_ALPHA, gl.CONSTANT_ALPHA, gl.ONE, gl.ZERO);
       } break;
       case 2: {
         gl.enable(gl.BLEND);
-        gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
-        gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR);
-        if (program.alpha) {
-          gl.uniform1f(program.alpha, 1.00);
-        }
+        gl.blendEquationSeparate(gl.FUNC_REVERSE_SUBTRACT, gl.FUNC_ADD);
+        gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR, gl.ONE, gl.ZERO);
       } break;
       case 3: {
         gl.enable(gl.BLEND);
         gl.blendEquation(gl.FUNC_ADD);
-        gl.blendFunc(gl.ONE_MINUS_SRC_ALPHA, gl.ONE);
-        if (program.alpha) {
-          gl.uniform1f(program.alpha, 0.75);
-        }
+        gl.blendColor(0.0, 0.0, 0.0, 0.75);
+        gl.blendFuncSeparate(gl.ONE_MINUS_CONSTANT_ALPHA, gl.ONE, gl.ONE, gl.ZERO);
       } break;
       case 4: {
         gl.disable(gl.BLEND);
-        if (program.alpha) {
-          gl.uniform1f(program.alpha, 0.00);
-        }
       } break;
     }
   }
@@ -485,10 +473,9 @@ class WebGLRenderer {
     if ($gpu.daM) {
       flushVertexBuffer(this);
       copyVramToShadowVram(this, true);
+      // flushDepth(this);
       $gpu.daM = false;
 
-      this.gl.useProgram(this.programDisplay);
-      this.gl.uniform4i(this.programDisplay.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
       this.gl.useProgram(this.programRenderer);
       this.gl.uniform4i(this.programRenderer.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
     }
@@ -520,19 +507,19 @@ class WebGLRenderer {
   onVBlankEnd() {
   }
 
-
   onVBlankBegin() {
     const gl = this.gl;
-
-    flushVertexBuffer(this);
-    flushDepth(this);
-
-    copyVramToShadowVram(this);
 
     $stats.dump();
 
     ++this.fpsCounter;
     if (this.seenRender) {
+      flushVertexBuffer(this);
+      flushDepth(this);
+      copyVramToShadowVram(this, false, true);
+
+      // syncVramToShadowVram(this);
+
       ++this.fpsRenderCounter;
       this.seenRender = false;
     }
@@ -609,19 +596,42 @@ function flushDepth(renderer) {
   gl.disable(gl.DEPTH_TEST);
 }
 
-function copyVramToShadowVram(renderer, old = false) {
+function syncVramToShadowVram(renderer) {
   const gl = renderer.gl;
-  const X1 = 4 * (old ? $gpu.daLold : $gpu.daL);
-  const Y1 = 4 * (old ? $gpu.daTold : $gpu.daT);
-  const X2 = 4 * (old ? $gpu.daRold : $gpu.daR + 1);
-  const Y2 = 4 * (old ? $gpu.daBold : $gpu.daB + 1);
   // blit from vram -> vramShadow
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
   gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
   gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.fb_vramShadow);
   gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vramShadow, 0);
-  gl.blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.blitFramebuffer(0, 0, 4096, 2048, 0, 0, 4096, 2048, gl.COLOR_BUFFER_BIT, gl.NEAREST);
 
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+function copyVramToShadowVram(renderer, old = false, display = false) {
+  const gl = renderer.gl;
+
+  if (!display) {
+    const X1 = 4 * (old ? $gpu.daLold : $gpu.daL);
+    const Y1 = 4 * (old ? $gpu.daTold : $gpu.daT);
+    const X2 = 4 * (old ? $gpu.daRold : $gpu.daR + 1);
+    const Y2 = 4 * (old ? $gpu.daBold : $gpu.daB + 1);
+    // blit from vram -> vramShadow
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
+    gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.fb_vramShadow);
+    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vramShadow, 0);
+    gl.blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  }
+  else {
+    const { x, y, w, h } = gpu.getDisplayArea();
+    // blit from vram -> vramShadow
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
+    gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.fb_vramShadow);
+    gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vramShadow, 0);
+    gl.blitFramebuffer(4*x, 4*y, 4*(x + w), 4*(y + h), 4*x, 4*y, 4*(x + w), 4*(y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
@@ -649,8 +659,6 @@ function flushBuffer(renderer, vertexBuffer, mode) {
 
     gl.bindTexture(gl.TEXTURE_2D, renderer.vramShadow);
     gl.drawArrays(gl.TRIANGLES, 0, vertexBuffer.size());
-
-    copyVramToShadowVram(renderer);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     vertexBuffer.reset();
@@ -681,6 +689,8 @@ function flushVertexBuffer(renderer) {
   for (let i = 4; i >= 0; --i) {
     flushBuffer(renderer, renderer.buffers[i], i);
   }
+  // copyVramToShadowVram(renderer);
+  // flushDepth(renderer);
 }
 
 function getDisplayArrays(area) {
@@ -709,11 +719,12 @@ function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
   const area = gpu.getDisplayArea();
   gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
   gl.uniform1i(program.mode, mode);
+  gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(region), gl.STATIC_DRAW);
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
@@ -759,7 +770,6 @@ function createProgramRenderer(gl, renderBuffer) {
   gl.useProgram(program);
 
   program.drawArea = gl.getUniformLocation(program, "u_draw");
-  program.alpha = gl.getUniformLocation(program, "u_alpha");
 
   program.vertexPosition = gl.getAttribLocation(program, "a_position");
   gl.enableVertexAttribArray(program.vertexPosition);

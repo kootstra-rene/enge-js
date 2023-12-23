@@ -76,7 +76,6 @@
     precision highp int;
 
     uniform sampler2D u_texture;
-    uniform float u_alpha;
     uniform ivec4 u_draw;
 
     in vec2 v_vramCoord;
@@ -129,11 +128,12 @@
     }
 
     void main() { outColor = vec4(1.0,1.0,1.0,1.0);
+      bool transparentPrimitive = 2u == (packetId & 2u);
       ivec2 texel = ivec2(v_pixelCoord).xy;
 
       if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
         if (0x00u == (packetId & 0x04u)) {
-          outColor = vec4(v_color.rgb, u_alpha);
+          outColor = vec4(v_color.rgb, transparentPrimitive ? 1.0 : 0.0);
         }
         else {
           vec4 tc;
@@ -149,17 +149,14 @@
           if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 
           vec3 blendingColor = 0u == (packetId & 1u) ? v_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0);
-          bool transparentPrimitive = 2u == (packetId & 2u);
           bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
-          //outColor = vec4(u_alpha, u_alpha, u_alpha, 1.0);
-          //return;
           if (isTransparentPolygonOrRectangle) {
             if (transparentPrimitive) {
               if (tc.a <= 0.0) {
                 discard;
               }
               else {
-                outColor = vec4(tc.rgb * blendingColor, u_alpha);
+                outColor = vec4(tc.rgb * blendingColor, 1.0);
               }
             }
             else {
@@ -167,13 +164,18 @@
                 discard;
               }
               else {
-                outColor = vec4(tc.rgb * blendingColor, tc.a);
+                outColor = vec4(tc.rgb * blendingColor, 1.0);
               }
             }
           }
           else {
             if (transparentPrimitive) {
-              outColor = vec4(tc.rgb * blendingColor, u_alpha);
+              if (tc.a <= 0.0) {
+                discard;
+              }
+              else {
+                outColor = vec4(tc.rgb * blendingColor, 1.0);
+              }
             }
             else {
               outColor = vec4(tc.rgb * blendingColor, tc.a);
@@ -354,7 +356,7 @@
         outColor = color;
       }
     }
-    </script>
+  </script>
 </head>
 
 <body onload="init();">

@@ -98,8 +98,8 @@
   }
 
   function emulate(stamp) {
-    window.requestAnimationFrame(emulate);
     mainLoop(stamp);
+    requestAnimationFrame(emulate);
   }
 
   function bios() {
