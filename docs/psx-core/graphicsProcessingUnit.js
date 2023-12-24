@@ -85,17 +85,17 @@
         var t = gpu.dispT % 240; var b = Math.min(gpu.dispB, 263);
       }
       var dispH = b - t;
-      var dispW = gpu.dispR - gpu.dispL;
+      // var dispW = gpu.dispR - gpu.dispL;
 
-      var maxwidth = gpu.maxwidths[(gpu.status >> 16) & 7];
-      var width = dispW / gpu.widths[(gpu.status >> 16) & 7];
-      width = Math.min(maxwidth, (width + 2) & ~3);
+      // var maxwidth = gpu.maxwidths[(gpu.status >> 16) & 7];
+      // var width = dispW / gpu.widths[(gpu.status >> 16) & 7];
+      // width = Math.min(maxwidth, (width + 2) & ~3);
 
       var maxheight = gpu.maxheights[(gpu.status >> 19) & 3];
       var height = gpu.heights[(gpu.status >> 19) & 3] * dispH;
       height = Math.min(maxheight, height);
 
-      return { x: gpu.dispX, y: gpu.dispY, w: width, h: height };
+      return { x: gpu.dispX, y: gpu.dispY, w: gpu.dispW, h: height };
     },
 
     onScanLine: function (scanline) {
@@ -201,6 +201,7 @@
 
           gpu.dispL = 512;
           gpu.dispR = 512 + 2560;
+          gpu.dispW = 320;
           gpu.dispT = 16;
           gpu.dispB = 256;
           gpu.dispX = 0;
@@ -221,10 +222,17 @@
           break;
         case 0x06: gpu.dispL = (data >> 0) & 0xFFF;
           gpu.dispR = (data >> 12) & 0xFFF;
+          console.log(gpu.dispL, gpu.dispR, (gpu.status >> 16) & 7);
+          var dispW = gpu.dispR - gpu.dispL;
+
+          var maxwidth = gpu.maxwidths[(gpu.status >> 16) & 7];
+          var width = dispW / gpu.widths[(gpu.status >> 16) & 7];
+          gpu.dispW = Math.min(maxwidth, (width + 2) & ~3);
+    
           break;
         case 0x07: gpu.dispT = (data >> 0) & 0x3FF;
           gpu.dispB = (data >> 10) & 0x3FF;
-          if (gpu.dispB === 0) gpu.dispB = 288;
+          if (gpu.dispB < gpu.dispT) gpu.dispB += 288;
           break;
         case 0x08: gpu.status &= 0xFF80FFFF;
           gpu.status |= ((data & 0x3F) << 0x11);
