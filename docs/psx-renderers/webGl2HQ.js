@@ -473,7 +473,8 @@ class WebGLRenderer {
     if ($gpu.daM) {
       flushVertexBuffer(this);
       copyVramToShadowVram(this, true);
-      // flushDepth(this);
+      // copyVramToShadowVram(this, false, true);
+      flushDepth(this);
       $gpu.daM = false;
 
       this.gl.useProgram(this.programRenderer);
@@ -504,10 +505,10 @@ class WebGLRenderer {
     $gpu.daM = true;
   }
 
-  onVBlankEnd() {
+  onVBlankBegin() {
   }
 
-  onVBlankBegin() {
+  onVBlankEnd() {
     const gl = this.gl;
 
     $stats.dump();
@@ -515,7 +516,7 @@ class WebGLRenderer {
     ++this.fpsCounter;
     if (this.seenRender) {
       flushVertexBuffer(this);
-      flushDepth(this);
+      // flushDepth(this);
       copyVramToShadowVram(this, false, true);
 
       // syncVramToShadowVram(this);

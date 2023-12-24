@@ -315,6 +315,7 @@
         data[0] |= 0x80000000;
         renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
 
+        // if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -342,6 +343,7 @@
         renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
         renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
 
+        // if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -369,7 +371,7 @@
         data[0] |= 0x80000000;
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
 
-        if (textureDepth >= 2) return;
+        // if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -397,7 +399,7 @@
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
         renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
 
-        if (textureDepth >= 2) return;
+        // if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -450,7 +452,7 @@
         data[0] |= 0x80000000;
         renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
 
-        if (textureDepth >= 2) return;
+        // if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -482,7 +484,7 @@
         data[0] |= 0x80000000;
         renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
 
-        if (textureDepth >= 2) return;
+        // if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
@@ -509,7 +511,7 @@
         data[0] |= 0x80000000;
         renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
 
-        if (textureDepth >= 2) return;
+        // if (textureDepth >= 2) return;
         nextPrimitive();
 
         data[0] &= ~0x02000000;
