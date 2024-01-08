@@ -980,7 +980,7 @@
 			}
 			return 0;
 		},
-		optimise: function (entry) {
+		optimise: function (entry) {return;
 			if ((psx.clock - entry.clock) < 1024) {
 				const loopSize = CodeTrace.detectLoop(entry);
 				if (loopSize) {

@@ -506,6 +506,7 @@ class WebGLRenderer {
   }
 
   onVBlankBegin() {
+    // console.log('onVBlankBegin')
   }
 
   onVBlankEnd() {
@@ -516,8 +517,9 @@ class WebGLRenderer {
     ++this.fpsCounter;
     if (this.seenRender) {
       flushVertexBuffer(this);
-      // flushDepth(this);
+      flushDepth(this);
       copyVramToShadowVram(this, false, true);
+      // console.log('onVBlankEnd')
 
       // syncVramToShadowVram(this);
 
