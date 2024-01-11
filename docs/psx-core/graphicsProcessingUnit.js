@@ -63,7 +63,6 @@
     frame: 0,
     internalFrame: 0,
     updated: false,
-    vram: new Uint16Array(1024 * 512),
 
     cyclesToDotClock: function (cycles) {
       switch ((gpu.status >> 16) & 7) {
@@ -207,6 +206,13 @@
           gpu.dispB = 256;
           gpu.dispX = 0;
           gpu.dispY = 0;
+          gpu.handlePacketE1([0]);
+          gpu.handlePacketE2([0]);
+          gpu.handlePacketE3([0]);
+          gpu.handlePacketE4([0]);
+          gpu.handlePacketE5([0]);
+          gpu.handlePacketE6([0]);
+          renderer.updateDrawArea?.call(renderer);
           break;
         case 0x01: gpu.status |= 0x70000000;
           gpu.dmaIndex = 0;
@@ -233,13 +239,10 @@
           gpu.dispB = (data >> 10) & 0x3FF;
           if (gpu.dispB < gpu.dispT) gpu.dispB += 288;
           break;
-        case 0x08: 
-          // const before = gpu.widths[(gpu.status >> 16) & 7];
+        case 0x08:
           gpu.status &= 0xFF80FFFF;
           gpu.status |= ((data & 0x3F) << 0x11);
           gpu.status |= ((data & 0x40) ? 0x010000 : 0x000000);
-          // const after = gpu.widths[(gpu.status >> 16) & 7];
-          // gpu.dispW = (gpu.dispW * before) / after;
           break;
         case 0x10:
           switch (data & 0xf) {
@@ -316,25 +319,29 @@
       renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
     },
 
-    // Textured 3 point polygon
-    handlePacket24: function (data) {
+    renderTexture: function (data, cb) {
       const packetId = data[0] >>> 24;
-      gpu.updateTexturePage(data[4] >>> 16);
-      const textureDepth = (gpu.status >>> 7) & 3;
 
       if ((packetId & 6) === 6) {
         data[0] |= 0x80000000;
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+        cb();
 
-        // if (textureDepth >= 2) return;
         nextPrimitive();
-
         data[0] &= ~0x02000000;
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+        cb();
       }
       else {
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+        cb();
       }
+    },
+
+    // Textured 3 point polygon
+    handlePacket24: function (data) {
+      gpu.updateTexturePage(data[4] >>> 16);
+
+      this.renderTexture(data, () => {
+        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+      });
     },
 
     // Monochrome 4 point polygon
@@ -345,26 +352,12 @@
 
     // Textured 4 point polygon
     handlePacket2C: function (data) {
-      const packetId = data[0] >>> 24;
       gpu.updateTexturePage(data[4] >>> 16);
-      const textureDepth = (gpu.status >>> 7) & 3;
 
-      if ((packetId & 6) === 6) {
-        data[0] |= 0x80000000;
+      this.renderTexture(data, () => {
         renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
         renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
-
-        // if (textureDepth >= 2) return;
-        nextPrimitive();
-
-        data[0] &= ~0x02000000;
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-        renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
-      }
-      else {
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-        renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
-      }
+      });
     },
 
     // Gradated 3 point polygon
@@ -374,23 +367,11 @@
 
     // Gradated textured 3 point polygon
     handlePacket34: function (data) {
-      const packetId = data[0] >>> 24;
       gpu.updateTexturePage(data[5] >>> 16);
-      const textureDepth = (gpu.status >>> 7) & 3;
 
-      if ((packetId & 6) === 6) {
-        data[0] |= 0x80000000;
+      this.renderTexture(data, () => {
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-
-        // if (textureDepth >= 2) return;
-        nextPrimitive();
-
-        data[0] &= ~0x02000000;
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-      }
-      else {
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-      }
+      });
     },
 
     // Gradated 4 point polygon
@@ -401,26 +382,12 @@
 
     // Gradated textured 4 point polygon
     handlePacket3C: function (data) {
-      const packetId = data[0] >>> 24;
       gpu.updateTexturePage(data[5] >>> 16);
-      const textureDepth = (gpu.status >>> 7) & 3;
 
-      if ((packetId & 6) === 6) {
-        data[0] |= 0x80000000;
+      this.renderTexture(data, () => {
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
         renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
-
-        // if (textureDepth >= 2) return;
-        nextPrimitive();
-
-        data[0] &= ~0x02000000;
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-        renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
-      }
-      else {
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-        renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
-      }
+      });
     },
 
     // Monochrome line
@@ -454,24 +421,12 @@
 
     // Sprite
     handlePacket64: function (data) {
-      const packetId = data[0] >>> 24;
-      const textureDepth = (gpu.status >>> 7) & 3;
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
-      if ((packetId & 6) === 6) {
-        data[0] |= 0x80000000;
+      this.renderTexture(data, () => {
         renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
-
-        // if (textureDepth >= 2) return;
-        nextPrimitive();
-
-        data[0] &= ~0x02000000;
-        renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
-      }
-      else {
-        renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
-      }
+      });
     },
 
     // Dot
@@ -486,24 +441,12 @@
 
     // 8*8 sprite
     handlePacket74: function (data) {
-      const packetId = data[0] >>> 24;
-      const textureDepth = (gpu.status >>> 7) & 3;
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
-      if ((packetId & 6) === 6) {
-        data[0] |= 0x80000000;
+      this.renderTexture(data, () => {
         renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
-
-        // if (textureDepth >= 2) return;
-        nextPrimitive();
-
-        data[0] &= ~0x02000000;
-        renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
-      }
-      else {
-        renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
-      }
+      });
     },
 
     // 16*16 rectangle
@@ -513,24 +456,12 @@
 
     // 16*16 sprite
     handlePacket7C: function (data) {
-      const packetId = data[0] >>> 24;
-      const textureDepth = (gpu.status >>> 7) & 3;
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
-      if ((packetId & 6) === 6) {
-        data[0] |= 0x80000000;
+      this.renderTexture(data, () => {
         renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
-
-        // if (textureDepth >= 2) return;
-        nextPrimitive();
-
-        data[0] &= ~0x02000000;
-        renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
-      }
-      else {
-        renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
-      }
+      });
     },
 
     // Move image in framebuffer
@@ -646,17 +577,6 @@
     },
 
     imgTransferComplete: function (img) {
-      var o = 0;
-      var data = img.buffer;
-      var vram = this.vram;
-      for (var j = 0; j < img.h; ++j) {
-        const offsetY = ((img.y + j) % 512) * 1024;
-        var x = img.x;
-        for (var i = img.w; i > 0; --i) {
-          vram[offsetY + ((x++) % 1024)] = data[o++];
-        }
-      }
-
       renderer.storeImage(gpu.img);
       gpu.status |= 0x10000000;
     },

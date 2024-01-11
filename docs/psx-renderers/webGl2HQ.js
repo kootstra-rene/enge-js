@@ -435,13 +435,13 @@ class WebGLRenderer {
     var y = (data[1] << 0) >>> 16;
     var w = (data[2] << 16) >>> 16;
     var h = (data[2] << 0) >>> 16;
-    var c = (data[0] & 0x00ffffff);
+    var c = (data[0] & 0x00f8f8f8);
+    if (!w && !h) return;
 
     x = (x & 0x3f0);
     y = (y & 0x1ff);
     w = ((w & 0x3ff) + 15) & ~15;
     h = (h & 0x1ff);
-    if (!w && !h) return;
 
     transfer.fill(c, 0, w * h);
 
@@ -473,7 +473,6 @@ class WebGLRenderer {
     if ($gpu.daM) {
       flushVertexBuffer(this);
       copyVramToShadowVram(this, true);
-      // copyVramToShadowVram(this, false, true);
       flushDepth(this);
       $gpu.daM = false;
 
@@ -521,8 +520,6 @@ class WebGLRenderer {
       copyVramToShadowVram(this, false, true);
       // console.log('onVBlankEnd')
 
-      // syncVramToShadowVram(this);
-
       ++this.fpsRenderCounter;
       this.seenRender = false;
     }
@@ -561,11 +558,12 @@ class WebGLRenderer {
 
   setMode(mode) {
     this.mode = mode;
+    this.seenRender = true;
   }
 }
 
 function getColor(data, index = 0) {
-  return (data[0] & 0xff000000) | (data[index] & 0x00ffffff);
+  return (data[0] & 0xff000000) | (data[index] & 0x00f8f8f8);
 
   var c;
   if (data[0] & 0x04000000) {
@@ -599,18 +597,6 @@ function flushDepth(renderer) {
   gl.disable(gl.DEPTH_TEST);
 }
 
-function syncVramToShadowVram(renderer) {
-  const gl = renderer.gl;
-  // blit from vram -> vramShadow
-  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
-  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
-  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.fb_vramShadow);
-  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vramShadow, 0);
-  gl.blitFramebuffer(0, 0, 4096, 2048, 0, 0, 4096, 2048, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-}
-
 function copyVramToShadowVram(renderer, old = false, display = false) {
   const gl = renderer.gl;
 
@@ -633,7 +619,7 @@ function copyVramToShadowVram(renderer, old = false, display = false) {
     gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.fb_vramShadow);
     gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vramShadow, 0);
-    gl.blitFramebuffer(4*x, 4*y, 4*(x + w), 4*(y + h), 4*x, 4*y, 4*(x + w), 4*(y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
   }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }

@@ -808,13 +808,13 @@
 		
 		entry.text = lines.join('\n');
 		if (!entry.opt) {
-			lines.push(`if (this.count >= 1000) {`);
-			lines.push('  CodeTrace.optimise(this);');
-			lines.push('}');
+			// lines.push(`if (this.count >= 1000) {`);
+			// lines.push('  CodeTrace.optimise(this);');
+			// lines.push('}');
 		}
-		lines.push(' ');
-		lines.push(`this.clock = psx.clock;`);
-		lines.push(`++this.count;`);
+		// lines.push(' ');
+		// lines.push(`this.clock = psx.clock;`);
+		// lines.push(`++this.count;`);
 		lines.push(' ');
 		lines.push('return target;');
 		lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);

@@ -27,4 +27,8 @@
 
 	scope.settings = settings;
 
+	window.addEventListener('storage', () => {
+		const object = JSON.parse(localStorage.getItem('config') || '{}');
+		Object.assign(settings, object);
+  });
 })(window);

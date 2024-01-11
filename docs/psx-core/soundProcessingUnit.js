@@ -66,7 +66,7 @@
 		getInt16: function (addr) {
 			switch (addr) {
 				case 0x1daa: return this.SPUCNT;
-				case 0x1dae: return this.SPUSTAT;
+				case 0x1dae: return (this.SPUSTAT & ~0x3f) | (this.SPUCNT & 0x3f);
 				case 0x1d9c: return this.ENDX;
 				default:
 					if ((addr >= 0x1c00) && (addr < 0x1d80)) {

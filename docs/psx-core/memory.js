@@ -185,7 +185,7 @@
           return map[addr >>> 2] >> 0;
         }
         if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
-          return spu.getInt16(addr & 0x3fff);
+          return (spu.getInt16(addr & 0x3fff) & 0xffff) | (spu.getInt16((addr+2) & 0x3fff) << 16);
         }
         break;
     }
@@ -345,7 +345,15 @@
       case 0x1820: mdc.wr32r1820(data); break;
       case 0x1824: mdc.wr32r1824(data); break;
 
-      default: abort(`w32: unable to store at $${hex(addr, 8)}`);
+      default:
+        if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
+          map[addr >>> 2] = data;
+          spu.setInt16((addr+0) & 0x3fff, data >>> 0);
+          spu.setInt16((addr+2) & 0x3fff, data >>> 16);
+          return;
+        }
+        abort(`w32: unable to store at $${hex(addr, 8)}`);
+        break;
     }
   }
 

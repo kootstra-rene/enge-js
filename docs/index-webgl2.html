@@ -42,7 +42,7 @@
     in float a_clut;
 
     out vec2 v_vramCoord;
-    out vec4 v_color;
+    out vec3 v_color;
     out vec2 v_pixelCoord;
     flat out uint v_textureMode;
     flat out ivec2 v_texturePage;
@@ -58,12 +58,14 @@
 
       v_vramCoord = a_texcoord; // texture is 4096x2048
       v_pixelCoord = a_position.xy;
-      v_color = vec4(a_color.rgb, 1.0);
+      //v_color = vec4(a_color.rgb, 1.0);
       v_textureMode = uint(mod(a_tmode, 4.0));
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
       float tpy = mod(floor(a_tmode / 64.0), 2.0);
       v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
       packetId = uint(a_color.a * 255.0);
+      v_color = 4u == (packetId & 4u) ? 0u == (packetId & 1u) ? a_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0) : a_color.rgb;
+
       float cx = mod(floor(a_clut / 1.0), 64.0) * 16.0;
       float cy = mod(floor(a_clut / 64.0), 512.0);
       clut = ivec2(int(cx), int(cy));
@@ -79,7 +81,7 @@
     uniform ivec4 u_draw;
 
     in vec2 v_vramCoord;
-    in vec4 v_color;
+    in vec3 v_color;
     in vec2 v_pixelCoord;
     flat in uint v_textureMode;
     flat in ivec2 v_texturePage;
@@ -127,13 +129,13 @@
       return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
     }
 
-    void main() { outColor = vec4(1.0,1.0,1.0,1.0);
+    void main() {
       bool transparentPrimitive = 2u == (packetId & 2u);
       ivec2 texel = ivec2(v_pixelCoord).xy;
 
       if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
         if (0x00u == (packetId & 0x04u)) {
-          outColor = vec4(v_color.rgb, transparentPrimitive ? 1.0 : 0.0);
+          outColor = vec4(v_color, transparentPrimitive ? 1.0 : 0.0);
         }
         else {
           vec4 tc;
@@ -148,7 +150,6 @@
 
           if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 
-          vec3 blendingColor = 0u == (packetId & 1u) ? v_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0);
           bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
           if (isTransparentPolygonOrRectangle) {
             if (transparentPrimitive) {
@@ -156,7 +157,7 @@
                 discard;
               }
               else {
-                outColor = vec4(tc.rgb * blendingColor, 1.0);
+                outColor = vec4(tc.rgb * v_color, 1.0);
               }
             }
             else {
@@ -164,7 +165,7 @@
                 discard;
               }
               else {
-                outColor = vec4(tc.rgb * blendingColor, 1.0);
+                outColor = vec4(tc.rgb * v_color, 1.0);
               }
             }
           }
@@ -174,11 +175,11 @@
                 discard;
               }
               else {
-                outColor = vec4(tc.rgb * blendingColor, 1.0);
+                outColor = vec4(tc.rgb * v_color, 1.0);
               }
             }
             else {
-              outColor = vec4(tc.rgb * blendingColor, tc.a);
+              outColor = vec4(tc.rgb * v_color, tc.a);
             }
           }
         }

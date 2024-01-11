@@ -177,9 +177,7 @@
     }
     else if (true || view.getUint32(0, true) === (0xffffff00 >>> 0)) { // ISO
       // auto build TOC (attempt to not need .cue files)
-      let loc = 0;
       let lastLoc = (arrayBuffer.byteLength / 4) / (2352 / 4);
-      let type = 0; // data
       let tracks = [];
 
       tracks.push({ id: 0, begin: 0, end: lastLoc });
@@ -188,7 +186,7 @@
         let mask1 = view.getInt32(startLoc * sectorLength + 0, true) >>> 0;
         let mask2 = view.getInt32(startLoc * sectorLength + 4, true) >>> 0;
         let mask3 = view.getInt32(startLoc * sectorLength + 8, true) >>> 0;
-        return (mask1 === 0xffffff00 && mask2 === 0xffffffff && mask3 === 0x00ffffff);
+        return (mask1 === 0xffffff00 && mask2 === 0xffffffff && mask3 === 0x00ffffff) || (!mask1 && !mask2 && !mask3);
       }
 
       function isEmptySector(startLoc) {
@@ -199,7 +197,7 @@
         return (mask >>> 0) === (0x00000000 >>> 0);
       }
 
-      let begin, end, lead, track = 0;
+      let begin, end, lead;
 
       let i = 0;
       begin = i;
