@@ -1,8 +1,6 @@
-(scope => {
+mdlr('enge:psx:cdr', m => {
 
-	'use strict';
-
-	var itob = function (i) {
+  var itob = function (i) {
 		return (Math.floor(i / 10) * 16 + Math.floor(i % 10));
 	}
 	var btoi = function (b) {
@@ -328,7 +326,8 @@
 				case 0x0F: this.enqueueEvent(3, 0x02, cdr.mode, 0, cdr.filter.file, cdr.filter.chan);
 					break;
 
-				case 0x10: cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 0));
+				case 0x10:
+					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 0));
 					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 1));
 					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 2));
 					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 3));
@@ -808,6 +807,7 @@
 		}
 	}
 
-	scope.cdr = Object.seal(cdr);
-
-})(window);
+  return {
+    cdr: Object.seal(cdr)
+  }
+})

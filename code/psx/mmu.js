@@ -1,6 +1,4 @@
-(scope => {
-
-  'use strict';
+mdlr('enge:psx:mmu', m => {
 
   const map = new Int32Array(0x02000000 >> 2);
   const map8 = new Int8Array(map.buffer);
@@ -185,7 +183,7 @@
           return map[addr >>> 2] >> 0;
         }
         if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
-          return (spu.getInt16(addr & 0x3fff) & 0xffff) | (spu.getInt16((addr+2) & 0x3fff) << 16);
+          return (spu.getInt16(addr & 0x3fff) & 0xffff) | (spu.getInt16((addr + 2) & 0x3fff) << 16);
         }
         break;
     }
@@ -348,8 +346,8 @@
       default:
         if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
           map[addr >>> 2] = data;
-          spu.setInt16((addr+0) & 0x3fff, data >>> 0);
-          spu.setInt16((addr+2) & 0x3fff, data >>> 16);
+          spu.setInt16((addr + 0) & 0x3fff, data >>> 0);
+          spu.setInt16((addr + 2) & 0x3fff, data >>> 16);
           return;
         }
         abort(`w32: unable to store at $${hex(addr, 8)}`);
@@ -376,17 +374,8 @@
     abort(`w32: unable to store at $${hex(base, 8)}`)
   }
 
-  scope.map = map;
-  scope.map8 = map8;
-  scope.map16 = map16;
+  return {
+    map, map8, map16, ram, rom, memRead8, memRead16, memRead32, memWrite8, memWrite16, memWrite32
+  }
 
-  scope.memRead8 = memRead8;
-  scope.memRead16 = memRead16;
-  scope.memRead32 = memRead32;
-  scope.memWrite8 = memWrite8;
-  scope.memWrite16 = memWrite16;
-  scope.memWrite32 = memWrite32;
-
-  scope.ram = ram;
-  scope.rom = rom;
-})(window);
+})

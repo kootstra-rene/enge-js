@@ -1,6 +1,4 @@
-(scope => {
-
-  'use strict';
+mdlr('enge:psx:gpu', m => {
 
   const missing = new Set;
 
@@ -33,6 +31,7 @@
     dispT: 16,
     dispX: 0,
     dispY: 0,
+    dispW: 0,
     dmaBuffer: new Int32Array(4096),
     dmaIndex: 0,
     drawAreaX1: 0,
@@ -62,7 +61,6 @@
     frame: 0,
     internalFrame: 0,
     updated: false,
-    vram: new Uint16Array(1024 * 512),
 
     cyclesToDotClock: function (cycles) {
       switch ((gpu.status >> 16) & 7) {
@@ -75,41 +73,6 @@
         case 6: return +(cycles * 11.0 / 7.0 / 4.0);
         case 7: return +(cycles * 11.0 / 7.0 / 7.0);
       }
-    },
-
-    getClutInfo: function (cl, data) {
-      const transparentPrimitive = !!(data[0] & 0x02000000);
-      const opaqueLimit = !transparentPrimitive ? 0x8000 : 0x7fff;
-
-      var tm = Math.min(((gpu.status >> 7) & 3), 2);
-
-      var cx = ((cl >>> 0) & 0x03f) * 16;
-      var cy = ((cl >>> 6) & 0x1ff);
-
-      if (tm === 2) return 3;
-      if (tm === 1) var len = 256;
-      if (tm === 0) var len = 16;
-
-      var info = 0;
-      var offs = 1024 * cy + cx;
-      var vram = this.vram;
-      while (--len >= 0) {
-        var pixel = vram[offs++];
-        if (pixel !== 0) {
-          if (pixel <= opaqueLimit) {
-            info |= 1; // STP:0  // opaque colors in clut
-          }
-          else {
-            info |= 2; // STP:1  // transparent colors in clut
-          }
-        }
-      }
-
-      if (!transparentPrimitive) {
-        // no transparent colors in non-transparent primitves
-        info &= ~2;
-      }
-      return info;
     },
 
     getDisplayArea: function () {
@@ -204,6 +167,7 @@
 
         if (gpu.dmaIndex === gpu.packetSize) {
           var packetId = gpu.dmaBuffer[0] >>> 24;
+          nextPrimitive();
           gpu.handlers[packetId].call(this, gpu.dmaBuffer);
           gpu.dmaIndex = 0;
         }
@@ -219,7 +183,7 @@
 
     wr32r1814: function (data) {
       switch (data >>> 24) {
-        case 0x00: gpu.status = 0x14802000;
+        case 0x00: gpu.status = 0x14820000;
           gpu.dmaIndex = 0;
           /*
             GP1(01h)      ;clear fifo
@@ -235,10 +199,18 @@
 
           gpu.dispL = 512;
           gpu.dispR = 512 + 2560;
+          gpu.dispW = 320;
           gpu.dispT = 16;
           gpu.dispB = 256;
           gpu.dispX = 0;
           gpu.dispY = 0;
+          gpu.handlePacketE1([0]);
+          gpu.handlePacketE2([0]);
+          gpu.handlePacketE3([0]);
+          gpu.handlePacketE4([0]);
+          gpu.handlePacketE5([0]);
+          gpu.handlePacketE6([0]);
+          renderer.updateDrawArea?.call(renderer);
           break;
         case 0x01: gpu.status |= 0x70000000;
           gpu.dmaIndex = 0;
@@ -255,11 +227,18 @@
           break;
         case 0x06: gpu.dispL = (data >> 0) & 0xFFF;
           gpu.dispR = (data >> 12) & 0xFFF;
+          var dispW = gpu.dispR - gpu.dispL;
+
+          var maxwidth = gpu.maxwidths[(gpu.status >> 16) & 7];
+          var width = dispW / gpu.widths[(gpu.status >> 16) & 7];
+          gpu.dispW = Math.min(maxwidth, (width + 2) & ~3);
           break;
         case 0x07: gpu.dispT = (data >> 0) & 0x3FF;
           gpu.dispB = (data >> 10) & 0x3FF;
+          if (gpu.dispB < gpu.dispT) gpu.dispB += 288;
           break;
-        case 0x08: gpu.status &= 0xFF80FFFF;
+        case 0x08:
+          gpu.status &= 0xFF80FFFF;
           gpu.status |= ((data & 0x3F) << 0x11);
           gpu.status |= ((data & 0x40) ? 0x010000 : 0x000000);
           break;
@@ -338,22 +317,29 @@
       renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
     },
 
+    renderTexture: function (data, cb) {
+      const packetId = data[0] >>> 24;
+
+      if ((packetId & 6) === 6) {
+        data[0] |= 0x80000000;
+        cb();
+
+        nextPrimitive();
+        data[0] &= ~0x02000000;
+        cb();
+      }
+      else {
+        cb();
+      }
+    },
+
     // Textured 3 point polygon
     handlePacket24: function (data) {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      const ci = this.getClutInfo(data[2] >>> 16, data);
-      const hasOpaquePixels = (ci & 1) === 1;
-      const hasTransparentPixels = (ci & 2) === 2;
-      const isTransparentPrimitive = !!(data[0] & 0x02000000);
-
-      if (!isTransparentPrimitive || hasTransparentPixels) {
+      this.renderTexture(data, () => {
         renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-      }
-      if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
-        data[0] = (data[0] & ~0x02000000) | 0x80000000;
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-      }
+      });
     },
 
     // Monochrome 4 point polygon
@@ -366,21 +352,10 @@
     handlePacket2C: function (data) {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      const ci = this.getClutInfo(data[2] >>> 16, data);
-      const hasOpaquePixels = (ci & 1) === 1;
-      const hasTransparentPixels = (ci & 2) === 2;
-      const isTransparentPrimitive = !!(data[0] & 0x02000000);
-
-      if (!isTransparentPrimitive || hasTransparentPixels) {
+      this.renderTexture(data, () => {
         renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
         renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
-      }
-
-      if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
-        data[0] = (data[0] & ~0x02000000) | 0x80000000;
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-        renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
-      }
+      });
     },
 
     // Gradated 3 point polygon
@@ -392,18 +367,9 @@
     handlePacket34: function (data) {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      const ci = this.getClutInfo(data[2] >>> 16, data);
-      const hasOpaquePixels = (ci & 1) === 1;
-      const hasTransparentPixels = (ci & 2) === 2;
-      const isTransparentPrimitive = !!(data[0] & 0x02000000);
-
-      if (!isTransparentPrimitive || hasTransparentPixels) {
+      this.renderTexture(data, () => {
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-      }
-      if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
-        data[0] = (data[0] & ~0x02000000) | 0x80000000;
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-      }
+      });
     },
 
     // Gradated 4 point polygon
@@ -416,20 +382,10 @@
     handlePacket3C: function (data) {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      const ci = this.getClutInfo(data[2] >>> 16, data);
-      const hasOpaquePixels = (ci & 1) === 1;
-      const hasTransparentPixels = (ci & 2) === 2;
-      const isTransparentPrimitive = !!(data[0] & 0x02000000);
-
-      if (!isTransparentPrimitive || hasTransparentPixels) {
+      this.renderTexture(data, () => {
         renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
         renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
-      }
-      if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
-        data[0] = (data[0] & ~0x02000000) | 0x80000000;
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-        renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
-      }
+      });
     },
 
     // Monochrome line
@@ -463,22 +419,12 @@
 
     // Sprite
     handlePacket64: function (data) {
-      const ci = this.getClutInfo(data[2] >>> 16, data);
-      const hasOpaquePixels = (ci & 1) === 1;
-      const hasTransparentPixels = (ci & 2) === 2;
-      const isTransparentPrimitive = !!(data[0] & 0x02000000);
+      const tx = (data[2] >>> 0) & 255;
+      const ty = (data[2] >>> 8) & 255;
 
-      var tx = (data[2] >>> 0) & 255;
-      var ty = (data[2] >>> 8) & 255;
-
-      if (!isTransparentPrimitive || hasTransparentPixels) {
+      this.renderTexture(data, () => {
         renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
-      }
-
-      if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
-        data[0] = (data[0] & ~0x02000000) | 0x80000000;
-        renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
-      }
+      });
     },
 
     // Dot
@@ -493,20 +439,12 @@
 
     // 8*8 sprite
     handlePacket74: function (data) {
-      const ci = this.getClutInfo(data[2] >>> 16, data);
-      const hasOpaquePixels = (ci & 1) === 1;
-      const hasTransparentPixels = (ci & 2) === 2;
-      const isTransparentPrimitive = !!(data[0] & 0x02000000);
+      const tx = (data[2] >>> 0) & 255;
+      const ty = (data[2] >>> 8) & 255;
 
-      var tx = (data[2] >>> 0) & 255;
-      var ty = (data[2] >>> 8) & 255;
-      if (!isTransparentPrimitive || hasTransparentPixels) {
+      this.renderTexture(data, () => {
         renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
-      }
-      if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
-        data[0] = (data[0] & ~0x02000000) | 0x80000000;
-        renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
-      }
+      });
     },
 
     // 16*16 rectangle
@@ -516,21 +454,12 @@
 
     // 16*16 sprite
     handlePacket7C: function (data) {
-      const ci = this.getClutInfo(data[2] >>> 16, data);
-      const hasOpaquePixels = (ci & 1) === 1;
-      const hasTransparentPixels = (ci & 2) === 2;
-      const isTransparentPrimitive = !!(data[0] & 0x02000000);
+      const tx = (data[2] >>> 0) & 255;
+      const ty = (data[2] >>> 8) & 255;
 
-      var tx = (data[2] >>> 0) & 255;
-      var ty = (data[2] >>> 8) & 255;
-
-      if (!isTransparentPrimitive || hasTransparentPixels) {
+      this.renderTexture(data, () => {
         renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
-      }
-      if (((data[0] & 0x06000000) === 0x06000000) && hasOpaquePixels) {
-        data[0] = (data[0] & ~0x02000000) | 0x80000000;
-        renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
-      }
+      });
     },
 
     // Move image in framebuffer
@@ -646,17 +575,6 @@
     },
 
     imgTransferComplete: function (img) {
-      var o = 0;
-      var data = img.buffer;
-      var vram = this.vram;
-      for (var j = 0; j < img.h; ++j) {
-        const offsetY = ((img.y + j) % 512) * 1024;
-        var x = img.x;
-        for (var i = img.w; i > 0; --i) {
-          vram[offsetY + ((x++) % 1024)] = data[o++];
-        }
-      }
-
       renderer.storeImage(gpu.img);
       gpu.status |= 0x10000000;
     },
@@ -717,7 +635,7 @@
       let words = 0;
       for (; ;) {
         addr = addr & 0x001fffff;
-        seen.add(addr);
+        // seen.add(addr);
         var header = ram.getInt32(addr, true);
         var nitem = header >>> 24;
         var nnext = header & 0x001fffff;
@@ -737,7 +655,7 @@
             console.warn('invalid packetId:', hex(packetId, 2), hex(header), hex(packetWord));
             return words;
           }
-          if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
+          else if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
             let i = 0;
             for (; i < 4096; ++i) {
               const value = ram.getInt32(addr, true);
@@ -747,6 +665,7 @@
               if (value === 0x50005000) break;
               data[i] = value;
             }
+            nextPrimitive();
             gpu.handlers[packetId].call(this, data, i);
             gpu.updated = true;
           }
@@ -756,6 +675,7 @@
               addr += 4; --nitem;
               ++words;
             }
+            nextPrimitive();
             gpu.handlers[packetId].call(this, data, 0);
             gpu.updated = true;
           }
@@ -900,6 +820,5 @@
   gpu.info[7] = 2;
   gpu.info[8] = 0;
 
-  scope.gpu = gpu;
-
-})(window);
+  return { gpu };
+})
