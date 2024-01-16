@@ -1,18 +1,17 @@
 mdlr('enge:psx:cdr', m => {
 
-  var itob = function (i) {
-		return (Math.floor(i / 10) * 16 + Math.floor(i % 10));
-	}
-	var btoi = function (b) {
-		return (Math.floor(b / 16) * 10 + Math.floor(b % 16));
-	}
-
+	let cdImage = new Uint32Array(0);
 	let sectorData8 = new Int8Array(0);
 	let sectorData16 = new Int16Array(0);
 	let sectorData32 = new Int32Array(0);
 
-	var cdr = {
-		cdImage: new Uint32Array(0),
+
+	const floor = Math.floor.bind(Math);
+
+	const itob = i => floor(i / 10) * 16 + floor(i % 10);
+	const btoi = b => floor(b / 16) * 10 + floor(b % 16);
+
+	const cdr = {
 		cdRomFile: undefined,
 		currLoc: 0,
 		filter: {},
@@ -68,7 +67,7 @@ mdlr('enge:psx:cdr', m => {
 
 		rd08r1802: function () {
 			if (cdr.status & 0x40) {
-				return cdr.cdImage.getInt8(cdr.sectorOffset + cdr.sectorIndex++);
+				return cdImage.getInt8(cdr.sectorOffset + cdr.sectorIndex++);
 			}
 			return 0x00;
 		},
@@ -278,7 +277,7 @@ mdlr('enge:psx:cdr', m => {
 				case 0x80: this.enqueueEvent(2, 0x00);
 					break;
 
-				case 0x09: cdr.results.push(cdr.statusCode | 0x20);
+				case 0x09: pushResults(cdr.statusCode | 0x20);
 					psx.setEvent(this.eventCmd, ((cdr.mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0);
 					cdr.ncmdctrl = 0x90;
 					cdr.status |= 0x80;
@@ -286,13 +285,13 @@ mdlr('enge:psx:cdr', m => {
 					cdr.setIrq(3);
 					break;
 				case 0x90: cdr.statusCode = (cdr.statusCode & ~0x20) | 0x02;
-					cdr.results.push(cdr.statusCode);
+					pushResults(cdr.statusCode);
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(2);
 					break;
 				case 0x99: cdr.statusCode = (cdr.statusCode & ~0xA0) | 0x02;
-					cdr.results.push(cdr.statusCode);
+					pushResults(cdr.statusCode);
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(4);
@@ -327,14 +326,14 @@ mdlr('enge:psx:cdr', m => {
 					break;
 
 				case 0x10:
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 0));
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 1));
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 2));
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 3));
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 4));
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 5));
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 6));
-					cdr.results.push(cdr.cdImage.getInt8(cdr.sectorOffset + 12 + 7));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 0));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 1));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 2));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 3));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 4));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 5));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 6));
+					pushResults(cdImage.getInt8(cdr.sectorOffset + 12 + 7));
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
@@ -345,14 +344,10 @@ mdlr('enge:psx:cdr', m => {
 					let mm = (loc / (60 * 75)) >> 0;
 					let ss = ((loc / (75)) >> 0) % 60;
 					let st = loc % 75;
-					cdr.results.push(itob(cdr.currTrack.id));
-					cdr.results.push(0x01);
-					cdr.results.push(itob(mm));
-					cdr.results.push(itob(ss));
-					cdr.results.push(itob(st));
-					cdr.results.push(itob((((cdr.currLoc - 150) / 75) / 60) % 60));
-					cdr.results.push(itob((((cdr.currLoc - 150) / 75) % 60)));
-					cdr.results.push(itob((((cdr.currLoc - 150) % 75))));
+					pushResults(itob(cdr.currTrack.id), 0x01, itob(mm), itob(ss), itob(st));
+					pushResults(itob((((cdr.currLoc - 150) / 75) / 60) % 60));
+					pushResults(itob((((cdr.currLoc - 150) / 75) % 60)));
+					pushResults(itob((((cdr.currLoc - 150) % 75))));
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
@@ -362,7 +357,7 @@ mdlr('enge:psx:cdr', m => {
 					psx.setEvent(this.eventCmd, 0x1000 >>> 0);
 					cdr.ncmdctrl = 0x120;
 					cdr.statusCode |= 0x02;
-					cdr.results.push(cdr.statusCode);
+					pushResults(cdr.statusCode);
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
 					break;
@@ -372,7 +367,7 @@ mdlr('enge:psx:cdr', m => {
 					let amm = (loc / (60 * 75)) >> 0;
 					let ass = ((loc / (75)) >> 0) % 60;
 					let ast = loc % 75;
-					cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
+					pushResults(0x82, itob(cdr.currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(1);
@@ -380,9 +375,7 @@ mdlr('enge:psx:cdr', m => {
 
 				case 0x13: console.log(`CdlGetTN`);
 					cdr.statusCode |= 0x02;
-					cdr.results.push(cdr.statusCode);
-					cdr.results.push(0x01);
-					cdr.results.push(itob(this.tracks.length - 1));
+					pushResults(cdr.statusCode, 0x01, itob(this.tracks.length - 1));
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
@@ -393,24 +386,21 @@ mdlr('enge:psx:cdr', m => {
 					let track = this.tracks[btoi(cdr.params[0])];
 					if (!track) {
 						cdr.statusCode |= 0x10;
-						cdr.results.push(0x11);
-						cdr.results.push(0x80);
+						pushResults(0x11, 0x80);
 						cdr.status &= ~0x80;
 						cdr.status |= 0x20;
 						cdr.setIrq(5);
 						break;
 					}
 					if (cdr.params[0] === 0) {
-						mmss = Math.floor((track.end + 150) / 75);
+						mmss = floor((track.end + 150) / 75);
 					}
 					else {
-						mmss = Math.floor((track.begin + 150) / 75);
+						mmss = floor((track.begin + 150) / 75);
 					}
 					console.log(`CdlGetTD: ${cdr.params[0]}`, track);
 					cdr.statusCode |= 0x02;
-					cdr.results.push(cdr.statusCode);
-					cdr.results.push(itob(Math.floor(mmss / 60)));
-					cdr.results.push(itob(Math.floor(mmss % 60)));
+					pushResults(cdr.statusCode, itob(floor(mmss / 60)), itob(floor(mmss % 60)));
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
@@ -434,39 +424,30 @@ mdlr('enge:psx:cdr', m => {
 					cdr.currLoc = cdr.seekLoc;
 					break;
 
-				case 0x19: cdr.results.push(0x99);
-					cdr.results.push(0x02);
-					cdr.results.push(0x01);
-					cdr.results.push(0xC3);
+				case 0x19: pushResults(0x99);
+					pushResults(0x02, 0x01, 0xc3);
 					cdr.status &= ~0x80;
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
 					break;
 
 				case 0x1A: psx.setEvent(this.eventCmd, 0x4a00 >>> 0);
-					cdr.results.push(cdr.statusCode);
+					pushResults(cdr.statusCode);
 					cdr.ncmdctrl = 0x1A0;
 					cdr.status |= 0x20;
 					cdr.setIrq(3);
 					break;
 				case 0x1A0:
 					if (cdr.hasCdFile) {
-						cdr.results.push(0x02);
-						cdr.results.push(0x00);
-						cdr.results.push(0x20);
-						cdr.results.push(0x00);
-						cdr.results.push('e'.charCodeAt(0));
-						cdr.results.push('N'.charCodeAt(0));
-						cdr.results.push('G'.charCodeAt(0));
-						cdr.results.push('E'.charCodeAt(0));
+						pushResults(0x02, 0x00, 0x20, 0x00, 0x65, 0x4e, 0x47, 0x45); // eNGE
 						cdr.status &= ~0x80;
 						cdr.status |= 0x20;
 						cdr.setIrq(2);
 					}
 					else {
 						cdr.statusCode |= 0x10;
-						cdr.results.push(0x11);
-						cdr.results.push(0x80);
+						pushResults(0x11);
+						pushResults(0x80);
 						cdr.status &= ~0x80;
 						cdr.status |= 0x20;
 						cdr.setIrq(5);
@@ -520,7 +501,7 @@ mdlr('enge:psx:cdr', m => {
 								let amm = (loc / (60 * 75)) >> 0;
 								let ass = ((loc / (75)) >> 0) % 60;
 								let ast = loc % 75;
-								cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
+								pushResults(0x82, itob(cdr.currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
 								cdr.status &= ~0x80;
 								cdr.status |= 0x40;
 								cdr.status |= 0x20;
@@ -535,7 +516,7 @@ mdlr('enge:psx:cdr', m => {
 								let amm = (loc / (60 * 75)) >> 0;
 								let ass = ((loc / (75)) >> 0) % 60;
 								let ast = loc % 75;
-								cdr.results.push(0x82, itob(cdr.currTrack.id), 1, itob(amm), 0x80 | itob(ass), itob(ast), 0, 0);
+								pushResults(0x82, itob(cdr.currTrack.id), 1, itob(amm), 0x80 | itob(ass), itob(ast), 0, 0);
 								cdr.status &= ~0x80;
 								cdr.status |= 0x40;
 								cdr.status |= 0x20;
@@ -548,7 +529,7 @@ mdlr('enge:psx:cdr', m => {
 						break;
 					}
 				case 0x06:
-				case 0x1b: cdr.results.push(0x22);
+				case 0x1b: pushResults(0x22);
 					cdr.status &= ~0x80;
 					cdr.status |= 0x40;
 					cdr.status |= 0x20;
@@ -564,7 +545,7 @@ mdlr('enge:psx:cdr', m => {
 		},
 
 		readSector: function (readLoc) {
-			if (cdr.cdImage === undefined) return;
+			if (cdImage === undefined) return;
 
 			for (let i = 1; i < cdr.tracks.length; ++i) {
 				let track = cdr.currTrack = cdr.tracks[i];
@@ -803,11 +784,14 @@ mdlr('enge:psx:cdr', m => {
 			sectorData8 = new Int8Array(data.buffer);
 
 			cdr.hasCdFile = true;
-			cdr.cdImage = data;
+			cdImage = data;
 		}
 	}
 
-  return {
-    cdr: Object.seal(cdr)
-  }
+	const $results = cdr.results;
+	const pushResults = $results.push.bind($results);
+
+	return {
+		cdr: Object.seal(cdr)
+	}
 })
