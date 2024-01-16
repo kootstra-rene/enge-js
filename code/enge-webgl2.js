@@ -799,8 +799,9 @@ mdlr('enge:webgl2', m => {
   }
 
   window.primitiveId = 0;
-  window.WebGLRenderer = WebGLRenderer;
   window.nextPrimitive = nextPrimitive;
+
+  window.renderer = new WebGLRenderer(document.getElementById('display'));
 })
 
 mdlr('enge:webgl2:utils', m => {
