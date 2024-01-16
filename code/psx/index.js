@@ -65,7 +65,6 @@ mdlr('enge:psx:index', m => {
 
     const $ = psx;
     while (!endAnimationFrame) {
-      CodeTrace.add(entry);
       entry = entry.code($);
 
       if ($.clock >= $.eventClock) {
@@ -104,7 +103,6 @@ mdlr('enge:psx:index', m => {
     let entry = getCacheEntry(0xbfc00000);
     const $ = psx;
     while (entry.pc !== 0x00030000) {
-      CodeTrace.add(entry);
       entry = entry.code($);
 
       if ($.clock >= $.eventClock) {

@@ -805,14 +805,6 @@ mdlr('enge:psx:rec', m => {
     }
 
     entry.text = lines.join('\n');
-    if (!entry.opt) {
-      // lines.push(`if (this.count >= 1000) {`);
-      // lines.push('  CodeTrace.optimise(this);');
-      // lines.push('}');
-    }
-    // lines.push(' ');
-    // lines.push(`this.clock = psx.clock;`);
-    // lines.push(`++this.count;`);
     lines.push(' ');
     lines.push('return target;');
     lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
@@ -930,47 +922,6 @@ mdlr('enge:psx:rec', m => {
       loop: [],
 
     })
-  };
-
-  const TRACE_SIZE = 1024;
-  const MAX_BLOCKSIZE = 8;
-
-  window.CodeTrace = {
-    loop: [],
-    history: new Array(TRACE_SIZE),
-    index: 0,
-    add: function (entry) {
-      this.index = (this.index + 1) % TRACE_SIZE;
-      this.history[this.index] = entry;
-    },
-    detectLoop: function (entry) {
-      for (let i = 1; i <= MAX_BLOCKSIZE; ++i) {
-        const index = (this.index - i + TRACE_SIZE) % TRACE_SIZE;
-        if (this.history[index].opt) return 0;
-        if (!this.history[index].jump || !this.history[index].next) return 0;
-        if (this.history[index] === entry) {
-          return i;
-        }
-      }
-      return 0;
-    },
-    optimise: function (entry) {
-      return;
-      if ((psx.clock - entry.clock) < 1024) {
-        const loopSize = CodeTrace.detectLoop(entry);
-        if (loopSize) {
-          const startIndex = (this.index - loopSize + TRACE_SIZE) % TRACE_SIZE;
-          const blocks = [];
-          for (let i = 0; i < loopSize; ++i) {
-            const e = this.history[(startIndex + i) % TRACE_SIZE];
-            blocks.push(e);
-          }
-          entry.loop = blocks;
-        }
-      }
-      invalidateCache(entry);
-      entry.opt = true;
-    }
   };
 
   window.stats = window.stats || {};
