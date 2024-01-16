@@ -43,8 +43,6 @@ mdlr('enge:psx:index', m => {
   dma.eventDMA3 = psx.addEvent(0, dma.completeDMA3.bind(dma));
   dma.eventDMA4 = psx.addEvent(0, dma.completeDMA4.bind(dma));
   dma.eventDMA6 = psx.addEvent(0, dma.completeDMA6.bind(dma));
-  cdr.eventRead = psx.addEvent(0, cdr.completeRead.bind(cdr));
-  cdr.eventCmd = psx.addEvent(0, cdr.completeCmd.bind(cdr));
   joy.eventIRQ = psx.addEvent(0, joy.completeIRQ.bind(joy));
   mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
 
