@@ -2,9 +2,6 @@ mdlr('enge:webgl2', m => {
 
   const utils = m.require('enge:webgl2:utils');
 
-  const TEXW = 4096;
-  const TEXH = 2048;
-
   const $gpu = {
   };
 

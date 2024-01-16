@@ -59,6 +59,8 @@ mdlr('enge:psx:cdr', m => {
   const sl = [0.0, 0.0];
   const sr = [0.0, 0.0];
 
+  const getCdVolume = (data) => ((data & 0xff) >>> 0) / 0x80;
+
   const setIrq = (data) => {
     irq = (irq & 0xE0) | (data & 0x1F);
     if (irq & (0x1F & irqEnable)) {
@@ -681,7 +683,7 @@ mdlr('enge:psx:cdr', m => {
         switch (status & 3) {
           case 0: command(data);
             break;
-          case 3: volConfigCdRight2SpuRight = ((data & 0xff) >>> 0) / 0x80;
+          case 3: volConfigCdRight2SpuRight = getCdVolume(data);
             break;
         };
       },
@@ -697,10 +699,10 @@ mdlr('enge:psx:cdr', m => {
             irq = 0;
             break;
           case 2:
-            volConfigCdLeft2SpuLeft = ((data & 0xff) >>> 0) / 0x80;
+            volConfigCdLeft2SpuLeft = getCdVolume(data);
             break;
           case 3:
-            volConfigCdRight2SpuLeft = ((data & 0xff) >>> 0) / 0x80;
+            volConfigCdRight2SpuLeft = getCdVolume(data);
             break;
         };
       },
@@ -721,7 +723,7 @@ mdlr('enge:psx:cdr', m => {
             }
             break;
           case 2:
-            volConfigCdLeft2SpuRight = ((data & 0xff) >>> 0) / 0x80;
+            volConfigCdLeft2SpuRight = getCdVolume(data);
             break;
           case 3:
             if (data & 0x20) {

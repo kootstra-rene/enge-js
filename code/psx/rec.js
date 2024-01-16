@@ -786,24 +786,6 @@ mdlr('enge:psx:rec', m => {
       pc
     ].filter(a => a !== null || a !== undefined);
 
-    if (lines.length >= 6) {
-      const lineIndex = lines[0].indexOf('8fa20010');
-      if (-1 !== lineIndex) {
-        if (lineIndex === lines[2].indexOf('00000000') &&
-          lineIndex === lines[3].indexOf('2442ffff') &&
-          lineIndex === lines[5].indexOf('afa20010') &&
-          lineIndex === lines[7].indexOf('8fa20010') &&
-          lineIndex === lines[9].indexOf('00000000')
-        ) {
-          const asm = lines.filter((a, i) => i < 10 && -1 !== a.indexOf('//')).join('\n');
-          console.log(`HLE detected @$${hex(pc)}...`);
-          lines.splice(0, 10, ['gpr[2] = --map[((16 + gpr[29]) & 0x001ffffc) >>> 2];']);
-          lines.push('psx.clock += 10;');
-          lines.unshift(asm);
-        }
-      }
-    }
-
     entry.text = lines.join('\n');
     lines.push(' ');
     lines.push('return target;');
