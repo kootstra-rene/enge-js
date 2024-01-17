@@ -59,15 +59,6 @@ body {
   border-radius: 0.75vh;
 }
 
-#menu {
-  position: absolute;
-  left: calc(var(--screen-left) + 1px);
-  width: calc(var(--screen-width) - 2px);
-  top: calc(var(--screen-top) + var(--screen-height) - 2vh - 1px);
-  height: 2vh;
-  background-color: #181820;
-}
-
 #ambilight {
   position: absolute;
   top: 0px;

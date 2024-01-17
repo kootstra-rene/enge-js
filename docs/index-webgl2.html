@@ -4,11 +4,6 @@
 <head>
   <title>eNGE</title>
   <link rel="stylesheet" type="text/css" href="index-webgl2.css">
-
-  <!-- <script type="text/javascript" src="https://localhost/bundle/unit/enge:psx:webgl2"></script> -->
-  <script type="text/javascript" src="index-webgl2.js"></script>
-
-
   <script id="pixel" type="x-shader/x-vertex">#version 300 es
     precision highp float;
     precision highp int;
@@ -197,7 +192,6 @@
     uniform sampler2D u_texture;
     uniform ivec4     u_disp;
     uniform ivec4     u_draw;
-    uniform float     u_time;
     uniform int       u_mode;
   
     in vec2 v_texcoord;
@@ -327,8 +321,6 @@
         case 3: color = vram4bit(); break;
       }
 
-      color = color * v_color;
-
       if (u_mode <= 1) {
         outColor = tv_effect(color.rgb + InterleavedGradientNoise().rgb);
       }
@@ -343,7 +335,9 @@
   <canvas id="ambilight"></canvas>
   <div id="background"></div>
   <canvas id="display"></canvas>
-  <!-- <div id="menu"></div> -->
+
+  <!-- <script type="text/javascript" src="https://localhost/bundle/unit/enge:psx:webgl2"></script> -->
+  <script type="text/javascript" src="index-webgl2.js"></script>
 </body>
 
 </html>
