@@ -2,7 +2,6 @@ mdlr('enge:psx:spu', m => {
 
   const frameCount = (1.0 * 44100) >> 1;
 
-  var BLOCKSIZE = (28 * 0x1000) >>> 0;
   const CYCLES_PER_EVENT = 8;
 
   let left = null;
@@ -72,7 +71,7 @@ mdlr('enge:psx:spu', m => {
             const id = (addr - 0x1c00) >> 4;
             const voice = this.voices[id];
 
-            return voice.getRegister(addr);
+            return voice.getRegister(addr & 0xf);
           }
           return map16[((0x01800000 + addr) & 0x01ffffff) >>> 1];
       }
@@ -192,7 +191,7 @@ mdlr('enge:psx:spu', m => {
           var id = ((addr - 0x1c00) / 16) | 0;
           var voice = this.voices[id];
 
-          voice.setRegister(addr, data);
+          voice.setRegister(addr & 0xf, data);
           break;
         }
           if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
@@ -249,11 +248,9 @@ mdlr('enge:psx:spu', m => {
 
       const captureIndex = (this.totalSamples % 0x200) << 1;
 
-      var irq = false;
+      let irq = false;
       if (voice !== undefined) {
-        if ((voice.blockAddress <= this.irqOffset) && (this.irqOffset < (voice.blockAddress + 16))) {
-          irq = true;
-        }
+        irq = voice.checkIrq(this.irqOffset);
       }
       else {
         if (this.ramOffset === this.irqOffset) {
@@ -286,39 +283,24 @@ mdlr('enge:psx:spu', m => {
         const captureIndex = (this.totalSamples % 0x200) << 1;
         this.checkIrq();
 
+        let audio = [0.0, 0.0];
         for (let i = 0; i < 24; ++i) {
           let voice = this.voices[i];
-          if (!voice.adsrState) continue;
+          if (!voice.advance(spu.data, audio)) ;
 
-          voice.pitchCounter += voice.pitchStep;
-
-          if (voice.pitchCounter >= BLOCKSIZE) {
-            voice.pitchCounter -= BLOCKSIZE;
-
-            voice.decodeBlock();
-            this.checkIrq(voice);
-          }
-
-          const sampleIndex = voice.pitchCounter >>> 12;
-          const sample = voice.buffer[sampleIndex];
-
-          const adsrVolume = voice.mixADSR();
-          const sampleL = (sample * adsrVolume * voice.volumeLeft);
-          const sampleR = (sample * adsrVolume * voice.volumeRight);
+          l += audio[0];
+          r += audio[1];
 
           if (i === 3) {
-            const mono = (sampleL * 0x8000) >>> 0;
+            const mono = (audio[0] * 0x8000) >>> 0;
             this.data[0x0C00 + captureIndex] = mono & 0xff;
             this.data[0x0C01 + captureIndex] = mono >> 8;
           }
           if (i === 1) {
-            const mono = (sampleL * 0x8000) >>> 0;
+            const mono = (audio[0] * 0x8000) >>> 0;
             this.data[0x0800 + captureIndex] = mono & 0xff;
             this.data[0x0801 + captureIndex] = mono >> 8;
           }
-
-          l += sampleL;
-          r += sampleR;
         }
 
         var cdxa = [0.0, 0.0];
@@ -357,280 +339,11 @@ mdlr('enge:psx:spu', m => {
 
   }
 
-  function Voice(id) {
-    this.id = id
-    this.pitchCounter = 0
-    this.repeatAddress = 0
-    this.blockAddress = 0
-    this.s0 = 0.0
-    this.s1 = 0.0
-    this.buffer = new Float32Array(28)
-
-    this.volumeLeft = 0.0
-    this.volumeRight = 0.0
-    this.pitchStep = 0
-
-    this.adsrLevel = 0;
-    this.adsrState = 0;
-
-    this.r1Cx0 = 0;
-    this.r1Cx2 = 0;
-    this.r1Cx4 = 0;
-    this.r1Cx6 = 0;
-    this.r1Cx8 = 0;
-    this.r1CxA = 0;
-    this.r1CxE = 0;
-  }
-
-  Voice.prototype.startAdsrAttack = function () {
-    this.adsrState = 1;
-    this.adsrLevel = 0;
-  }
-
-  Voice.prototype.startAdsrRelease = function () {
-    this.adsrState = 4;
-  }
-
-  Voice.prototype.keyOn = function () {
-    this.s0 = 0.0;
-    this.s1 = 0.0;
-    this.pitchCounter = BLOCKSIZE;
-    this.blockAddress = this.r1Cx6 << 3;
-    this.repeatAddress = this.r1CxE << 3;
-    this.startAdsrAttack();
-  }
-
-  Voice.prototype.echoOn = function () {
-    // todo: reverb
-  }
-
-  Voice.prototype.modOn = function () {
-    // todo: pitch modulation
-  }
-
-  Voice.prototype.noiseOn = function () {
-    // todo: noise
-  }
-
-  Voice.prototype.keyOff = function () {
-    this.startAdsrRelease();
-  }
-
-  Voice.prototype.decodeBlock = function () {
-    var blockAddress = this.blockAddress;
-    let shiftFilter = spu.data[blockAddress + 0];
-    let flags = spu.data[blockAddress + 1];
-
-    var shift = (shiftFilter & 0x0f) >>> 0;
-    var filter = (shiftFilter & 0xf0) >>> 3;
-
-    var k0 = xa2flt[filter + 0];
-    var k1 = xa2flt[filter + 1];
-    var s0 = this.s0;
-    var s1 = this.s1;
-
-    var sample = 0;
-    var output = this.buffer;
-    let value;
-    for (var offset = 2; offset < 16; ++offset) {
-      var data = spu.data[blockAddress + offset]
-      var index = ((shift << 8) + data) << 1;
-
-      output[sample++] = value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 0];
-      s1 = s0; s0 = value;
-      output[sample++] = value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 1];
-      s1 = s0; s0 = value;
-    }
-
-    this.s0 = s0;
-    this.s1 = s1;
-
-    if ((flags & 4) === 4) {
-      this.repeatAddress = this.blockAddress;
-    }
-
-    this.blockAddress += 16;
-
-    if ((flags & 1) === 1) {
-      this.blockAddress = this.repeatAddress;
-      spu.ENDX |= (1 << this.id);
-      if ((flags & 2) === 0) {
-        this.startAdsrRelease();
-        this.adsrLevel = 0;
-      }
-    }
-  }
-
-  Voice.prototype.mixADSR = function () {
-    switch (this.adsrState) {
-      case 0x0: return 0.0;
-      case 0x1: this.adsrAttack();
-        break;
-      case 0x2: this.adsrDecay();
-        break;
-      case 0x3: this.adsrSustain();
-        break;
-      case 0x4: this.adsrRelease();
-        break;
-      default: abort('not implemented');
-    }
-    if (this.adsrLevel > 0x7FFFFFFF) this.adsrLevel = 0x7FFFFFFF;
-    if (this.adsrLevel < 0) {
-      if (this.adsrState === 4) {
-        if (this.id !== 1 && this.id !== 3) {
-          this.adsrState = 0;
-        }
-      }
-      this.adsrLevel = 0;
-    }
-    return (this.adsrLevel >> 16) / 0x8000;
-  }
-
-  Voice.prototype.adsrAttack = function () {
-    if (this.adsrAttackMode) {
-      // exponential attack
-      if (this.adsrLevel < 0x60000000) {
-        this.adsrLevel += rateTable[this.adsrAttackRate - 0x10 + 32];
-      }
-      else {
-        this.adsrLevel += rateTable[this.adsrAttackRate - 0x18 + 32];
-      }
-    }
-    else {
-      // linear attack
-      this.adsrLevel += rateTable[this.adsrAttackRate - 0x10 + 32];
-    }
-    if (this.adsrLevel >= 0x7FFFFFFF) {
-      this.adsrState = 2; // decay
-    }
-  }
-
-  Voice.prototype.adsrDecay = function () {
-    if (this.adsrDecayMode) {
-      // exponential decay
-      switch ((this.adsrLevel >> 29) & 0x7) {
-        case 0: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 0 + 32]; break;
-        case 1: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 4 + 32]; break;
-        case 2: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 6 + 32]; break;
-        case 3: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 8 + 32]; break;
-        case 4: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 9 + 32]; break;
-        case 5: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 10 + 32]; break;
-        case 6: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 11 + 32]; break;
-        case 7: this.adsrLevel -= rateTable[this.adsrDecayRate - 0x18 + 12 + 32]; break;
-      }
-    }
-    if (((this.adsrLevel >> 28) & 0xF) <= this.adsrSustainLevel) {
-      this.adsrState = 3; // sustain
-    }
-  }
-
-  Voice.prototype.adsrSustain = function () {
-    if (!this.adsrSustainMode) {
-      this.adsrLevel += this.adsrLinearSustainRate;
-      return;
-    }
-
-    if (this.adsrSustainDirection == 0) {
-      if (this.adsrLevel < 0x60000000)
-        this.adsrLevel += rateTable[this.adsrSustainRate - 0x10 + 32];
-      else
-        this.adsrLevel += rateTable[this.adsrSustainRate - 0x18 + 32];
-    }
-    else {
-      switch ((this.adsrLevel >> 29) & 0x7) {
-        case 0: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 0 + 32]; break;
-        case 1: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 4 + 32]; break;
-        case 2: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 6 + 32]; break;
-        case 3: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 8 + 32]; break;
-        case 4: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 9 + 32]; break;
-        case 5: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 10 + 32]; break;
-        case 6: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 11 + 32]; break;
-        case 7: this.adsrLevel -= rateTable[this.adsrSustainRate - 0x1B + 12 + 32]; break;
-      }
-    }
-  }
-
-  Voice.prototype.adsrRelease = function () {
-    if (!this.adsrReleaseMode) {
-      this.adsrLevel -= this.adsrLinearReleaseRate;
-      return;
-    }
-
-    switch ((this.adsrLevel >> 29) & 0x7) {
-      case 0: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 0 + 32]; break;
-      case 1: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 4 + 32]; break;
-      case 2: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 6 + 32]; break;
-      case 3: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 8 + 32]; break;
-      case 4: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 9 + 32]; break;
-      case 5: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 10 + 32]; break;
-      case 6: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 11 + 32]; break;
-      case 7: this.adsrLevel -= rateTable[this.adsrReleaseRate - 0x18 + 12 + 32]; break;
-    }
-  }
-
-  Voice.prototype.getRegister = function (addr, data) {
-    switch (addr % 16) {
-      case 0x0000: return this.r1Cx0;
-      case 0x0002: return this.r1Cx2;
-      case 0x0004: return this.r1Cx4;
-      case 0x0006: return this.r1Cx6;
-      case 0x0008: return this.r1Cx8;
-      case 0x000a: return this.r1CxA;
-      case 0x000c: return this.adsrLevel >>> 16;
-      case 0x000e: return this.r1CxE;
-      default: abort(`Unimplemented spu-voice register: ${((addr % 16) >>> 0).toString(16)}`)
-        break
-    }
-  }
-
-  Voice.prototype.setRegister = function (addr, data) {
-    switch (addr % 16) {
-      case 0x0000: this.volumeLeft = spu.getVolume(data);
-        this.r1Cx0 = data;
-        break
-      case 0x0002: this.volumeRight = spu.getVolume(data)
-        this.r1Cx2 = data;
-        break
-      case 0x0004: this.pitchStep = Math.min(data, 0x4000);
-        this.r1Cx4 = data;
-        break
-      case 0x0006: this.blockAddress = data << 3;
-        this.r1Cx6 = data;
-        break
-      case 0x0008: this.adsrAttackMode = (data & 0x8000) >>> 15;
-        this.adsrAttackRate = (((data & 0x7F00) >>> 8) ^ 0x7F);
-        this.adsrDecayMode = 1;
-        this.adsrDecayRate = (((data & 0x00F0) >>> 4) ^ 0x1F) << 2;
-        this.adsrSustainLevel = (data & 0x000F) >>> 0;
-        this.r1Cx8 = data;
-        break
-      case 0x000a: this.adsrSustainMode = (data & 0x8000) >>> 15;
-        this.adsrSustainDirection = (data & 0x4000) >>> 14;
-        this.adsrSustainRate = (((data & 0x1FC0) >>> 6) ^ 0x7F);
-        this.adsrReleaseMode = (data & 0x0020) >>> 5;
-        this.adsrReleaseRate = (((data & 0x001F) >>> 0) ^ 0x1F) << 2;
-        this.r1CxA = data;
-        this.adsrLinearReleaseRate = rateTable[this.adsrReleaseRate - 0x0C + 32];
-        if (this.adsrSustainDirection == 0) {
-          this.adsrLinearSustainRate = rateTable[this.adsrSustainRate - 0x10 + 32];
-        }
-        else {
-          this.adsrLinearSustainRate = -rateTable[this.adsrSustainRate - 0x0F + 32];
-        }
-        break
-      case 0x000c: this.adsrLevel = data << 16;
-        break
-      case 0x000e: this.repeatAddress = data << 3;
-        this.r1CxE = data;
-        break
-      default: abort("Unimplemented spu-voice register", hex(addr, 4));
-        break
-    }
-  }
-
   //- init
   for (var i = 0; i < 24; ++i) {
-    spu.voices[i] = new Voice(i)
+    // mdlr does not cache compiled modules, so this works perfectly
+    const { voice } = m.require('enge:psx:spu-voice');
+    spu.voices[i] = voice.setId(i);
   }
 
   //- lookup tables
@@ -659,33 +372,6 @@ mdlr('enge:psx:spu', m => {
       xa2pcm[offset + 0] = (sample >> shift) / factor;
     }
   }
-
-  // ADSR
-  const rateTable = new Uint32Array(160);
-
-  function InitADSR() {
-    let r, rs, rd;
-
-    rateTable.fill(0.0);
-
-    r = 3; rs = 1; rd = 0;
-
-    for (let i = 32; i < 160; ++i) {
-      if (r < 0x7FFFFFFF) {
-        r += rs;
-        rd++;
-        if (rd === 5) {
-          rd = 1;
-          rs *= 2;
-        }
-      }
-      if (r > 0x7FFFFFFF) r = 0x7FFFFFFF;
-
-      rateTable[i] = r;
-    }
-  }
-
-  InitADSR();
 
   return { spu, xa2flt, xa2pcm };
 
