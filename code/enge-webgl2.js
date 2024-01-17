@@ -1,24 +1,18 @@
 mdlr('enge:webgl2', m => {
 
-  const utils = m.require('enge:webgl2:utils');
+  const {createVertexBuffer,createProgramFromScripts} = m.require('enge:webgl2:utils');
 
   const $gpu = {
   };
 
-  const $stats = {
-    flushes: 0,
-    vertices: 0,
-
-    dump: () => {
-      // if ($stats.flushes) console.log(`flushes: ${$stats.flushes} (${$stats.vertices})`);
-      $stats.flushes = 0;
-      $stats.vertices = 0;
-    }
-  }
   const sbgr2rgba = new Uint32Array(65536);
   const transfer = new Uint32Array(4096 * 2048);
   const view = new Uint8Array(transfer.buffer);
-  const vertexBuffer = utils.createVertexBuffer();
+  const vertexBuffer = createVertexBuffer();
+
+  const canvas = document.getElementById('display');
+  const ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
+  ambilight.imageSmoothingEnabled = false;
 
   for (let i = 0; i < 65536; ++i) {
     sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
@@ -27,116 +21,90 @@ mdlr('enge:webgl2', m => {
     sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
   }
 
-  let canvas = null;
-  let ambilight = null;
+  let gl = null;
+  try {
+    gl = canvas.getContext("webgl2", {
+      alpha: false,
+      antialias: false,
+      preserveDrawingBuffer: true,
+      premultipliedAlpha: false,
+      depth: false,
+      stencil: false,
+    });
+  }
+  catch (e) {
+    return abort();
+  }
 
+  const [STENCIL_TEST, FRAMEBUFFER, READ_FRAMEBUFFER, DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, RGBA, UNSIGNED_BYTE, NEAREST, COLOR_BUFFER_BIT] = [gl.STENCIL_TEST, gl.FRAMEBUFFER, gl.READ_FRAMEBUFFER, gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.COLOR_BUFFER_BIT];
+  const [gl_enable, gl_disable, gl_getUniformLocation, gl_texSubImage2D, gl_bindFramebuffer, gl_framebufferTexture2D, gl_blitFramebuffer, gl_enableVertexAttribArray, gl_getAttribLocation, gl_vertexAttribPointer, gl_bindTexture, gl_texImage2D, gl_createFramebuffer] = [gl.enable, gl.disable, gl.getUniformLocation, gl.texSubImage2D, gl.bindFramebuffer, gl.framebufferTexture2D, gl.blitFramebuffer, gl.enableVertexAttribArray, gl.getAttribLocation, gl.vertexAttribPointer, gl.bindTexture, gl.texImage2D, gl.createFramebuffer].map(a => a.bind(gl));
+
+  const largePrimitive = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
+    if (Math.abs(x1 - x2) > 1023) return true;
+    if (Math.abs(x2 - x3) > 1023) return true;
+    if (Math.abs(x3 - x1) > 1023) return true;
+    if (Math.abs(x4 - x2) > 1023) return true;
+    if (Math.abs(x4 - x3) > 1023) return true;
+    if (Math.abs(y1 - y2) > 511) return true;
+    if (Math.abs(y2 - y3) > 511) return true;
+    if (Math.abs(y3 - y1) > 511) return true;
+    if (Math.abs(y4 - y2) > 511) return true;
+    if (Math.abs(y4 - y3) > 511) return true;
+    return false;
+  }
+
+  const outsideDrawArea = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
+    return false;
+    if ((x1 < $gpu.daL) && (x2 < $gpu.daL) && (x3 < $gpu.daL) && (x4 < $gpu.daL)) return true;
+    if ((x1 > $gpu.daR) && (x2 > $gpu.daR) && (x3 > $gpu.daR) && (x4 > $gpu.daR)) return true;
+    if ((y1 < $gpu.daT) && (y2 < $gpu.daT) && (y3 < $gpu.daT) && (y4 < $gpu.daT)) return true;
+    if ((y1 > $gpu.daB) && (y2 > $gpu.daB) && (y3 > $gpu.daB) && (y4 > $gpu.daB)) return true;
+    return false;
+  }
+
+
+  // todo: refactor to completely move this class
   class WebGLRenderer {
     buffers = [
-      utils.createVertexBuffer(),
-      utils.createVertexBuffer(),
-      utils.createVertexBuffer(),
-      utils.createVertexBuffer(),
-      utils.createVertexBuffer(true),
+      createVertexBuffer(),
+      createVertexBuffer(),
+      createVertexBuffer(),
+      createVertexBuffer(),
+      createVertexBuffer(true),
     ];
 
-    constructor(cv) {
-      canvas = cv;
-      ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
-      ambilight.imageSmoothingEnabled = false;
-
-      let gl = null;
-      this.gl = null;
+    constructor() {
       this.mode = 'disp';
       this.fpsRenderCounter = 0;
       this.fpsCounter = 0;
       this.skipped = 0;
       this.seenRender = false;
 
-      try {
-        this.gl = gl = canvas.getContext("webgl2", {
-          alpha: false,
-          antialias: false,
-          preserveDrawingBuffer: true,
-          premultipliedAlpha: false,
-          depth: false,
-          stencil: false,
-        });
-      }
-      catch (e) {
-        alert("Error: Unable to get WebGL context");
-        return;
-      }
-
       if (gl) {
-        gl.disable(gl.STENCIL_TEST);
-        gl.disable(gl.DEPTH_TEST);
-        gl.disable(gl.BLEND);
-        gl.disable(gl.CULL_FACE);
-        gl.disable(gl.DITHER);
-        gl.disable(gl.POLYGON_OFFSET_FILL);
-        gl.disable(gl.SAMPLE_COVERAGE);
-        gl.disable(gl.SCISSOR_TEST);
+        gl_disable(STENCIL_TEST);
+        gl_disable(gl.DEPTH_TEST);
+        gl_disable(gl.BLEND);
+        gl_disable(gl.CULL_FACE);
+        gl_disable(gl.DITHER);
+        gl_disable(gl.POLYGON_OFFSET_FILL);
+        gl_disable(gl.SAMPLE_COVERAGE);
+        gl_disable(gl.SCISSOR_TEST);
 
-        gl.enableVertexAttribArray(0);
+        gl_enableVertexAttribArray(0);
         gl.blendColor(0.0, 0.0, 0.0, 0.0);
         gl.clearDepth(0.0);
 
         this.displayBuffer = gl.createBuffer();
-        this.programDisplay = createProgramDisplay(gl, this.displayBuffer);
+        this.programDisplay = createProgramDisplay(this.displayBuffer);
         this.renderBuffer = gl.createBuffer();
-        this.programRenderer = createProgramRenderer(gl, this.renderBuffer);
-        // gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        // create texture
-        this.vram = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.vram);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-
-        this.vramDepth = createDepthComponent(gl, 4096, 2048);
-
-        this.fb_vram = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vram);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-        gl.bindTexture(gl.TEXTURE_2D, this.vramDepth);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.vramDepth, 0)
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-        // create texture
-        this.vramShadow = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.vramShadow);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-
-        // this.vramShadowDepth = createDepthComponent(gl, 4096,2048);
-
-        this.fb_vramShadow = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb_vramShadow);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-        // create texture
-        this.cache = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.cache);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 4096, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-
-        this.fb_cache = gl.createFramebuffer();
+        this.programRenderer = createProgramRenderer(this.renderBuffer);
 
         // copy texture data
-        gl.bindTexture(gl.TEXTURE_2D, this.vram);
+        gl_bindTexture(TEXTURE_2D, vram);
         transfer.fill(0);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4096, 2048, gl.RGBA, gl.UNSIGNED_BYTE, view);
+        gl_texSubImage2D(TEXTURE_2D, 0, 0, 0, 4096, 2048, RGBA, UNSIGNED_BYTE, view);
 
-        flushDepth(this);
+        flushDepth();
       }
       else {
         alert("Error: Your browser does not appear to support WebGL.");
@@ -144,18 +112,16 @@ mdlr('enge:webgl2', m => {
     }
 
     loadImage(x, y, w, h, buffer) {
-      flushVertexBuffer(this);
-      const gl = this.gl;
-
+      flushVertexBuffer();
       // blit from vram -> cache
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vram);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_cache);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-      gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, (x + w), (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, (x + w), (y + h), COLOR_BUFFER_BIT, NEAREST);
 
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
-      gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+      gl.readPixels(x, y, w, h, RGBA, UNSIGNED_BYTE, view);
 
       const size = w * h;
       for (let i = 0; i < size; ++i) {
@@ -169,37 +135,36 @@ mdlr('enge:webgl2', m => {
         buffer[i] = sbgr16;
       }
 
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl_bindFramebuffer(FRAMEBUFFER, null);
     }
 
     moveImage(sx, sy, dx, dy, w, h) {
       this.seenRender = true;
-      flushVertexBuffer(this);
-      const gl = this.gl;
+      flushVertexBuffer();
 
       // blit from vram -> vramShadow
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vram);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vramShadow);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
-      gl.blitFramebuffer(4 * sx, 4 * sy, 4 * (sx + w), 4 * (sy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+      gl_blitFramebuffer(4 * sx, 4 * sy, 4 * (sx + w), 4 * (sy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vramShadow -> vram
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vramShadow);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vram);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-      gl.blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vramShadow -> cache
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vramShadow);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_cache);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-      gl.blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), dx, dy, (dx + w), (dy + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+      gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), dx, dy, (dx + w), (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
 
       gl.activeTexture(gl.TEXTURE0 + 0);
 
@@ -207,9 +172,7 @@ mdlr('enge:webgl2', m => {
 
     storeImage(img) {
       this.seenRender = true;
-      flushVertexBuffer(this);
-      const gl = this.gl;
-
+      flushVertexBuffer();
       for (let i = 0, l = img.pixelCount; i < l; ++i) {
         const sbgr = img.buffer[i] >>> 0;
         transfer[i] = sbgr2rgba[sbgr];
@@ -217,83 +180,56 @@ mdlr('enge:webgl2', m => {
 
       const { x, y, w, h } = img;
       // copy texture data
-      gl.bindTexture(gl.TEXTURE_2D, this.cache);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
-      gl.bindTexture(gl.TEXTURE_2D, null);
+      gl_bindTexture(TEXTURE_2D, cache);
+      gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      gl_bindTexture(TEXTURE_2D, null);
 
       // blit from cache -> vram
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vram);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-      gl.blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vram -> vramShadow
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vram);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vramShadow);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
-      gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
-
-    largePrimitive(x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) {
-      if (Math.abs(x1 - x2) > 1023) return true;
-      if (Math.abs(x2 - x3) > 1023) return true;
-      if (Math.abs(x3 - x1) > 1023) return true;
-      if (Math.abs(x4 - x2) > 1023) return true;
-      if (Math.abs(x4 - x3) > 1023) return true;
-      if (Math.abs(y1 - y2) > 511) return true;
-      if (Math.abs(y2 - y3) > 511) return true;
-      if (Math.abs(y3 - y1) > 511) return true;
-      if (Math.abs(y4 - y2) > 511) return true;
-      if (Math.abs(y4 - y3) > 511) return true;
-      return false;
-    }
-
-    outsideDrawArea(x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) {
-      return false;
-      ++this.skipped;
-      if ((x1 < $gpu.daL) && (x2 < $gpu.daL) && (x3 < $gpu.daL) && (x4 < $gpu.daL)) return true;
-      if ((x1 > $gpu.daR) && (x2 > $gpu.daR) && (x3 > $gpu.daR) && (x4 > $gpu.daR)) return true;
-      if ((y1 < $gpu.daT) && (y2 < $gpu.daT) && (y3 < $gpu.daT) && (y4 < $gpu.daT)) return true;
-      if ((y1 > $gpu.daB) && (y2 > $gpu.daB) && (y3 > $gpu.daB) && (y4 > $gpu.daB)) return true;
-
-      --this.skipped;
-      return false;
+      gl_bindFramebuffer(FRAMEBUFFER, null);
     }
 
     setTransparencyMode(mode, program) {
-      const gl = this.gl;
       gl.useProgram(program);
 
       switch (mode & 0x7) {
         case 0: {
-          gl.enable(gl.BLEND);
+          gl_enable(gl.BLEND);
           gl.blendEquation(gl.FUNC_ADD);
           gl.blendColor(0.0, 0.0, 0.0, 0.5);
           gl.blendFuncSeparate(gl.CONSTANT_ALPHA, gl.CONSTANT_ALPHA, gl.ONE, gl.ZERO);
         } break;
         case 1: {
-          gl.enable(gl.BLEND);
+          gl_enable(gl.BLEND);
           gl.blendEquation(gl.FUNC_ADD);
           gl.blendColor(0.0, 0.0, 0.0, 1.0);
           gl.blendFuncSeparate(gl.CONSTANT_ALPHA, gl.CONSTANT_ALPHA, gl.ONE, gl.ZERO);
         } break;
         case 2: {
-          gl.enable(gl.BLEND);
+          gl_enable(gl.BLEND);
           gl.blendEquationSeparate(gl.FUNC_REVERSE_SUBTRACT, gl.FUNC_ADD);
           gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR, gl.ONE, gl.ZERO);
         } break;
         case 3: {
-          gl.enable(gl.BLEND);
+          gl_enable(gl.BLEND);
           gl.blendEquation(gl.FUNC_ADD);
           gl.blendColor(0.0, 0.0, 0.0, 0.75);
           gl.blendFuncSeparate(gl.ONE_MINUS_CONSTANT_ALPHA, gl.ONE, gl.ONE, gl.ZERO);
         } break;
         case 4: {
-          gl.disable(gl.BLEND);
+          gl_disable(gl.BLEND);
         } break;
       }
     }
@@ -307,10 +243,10 @@ mdlr('enge:webgl2', m => {
       var x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
       var y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
 
-      if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
-      if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+      if (outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
+      if (largePrimitive(x1, y1, x2, y2, x1, y1)) return;
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer(this);
+      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var w = Math.abs(x1 - x2);
@@ -365,10 +301,10 @@ mdlr('enge:webgl2', m => {
       const x3 = $gpu.daX + ((data[xy3] << 21) >> 21);
       const y3 = $gpu.daY + ((data[xy3] << 5) >> 21);
 
-      if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
-      if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
+      if (outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
+      if (largePrimitive(x1, y1, x2, y2, x3, y3)) return;
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer(this);
+      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       const buffer = vertexBuffer;
@@ -395,10 +331,10 @@ mdlr('enge:webgl2', m => {
       var h = (data[2] >> 16);
       if (!w || !h) return;
 
-      if (this.outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
-      if (this.largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
+      if (outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
+      if (largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer(this);
+      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var tl = tx + 0;
@@ -426,9 +362,7 @@ mdlr('enge:webgl2', m => {
     }
 
     fillRectangle(data) {
-      flushVertexBuffer(this);
-
-      let gl = this.gl;
+      flushVertexBuffer();
 
       var x = (data[1] << 16) >>> 16;
       var y = (data[1] << 0) >>> 16;
@@ -445,38 +379,38 @@ mdlr('enge:webgl2', m => {
       transfer.fill(c, 0, w * h);
 
       // copy texture data
-      gl.bindTexture(gl.TEXTURE_2D, this.cache);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, view);
-      gl.bindTexture(gl.TEXTURE_2D, null);
+      gl_bindTexture(TEXTURE_2D, cache);
+      gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      gl_bindTexture(TEXTURE_2D, null);
 
       // blit from cache -> vram
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_cache);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.cache, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vram);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-      gl.blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vram -> vramShadow
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.fb_vram);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vram, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fb_vramShadow);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.vramShadow, 0);
-      gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+      gl_bindFramebuffer(FRAMEBUFFER, null);
     }
 
     updateDrawArea() {
       if ($gpu.daM) {
-        flushVertexBuffer(this);
+        flushVertexBuffer();
         copyVramToShadowVram(this, true);
-        flushDepth(this);
+        flushDepth();
         $gpu.daM = false;
 
-        this.gl.useProgram(this.programRenderer);
-        this.gl.uniform4i(this.programRenderer.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+        gl.useProgram(this.programRenderer);
+        gl.uniform4i(this.programRenderer.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
       }
     }
 
@@ -508,14 +442,10 @@ mdlr('enge:webgl2', m => {
     }
 
     onVBlankEnd() {
-      const gl = this.gl;
-
-      $stats.dump();
-
       ++this.fpsCounter;
       if (this.seenRender) {
-        flushVertexBuffer(this);
-        flushDepth(this);
+        flushVertexBuffer();
+        flushDepth();
         copyVramToShadowVram(this, false, true);
         // console.log('onVBlankEnd')
 
@@ -581,59 +511,50 @@ mdlr('enge:webgl2', m => {
     return c;
   }
 
-  function flushDepth(renderer) {
-    const gl = renderer.gl;
-
-    gl.enable(gl.DEPTH_TEST);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.fb_vram);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, renderer.vramDepth, 0);
+  function flushDepth() {
+    gl_enable(gl.DEPTH_TEST);
+    gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
+    gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+    gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0);
     gl.clearDepth(0.0);
     gl.clear(gl.DEPTH_BUFFER_BIT);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl_bindFramebuffer(FRAMEBUFFER, null);
 
     primitiveId = 1;
-    gl.disable(gl.DEPTH_TEST);
+    gl_disable(gl.DEPTH_TEST);
   }
 
   function copyVramToShadowVram(renderer, old = false, display = false) {
-    const gl = renderer.gl;
-
     if (!display) {
       const X1 = 4 * (old ? $gpu.daLold : $gpu.daL);
       const Y1 = 4 * (old ? $gpu.daTold : $gpu.daT);
       const X2 = 4 * (old ? $gpu.daRold : $gpu.daR + 1);
       const Y2 = 4 * (old ? $gpu.daBold : $gpu.daB + 1);
       // blit from vram -> vramShadow
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.fb_vramShadow);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vramShadow, 0);
-      gl.blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+      gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
     }
     else {
       const { x, y, w, h } = gpu.getDisplayArea();
       // blit from vram -> vramShadow
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, renderer.fb_vram);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, renderer.fb_vramShadow);
-      gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vramShadow, 0);
-      gl.blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
     }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl_bindFramebuffer(FRAMEBUFFER, null);
   }
 
-  function flushBuffer(renderer, vertexBuffer, mode) {
-    const gl = renderer.gl;
-
+  function flushBuffer(vertexBuffer, mode) {
     if (vertexBuffer.size()) {
-      gl.enable(gl.DEPTH_TEST);
+      gl_enable(gl.DEPTH_TEST);
       gl.depthMask(true);
       gl.depthFunc(gl.GREATER);
       renderer.setTransparencyMode(mode, renderer.programRenderer);
-
-      // console.log(`flush(${mode}):`, vertexBuffer.size());
-      $stats.vertices += vertexBuffer.size();
 
       gl.useProgram(renderer.programRenderer);
       gl.viewport(0, 0, 4096, 2048); // texture dimensions
@@ -641,60 +562,58 @@ mdlr('enge:webgl2', m => {
       gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, vertexBuffer.base(), vertexBuffer.bytes());
 
-      gl.bindFramebuffer(gl.FRAMEBUFFER, renderer.fb_vram);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.vram, 0);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, renderer.vramDepth, 0)
+      gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
+      gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+      gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0)
 
-      gl.bindTexture(gl.TEXTURE_2D, renderer.vramShadow);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
       gl.drawArrays(gl.TRIANGLES, 0, vertexBuffer.size());
 
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl_bindFramebuffer(FRAMEBUFFER, null);
       vertexBuffer.reset();
-      ++$stats.flushes;
-      gl.disable(gl.DEPTH_TEST);
+      gl_disable(gl.DEPTH_TEST);
     }
   }
 
   // only called by primitives
   let $mode = 4;
-  function nextPrimitive() {
+  const nextPrimitive = () => {
     ++primitiveId;
   }
-  function getVertexBuffer(renderer, data) {
+  const getVertexBuffer = (renderer, data) => {
     const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
 
     if (mode !== 4 && mode !== $mode) {
-      flushVertexBuffer(renderer);
+      flushVertexBuffer();
       $mode = mode;
     }
     return renderer.buffers[mode];
   }
 
-  function flushVertexBuffer(renderer) {
-    flushBuffer(renderer, vertexBuffer);
+  const flushVertexBuffer = () => {
+    flushBuffer(vertexBuffer);
 
-    for (let i = 4; i >= 0; --i) {
-      flushBuffer(renderer, renderer.buffers[i], i);
+    for (let mode = 4; mode >= 0; --mode) {
+      flushBuffer(renderer.buffers[mode], mode);
     }
-    renderer.gl.flush();
+    // gl.flush();
     // copyVramToShadowVram(renderer);
     // flushDepth(renderer);
   }
 
-  function getDisplayArrays(area) {
-    vertexBuffer.addVertex(0, 0, area.x + 0, area.y + 0, 0xffffffff);
-    vertexBuffer.addVertex(1024, 0, area.x + area.w, area.y + 0, 0xffffffff);
-    vertexBuffer.addVertex(0, 512, area.x + 0, area.y + area.h, 0xffffffff);
+  const getDisplayArrays = ({ x, y, w, h }) => {
+    vertexBuffer.addVertex(0, 0, x + 0, y + 0);
+    vertexBuffer.addVertex(1024, 0, x + w, y + 0);
+    vertexBuffer.addVertex(0, 512, x + 0, y + h);
 
-    vertexBuffer.addVertex(0, 512, area.x + 0, area.y + area.h, 0xffffffff);
-    vertexBuffer.addVertex(1024, 0, area.x + area.w, area.y + 0, 0xffffffff);
-    vertexBuffer.addVertex(1024, 512, area.x + area.w, area.y + area.h, 0xffffffff);
+    vertexBuffer.addVertex(0, 512, x + 0, y + h);
+    vertexBuffer.addVertex(1024, 0, x + w, y + 0);
+    vertexBuffer.addVertex(1024, 512, x + w, y + h);
 
     return vertexBuffer.view();
   }
 
-  function showDisplay(renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) {
-    const gl = renderer.gl;
+  const showDisplay = (renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) => {
     const program = renderer.programDisplay;
 
     if ((canvas.width !== region.w * settings.quality) || (canvas.height !== region.h * settings.quality)) {
@@ -709,13 +628,13 @@ mdlr('enge:webgl2', m => {
     gl.uniform1i(program.mode, mode);
     gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl_bindFramebuffer(FRAMEBUFFER, null);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(region), gl.STATIC_DRAW);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, renderer.vram);
+    gl_bindTexture(TEXTURE_2D, vram);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -727,81 +646,113 @@ mdlr('enge:webgl2', m => {
   }
 
   const vertexStride = 24;
-  function createProgramDisplay(gl, displayBuffer) {
-    const program = utils.createProgramFromScripts(gl, 'vertex', 'displayScreen');
+  const createProgramDisplay = (displayBuffer) => {
+    const program = createProgramFromScripts(gl, 'vertex', 'displayScreen');
     gl.useProgram(program);
 
-    program.displayArea = gl.getUniformLocation(program, "u_disp");
-    program.time = gl.getUniformLocation(program, "u_time");
-    program.mode = gl.getUniformLocation(program, "u_mode");
-    program.drawArea = gl.getUniformLocation(program, "u_draw");
+    program.displayArea = gl_getUniformLocation(program, "u_disp");
+    program.mode = gl_getUniformLocation(program, "u_mode");
+    program.drawArea = gl_getUniformLocation(program, "u_draw");
 
     gl.bindBuffer(gl.ARRAY_BUFFER, displayBuffer);
 
-    program.vertexPosition = gl.getAttribLocation(program, "a_position");
-    gl.enableVertexAttribArray(program.vertexPosition);
-    gl.vertexAttribPointer(program.vertexPosition, 3, gl.SHORT, false, vertexStride, 0);
+    let pos;
 
-    program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
-    gl.enableVertexAttribArray(program.textureCoord);
-    gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, vertexStride, 6);
+    pos = gl_getAttribLocation(program, "a_position");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 3, gl.SHORT, false, vertexStride, 0);
 
-    program.vertexColor = gl.getAttribLocation(program, "a_color");
-    gl.enableVertexAttribArray(program.vertexColor);
-    gl.vertexAttribPointer(program.vertexColor, 4, gl.UNSIGNED_BYTE, true, vertexStride, 10);
+    pos = gl_getAttribLocation(program, "a_texcoord");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 2, gl.SHORT, false, vertexStride, 6);
 
     return program;
   }
 
-  function createProgramRenderer(gl, renderBuffer) {
-    const program = utils.createProgramFromScripts(gl, 'pixel', 'videoram');
+  const createProgramRenderer = (renderBuffer) => {
+    const program = createProgramFromScripts(gl, 'pixel', 'videoram');
     gl.useProgram(program);
 
-    program.drawArea = gl.getUniformLocation(program, "u_draw");
+    program.drawArea = gl_getUniformLocation(program, "u_draw");
 
-    program.vertexPosition = gl.getAttribLocation(program, "a_position");
-    gl.enableVertexAttribArray(program.vertexPosition);
-    gl.vertexAttribPointer(program.vertexPosition, 3, gl.SHORT, false, vertexStride, 0);
+    let pos;
 
-    program.textureCoord = gl.getAttribLocation(program, "a_texcoord");
-    gl.enableVertexAttribArray(program.textureCoord);
-    gl.vertexAttribPointer(program.textureCoord, 2, gl.SHORT, false, vertexStride, 6);
+    pos = gl_getAttribLocation(program, "a_position");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 3, gl.SHORT, false, vertexStride, 0);
 
-    program.vertexColor = gl.getAttribLocation(program, "a_color");
-    gl.enableVertexAttribArray(program.vertexColor);
-    gl.vertexAttribPointer(program.vertexColor, 4, gl.UNSIGNED_BYTE, true, vertexStride, 10);
+    pos = gl_getAttribLocation(program, "a_texcoord");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 2, gl.SHORT, false, vertexStride, 6);
 
-    program.twin = gl.getAttribLocation(program, "a_twin");
-    gl.enableVertexAttribArray(program.twin);
-    gl.vertexAttribPointer(program.twin, 4, gl.UNSIGNED_BYTE, false, vertexStride, 14);
+    pos = gl_getAttribLocation(program, "a_color");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 4, UNSIGNED_BYTE, true, vertexStride, 10);
 
-    program.clut = gl.getAttribLocation(program, "a_clut");
-    gl.enableVertexAttribArray(program.clut);
-    gl.vertexAttribPointer(program.clut, 1, gl.SHORT, false, vertexStride, 18);
+    pos = gl_getAttribLocation(program, "a_twin");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 4, UNSIGNED_BYTE, false, vertexStride, 14);
 
-    program.textureMode = gl.getAttribLocation(program, "a_tmode");
-    gl.enableVertexAttribArray(program.textureMode);
-    gl.vertexAttribPointer(program.textureMode, 1, gl.BYTE, false, vertexStride, 20);
+    pos = gl_getAttribLocation(program, "a_clut");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 1, gl.SHORT, false, vertexStride, 18);
+
+    pos = gl_getAttribLocation(program, "a_tmode");
+    gl_enableVertexAttribArray(pos);
+    gl_vertexAttribPointer(pos, 1, gl.BYTE, false, vertexStride, 20);
 
     return program;
   }
 
-  function createDepthComponent(gl, width, height) {
+  const createAndBindTexture = () => {
     const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, width, height, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl_bindTexture(TEXTURE_2D, texture);
+    gl.texParameteri(TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MIN_FILTER, NEAREST);
+    gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MAG_FILTER, NEAREST);
     return texture;
   }
+
+  const createDepthComponent = (width, height) => {
+    const texture = createAndBindTexture();
+    gl_texImage2D(TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, width, height, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
+    gl_bindTexture(TEXTURE_2D, null);
+    return texture;
+  }
+
+  // create texture
+  const vram = createAndBindTexture();
+  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+  const vramDepth = createDepthComponent(4096, 2048);
+
+  const fb_vram = gl_createFramebuffer();
+  gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
+  gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+  gl_bindTexture(TEXTURE_2D, vramDepth);
+  gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0)
+  gl_bindFramebuffer(FRAMEBUFFER, null);
+
+  // create texture
+  const vramShadow = createAndBindTexture();
+  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+
+  const fb_vramShadow = gl_createFramebuffer();
+  gl_bindFramebuffer(FRAMEBUFFER, fb_vramShadow);
+  gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+  gl_bindFramebuffer(FRAMEBUFFER, null);
+
+  // create texture
+  const cache = createAndBindTexture();
+  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+
+  const fb_cache = gl_createFramebuffer();
+
 
   window.primitiveId = 0;
   window.nextPrimitive = nextPrimitive;
 
-  window.renderer = new WebGLRenderer(document.getElementById('display'));
+  window.renderer = new WebGLRenderer();
 })
 
 mdlr('enge:webgl2:utils', m => {
