@@ -1,5 +1,8 @@
 mdlr('enge:psx:gpu', m => {
 
+  const $renderer = renderer;
+  const [drawLine,drawTriangle,drawRectangle] = [$renderer.drawLine,$renderer.drawTriangle,$renderer.drawRectangle].map(a => a.bind($renderer));
+
   const missing = new Set;
 
   var packetSizes = [
@@ -314,7 +317,7 @@ mdlr('enge:psx:gpu', m => {
 
     // Monochrome 3 point polygon
     handlePacket20: function (data) {
-      renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
+      drawTriangle(data, 0, 1, 0, 2, 0, 3);
     },
 
     renderTexture: function (data, cb) {
@@ -338,14 +341,14 @@ mdlr('enge:psx:gpu', m => {
       gpu.updateTexturePage(data[4] >>> 16);
 
       this.renderTexture(data, () => {
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+        drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
       });
     },
 
     // Monochrome 4 point polygon
     handlePacket28: function (data) {
-      renderer.drawTriangle(data, 0, 1, 0, 2, 0, 3);
-      renderer.drawTriangle(data, 0, 2, 0, 3, 0, 4);
+      drawTriangle(data, 0, 1, 0, 2, 0, 3);
+      drawTriangle(data, 0, 2, 0, 3, 0, 4);
     },
 
     // Textured 4 point polygon
@@ -353,14 +356,14 @@ mdlr('enge:psx:gpu', m => {
       gpu.updateTexturePage(data[4] >>> 16);
 
       this.renderTexture(data, () => {
-        renderer.drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
-        renderer.drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+        drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+        drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
       });
     },
 
     // Gradated 3 point polygon
     handlePacket30: function (data) {
-      renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
+      drawTriangle(data, 0, 1, 2, 3, 4, 5);
     },
 
     // Gradated textured 3 point polygon
@@ -368,14 +371,14 @@ mdlr('enge:psx:gpu', m => {
       gpu.updateTexturePage(data[5] >>> 16);
 
       this.renderTexture(data, () => {
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+        drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
       });
     },
 
     // Gradated 4 point polygon
     handlePacket38: function (data) {
-      renderer.drawTriangle(data, 0, 1, 2, 3, 4, 5);
-      renderer.drawTriangle(data, 2, 3, 4, 5, 6, 7);
+      drawTriangle(data, 0, 1, 2, 3, 4, 5);
+      drawTriangle(data, 2, 3, 4, 5, 6, 7);
     },
 
     // Gradated textured 4 point polygon
@@ -383,38 +386,38 @@ mdlr('enge:psx:gpu', m => {
       gpu.updateTexturePage(data[5] >>> 16);
 
       this.renderTexture(data, () => {
-        renderer.drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
-        renderer.drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
+        drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+        drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
       });
     },
 
     // Monochrome line
     handlePacket40: function (data) {
-      renderer.drawLine(data, 0, 1, 0, 2);
+      drawLine(data, 0, 1, 0, 2);
     },
 
     // Monochrome polyline
     handlePacket48: function (data, size) {
       for (var i = 2; i < size; i += 1) {
-        renderer.drawLine(data, 0, i - 1, 0, i);
+        drawLine(data, 0, i - 1, 0, i);
       }
     },
 
     // Gradated line
     handlePacket50: function (data) {
-      renderer.drawLine(data, 0, 1, 2, 3);
+      drawLine(data, 0, 1, 2, 3);
     },
 
     // Gradated polyline
     handlePacket58: function (data, size) {
       for (var i = 3; i < size; i += 2) {
-        renderer.drawLine(data, i - 3, i - 2, i - 1, i);
+        drawLine(data, i - 3, i - 2, i - 1, i);
       }
     },
 
     // Rectangle
     handlePacket60: function (data) {
-      renderer.drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
+      drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
     },
 
     // Sprite
@@ -423,18 +426,18 @@ mdlr('enge:psx:gpu', m => {
       const ty = (data[2] >>> 8) & 255;
 
       this.renderTexture(data, () => {
-        renderer.drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+        drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
       });
     },
 
     // Dot
     handlePacket68: function (data) {
-      renderer.drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
+      drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
     },
 
     // 8*8 rectangle
     handlePacket70: function (data) {
-      renderer.drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
+      drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
     },
 
     // 8*8 sprite
@@ -443,13 +446,13 @@ mdlr('enge:psx:gpu', m => {
       const ty = (data[2] >>> 8) & 255;
 
       this.renderTexture(data, () => {
-        renderer.drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
+        drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
       });
     },
 
     // 16*16 rectangle
     handlePacket78: function (data) {
-      renderer.drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
+      drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
     },
 
     // 16*16 sprite
@@ -458,7 +461,7 @@ mdlr('enge:psx:gpu', m => {
       const ty = (data[2] >>> 8) & 255;
 
       this.renderTexture(data, () => {
-        renderer.drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
+        drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
       });
     },
 
