@@ -1,7 +1,6 @@
 mdlr('enge:psx', m => {
 
   Object.assign(window,
-    m.require('enge:utils'),
     m.require('enge:psx:core'),
     m.require('enge:psx:trace'),
   );

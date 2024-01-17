@@ -1348,7 +1348,11 @@ mdlr('enge:webgl', m => {
 
 mdlr('enge:psx:webgl', m => {
 
-  m.require('enge:psx');
+  Object.assign(window,
+    m.require('enge:utils'),
+  );
+
   m.require('enge:webgl');
+  m.require('enge:psx');
 
 })

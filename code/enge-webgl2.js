@@ -932,6 +932,10 @@ mdlr('enge:webgl2:utils', m => {
 
 mdlr('enge:psx:webgl2', m => {
 
+  Object.assign(window,
+    m.require('enge:utils'),
+  );
+
   m.require('enge:webgl2');
   m.require('enge:psx');
 
