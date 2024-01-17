@@ -932,7 +932,7 @@ mdlr('enge:webgl2:utils', m => {
 
 mdlr('enge:psx:webgl2', m => {
 
-  m.require('enge:psx');
   m.require('enge:webgl2');
+  m.require('enge:psx');
 
 })

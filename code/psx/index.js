@@ -265,8 +265,6 @@ mdlr('enge:psx:index', m => {
 
     emulate(performance.now());
 
-    // renderer = new WebGLRenderer(canvas);
-
     canvas.addEventListener("dblclick", function (e) {
       running = !running;
       if (!running) {
@@ -334,8 +332,6 @@ mdlr('enge:psx:index', m => {
       }
     });
   }
-
-  window.renderer = undefined;
 
   return { init, PSX_SPEED, abort, context };
 })
