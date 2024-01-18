@@ -24,6 +24,79 @@ mdlr('enge:psx:spu', m => {
     source.start();
   }
 
+  const setReverbRegister = (addr, data) => {
+    // todo: implement reverb later
+  };
+
+  psx.addEvent(0, (self, clock) => {
+    psx.updateEvent(self, (PSX_SPEED / 44100 * CYCLES_PER_EVENT));
+    if (!left || !right) return;
+
+    SPUSTAT &= ~(0x003F);
+    SPUSTAT |= (SPUSTATm & 0x003F);
+
+    for (let tt = CYCLES_PER_EVENT; tt > 0; --tt) {
+      ++totalSamples;
+
+      let l = 0, r = 0;
+
+      const captureIndex = (totalSamples % 0x200) << 1;
+      spu.checkIrq();
+
+      let audio = [0.0, 0.0];
+      for (let i = 0; i < 24; ++i) {
+        let voice = voices[i];
+        if (!voice.advance(memory, audio)) continue;
+
+        l += audio[0];
+        r += audio[1];
+
+        if (i === 3) {
+          const mono = (audio[0] * 0x8000) >>> 0;
+          memory[0x0C00 + captureIndex] = mono & 0xff;
+          memory[0x0C01 + captureIndex] = mono >> 8;
+        }
+        if (i === 1) {
+          const mono = (audio[1] * 0x8000) >>> 0;
+          memory[0x0800 + captureIndex] = mono & 0xff;
+          memory[0x0801 + captureIndex] = mono >> 8;
+        }
+      }
+
+      var cdxa = [0.0, 0.0];
+      cdr.nextpcm(cdxa);
+
+      let cdSampleL = (cdxa[0] * cdVolumeLeft);
+      let cdSampleR = (cdxa[1] * cdVolumeRight);
+      {
+        const mono = (cdSampleL * 0x8000) >>> 0;
+        memory[0x0000 + captureIndex] = mono & 0xff;
+        memory[0x0001 + captureIndex] = mono >> 8;
+      }
+      {
+        const mono = (cdSampleR * 0x8000) >>> 0;
+        memory[0x0400 + captureIndex] = mono & 0xff;
+        memory[0x0401 + captureIndex] = mono >> 8;
+      }
+      l += cdSampleL;
+      r += cdSampleR;
+
+      l = (l * mainVolumeLeft);
+      r = (r * mainVolumeRight);
+
+      left[writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
+      right[writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
+      writeIndex = (writeIndex + 1) % frameCount;
+
+      if (captureIndex === 0x000) {
+        SPUSTAT &= ~0x0800;
+      }
+      if (captureIndex === 0x200) {
+        SPUSTAT |= 0x0800;
+      }
+    }
+  });
+
   let left = null;
   let right = null;
   let ramOffset = 0;
@@ -35,18 +108,19 @@ mdlr('enge:psx:spu', m => {
   let SPUSTAT = 0x0000;
   let SPUSTATm = 0x0000;
 
-  let spu = {
+  let mainVolumeLeft = 0.0;
+  let mainVolumeRight = 0.0;
+  let reverbVolumeLeft = 0.0;
+  let reverbVolumeRight = 0.0;
+  let cdVolumeLeft = 0.0;
+  let cdVolumeRight = 0.0;
+  let extVolumeLeft = 0.0;
+  let extVolumeRight = 0.0;
 
+  let reverbOffset = 0;
+
+  let spu = {
     ENDX: 0x00ffffff,
-    mainVolumeLeft: 0.0,
-    mainVolumeRight: 0.0,
-    reverbVolumeLeft: 0.0,
-    reverbVolumeRight: 0.0,
-    cdVolumeLeft: 0.0,
-    cdVolumeRight: 0.0,
-    extVolumeLeft: 0.0,
-    extVolumeRight: 0.0,
-    reverbOffset: 0,
 
     silence: () => {
       if (left && right) {
@@ -69,9 +143,7 @@ mdlr('enge:psx:spu', m => {
         default:
           if ((addr >= 0x1c00) && (addr < 0x1d80)) {
             const id = (addr - 0x1c00) >> 4;
-            const voice = voices[id];
-
-            return voice.getRegister(addr & 0xf);
+            return voices[id].getRegister(addr & 0xf);
           }
           return map16[((0x01800000 + addr) & 0x01ffffff) >>> 1];
       }
@@ -81,13 +153,13 @@ mdlr('enge:psx:spu', m => {
       data &= 0xffff;
 
       switch (addr) {
-        case 0x1d80: spu.mainVolumeLeft = spu.getVolume(data);
+        case 0x1d80: mainVolumeLeft = spu.getVolume(data);
           break;
-        case 0x1d82: spu.mainVolumeRight = spu.getVolume(data);
+        case 0x1d82: mainVolumeRight = spu.getVolume(data);
           break;
-        case 0x1d84: spu.reverbVolumeLeft = spu.getVolume(data);
+        case 0x1d84: reverbVolumeLeft = spu.getVolume(data);
           break;
-        case 0x1d86: spu.reverbVolumeRight = spu.getVolume(data);
+        case 0x1d86: reverbVolumeRight = spu.getVolume(data);
           break;
         case 0x1d88: for (var i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
@@ -147,7 +219,7 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1da0:  // ??? Legend of Dragoon
           break
-        case 0x1da2: spu.reverbOffset = data << 3;
+        case 0x1da2: reverbOffset = data << 3;
           break
         case 0x1da4: irqOffset = data << 3;
           break
@@ -171,13 +243,13 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1dae:  // SPUSTAT (read-only)
           break
-        case 0x1db0: spu.cdVolumeLeft = data / 0x8000;
+        case 0x1db0: cdVolumeLeft = data / 0x8000;
           break
-        case 0x1db2: spu.cdVolumeRight = data / 0x8000;
+        case 0x1db2: cdVolumeRight = data / 0x8000;
           break
-        case 0x1db4: spu.extVolumeLeft = data / 0x8000;
+        case 0x1db4: extVolumeLeft = data / 0x8000;
           break
-        case 0x1db6: spu.extVolumeRight = data / 0x8000;
+        case 0x1db6: extVolumeRight = data / 0x8000;
           break
         case 0x1db8:  // ??? Legend of Dragoon
           break
@@ -187,19 +259,19 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1dbe:  // ??? Legend of Dragoon 
           break
-        default: if ((addr >= 0x1c00) && (addr < 0x1d80)) {
-          const id = ((addr - 0x1c00) / 16) | 0;
-          const voice = voices[id];
+        default:
+          if ((addr >= 0x1c00) && (addr < 0x1d80)) {
+            const id = ((addr - 0x1c00) / 16) | 0;
+            const voice = voices[id];
 
-          voice.setRegister(addr & 0xf, data);
-          break;
-        }
-          if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
-            spu.setReverbRegister(addr, data);
+            voice.setRegister(addr & 0xf, data);
             break;
           }
-          abort("Unimplemented spu register:" + hex(addr, 4))
-          break
+          if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
+            setReverbRegister(addr, data);
+            break;
+          }
+          abort(hex(addr, 4));
       }
     },
 
@@ -239,10 +311,6 @@ mdlr('enge:psx:spu', m => {
       return (blck >> 16) * (blck & 0xFFFF);
     },
 
-    setReverbRegister: (addr, data) => {
-      // todo: implement reverb later
-    },
-
     checkIrq: voice => {
       if ((SPUCNT & 0x8040) !== 0x8040) return;
 
@@ -265,77 +333,7 @@ mdlr('enge:psx:spu', m => {
         cpu.istat |= 0x200;
         SPUSTAT |= 0x0040;
       }
-    },
-
-    event: (self, clock) => {
-      psx.updateEvent(self, (PSX_SPEED / 44100 * CYCLES_PER_EVENT));
-      if (!left || !right) return;
-
-      SPUSTAT &= ~(0x003F);
-      SPUSTAT |= (SPUSTATm & 0x003F);
-
-      for (let tt = CYCLES_PER_EVENT; tt > 0; --tt) {
-        ++totalSamples;
-
-        let l = 0, r = 0;
-
-        const captureIndex = (totalSamples % 0x200) << 1;
-        spu.checkIrq();
-
-        let audio = [0.0, 0.0];
-        for (let i = 0; i < 24; ++i) {
-          let voice = voices[i];
-          if (!voice.advance(memory, audio)) continue;
-
-          l += audio[0];
-          r += audio[1];
-
-          if (i === 3) {
-            const mono = (audio[0] * 0x8000) >>> 0;
-            memory[0x0C00 + captureIndex] = mono & 0xff;
-            memory[0x0C01 + captureIndex] = mono >> 8;
-          }
-          if (i === 1) {
-            const mono = (audio[1] * 0x8000) >>> 0;
-            memory[0x0800 + captureIndex] = mono & 0xff;
-            memory[0x0801 + captureIndex] = mono >> 8;
-          }
-        }
-
-        var cdxa = [0.0, 0.0];
-        cdr.nextpcm(cdxa);
-
-        let cdSampleL = (cdxa[0] * spu.cdVolumeLeft);
-        let cdSampleR = (cdxa[1] * spu.cdVolumeRight);
-        {
-          const mono = (cdSampleL * 0x8000) >>> 0;
-          memory[0x0000 + captureIndex] = mono & 0xff;
-          memory[0x0001 + captureIndex] = mono >> 8;
-        }
-        {
-          const mono = (cdSampleR * 0x8000) >>> 0;
-          memory[0x0400 + captureIndex] = mono & 0xff;
-          memory[0x0401 + captureIndex] = mono >> 8;
-        }
-        l += cdSampleL;
-        r += cdSampleR;
-
-        l = (l * spu.mainVolumeLeft);
-        r = (r * spu.mainVolumeRight);
-
-        left[writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
-        right[writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
-        writeIndex = (writeIndex + 1) % frameCount;
-
-        if (captureIndex === 0x000) {
-          SPUSTAT &= ~0x0800;
-        }
-        if (captureIndex === 0x200) {
-          SPUSTAT |= 0x0800;
-        }
-      }
     }
-
   }
 
   //- init

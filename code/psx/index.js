@@ -36,13 +36,6 @@ mdlr('enge:psx:index', m => {
       (navigator.msMaxTouchPoints > 0);
   }
 
-  psx.addEvent(0, spu.event.bind(spu));
-  dma.eventDMA0 = psx.addEvent(0, dma.completeDMA0.bind(dma));
-  // dma.eventDMA1 = psx.addEvent(0, dma.completeDMA1.bind(dma));
-  dma.eventDMA2 = psx.addEvent(0, dma.completeDMA2.bind(dma));
-  dma.eventDMA3 = psx.addEvent(0, dma.completeDMA3.bind(dma));
-  dma.eventDMA4 = psx.addEvent(0, dma.completeDMA4.bind(dma));
-  dma.eventDMA6 = psx.addEvent(0, dma.completeDMA6.bind(dma));
   mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
 
   dot.event = psx.addEvent(0, dot.complete.bind(dot));

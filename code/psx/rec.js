@@ -16,606 +16,378 @@ mdlr('enge:psx:rec', m => {
   }
 
   const rec = {
-    '02': function (rec, opc) {
+    '02': (rec, opc) => {
       rec.stop = true;
       rec.jump = true;
       rec.skipNext = true;
       rec.branchTarget = (opc & 0x007FFFFF) << 2;
-      const mips = 'j       $' + hex(rec.branchTarget);
-      const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)}`);
+      const code = rec.setReg(0, `target = _${hex(rec.branchTarget)}`);
       return code;
     },
 
-    '03': function (rec, opc) {
+    '03': (rec, opc) => {
       rec.stop = true;
       rec.jump = true;
       rec.branchTarget = (opc & 0x007FFFFF) << 2;
-      const mips = 'jal     $' + hex(rec.branchTarget);
-      const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
-      ConstantFolding.resetConst(31);
+      const code = rec.setReg(0, `target = _${hex(rec.branchTarget)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
       return code;
     },
 
-    '04': function (rec, opc) {
+    '04': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'beq     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} === ${rec.getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+      const code = rec.setReg(0, `target = (${rec.getRS()} === ${rec.getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
       return code;
     },
 
-    '05': function (rec, opc) {
+    '05': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'bne     r' + rec.rs + ', r' + rec.rt + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} !== ${rec.getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+      const code = rec.setReg(0, `target = (${rec.getRS()} !== ${rec.getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
       return code;
     },
 
-    '06': function (rec, opc) {
+    '06': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'blez    r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} <= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+      const code = rec.setReg(0, `target = (${rec.getRS()} <= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
       return code;
     },
 
-    '07': function (rec, opc) {
+    '07': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'bgtz    r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} > 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+      const code = rec.setReg(0, `target = (${rec.getRS()} > 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
       return code;
     },
 
-    '08': function (rec, opc) {
-      const mips = 'addi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-      if (ConstantFolding.isConst(rec.rs)) {
-        const immediate = (opc << 16) >> 16;
-        const value = ConstantFolding.getConst(rec.rs) + immediate;
-        const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rt, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
-      ConstantFolding.resetConst(rec.rt);
+    '08': (rec, opc) => {
+      const code = rec.setReg(rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
       return code;
     },
 
-    '09': function (rec, opc) {
-      const mips = 'addiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-      if (ConstantFolding.isConst(rec.rs)) {
-        const immediate = (opc << 16) >> 16;
-        const value = ConstantFolding.getConst(rec.rs) + immediate;
-        const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rt, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
-      ConstantFolding.resetConst(rec.rt);
+    '09': (rec, opc) => {
+      const code = rec.setReg(rec.rt, ((opc << 16) >> 16) + ' + ' + rec.getRS());
       return code;
     },
 
-    '0A': function (rec, opc) {
-      const mips = 'slti    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, rec.rt, '(' + rec.getRS() + ' < ' + ((opc << 16) >> 16) + ') ? 1 : 0');
-      ConstantFolding.resetConst(rec.rt);
+    '0A': (rec, opc) => {
+      const code = rec.setReg(rec.rt, '(' + rec.getRS() + ' < ' + ((opc << 16) >> 16) + ') ? 1 : 0');
       return code;
     },
 
-    '0B': function (rec, opc) {
-      const mips = 'sltiu   r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, rec.rt, '((' + rec.getRS() + ' >>> 0) < (' + ((opc << 16) >> 16) + ' >>> 0)) ? 1 : 0');
-      ConstantFolding.resetConst(rec.rt);
+    '0B': (rec, opc) => {
+      const code = rec.setReg(rec.rt, '((' + rec.getRS() + ' >>> 0) < (' + ((opc << 16) >> 16) + ' >>> 0)) ? 1 : 0');
       return code;
     },
 
-    '0C': function (rec, opc) {
-      const mips = 'andi    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-      if (ConstantFolding.isConst(rec.rs)) {
-        const immediate = ((opc << 16) >>> 16);
-        const value = ConstantFolding.getConst(rec.rs) & immediate;
-        const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rt, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rt, rec.getRS() + ' & 0x' + hex(opc, 4));
-      ConstantFolding.resetConst(rec.rt);
+    '0C': (rec, opc) => {
+      const code = rec.setReg(rec.rt, rec.getRS() + ' & 0x' + hex(opc, 4));
       return code;
     },
 
-    '0D': function (rec, opc) {
-      const mips = 'ori     r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-      if (ConstantFolding.isConst(rec.rs)) {
-        const immediate = ((opc << 16) >>> 16);
-        const value = ConstantFolding.getConst(rec.rs) | immediate;
-        const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rt, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rt, rec.getRS() + ' | 0x' + hex(opc, 4));
-      ConstantFolding.resetConst(rec.rt);
+    '0D': (rec, opc) => {
+      const code = rec.setReg(rec.rt, rec.getRS() + ' | 0x' + hex(opc, 4));
       return code;
     },
 
-    '0E': function (rec, opc) {
-      const mips = 'xori    r' + rec.rt + ', r' + rec.rs + ', $' + hex(opc, 4);
-      if (ConstantFolding.isConst(rec.rs)) {
-        const immediate = ((opc << 16) >>> 16);
-        const value = ConstantFolding.getConst(rec.rs) ^ immediate;
-        const code = rec.setReg(mips, rec.rt, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rt, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rt, rec.getRS() + ' ^ 0x' + hex(opc, 4));
-      ConstantFolding.resetConst(rec.rt);
+    '0E': (rec, opc) => {
+      const code = rec.setReg(rec.rt, rec.getRS() + ' ^ 0x' + hex(opc, 4));
       return code;
     },
 
-    '0F': function (rec, opc) {
-      const mips = 'lui     r' + rec.rt + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, rec.rt, '0x' + hex((opc & 0xffff) << 16), true);
-      ConstantFolding.setConst(rec.rt, (opc & 0xffff) << 16);
+    '0F': (rec, opc) => {
+      const code = rec.setReg(rec.rt, '0x' + hex((opc & 0xffff) << 16), true);
       return code;
     },
 
-    '20': function (rec, opc) {
-      const mips = 'lb      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, rec.rt, '(memRead8(' + rec.getOF(opc) + ') << 24) >> 24');
-      ConstantFolding.resetConst(rec.rt);
+    '20': (rec, opc) => {
+      const code = rec.setReg(rec.rt, '(memRead8(' + rec.getOF(opc) + ') << 24) >> 24');
       return code;
     },
 
-    '21': function (rec, opc) {
-      const mips = 'lh      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, rec.rt, '(memRead16 (' + rec.getOF(opc) + ') << 16) >> 16');
-      ConstantFolding.resetConst(rec.rt);
+    '21': (rec, opc) => {
+      const code = rec.setReg(rec.rt, '(memRead16 (' + rec.getOF(opc) + ') << 16) >> 16');
       return code;
     },
 
-    '22': function (rec, opc) {
-      const mips = 'lwl     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'cpu.lwl(' + rec.rt + ', ' + rec.getOF(opc) + ')');
-      ConstantFolding.resetConst(rec.rt);
+    '22': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.lwl(' + rec.rt + ', ' + rec.getOF(opc) + ')');
       return code;
     },
 
-    '23': function (rec, opc) {
-      const mips = 'lw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      if (ConstantFolding.isConst(rec.rs)) {
-        const offset = ((opc << 16) >> 16);
-        const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
-        if (address <= 0x00800000) {
-          rec.cycles += 5;
-          const code = rec.setReg(mips, rec.rt, `ram.getInt32(0x${hex(address & 0x001fffff)}, true)`);
-          ConstantFolding.resetConst(rec.rt);
-          return code;
-        }
-      }
-      const code = rec.setReg(mips, rec.rt, 'memRead32(' + rec.getOF(opc) + ')');
-      ConstantFolding.resetConst(rec.rt);
+    '23': (rec, opc) => {
+      const code = rec.setReg(rec.rt, 'memRead32(' + rec.getOF(opc) + ')');
       return code;
     },
 
-    '24': function (rec, opc) {
-      const mips = 'lbu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      if (ConstantFolding.isConst(rec.rs)) {
-        const offset = ((opc << 16) >> 16);
-        const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
-        if (address <= 0x00800000) {
-          rec.cycles += 5;
-          const code = rec.setReg(mips, rec.rt, `ram.getUint8(0x${hex(address & 0x001fffff)})`);
-          ConstantFolding.resetConst(rec.rt);
-          return code;
-        }
-      }
-      const code = rec.setReg(mips, rec.rt, 'memRead8(' + rec.getOF(opc) + ') & 0xff');
-      ConstantFolding.resetConst(rec.rt);
+    '24': (rec, opc) => {
+      const code = rec.setReg(rec.rt, 'memRead8(' + rec.getOF(opc) + ') & 0xff');
       return code;
     },
 
-    '25': function (rec, opc) {
-      const mips = 'lhu     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, rec.rt, 'memRead16(' + rec.getOF(opc) + ') & 0xffff');
-      ConstantFolding.resetConst(rec.rt);
+    '25': (rec, opc) => {
+      const code = rec.setReg(rec.rt, 'memRead16(' + rec.getOF(opc) + ') & 0xffff');
       return code;
     },
 
-    '26': function (rec, opc) {
-      const mips = 'lwr     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'cpu.lwr(' + rec.rt + ', ' + rec.getOF(opc) + ')');
-      ConstantFolding.resetConst(rec.rt);
+    '26': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.lwr(' + rec.rt + ', ' + rec.getOF(opc) + ')');
       return code;
     },
 
-    '28': function (rec, opc) {
-      const mips = 'sb      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'memWrite8(' + rec.getOF(opc) + ', ' + rec.getRT() + ')');
+    '28': (rec, opc) => {
+      const code = rec.setReg(0, 'memWrite8(' + rec.getOF(opc) + ', ' + rec.getRT() + ')');
       return code;
     },
 
-    '29': function (rec, opc) {
-      const mips = 'sh      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'memWrite16(' + rec.getOF(opc) + ', ' + rec.getRT() + ')');
+    '29': (rec, opc) => {
+      const code = rec.setReg(0, 'memWrite16(' + rec.getOF(opc) + ', ' + rec.getRT() + ')');
       return code;
     },
 
-    '2A': function (rec, opc) {
-      const mips = 'swl     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'cpu.swl(' + rec.rt + ', ' + rec.getOF(opc) + ')');
+    '2A': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.swl(' + rec.rt + ', ' + rec.getOF(opc) + ')');
       return code;
     },
 
-    '2B': function (rec, opc) {
-      const mips = 'sw      r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      if (ConstantFolding.isConst(rec.rs)) {
-        const offset = ((opc << 16) >> 16);
-        const address = (ConstantFolding.getConst(rec.rs) + offset) & 0x01ffffff;
-        if (address <= 0x00800000) {
-          const code = rec.setReg(mips, 0, `map[(0x${hex(address & 0x001fffff)} | cpu.forceWriteBits) >> 2] = ${rec.getRT()}`);
-          ConstantFolding.resetConst(rec.rt);
-          return code;
-        }
-      }
-      const code = rec.setReg(mips, 0, `memWrite32(${rec.getOF(opc)}, ${rec.getRT()})`);
+    '2B': (rec, opc) => {
+      const code = rec.setReg(0, `memWrite32(${rec.getOF(opc)}, ${rec.getRT()})`);
       return code;
     },
 
-    '2E': function (rec, opc) {
-      const mips = 'swr     r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'cpu.swr(' + rec.rt + ', ' + rec.getOF(opc) + ')');
+    '2E': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.swr(' + rec.rt + ', ' + rec.getOF(opc) + ')');
       return code;
     },
 
-    '32': function (rec, opc) {
-      const mips = 'lwc2    r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'gte.set(' + rec.rt + ', memRead32(' + rec.getOF(opc) + '))');
+    '32': (rec, opc) => {
+      const code = rec.setReg(0, 'gte.set(' + rec.rt + ', memRead32(' + rec.getOF(opc) + '))');
       return code;
     },
 
-    '3A': function (rec, opc) {
-      const mips = 'swc2    r' + rec.rt + ', $' + hex(opc, 4) + '(r' + rec.rs + ')';
-      const code = rec.setReg(mips, 0, 'memWrite32(' + rec.getOF(opc) + ', gte.get(' + rec.rt + '))');
+    '3A': (rec, opc) => {
+      const code = rec.setReg(0, 'memWrite32(' + rec.getOF(opc) + ', gte.get(' + rec.rt + '))');
       return code;
     },
 
-    '40': function (rec, opc) {
-      if (opc === 0) return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': nop';
-      const mips = 'sll     r' + rec.rd + ', r' + rec.rt + ', $' + ((opc >> 6) & 0x1F);
-      const code = rec.setReg(mips, rec.rd, rec.getRT() + ' << ' + ((opc >> 6) & 0x1f));
-      ConstantFolding.resetConst(rec.rd);
+    '40': (rec, opc) => {
+      if (opc === 0) return ''; // nop
+      const code = rec.setReg(rec.rd, rec.getRT() + ' << ' + ((opc >> 6) & 0x1f));
       return code;
     },
 
-    '42': function (rec, opc) {
-      const mips = 'srl     r' + rec.rd + ', r' + rec.rt + ', $' + ((opc >> 6) & 0x1f);
-      const code = rec.setReg(mips, rec.rd, rec.getRT() + ' >>> ' + ((opc >> 6) & 0x1f));
-      ConstantFolding.resetConst(rec.rd);
+    '42': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRT() + ' >>> ' + ((opc >> 6) & 0x1f));
       return code;
     },
 
-    '43': function (rec, opc) {
-      const mips = 'sra     r' + rec.rd + ', r' + rec.rt + ', $' + ((opc >> 6) & 0x1f);
-      const code = rec.setReg(mips, rec.rd, rec.getRT() + ' >> ' + ((opc >> 6) & 0x1f));
-      ConstantFolding.resetConst(rec.rd);
+    '43': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRT() + ' >> ' + ((opc >> 6) & 0x1f));
       return code;
     },
 
-    '44': function (rec, opc) {
-      const mips = 'sllv    r' + rec.rd + ', r' + rec.rt + ', r' + rec.rs;
-      const code = rec.setReg(mips, rec.rd, rec.getRT() + ' << (' + rec.getRS() + ' & 0x1f)');
-      ConstantFolding.resetConst(rec.rd);
+    '44': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRT() + ' << (' + rec.getRS() + ' & 0x1f)');
       return code;
     },
 
-    '46': function (rec, opc) {
-      const mips = 'srlv    r' + rec.rd + ', r' + rec.rt + ', r' + rec.rs;
-      ConstantFolding.resetConst(rec.rd);
-      const code = rec.setReg(mips, rec.rd, rec.getRT() + ' >>> (' + rec.getRS() + ' & 0x1f)');
+    '46': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRT() + ' >>> (' + rec.getRS() + ' & 0x1f)');
       return code;
     },
 
-    '47': function (rec, opc) {
-      const mips = 'srav    r' + rec.rd + ', r' + rec.rt + ', r' + rec.rs;
-      const code = rec.setReg(mips, rec.rd, rec.getRT() + ' >> (' + rec.getRS() + ' & 0x1f)');
-      ConstantFolding.resetConst(rec.rd);
+    '47': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRT() + ' >> (' + rec.getRS() + ' & 0x1f)');
       return code;
     },
 
-    '48': function (rec, opc) {
+    '48': (rec, opc) => {
       rec.stop = true;
       rec.jump = true;
       rec.skipNext = true;
-      const mips = 'jr      r' + rec.rs;
-      if (ConstantFolding.isConst(rec.rs)) {
-        rec.branchTarget = ConstantFolding.getConst(rec.rs) & 0x01ffffff;
-        const code = rec.setReg(mips, 0, `target = _${hex(rec.branchTarget)}`);
-        return code;
-      }
-      const code = rec.setReg(mips, 0, 'target = getCacheEntry(' + rec.getRS() + ')');
+      const code = rec.setReg(0, 'target = getCacheEntry(' + rec.getRS() + ')');
       return code;
     },
 
-    '49': function (rec, opc) {
+    '49': (rec, opc) => {
       rec.stop = true;
       rec.jump = true;
-      const mips = 'jalr    r' + rec.rs + ', r' + rec.rd;
-      const code = rec.setReg(mips, rec.rd, '0x' + hex(rec.pc + 8) + ';\ntarget = getCacheEntry(' + rec.getRS() + ')');
-      ConstantFolding.resetConst(rec.rd);
+      const code = rec.setReg(rec.rd, '0x' + hex(rec.pc + 8) + ';\ntarget = getCacheEntry(' + rec.getRS() + ')');
       return code;
     },
 
-    '4C': function (rec, opc) {
+    '4C': (rec, opc) => {
       rec.stop = true;
       rec.syscall = true;
-      const mips = 'syscall';
-      const code = rec.setReg(mips, 0, 'target = cpuException(8 << 2, 0x' + hex(rec.pc) + ')');
+      const code = rec.setReg(0, 'target = cpuException(8 << 2, 0x' + hex(rec.pc) + ')');
       return code;
     },
 
-    '4D': function (rec, opc) {
+    '4D': (rec, opc) => {
       return '//break';
-      // rec.stop = true;
-      // rec.break = true;
-      // return '// ' + hex(rec.pc) + ': ' + hex(opc) + ': break\n' +
-      // 	'target = cpuException(9 << 2, 0x' + hex(rec.pc) + ');';
     },
 
-    '50': function (rec, opc) {
-      const mips = 'mfhi     r' + rec.rd;
-      const code = rec.setReg(mips, rec.rd, 'cpu.hi');
-      ConstantFolding.resetConst(rec.rd);
+    '50': (rec, opc) => {
+      const code = rec.setReg(rec.rd, 'cpu.hi');
       return code;
     },
 
-    '51': function (rec, opc) {
-      const mips = 'mthi     r' + rec.rs;
-      const code = rec.setReg(mips, 0, 'cpu.hi = ' + rec.getRS());
+    '51': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.hi = ' + rec.getRS());
       return code;
     },
 
-    '52': function (rec, opc) {
-      const mips = 'mflo     r' + rec.rd;
-      const code = rec.setReg(mips, rec.rd, 'cpu.lo');
-      ConstantFolding.resetConst(rec.rd);
+    '52': (rec, opc) => {
+      const code = rec.setReg(rec.rd, 'cpu.lo');
       return code;
     },
 
-    '53': function (rec, opc) {
-      const mips = 'mtlo     r' + rec.rs;
-      const code = rec.setReg(mips, 0, 'cpu.lo = ' + rec.getRS());
+    '53': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.lo = ' + rec.getRS());
       return code;
     },
 
-    '58': function (rec, opc) {
-      const mips = 'mult    r' + rec.rs + ', r' + rec.rt;
-      const code = rec.setReg(mips, 0, 'cpu.mult(' + rec.getRS() + ', ' + rec.getRT() + ')');
+    '58': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.mult(' + rec.getRS() + ', ' + rec.getRT() + ')');
       rec.cycles += 8;
       return code;
     },
 
-    '59': function (rec, opc) {
-      const mips = 'multu   r' + rec.rs + ', r' + rec.rt;
-      const code = rec.setReg(mips, 0, 'cpu.multu(' + rec.getRS() + ', ' + rec.getRT() + ')');
+    '59': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.multu(' + rec.getRS() + ', ' + rec.getRT() + ')');
       rec.cycles += 8;
       return code;
     },
 
-    '5A': function (rec, opc) {
-      const mips = 'div     r' + rec.rs + ', r' + rec.rt;
-      const code = rec.setReg(mips, 0, 'cpu.div(' + rec.getRS() + ', ' + rec.getRT() + ')');
+    '5A': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.div(' + rec.getRS() + ', ' + rec.getRT() + ')');
       rec.cycles += 35;
       return code;
     },
 
-    '5B': function (rec, opc) {
-      const mips = 'divu    r' + rec.rs + ', r' + rec.rt;
-      const code = rec.setReg(mips, 0, 'cpu.divu(' + rec.getRS() + ', ' + rec.getRT() + ')');
+    '5B': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.divu(' + rec.getRS() + ', ' + rec.getRT() + ')');
       rec.cycles += 35;
       return code;
     },
 
-    '60': function (rec, opc) {
-      const mips = 'add     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ConstantFolding.getConst(rec.rs) + ConstantFolding.getConst(rec.rt);
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, rec.getRS() + ' + ' + rec.getRT());
-      ConstantFolding.resetConst(rec.rd);
+    '60': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRS() + ' + ' + rec.getRT());
       return code;
     },
 
-    '61': function (rec, opc) {
-      const mips = 'addu    r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ConstantFolding.getConst(rec.rs) + ConstantFolding.getConst(rec.rt);
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, rec.getRS() + ' + ' + rec.getRT());
-      ConstantFolding.resetConst(rec.rd);
+    '61': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRS() + ' + ' + rec.getRT());
       return code;
     },
 
-    '62': function (rec, opc) {
-      const mips = 'sub     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ConstantFolding.getConst(rec.rs) - ConstantFolding.getConst(rec.rt);
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, rec.getRS() + ' - ' + rec.getRT());
-      ConstantFolding.resetConst(rec.rd);
+    '62': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRS() + ' - ' + rec.getRT());
       return code;
     },
 
-    '63': function (rec, opc) {
-      const mips = 'subu    r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ConstantFolding.getConst(rec.rs) - ConstantFolding.getConst(rec.rt);
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, rec.getRS() + ' - ' + rec.getRT());
-      ConstantFolding.resetConst(rec.rd);
+    '63': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRS() + ' - ' + rec.getRT());
       return code;
     },
 
-    '64': function (rec, opc) {
-      const mips = 'and     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ConstantFolding.getConst(rec.rs) & ConstantFolding.getConst(rec.rt);
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, rec.getRS() + ' & ' + rec.getRT());
-      ConstantFolding.resetConst(rec.rd);
+    '64': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRS() + ' & ' + rec.getRT());
       return code;
     },
 
-    '65': function (rec, opc) {
-      const mips = 'or      r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ConstantFolding.getConst(rec.rs) | ConstantFolding.getConst(rec.rt);
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, rec.getRS() + ' | ' + rec.getRT());
-      ConstantFolding.resetConst(rec.rd);
+    '65': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRS() + ' | ' + rec.getRT());
       return code;
     },
 
-    '66': function (rec, opc) {
-      const mips = 'xor     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ConstantFolding.getConst(rec.rs) ^ ConstantFolding.getConst(rec.rt);
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, rec.getRS() + ' ^ ' + rec.getRT());
-      ConstantFolding.resetConst(rec.rd);
+    '66': (rec, opc) => {
+      const code = rec.setReg(rec.rd, rec.getRS() + ' ^ ' + rec.getRT());
       return code;
     },
 
-    '67': function (rec, opc) {
-      const mips = 'nor     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      if (ConstantFolding.isConst(rec.rs) && ConstantFolding.isConst(rec.rt)) {
-        const value = ~(ConstantFolding.getConst(rec.rs) | ConstantFolding.getConst(rec.rt));
-        const code = rec.setReg(mips, rec.rd, `0x${hex(value)}`);
-        ConstantFolding.setConst(rec.rd, value);
-        return code;
-      }
-      const code = rec.setReg(mips, rec.rd, '~(' + rec.getRS() + ' | ' + rec.getRT() + ')');
-      ConstantFolding.resetConst(rec.rd);
+    '67': (rec, opc) => {
+      const code = rec.setReg(rec.rd, '~(' + rec.getRS() + ' | ' + rec.getRT() + ')');
       return code;
     },
 
-    '6A': function (rec, opc) {
-      const mips = 'slt     r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      const code = rec.setReg(mips, rec.rd, '(' + rec.getRS() + ' < ' + rec.getRT() + ') ? 1 : 0');
-      ConstantFolding.resetConst(rec.rd);
+    '6A': (rec, opc) => {
+      const code = rec.setReg(rec.rd, '(' + rec.getRS() + ' < ' + rec.getRT() + ') ? 1 : 0');
       return code;
     },
 
-    '6B': function (rec, opc) {
-      const mips = 'sltu    r' + rec.rd + ', r' + rec.rs + ', r' + rec.rt;
-      const code = rec.setReg(mips, rec.rd, '((' + rec.getRS() + ' >>> 0) < (' + rec.getRT() + ' >>> 0)) ? 1 : 0');
-      ConstantFolding.resetConst(rec.rd);
+    '6B': (rec, opc) => {
+      const code = rec.setReg(rec.rd, '((' + rec.getRS() + ' >>> 0) < (' + rec.getRT() + ' >>> 0)) ? 1 : 0');
       return code;
     },
 
-    '80': function (rec, opc) {
+    '80': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'bltz    r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+      const code = rec.setReg(0, `target = (${rec.getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
       return code;
     },
 
-    '81': function (rec, opc) {
+    '81': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'bgez    r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+      const code = rec.setReg(0, `target = (${rec.getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
       return code;
     },
 
-    '90': function (rec, opc) {
+    '90': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'bltzal  r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
-      ConstantFolding.resetConst(31);
+      const code = rec.setReg(0, `target = (${rec.getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
       return code;
     },
 
-    '91': function (rec, opc) {
+    '91': (rec, opc) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
-      const mips = 'bgezal  r' + rec.rs + ', $' + hex(opc, 4);
-      const code = rec.setReg(mips, 0, `target = (${rec.getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
-      ConstantFolding.resetConst(31);
+      const code = rec.setReg(0, `target = (${rec.getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
       return code;
     },
 
-    'A0': function (rec, opc) {
-      const mips = 'mfc0    r' + rec.rt + ', r' + rec.rd;
-      const code = rec.setReg(mips, rec.rt, 'cpu.getCtrl(' + rec.rd + ')');
-      ConstantFolding.resetConst(rec.rt);
+    'A0': (rec, opc) => {
+      const code = rec.setReg(rec.rt, 'cpu.getCtrl(' + rec.rd + ')');
       return code;
     },
 
-    'A4': function (rec, opc) {
-      const mips = 'mtc0    r' + rec.rt + ', r' + rec.rd
-      const code = rec.setReg(mips, 0, 'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ')');
+    'A4': (rec, opc) => {
+      const code = rec.setReg(0, 'cpu.setCtrl(' + rec.rd + ', ' + rec.getRT() + ')');
       return code;
     },
 
-    'B0': function (rec, opc) { // simplicity
-      const mips = 'rfe'
-      const code = rec.setReg(mips, 0, 'cpu.rfe()');
+    'B0': (rec, opc) => { // simplicity
+      const code = rec.setReg(0, 'cpu.rfe()');
       return code;
     },
 
-    'C0': function (rec, opc) {
-      const mips = 'mfc2    r' + rec.rt + ', r' + rec.rd;
-      const code = rec.setReg(mips, rec.rt, 'gte.get(' + rec.rd + ')');
-      ConstantFolding.resetConst(rec.rt);
+    'C0': (rec, opc) => {
+      const code = rec.setReg(rec.rt, 'gte.get(' + rec.rd + ')');
       return code;
     },
 
-    'C2': function (rec, opc) {
-      const mips = 'cfc2    r' + rec.rt + ', r' + rec.rd;
-      const code = rec.setReg(mips, rec.rt, 'gte.get(' + (32 + rec.rd) + ')');
-      ConstantFolding.resetConst(rec.rt);
+    'C2': (rec, opc) => {
+      const code = rec.setReg(rec.rt, 'gte.get(' + (32 + rec.rd) + ')');
       return code;
     },
 
-    'C4': function (rec, opc) {
-      const mips = 'mtc2    r' + rec.rt + ', r' + rec.rd;
-      const code = rec.setReg(mips, 0, 'gte.set(' + rec.rd + ', ' + rec.getRT() + ')');
+    'C4': (rec, opc) => {
+      const code = rec.setReg(0, 'gte.set(' + rec.rd + ', ' + rec.getRT() + ')');
       return code;
     },
 
-    'C6': function (rec, opc) {
-      const mips = 'ctc2    r' + rec.rt + ', r' + rec.rd;
-      const code = rec.setReg(mips, 0, 'gte.set(' + (32 + rec.rd) + ', ' + rec.getRT() + ')');
+    'C6': (rec, opc) => {
+      const code = rec.setReg(0, 'gte.set(' + (32 + rec.rd) + ', ' + rec.getRT() + ')');
       return code;
     },
 
-    'D0': function (rec, opc) {
+    'D0': (rec, opc) => {
       rec.cycles += gte.cycles(opc & 0x1ffffff);
-      const mips = 'cop2    0x' + hex(opc & 0x1ffffff);
-      const code = rec.setReg(mips, 0, 'gte.command(0x' + hex(opc & 0x1ffffff) + ')');
+      const code = rec.setReg(0, 'gte.command(0x' + hex(opc & 0x1ffffff) + ')');
       return code;
     },
     'invalid': (rec, opc) => {
@@ -683,51 +455,29 @@ mdlr('enge:psx:rec', m => {
       return r ? 'gpr[' + r + ']' : '0';
     },
     getRS: function () {
-      if (ConstantFolding.isConst(this.rs)) {
-        const value = ConstantFolding.getConst(this.rs);
-        if (value < -127 || value > 127) {
-          return `(0x${hex(value)}|0)`;
-        }
-        return `${value}`;
-      }
-      return `${this.reg(this.rs)}`;
+      return `${state.reg(state.rs)}`;
     },
     getRT: function () {
-      if (ConstantFolding.isConst(this.rt)) {
-        const value = ConstantFolding.getConst(this.rt);
-        if (value < -127 || value > 127) {
-          return `(0x${hex(value)}|0)`;
-        }
-        return `${value}`;
-      }
-      return `${this.reg(this.rt)}`;
+      return `${state.reg(state.rt)}`;
     },
     getOF: function (opcode) {
       const offset = ((opcode << 16) >> 16);
-      if (ConstantFolding.isConst(this.rs)) {
-        return `0x${hex((offset + ConstantFolding.getConst(this.rs)) & 0x01ffffff)}`;
-      }
-      if (offset) {
-        return `(${offset} + ${this.reg(this.rs)}) & 0x01ffffff`;
-      }
-      return `${this.reg(this.rs)} & 0x01ffffff`;
+      return `(${offset} + ${state.reg(state.rs)}) & 0x01ffffff`;
     },
-    setReg: function (mips, nr, value) {
-      const iword = map[getCacheIndex(this.pc) >>> 2];
-      let command = '// ' + hex(this.pc) + ': ' + hex(iword) + ': ' + mips;
-      if (value) command += ('\n' + ((nr) ? this.reg(nr) + ' = ' : '') + `${value};`);
-      return command;
+    setReg: function (nr, value) {
+      const iword = map[getCacheIndex(state.pc) >>> 2];
+      return ((nr) ? state.reg(nr) + ' = ' : '') + `${value};`;
     },
     clear: function () {
-      this.branchTarget = 0;
-      this.jump = false;
-      this.stop = false;
-      this.break = false;
-      this.syscall = false;
-      this.cause = false;
-      this.sr = false;
-      this.cycles = 0;
-      this.skipNext = false;
+      state.branchTarget = 0;
+      state.jump = false;
+      state.stop = false;
+      state.break = false;
+      state.syscall = false;
+      state.cause = false;
+      state.sr = false;
+      state.cycles = 0;
+      state.skipNext = false;
     }
   };
 
@@ -739,7 +489,6 @@ mdlr('enge:psx:rec', m => {
     state.entry = entry;
 
     const lines = [];
-    ConstantFolding.resetState();
 
     // todo: limit the amount of cycles per block
     while (!state.stop && state.cycles < 2048) {
@@ -786,7 +535,6 @@ mdlr('enge:psx:rec', m => {
       pc
     ].filter(a => a !== null || a !== undefined);
 
-    entry.text = lines.join('\n');
     lines.push(' ');
     lines.push('return target;');
     lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
@@ -823,36 +571,6 @@ mdlr('enge:psx:rec', m => {
   }
 
   function lazyCompile() {
-    if (this.loop.length) {
-      const set = new Set();
-      const prolog = [];
-      const sections = [];
-      for (let i = 0; i < this.loop.length; ++i) {
-        let block = this.loop[i];
-        set.add(block.pc);
-        sections.push(block.text);
-        sections.push(`_${hex(block.pc)}.clock = psx.clock;`);
-        sections.push(`++_${hex(block.pc)}.count;`);
-        sections.push('');
-        let nextpc = (i + 1) < this.loop.length ? this.loop[i + 1].pc : this.pc;
-        sections.push(`if (psx.clock >= psx.eventClock) break;`)
-        sections.push(`if (target !== _${hex(nextpc)}) break;`)
-        if (block.jump) set.add(block.jump.pc);
-        if (block.next) set.add(block.next.pc);
-        if (block.pc < 0x00200000) prolog.push(`if (!fastCache[${block.pc}]) { return resetCacheEntry(_${hex(this.pc)}); }\n`);
-        sections.push('');
-        this.code = null;
-        fastCache[block.pc] = 1;
-      }
-      // console.log(set);
-      let code = prolog.join('');
-      code += `\nconst gpr = cpu.gpr; let target = _${hex(this.pc)};\nfor (;;) {\n`;
-      code += sections.join('\n');
-      code += '\n}\nreturn target;';
-      this.code = createFunction(this.pc, code, [...set]);
-      this.jump = this;
-      return this;
-    }
     this.code = compileBlock(this);
     return this;
   }
@@ -868,55 +586,15 @@ mdlr('enge:psx:rec', m => {
     return entry;
   }
 
-  const ConstantFolding = {
-    values: new Int32Array(32),
-    state: new Int8Array(32),
-    resetState: function () {
-      this.state.fill(0);
-    },
-    isConst: function (regId) {
-      return !regId || this.state[regId];
-    },
-    getConst: function (regId) {
-      return !regId ? 0 : this.values[regId];
-    },
-    setConst: function (regId, value) {
-      if (regId) {
-        this.values[regId] = value;
-        this.state[regId] = 1;
-      }
-    },
-    resetConst: function (regId) {
-      this.state[regId] = 0;
-    },
-  };
-
   const CacheEntryFactory = {
     createCacheEntry: pc => Object.seal({
       pc: pc >>> 0,
       code: null,
       jump: null,
       next: null,
-      count: 0 >>> 0,
-      clock: 0 >>> 0,
-      opt: false,
-      text: '',
-      loop: [],
-
     })
   };
 
-  window.stats = window.stats || {};
-  window.stats.top = (seconds = 1, top = 25) => {
-    const sinceClock = psx.clock - 33868800 * seconds;
-    const codeBlocks = [...cached.values()].filter(a => a.clock > sinceClock);
-    const count = codeBlocks.reduce((a, b) => a + b.count, 0);
-    codeBlocks.sort((a, b) => b.count - a.count).slice(0, top).forEach(a => {
-      console.log(`$${hex(a.pc)}\t${(a.count / count).toFixed(3)}\t`, { code: a.code }, `\t${a.count}`);
-    });
-  }
-
-  window.calls = 0;
   const cyclesPerTrace = 33868800;
   const local = window.location.href.indexOf('file://') === 0;
   let prevCounter = 0;
@@ -935,25 +613,18 @@ mdlr('enge:psx:rec', m => {
     calls = 0;
   });
 
+  window.calls = 0;
   window.vector = null;
   window.fastCache = fastCache;
   window.cached = cached;
 
   window.invalidateCache = entry => {
-    // console.log(`recompiling @${hex(entry.pc)}`); 
     entry.code = lazyCompile;
-    entry.count = 0 >>> 0;
-    entry.clock = 0 >>> 0;
-    entry.opt = false;
     return entry;
   }
 
   window.resetCacheEntry = entry => {
     entry.code = lazyCompile;
-    entry.count = 0 >>> 0;
-    entry.clock = 0 >>> 0;
-    entry.opt = false;
-    entry.loop = [];
     return entry;
   }
 

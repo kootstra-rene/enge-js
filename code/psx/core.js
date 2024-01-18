@@ -1,16 +1,18 @@
 mdlr('enge:psx:core', m => {
 
+  let lastId = 0;
+
+  const events = [];
+  const inactiveEvents = [];
+
   const psx = {
     clock: 0.0,
     eventClock: 0.0,
-    events: [],
-    inactiveEvents: [],
-    lastId: 0
   }
 
   psx.addEvent = (clocks, cb) => {
     const event = Object.seal({
-      id: psx.lastId++,
+      id: ++lastId,
       active: true,
       clock: +psx.clock + +clocks,
       start: +psx.clock,
@@ -20,7 +22,7 @@ mdlr('enge:psx:core', m => {
     if (psx.eventClock > event.clock) {
       psx.eventClock = event.clock;
     }
-    psx.events.push(event);
+    events.push(event);
     return event;
   }
 
@@ -38,10 +40,10 @@ mdlr('enge:psx:core', m => {
   psx.unsetEvent = (event) => {
     if (!event.active) return;
 
-    const index = psx.events.findIndex(a => a.id === event.id);
+    const index = events.findIndex(a => a.id === event.id);
     if (index !== -1) {
-      psx.inactiveEvents.push(event);
-      psx.events.splice(index, 1);
+      inactiveEvents.push(event);
+      events.splice(index, 1);
       event.active = false;
     }
 
@@ -54,10 +56,10 @@ mdlr('enge:psx:core', m => {
 
   psx.setEvent = (event, clocks) => {
     if (!event.active) {
-      const index = psx.inactiveEvents.findIndex(a => a.id === event.id);
+      const index = inactiveEvents.findIndex(a => a.id === event.id);
       if (index !== -1) {
-        psx.inactiveEvents.splice(index, 1);
-        psx.events.push(event);
+        inactiveEvents.splice(index, 1);
+        events.push(event);
       }
     }
 
@@ -74,23 +76,18 @@ mdlr('enge:psx:core', m => {
   psx.handleEvents = (entry) => {
     let eventClock = Number.MAX_SAFE_INTEGER;
 
-    const events = [];
-    for (let i = 0, l = psx.events.length; i < l; ++i) {
-      const event = psx.events[i];
-
+    const triggeredEvents = [];
+    for (let event of events) {
       if (psx.clock >= event.clock) {
-        events.push(event);
+        triggeredEvents.push(event);
       }
     }
 
-    for (let i = 0, l = events.length; i < l; ++i) {
-      const event = events[i];
-
+    for (let event of triggeredEvents) {
       event.cb(event, psx.clock);
     }
 
-    for (let i = 0, l = psx.events.length; i < l; ++i) {
-      const event = psx.events[i];
+    for (let event of events) {
       if (event.clock < eventClock && event.active) {
         eventClock = event.clock;
       }
