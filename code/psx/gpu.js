@@ -1,11 +1,30 @@
 mdlr('enge:psx:gpu', m => {
 
   const $renderer = renderer;
-  const [drawLine,drawTriangle,drawRectangle] = [$renderer.drawLine,$renderer.drawTriangle,$renderer.drawRectangle].map(a => a.bind($renderer));
+  const [drawLine, drawTriangle, drawRectangle, setDrawAreaOF] = [$renderer.drawLine, $renderer.drawTriangle, $renderer.drawRectangle, $renderer.setDrawAreaOF].map(a => a.bind($renderer));
 
   const missing = new Set;
+  const handlers = [];
 
-  var packetSizes = [
+  const dmaBuffer = new Int32Array(4096);
+
+  const renderTexture = (data, cb) => {
+    const packetId = data[0] >>> 24;
+
+    if ((packetId & 6) === 6) {
+      data[0] |= 0x80000000;
+      cb();
+
+      nextPrimitive();
+      data[0] &= ~0x02000000;
+      cb();
+    }
+    else {
+      cb();
+    }
+  }
+
+  const packetSizes = [
     0x01, 0x01, 0x03, 0x01, 0x01, 0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x04, 0x04, 0x04, 0x04, 0x07, 0x07, 0x07, 0x07, 0x05, 0x05, 0x05, 0x05, 0x09, 0x09, 0x09, 0x09,
@@ -27,7 +46,9 @@ mdlr('enge:psx:gpu', m => {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   ];
 
-  const gpu = {
+  let dmaIndex = 0;
+
+  let gpu = {
     dispB: 256,
     dispL: 0,
     dispR: 0,
@@ -35,15 +56,10 @@ mdlr('enge:psx:gpu', m => {
     dispX: 0,
     dispY: 0,
     dispW: 0,
-    dmaBuffer: new Int32Array(4096),
-    dmaIndex: 0,
     drawAreaX1: 0,
     drawAreaX2: 0,
     drawAreaY1: 0,
     drawAreaY2: 0,
-    drawOffsetX: 0,
-    drawOffsetY: 0,
-    handlers: [],
     heights: [1, 2, 1, 2],
     hline: 0,
     img: { w: 0, h: 0, x: 0, y: 0, index: 0, pixelCount: 0, buffer: new Uint16Array(1024 * 512) },
@@ -160,19 +176,19 @@ mdlr('enge:psx:gpu', m => {
       return gpu.status;
     },
 
-    wr32r1810: function (data) {
+    wr32r1810: data => {
       if (gpu.status & 0x10000000) {
-        gpu.dmaBuffer[gpu.dmaIndex++] = data;
+        dmaBuffer[dmaIndex++] = data;
 
-        if (gpu.dmaIndex === 1) {
+        if (dmaIndex === 1) {
           gpu.packetSize = packetSizes[data >>> 24];
         }
 
-        if (gpu.dmaIndex === gpu.packetSize) {
-          var packetId = gpu.dmaBuffer[0] >>> 24;
+        if (dmaIndex === gpu.packetSize) {
+          var packetId = dmaBuffer[0] >>> 24;
           nextPrimitive();
-          gpu.handlers[packetId].call(this, gpu.dmaBuffer);
-          gpu.dmaIndex = 0;
+          handlers[packetId].call(gpu, dmaBuffer);
+          dmaIndex = 0;
         }
       }
       else {
@@ -184,10 +200,10 @@ mdlr('enge:psx:gpu', m => {
       }
     },
 
-    wr32r1814: function (data) {
+    wr32r1814: data => {
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14820000;
-          gpu.dmaIndex = 0;
+          dmaIndex = 0;
           /*
             GP1(01h)      ;clear fifo
             GP1(02h)      ;ack irq (0)
@@ -207,16 +223,16 @@ mdlr('enge:psx:gpu', m => {
           gpu.dispB = 256;
           gpu.dispX = 0;
           gpu.dispY = 0;
-          gpu.handlePacketE1([0]);
-          gpu.handlePacketE2([0]);
-          gpu.handlePacketE3([0]);
-          gpu.handlePacketE4([0]);
-          gpu.handlePacketE5([0]);
-          gpu.handlePacketE6([0]);
+          gpu.pcktE1([0]);
+          gpu.pcktE2([0]);
+          gpu.pcktE3([0]);
+          gpu.pcktE4([0]);
+          gpu.pcktE5([0]);
+          gpu.pcktE6([0]);
           renderer.updateDrawArea?.call(renderer);
           break;
         case 0x01: gpu.status |= 0x70000000;
-          gpu.dmaIndex = 0;
+          dmaIndex = 0;
           break;
         case 0x02: break;
         case 0x03: gpu.status &= 0xFF7FFFFF;
@@ -263,7 +279,7 @@ mdlr('enge:psx:gpu', m => {
       gpu.updateTexturePage();
     },
 
-    invalidPacketHandler: function (data) {
+    invalidPacketHandler: data => {
       // abort('gpu.' + gpu.getPacketHandlerName(data));
     },
 
@@ -281,192 +297,176 @@ mdlr('enge:psx:gpu', m => {
       }
     },
 
-    handlePacket00: function (data) {
+    pckt00: data => {
       // intentionally left blank
     },
 
     // Clear Cache
-    handlePacket01: function (data) {
+    pckt01: data => {
       gpu.status = (gpu.status | 0x10000000) & ~0x08000000;
     },
 
     // Framebuffer Rectangle draw
-    handlePacket02: function (data) {
+    pckt02: data => {
       renderer.fillRectangle(data);
     },
 
-    handlePacket03: function (data) {
+    pckt03: data => {
       // intentionally left blank
     },
-    handlePacket04: function (data) {
+    pckt04: data => {
       // intentionally left blank
     },
-    handlePacket05: function (data) {
+    pckt05: data => {
       // intentionally left blank
     },
-    handlePacket08: function (data) {
+    pckt08: data => {
       // intentionally left blank
     },
-    handlePacket09: function (data) {
+    pckt09: data => {
       // intentionally left blank
     },
 
-    handlePacket0D: function (data) {
+    pckt0D: data => {
       // intentionally left blank
     },
 
     // Monochrome 3 point polygon
-    handlePacket20: function (data) {
+    pckt20: data => {
       drawTriangle(data, 0, 1, 0, 2, 0, 3);
     },
 
-    renderTexture: function (data, cb) {
-      const packetId = data[0] >>> 24;
-
-      if ((packetId & 6) === 6) {
-        data[0] |= 0x80000000;
-        cb();
-
-        nextPrimitive();
-        data[0] &= ~0x02000000;
-        cb();
-      }
-      else {
-        cb();
-      }
-    },
-
     // Textured 3 point polygon
-    handlePacket24: function (data) {
+    pckt24: data => {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      this.renderTexture(data, () => {
+      renderTexture(data, () => {
         drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
       });
     },
 
     // Monochrome 4 point polygon
-    handlePacket28: function (data) {
+    pckt28: data => {
       drawTriangle(data, 0, 1, 0, 2, 0, 3);
       drawTriangle(data, 0, 2, 0, 3, 0, 4);
     },
 
     // Textured 4 point polygon
-    handlePacket2C: function (data) {
+    pckt2C: data => {
       gpu.updateTexturePage(data[4] >>> 16);
 
-      this.renderTexture(data, () => {
+      renderTexture(data, () => {
         drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
         drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
       });
     },
 
     // Gradated 3 point polygon
-    handlePacket30: function (data) {
+    pckt30: data => {
       drawTriangle(data, 0, 1, 2, 3, 4, 5);
     },
 
     // Gradated textured 3 point polygon
-    handlePacket34: function (data) {
+    pckt34: data => {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      this.renderTexture(data, () => {
+      renderTexture(data, () => {
         drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
       });
     },
 
     // Gradated 4 point polygon
-    handlePacket38: function (data) {
+    pckt38: data => {
       drawTriangle(data, 0, 1, 2, 3, 4, 5);
       drawTriangle(data, 2, 3, 4, 5, 6, 7);
     },
 
     // Gradated textured 4 point polygon
-    handlePacket3C: function (data) {
+    pckt3C: data => {
       gpu.updateTexturePage(data[5] >>> 16);
 
-      this.renderTexture(data, () => {
+      renderTexture(data, () => {
         drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
         drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
       });
     },
 
     // Monochrome line
-    handlePacket40: function (data) {
+    pckt40: data => {
       drawLine(data, 0, 1, 0, 2);
     },
 
     // Monochrome polyline
-    handlePacket48: function (data, size) {
+    pckt48: function (data, size) {
       for (var i = 2; i < size; i += 1) {
         drawLine(data, 0, i - 1, 0, i);
       }
     },
 
     // Gradated line
-    handlePacket50: function (data) {
+    pckt50: data => {
       drawLine(data, 0, 1, 2, 3);
     },
 
     // Gradated polyline
-    handlePacket58: function (data, size) {
+    pckt58: function (data, size) {
       for (var i = 3; i < size; i += 2) {
         drawLine(data, i - 3, i - 2, i - 1, i);
       }
     },
 
     // Rectangle
-    handlePacket60: function (data) {
+    pckt60: data => {
       drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
     },
 
     // Sprite
-    handlePacket64: function (data) {
+    pckt64: data => {
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
-      this.renderTexture(data, () => {
+      renderTexture(data, () => {
         drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
       });
     },
 
     // Dot
-    handlePacket68: function (data) {
+    pckt68: data => {
       drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
     },
 
     // 8*8 rectangle
-    handlePacket70: function (data) {
+    pckt70: data => {
       drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
     },
 
     // 8*8 sprite
-    handlePacket74: function (data) {
+    pckt74: data => {
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
-      this.renderTexture(data, () => {
+      renderTexture(data, () => {
         drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
       });
     },
 
     // 16*16 rectangle
-    handlePacket78: function (data) {
+    pckt78: data => {
       drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
     },
 
     // 16*16 sprite
-    handlePacket7C: function (data) {
+    pckt7C: data => {
       const tx = (data[2] >>> 0) & 255;
       const ty = (data[2] >>> 8) & 255;
 
-      this.renderTexture(data, () => {
+      renderTexture(data, () => {
         drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
       });
     },
 
     // Move image in framebuffer
-    handlePacket80: function (data) {
+    pckt80: data => {
       if (data[1] !== data[2]) {
         var sx = (data[1] >> 0);
         var sy = (data[1] >> 16);
@@ -485,7 +485,7 @@ mdlr('enge:psx:gpu', m => {
     },
 
     // Send image to frame buffer
-    handlePacketA0: function (data) {
+    pcktA0: data => {
       gpu.status &= ~0x10000000;
       var x = ((data[1] << 16) >>> 16);
       var y = ((data[1] << 0) >>> 16);
@@ -502,7 +502,7 @@ mdlr('enge:psx:gpu', m => {
     },
 
     // Copy image from frame buffer
-    handlePacketC0: function (data) {
+    pcktC0: data => {
       gpu.status |= 0x08000000;
       var x = ((data[1] << 16) >>> 16);
       var y = ((data[1] << 0) >>> 16);
@@ -521,7 +521,7 @@ mdlr('enge:psx:gpu', m => {
     },
 
     // Draw mode setting
-    handlePacketE1: function (data) {
+    pcktE1: data => {
       gpu.status = (gpu.status & 0xfffff800) | (data[0] & 0x7ff);
       gpu.txflip = (data[0] >>> 12) & 1;
       gpu.tyflip = (data[0] >>> 13) & 1;
@@ -529,7 +529,7 @@ mdlr('enge:psx:gpu', m => {
     },
 
     // Texture window setting
-    handlePacketE2: function (data) {
+    pcktE2: data => {
       gpu.info[2] = data[0] & 0x000fffff;
 
       var maskx = ((data[0] >> 0) & 0x1f) << 3;
@@ -543,7 +543,7 @@ mdlr('enge:psx:gpu', m => {
 
     },
     // Set drawing area top left
-    handlePacketE3: function (data) {
+    pcktE3: data => {
       gpu.info[3] = data[0] & 0x000fffff;
       gpu.drawAreaX1 = (data[0] << 22) >>> 22;
       gpu.drawAreaY1 = (data[0] << 12) >>> 22;
@@ -552,7 +552,7 @@ mdlr('enge:psx:gpu', m => {
     },
 
     // Set drawing area bottom right
-    handlePacketE4: function (data) {
+    pcktE4: data => {
       gpu.info[4] = data[0] & 0x000fffff;
 
       gpu.drawAreaX2 = (data[0] << 22) >>> 22;
@@ -562,17 +562,17 @@ mdlr('enge:psx:gpu', m => {
     },
 
     // Drawing offset
-    handlePacketE5: function (data) {
+    pcktE5: (data) => {
       gpu.info[5] = data[0] & 0x003fffff;
 
-      gpu.drawOffsetX = (data[0] << 21) >> 21;
-      gpu.drawOffsetY = (data[0] << 11) >> 22;
+      const drawOffsetX = (data[0] << 21) >> 21;
+      const drawOffsetY = (data[0] << 11) >> 22;
 
-      renderer.setDrawAreaOF(gpu.drawOffsetX, gpu.drawOffsetY);
+      setDrawAreaOF(drawOffsetX, drawOffsetY);
     },
 
     // Mask setting
-    handlePacketE6: function (data) {
+    pcktE6: data => {
       gpu.status &= 0xffffe7ff;
       gpu.status |= ((data[0] & 3) << 11);
     },
@@ -628,20 +628,20 @@ mdlr('enge:psx:gpu', m => {
 
     dmaTransferMode0401: function (addr, blck) {
       if (!(addr & 0x007fffff)) return 0x10;
-      if (gpu.dmaIndex !== 0) abort('not implemented')
+      if (dmaIndex !== 0) abort('not implemented')
       if ((addr & ~3) === 0) {
         return (blck >> 16) * (blck & 0xFFFF);
       }
 
       const seen = new Set();
-      var data = gpu.dmaBuffer;
+      const data = dmaBuffer;
       let words = 0;
       for (; ;) {
         addr = addr & 0x001fffff;
         // seen.add(addr);
-        var header = ram.getInt32(addr, true);
-        var nitem = header >>> 24;
-        var nnext = header & 0x001fffff;
+        let header = ram.getInt32(addr, true);
+        let nitem = header >>> 24;
+        let nnext = header & 0x001fffff;
 
         addr = addr + 4; ++words;
 
@@ -669,7 +669,7 @@ mdlr('enge:psx:gpu', m => {
               data[i] = value;
             }
             nextPrimitive();
-            gpu.handlers[packetId].call(this, data, i);
+            handlers[packetId].call(gpu, data, i);
             gpu.updated = true;
           }
           else {
@@ -679,7 +679,7 @@ mdlr('enge:psx:gpu', m => {
               ++words;
             }
             nextPrimitive();
-            gpu.handlers[packetId].call(this, data, 0);
+            handlers[packetId].call(gpu, data, 0);
             gpu.updated = true;
           }
         }
@@ -713,111 +713,111 @@ mdlr('enge:psx:gpu', m => {
     },
   }
 
-  gpu.handlePacket21 = gpu.handlePacket20;
-  gpu.handlePacket22 = gpu.handlePacket20;
-  gpu.handlePacket23 = gpu.handlePacket20;
+  gpu.pckt21 = gpu.pckt20;
+  gpu.pckt22 = gpu.pckt20;
+  gpu.pckt23 = gpu.pckt20;
 
-  gpu.handlePacket25 = gpu.handlePacket24;
-  gpu.handlePacket26 = gpu.handlePacket24;
-  gpu.handlePacket27 = gpu.handlePacket24;
+  gpu.pckt25 = gpu.pckt24;
+  gpu.pckt26 = gpu.pckt24;
+  gpu.pckt27 = gpu.pckt24;
 
-  gpu.handlePacket29 = gpu.handlePacket28;
-  gpu.handlePacket2A = gpu.handlePacket28;
-  gpu.handlePacket2B = gpu.handlePacket28;
+  gpu.pckt29 = gpu.pckt28;
+  gpu.pckt2A = gpu.pckt28;
+  gpu.pckt2B = gpu.pckt28;
 
-  gpu.handlePacket2D = gpu.handlePacket2C;
-  gpu.handlePacket2E = gpu.handlePacket2C;
-  gpu.handlePacket2F = gpu.handlePacket2C;
+  gpu.pckt2D = gpu.pckt2C;
+  gpu.pckt2E = gpu.pckt2C;
+  gpu.pckt2F = gpu.pckt2C;
 
-  gpu.handlePacket31 = gpu.handlePacket30;
-  gpu.handlePacket32 = gpu.handlePacket30;
-  gpu.handlePacket33 = gpu.handlePacket30;
+  gpu.pckt31 = gpu.pckt30;
+  gpu.pckt32 = gpu.pckt30;
+  gpu.pckt33 = gpu.pckt30;
 
-  gpu.handlePacket35 = gpu.handlePacket34;
-  gpu.handlePacket36 = gpu.handlePacket34;
-  gpu.handlePacket37 = gpu.handlePacket34;
+  gpu.pckt35 = gpu.pckt34;
+  gpu.pckt36 = gpu.pckt34;
+  gpu.pckt37 = gpu.pckt34;
 
-  gpu.handlePacket39 = gpu.handlePacket38;
-  gpu.handlePacket3A = gpu.handlePacket38;
-  gpu.handlePacket3B = gpu.handlePacket38;
+  gpu.pckt39 = gpu.pckt38;
+  gpu.pckt3A = gpu.pckt38;
+  gpu.pckt3B = gpu.pckt38;
 
-  gpu.handlePacket3D = gpu.handlePacket3C;
-  gpu.handlePacket3E = gpu.handlePacket3C;
-  gpu.handlePacket3F = gpu.handlePacket3C;
+  gpu.pckt3D = gpu.pckt3C;
+  gpu.pckt3E = gpu.pckt3C;
+  gpu.pckt3F = gpu.pckt3C;
 
-  gpu.handlePacket41 = gpu.handlePacket40;
-  gpu.handlePacket42 = gpu.handlePacket40;
-  gpu.handlePacket43 = gpu.handlePacket40;
-  gpu.handlePacket44 = gpu.handlePacket40;
-  gpu.handlePacket45 = gpu.handlePacket40;
-  gpu.handlePacket46 = gpu.handlePacket40;
-  gpu.handlePacket47 = gpu.handlePacket40;
+  gpu.pckt41 = gpu.pckt40;
+  gpu.pckt42 = gpu.pckt40;
+  gpu.pckt43 = gpu.pckt40;
+  gpu.pckt44 = gpu.pckt40;
+  gpu.pckt45 = gpu.pckt40;
+  gpu.pckt46 = gpu.pckt40;
+  gpu.pckt47 = gpu.pckt40;
 
-  gpu.handlePacket49 = gpu.handlePacket48;
-  gpu.handlePacket4A = gpu.handlePacket48;
-  gpu.handlePacket4B = gpu.handlePacket48;
-  gpu.handlePacket4C = gpu.handlePacket48;
-  gpu.handlePacket4D = gpu.handlePacket48;
-  gpu.handlePacket4E = gpu.handlePacket48;
-  gpu.handlePacket4F = gpu.handlePacket48;
+  gpu.pckt49 = gpu.pckt48;
+  gpu.pckt4A = gpu.pckt48;
+  gpu.pckt4B = gpu.pckt48;
+  gpu.pckt4C = gpu.pckt48;
+  gpu.pckt4D = gpu.pckt48;
+  gpu.pckt4E = gpu.pckt48;
+  gpu.pckt4F = gpu.pckt48;
 
-  gpu.handlePacket51 = gpu.handlePacket50;
-  gpu.handlePacket52 = gpu.handlePacket50;
-  gpu.handlePacket53 = gpu.handlePacket50;
-  gpu.handlePacket54 = gpu.handlePacket50;
-  gpu.handlePacket55 = gpu.handlePacket50;
-  gpu.handlePacket56 = gpu.handlePacket50;
-  gpu.handlePacket57 = gpu.handlePacket50;
+  gpu.pckt51 = gpu.pckt50;
+  gpu.pckt52 = gpu.pckt50;
+  gpu.pckt53 = gpu.pckt50;
+  gpu.pckt54 = gpu.pckt50;
+  gpu.pckt55 = gpu.pckt50;
+  gpu.pckt56 = gpu.pckt50;
+  gpu.pckt57 = gpu.pckt50;
 
-  gpu.handlePacket59 = gpu.handlePacket58;
-  gpu.handlePacket5A = gpu.handlePacket58;
-  gpu.handlePacket5B = gpu.handlePacket58;
-  gpu.handlePacket5C = gpu.handlePacket58;
-  gpu.handlePacket5D = gpu.handlePacket58;
-  gpu.handlePacket5E = gpu.handlePacket58;
-  gpu.handlePacket5F = gpu.handlePacket58;
+  gpu.pckt59 = gpu.pckt58;
+  gpu.pckt5A = gpu.pckt58;
+  gpu.pckt5B = gpu.pckt58;
+  gpu.pckt5C = gpu.pckt58;
+  gpu.pckt5D = gpu.pckt58;
+  gpu.pckt5E = gpu.pckt58;
+  gpu.pckt5F = gpu.pckt58;
 
-  gpu.handlePacket61 = gpu.handlePacket60;
-  gpu.handlePacket62 = gpu.handlePacket60;
-  gpu.handlePacket63 = gpu.handlePacket60;
+  gpu.pckt61 = gpu.pckt60;
+  gpu.pckt62 = gpu.pckt60;
+  gpu.pckt63 = gpu.pckt60;
 
-  gpu.handlePacket65 = gpu.handlePacket64;
-  gpu.handlePacket66 = gpu.handlePacket64;
-  gpu.handlePacket67 = gpu.handlePacket64;
+  gpu.pckt65 = gpu.pckt64;
+  gpu.pckt66 = gpu.pckt64;
+  gpu.pckt67 = gpu.pckt64;
 
-  gpu.handlePacket69 = gpu.handlePacket68;
-  gpu.handlePacket6A = gpu.handlePacket68;
-  gpu.handlePacket6B = gpu.handlePacket68;
+  gpu.pckt69 = gpu.pckt68;
+  gpu.pckt6A = gpu.pckt68;
+  gpu.pckt6B = gpu.pckt68;
 
-  gpu.handlePacket71 = gpu.handlePacket70;
-  gpu.handlePacket72 = gpu.handlePacket70;
-  gpu.handlePacket73 = gpu.handlePacket70;
+  gpu.pckt71 = gpu.pckt70;
+  gpu.pckt72 = gpu.pckt70;
+  gpu.pckt73 = gpu.pckt70;
 
-  gpu.handlePacket75 = gpu.handlePacket74;
-  gpu.handlePacket76 = gpu.handlePacket74;
-  gpu.handlePacket77 = gpu.handlePacket74;
+  gpu.pckt75 = gpu.pckt74;
+  gpu.pckt76 = gpu.pckt74;
+  gpu.pckt77 = gpu.pckt74;
 
-  gpu.handlePacket79 = gpu.handlePacket78;
-  gpu.handlePacket7A = gpu.handlePacket78;
-  gpu.handlePacket7B = gpu.handlePacket78;
+  gpu.pckt79 = gpu.pckt78;
+  gpu.pckt7A = gpu.pckt78;
+  gpu.pckt7B = gpu.pckt78;
 
-  gpu.handlePacket7D = gpu.handlePacket7C;
-  gpu.handlePacket7E = gpu.handlePacket7C;
-  gpu.handlePacket7F = gpu.handlePacket7C;
+  gpu.pckt7D = gpu.pckt7C;
+  gpu.pckt7E = gpu.pckt7C;
+  gpu.pckt7F = gpu.pckt7C;
 
-  for (var i = 0; i < 256; ++i) {
-    var packetHandlerName = 'handlePacket' + hex(i, 2).toUpperCase();
-    gpu.handlers[i] = gpu[packetHandlerName] || gpu.invalidPacketHandler;
+  for (let i = 0; i < 256; ++i) {
+    var packetHandlerName = 'pckt' + hex(i, 2).toUpperCase();
+    handlers[i] = gpu[packetHandlerName] || gpu.invalidPacketHandler;
   }
 
-  for (var i = 0x81; i <= 0x9f; ++i) {
-    gpu.handlers[i] = gpu.handlePacket80;
+  for (let i = 0x81; i <= 0x9f; ++i) {
+    handlers[i] = gpu.pckt80;
   }
-  for (var i = 0xA1; i <= 0xbf; ++i) {
-    gpu.handlers[i] = gpu.handlePacketA0;
+  for (let i = 0xA1; i <= 0xbf; ++i) {
+    handlers[i] = gpu.pcktA0;
   }
-  for (var i = 0xC1; i <= 0xdf; ++i) {
-    gpu.handlers[i] = gpu.handlePacketC0;
+  for (let i = 0xC1; i <= 0xdf; ++i) {
+    handlers[i] = gpu.pcktC0;
   }
 
   gpu.info[7] = 2;

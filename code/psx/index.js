@@ -43,7 +43,6 @@ mdlr('enge:psx:index', m => {
   dma.eventDMA3 = psx.addEvent(0, dma.completeDMA3.bind(dma));
   dma.eventDMA4 = psx.addEvent(0, dma.completeDMA4.bind(dma));
   dma.eventDMA6 = psx.addEvent(0, dma.completeDMA6.bind(dma));
-  joy.eventIRQ = psx.addEvent(0, joy.completeIRQ.bind(joy));
   mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
 
   dot.event = psx.addEvent(0, dot.complete.bind(dot));
@@ -315,20 +314,12 @@ mdlr('enge:psx:index', m => {
     });
     readStorageStream('card1', data => {
       if (data) {
-        let data8 = new Uint8Array(data.buffer);
-        console.log('loading card1', data8.length);
-        for (let i = 0; i < 128 * 1024; ++i) {
-          joy.devices[0].data[i] = data8[i];
-        }
+        joy.devices[0].setMemoryCard(data);
       }
     });
     readStorageStream('card2', data => {
       if (data) {
-        let data8 = new Uint8Array(data.buffer);
-        console.log('loading card2', data8.length);
-        for (let i = 0; i < 128 * 1024; ++i) {
-          joy.devices[1].data[i] = data8[i];
-        }
+        joy.devices[1].setMemoryCard(data);
       }
     });
   }

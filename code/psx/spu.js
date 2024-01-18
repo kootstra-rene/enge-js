@@ -4,10 +4,10 @@ mdlr('enge:psx:spu', m => {
 
   const CYCLES_PER_EVENT = 8;
 
-  let left = null;
-  let right = null;
+  const memory = new Uint8Array(512 * 1024);
+  const voices = new Array(24);
 
-  function init() {
+  const init = () => {
     const context = new AudioContext();
     const buffer = context.createBuffer(2, frameCount, context.sampleRate);
     const source = context.createBufferSource();
@@ -24,18 +24,20 @@ mdlr('enge:psx:spu', m => {
     source.start();
   }
 
-  var spu = {
-    totalSamples: 0,
-    voices: [],
-    index: 0,
-    writeIndex: (44100 * 0.125) >> 0,
+  let left = null;
+  let right = null;
+  let ramOffset = 0;
+  let irqOffset = 0;
+  let writeIndex = (44100 * 0.125) >> 0;
+  let totalSamples = 0;
 
-    data: new Uint8Array(512 * 1024),
+  let SPUCNT = 0x0000;
+  let SPUSTAT = 0x0000;
+  let SPUSTATm = 0x0000;
+
+  let spu = {
 
     ENDX: 0x00ffffff,
-    SPUCNT: 0x0000,
-    SPUSTAT: 0x0000,
-    SPUSTATm: 0x0000,
     mainVolumeLeft: 0.0,
     mainVolumeRight: 0.0,
     reverbVolumeLeft: 0.0,
@@ -44,11 +46,9 @@ mdlr('enge:psx:spu', m => {
     cdVolumeRight: 0.0,
     extVolumeLeft: 0.0,
     extVolumeRight: 0.0,
-    irqOffset: 0,
-    ramOffset: 0,
     reverbOffset: 0,
 
-    silence: function () {
+    silence: () => {
       if (left && right) {
         for (var i = 0; i < frameCount; ++i) {
           left[i] = right[i] = 0.0;
@@ -56,20 +56,20 @@ mdlr('enge:psx:spu', m => {
       }
     },
 
-    getVolume: function (data) {
+    getVolume: data => {
       // if (data & 0x8000) return 0.75; // no sweep yet
       return ((data << 17) >> 16) / 0x8000;
     },
 
-    getInt16: function (addr) {
+    getInt16: addr => {
       switch (addr) {
-        case 0x1daa: return this.SPUCNT;
-        case 0x1dae: return (this.SPUSTAT & ~0x3f) | (this.SPUCNT & 0x3f);
-        case 0x1d9c: return this.ENDX;
+        case 0x1daa: return SPUCNT;
+        case 0x1dae: return (SPUSTAT & ~0x3f) | (SPUCNT & 0x3f);
+        case 0x1d9c: return spu.ENDX;
         default:
           if ((addr >= 0x1c00) && (addr < 0x1d80)) {
             const id = (addr - 0x1c00) >> 4;
-            const voice = this.voices[id];
+            const voice = voices[id];
 
             return voice.getRegister(addr & 0xf);
           }
@@ -77,68 +77,68 @@ mdlr('enge:psx:spu', m => {
       }
     },
 
-    setInt16: function (addr, data) {
+    setInt16: (addr, data) => {
       data &= 0xffff;
 
       switch (addr) {
-        case 0x1d80: this.mainVolumeLeft = this.getVolume(data);
+        case 0x1d80: spu.mainVolumeLeft = spu.getVolume(data);
           break;
-        case 0x1d82: this.mainVolumeRight = this.getVolume(data);
+        case 0x1d82: spu.mainVolumeRight = spu.getVolume(data);
           break;
-        case 0x1d84: this.reverbVolumeLeft = this.getVolume(data);
+        case 0x1d84: spu.reverbVolumeLeft = spu.getVolume(data);
           break;
-        case 0x1d86: this.reverbVolumeRight = this.getVolume(data);
+        case 0x1d86: spu.reverbVolumeRight = spu.getVolume(data);
           break;
         case 0x1d88: for (var i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[i].keyOn()
-          this.ENDX &= ~(1 << i);
+          voices[i].keyOn()
+          spu.ENDX &= ~(1 << i);
         }
           break
         case 0x1d8a: for (var i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[16 + i].keyOn()
-          this.ENDX &= ~(1 << (16 + i));
+          voices[16 + i].keyOn()
+          spu.ENDX &= ~(1 << (16 + i));
         }
           break
         case 0x1d8c: for (var i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[i].keyOff()
+          voices[i].keyOff()
         }
           break
         case 0x1d8e: for (var i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[16 + i].keyOff()
+          voices[16 + i].keyOff()
         }
           break
         case 0x1d90: for (var i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[i].modOn()
+          voices[i].modOn()
         }
           break
         case 0x1d92: for (var i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[16 + i].modOn()
+          voices[16 + i].modOn()
         }
           break
         case 0x1d94: for (var i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[i].noiseOn()
+          voices[i].noiseOn()
         }
           break
         case 0x1d96: for (var i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[16 + i].noiseOn()
+          voices[16 + i].noiseOn()
         }
           break
         case 0x1d98: for (var i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[i].echoOn()
+          voices[i].echoOn()
         }
           break
         case 0x1d9a: for (var i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
-          this.voices[16 + i].echoOn()
+          voices[16 + i].echoOn()
         }
           break
         case 0x1d9c:  // readonly Voice 0..15 on/off
@@ -147,37 +147,37 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1da0:  // ??? Legend of Dragoon
           break
-        case 0x1da2: this.reverbOffset = data << 3;
+        case 0x1da2: spu.reverbOffset = data << 3;
           break
-        case 0x1da4: this.irqOffset = data << 3;
+        case 0x1da4: irqOffset = data << 3;
           break
-        case 0x1da6: this.ramOffset = data << 3;
+        case 0x1da6: ramOffset = data << 3;
           break
-        case 0x1da8: this.data[this.ramOffset + 0] = (data >> 0) & 0xff;
-          this.data[this.ramOffset + 1] = (data >> 8) & 0xff;
-          this.ramOffset += 2;
-          this.checkIrq();
+        case 0x1da8: memory[ramOffset + 0] = (data >> 0) & 0xff;
+          memory[ramOffset + 1] = (data >> 8) & 0xff;
+          ramOffset += 2;
+          spu.checkIrq();
           break
         case 0x1dac: break
-        case 0x1daa: this.SPUCNT = data;
-          if ((!left || !right) && this.SPUCNT & 0x8000) {
+        case 0x1daa: SPUCNT = data;
+          if ((!left || !right) && SPUCNT & 0x8000) {
             init();
           }
-          if (this.SPUCNT & (1 << 6)) {
-            this.SPUSTAT &= ~(0x0040);
+          if (SPUCNT & (1 << 6)) {
+            SPUSTAT &= ~(0x0040);
           }
           // todo: delayed application of bits 0-5
-          this.SPUSTATm = (this.SPUCNT & 0x003F);
+          SPUSTATm = (SPUCNT & 0x003F);
           break
         case 0x1dae:  // SPUSTAT (read-only)
           break
-        case 0x1db0: this.cdVolumeLeft = data / 0x8000;
+        case 0x1db0: spu.cdVolumeLeft = data / 0x8000;
           break
-        case 0x1db2: this.cdVolumeRight = data / 0x8000;
+        case 0x1db2: spu.cdVolumeRight = data / 0x8000;
           break
-        case 0x1db4: this.extVolumeLeft = data / 0x8000;
+        case 0x1db4: spu.extVolumeLeft = data / 0x8000;
           break
-        case 0x1db6: this.extVolumeRight = data / 0x8000;
+        case 0x1db6: spu.extVolumeRight = data / 0x8000;
           break
         case 0x1db8:  // ??? Legend of Dragoon
           break
@@ -188,14 +188,14 @@ mdlr('enge:psx:spu', m => {
         case 0x1dbe:  // ??? Legend of Dragoon 
           break
         default: if ((addr >= 0x1c00) && (addr < 0x1d80)) {
-          var id = ((addr - 0x1c00) / 16) | 0;
-          var voice = this.voices[id];
+          const id = ((addr - 0x1c00) / 16) | 0;
+          const voice = voices[id];
 
           voice.setRegister(addr & 0xf, data);
           break;
         }
           if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
-            this.setReverbRegister(addr, data);
+            spu.setReverbRegister(addr, data);
             break;
           }
           abort("Unimplemented spu register:" + hex(addr, 4))
@@ -203,7 +203,7 @@ mdlr('enge:psx:spu', m => {
       }
     },
 
-    dmaTransferMode0200: function (addr, blck) {
+    dmaTransferMode0200: (addr, blck) => {
       if (!(addr & 0x007fffff)) return 0x10;
 
       var transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
@@ -211,10 +211,10 @@ mdlr('enge:psx:spu', m => {
 
       while (transferSize > 0) {
         var data = 0;
-        data |= (this.data[this.ramOffset + 0] >>> 0) << 0;
-        data |= (this.data[this.ramOffset + 1] >>> 0) << 8;
+        data |= (memory[ramOffset + 0] >>> 0) << 0;
+        data |= (memory[ramOffset + 1] >>> 0) << 8;
         map16[(addr & 0x001fffff) >>> 1] = data;
-        this.ramOffset += 2;
+        ramOffset += 2;
         transferSize -= 2;
         addr += 2;
       }
@@ -222,16 +222,16 @@ mdlr('enge:psx:spu', m => {
       return (blck >> 16) * (blck & 0xFFFF);
     },
 
-    dmaTransferMode0201: function (addr, blck) {
+    dmaTransferMode0201: (addr, blck) => {
       if (!(addr & 0x007fffff)) return 0x10;
       var transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
 
       while (transferSize > 0) {
         const data = map16[(addr & 0x001fffff) >>> 1];
-        this.data[this.ramOffset + 0] = (data >> 0) & 0xff;
-        this.data[this.ramOffset + 1] = (data >> 8) & 0xff;
-        this.checkIrq();
-        this.ramOffset += 2;
+        memory[ramOffset + 0] = (data >> 0) & 0xff;
+        memory[ramOffset + 1] = (data >> 8) & 0xff;
+        spu.checkIrq();
+        ramOffset += 2;
         transferSize -= 2;
         addr += 2;
       }
@@ -239,100 +239,99 @@ mdlr('enge:psx:spu', m => {
       return (blck >> 16) * (blck & 0xFFFF);
     },
 
-    setReverbRegister: function (addr, data) {
+    setReverbRegister: (addr, data) => {
       // todo: implement reverb later
     },
 
-    checkIrq: function (voice) {
-      if ((this.SPUCNT & 0x8040) !== 0x8040) return;
+    checkIrq: voice => {
+      if ((SPUCNT & 0x8040) !== 0x8040) return;
 
-      const captureIndex = (this.totalSamples % 0x200) << 1;
+      const captureIndex = (totalSamples % 0x200) << 1;
 
       let irq = false;
       if (voice !== undefined) {
-        irq = voice.checkIrq(this.irqOffset);
+        irq = voice.checkIrq(irqOffset);
       }
       else {
-        if (this.ramOffset === this.irqOffset) {
+        if (ramOffset === irqOffset) {
           irq = true;
         }
-        if (captureIndex === this.irqOffset) {
+        if (captureIndex === irqOffset) {
           irq = true;
         }
       }
-
 
       if (irq) {
         cpu.istat |= 0x200;
-        this.SPUSTAT |= 0x0040;
+        SPUSTAT |= 0x0040;
       }
     },
 
-    event: function (self, clock) {
+    event: (self, clock) => {
       psx.updateEvent(self, (PSX_SPEED / 44100 * CYCLES_PER_EVENT));
       if (!left || !right) return;
 
-      this.SPUSTAT &= ~(0x003F);
-      this.SPUSTAT |= (this.SPUSTATm & 0x003F);
+      SPUSTAT &= ~(0x003F);
+      SPUSTAT |= (SPUSTATm & 0x003F);
 
       for (let tt = CYCLES_PER_EVENT; tt > 0; --tt) {
-        ++this.totalSamples;
+        ++totalSamples;
 
         let l = 0, r = 0;
 
-        const captureIndex = (this.totalSamples % 0x200) << 1;
-        this.checkIrq();
+        const captureIndex = (totalSamples % 0x200) << 1;
+        spu.checkIrq();
 
         let audio = [0.0, 0.0];
         for (let i = 0; i < 24; ++i) {
-          let voice = this.voices[i];
-          if (!voice.advance(spu.data, audio)) ;
+          let voice = voices[i];
+          if (!voice.advance(memory, audio)) continue;
 
           l += audio[0];
           r += audio[1];
 
           if (i === 3) {
             const mono = (audio[0] * 0x8000) >>> 0;
-            this.data[0x0C00 + captureIndex] = mono & 0xff;
-            this.data[0x0C01 + captureIndex] = mono >> 8;
+            memory[0x0C00 + captureIndex] = mono & 0xff;
+            memory[0x0C01 + captureIndex] = mono >> 8;
           }
           if (i === 1) {
-            const mono = (audio[0] * 0x8000) >>> 0;
-            this.data[0x0800 + captureIndex] = mono & 0xff;
-            this.data[0x0801 + captureIndex] = mono >> 8;
+            const mono = (audio[1] * 0x8000) >>> 0;
+            memory[0x0800 + captureIndex] = mono & 0xff;
+            memory[0x0801 + captureIndex] = mono >> 8;
           }
         }
 
         var cdxa = [0.0, 0.0];
         cdr.nextpcm(cdxa);
 
-        let cdSampleL = (cdxa[0] * this.cdVolumeLeft);
-        let cdSampleR = (cdxa[1] * this.cdVolumeRight);
+        let cdSampleL = (cdxa[0] * spu.cdVolumeLeft);
+        let cdSampleR = (cdxa[1] * spu.cdVolumeRight);
         {
           const mono = (cdSampleL * 0x8000) >>> 0;
-          this.data[0x0000 + captureIndex] = mono & 0xff;
-          this.data[0x0001 + captureIndex] = mono >> 8;
+          memory[0x0000 + captureIndex] = mono & 0xff;
+          memory[0x0001 + captureIndex] = mono >> 8;
         }
         {
           const mono = (cdSampleR * 0x8000) >>> 0;
-          this.data[0x0400 + captureIndex] = mono & 0xff;
-          this.data[0x0401 + captureIndex] = mono >> 8;
+          memory[0x0400 + captureIndex] = mono & 0xff;
+          memory[0x0401 + captureIndex] = mono >> 8;
         }
         l += cdSampleL;
         r += cdSampleR;
 
-        l = (l * this.mainVolumeLeft);
-        r = (r * this.mainVolumeRight);
+        l = (l * spu.mainVolumeLeft);
+        r = (r * spu.mainVolumeRight);
 
-        left[this.writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
-        right[this.writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
-        this.writeIndex = (this.writeIndex + 1) % frameCount;
+        left[writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
+        right[writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
+        writeIndex = (writeIndex + 1) % frameCount;
 
         if (captureIndex === 0x000) {
-          this.SPUSTAT &= ~0x0800;
+          SPUSTAT &= ~0x0800;
         }
         if (captureIndex === 0x200) {
-          this.SPUSTAT |= 0x0800;
+          SPUSTAT |= 0x0800;
         }
       }
     }
@@ -340,10 +339,10 @@ mdlr('enge:psx:spu', m => {
   }
 
   //- init
-  for (var i = 0; i < 24; ++i) {
+  for (let i = 0; i < 24; ++i) {
     // mdlr does not cache compiled modules, so this works perfectly
     const { voice } = m.require('enge:psx:spu-voice');
-    spu.voices[i] = voice.setId(i);
+    voices[i] = voice.setId(i);
   }
 
   //- lookup tables
@@ -373,6 +372,6 @@ mdlr('enge:psx:spu', m => {
     }
   }
 
-  return { spu, xa2flt, xa2pcm };
+  return { spu: Object.seal(spu), xa2flt, xa2pcm };
 
 })
