@@ -32,6 +32,10 @@ mdlr('enge:psx:gte', m => {
   const sy = new Int32Array(3);
   const sz = new Int32Array(4);
 
+  const $mat = [rt, ll, lc, zr];
+  const $vec = [v0, v1, v2, ir];
+  const $add = [tr, bk, fc, zr];
+
   const lim = (value, lowerBound, lowerBit, upperBound, upperBit) => {
     if (value < lowerBound) { regs[0x3f] |= flag[lowerBit]; return lowerBound; }
     if (value > upperBound) { regs[0x3f] |= flag[upperBit]; return upperBound; }
@@ -58,8 +62,6 @@ mdlr('enge:psx:gte', m => {
     ir[1] = lim(mac[1], lm, 24, 32767.0, 24);
     ir[2] = lim(mac[2], lm, 23, 32767.0, 23);
     ir[3] = lim(mac[3], lm, 22, 32767.0, 22);
-
-    // todo: update irgb/orgb
   };
 
   const depthCue = () => {
@@ -72,7 +74,6 @@ mdlr('enge:psx:gte', m => {
     ir[1] = lim(ir[1], -32768.0, 24, 32767.0, 24);
     ir[2] = lim(ir[2], -32768.0, 23, 32767.0, 23);
     ir[3] = lim(ir[3], -32768.0, 22, 32767.0, 22);
-    // todo: update irgb/orgb
   };
 
   const interpolate = () => {
@@ -262,26 +263,9 @@ mdlr('enge:psx:gte', m => {
   };
 
   const mvmva = (commandId) => {
-    switch ((commandId >> 17) & 0x3) {
-      case 0: var mat = rt; break;
-      case 1: var mat = ll; break;
-      case 2: var mat = lc; break;
-      case 3: var mat = zr; break;
-    }
-
-    switch ((commandId >> 15) & 0x3) {
-      case 0: var vec = v0; break;
-      case 1: var vec = v1; break;
-      case 2: var vec = v2; break;
-      case 3: var vec = ir; break;
-    }
-
-    switch ((commandId >> 13) & 0x3) {
-      case 0: var add = tr; break;
-      case 1: var add = bk; break;
-      case 2: var add = fc; abort('faulty'); break;
-      case 3: var add = zr; break;
-    }
+    const mat = $mat[(commandId >> 17) & 3];
+    const vec = $vec[(commandId >> 15) & 3];
+    const add = $add[(commandId >> 13) & 3];
 
     transform(add, mat, vec);
   };
@@ -432,77 +416,42 @@ mdlr('enge:psx:gte', m => {
     limit(lm);
   };
 
-  const gte = Object.seal({
+  const s16lo = data => (data << 16) >> 16;
+  const s16hi = data => (data << 0) >> 16;
+  const s32 = data => (data << 0) >> 0;
+  const u16lo = data => (data << 16) >>> 16;
+
+  const gte = {
     get: (regId) => {
       switch (regId) {
-        case 0x00: return regs[regId];
-        case 0x01: return (v0[3] << 16) >> 16;
-        case 0x02: return regs[regId];
-        case 0x03: return (v1[3] << 16) >> 16;
-        case 0x04: return regs[regId];
-        case 0x05: return (v2[3] << 16) >> 16;
-        case 0x06: return regs[regId];
-        case 0x07: return (regs[regId] << 16) >>> 16;
-        case 0x08: return (ir[0] << 16) >> 16;
-        case 0x09: return (ir[1] << 16) >> 16;
-        case 0x0a: return (ir[2] << 16) >> 16;
-        case 0x0b: return (ir[3] << 16) >> 16;
+        case 0x07: return u16lo(regs[regId]);
+        case 0x08: return s16lo(ir[0]);
+        case 0x09: return s16lo(ir[1]);
+        case 0x0a: return s16lo(ir[2]);
+        case 0x0b: return s16lo(ir[3]);
         case 0x0c: return (sx[0] & 0xffff) | (sy[0] << 16);
         case 0x0d: return (sx[1] & 0xffff) | (sy[1] << 16);
         case 0x0e: return (sx[2] & 0xffff) | (sy[2] << 16);
         case 0x0f: return (sx[2] & 0xffff) | (sy[2] << 16);
-        case 0x10: return (sz[0] << 16) >>> 16;
-        case 0x11: return (sz[1] << 16) >>> 16;
-        case 0x12: return (sz[2] << 16) >>> 16;
-        case 0x13: return (sz[3] << 16) >>> 16;
+        case 0x10: return u16lo(sz[0]);
+        case 0x11: return u16lo(sz[1]);
+        case 0x12: return u16lo(sz[2]);
+        case 0x13: return u16lo(sz[3]);
         case 0x14: return rgb[0];
         case 0x15: return rgb[1];
         case 0x16: return rgb[2];
-        case 0x17: return regs[regId];
         case 0x18: return mac[0];
         case 0x19: return mac[1];
         case 0x1a: return mac[2];
         case 0x1b: return mac[3];
-        case 0x1d: var value = 0;
+        case 0x1d: let value = 0;
           value |= ((ir[1] >> 7) << 0);
           value |= ((ir[2] >> 7) << 5);
           value |= ((ir[3] >> 7) << 10);
           return value;
-        case 0x1e: return regs[regId];
         case 0x1f: return lzcr;
-        case 0x20: return regs[regId];
-        case 0x21: return regs[regId];
-        case 0x22: return regs[regId];
-        case 0x23: return regs[regId];
-        case 0x24: return regs[regId];
-        case 0x25: return regs[regId];
-        case 0x26: return regs[regId];
-        case 0x27: return regs[regId];
-        case 0x28: return regs[regId];
-        case 0x29: return regs[regId];
-        case 0x2a: return regs[regId];
-        case 0x2b: return regs[regId];
-        case 0x2c: return regs[regId];
-        case 0x2d: return regs[regId];
-        case 0x2e: return regs[regId];
-        case 0x2f: return regs[regId];
-        case 0x30: return regs[regId];
-        case 0x31: return regs[regId];
-        case 0x32: return regs[regId];
-        case 0x33: return regs[regId];
-        case 0x34: return regs[regId];
-        case 0x35: return regs[regId];
-        case 0x36: return regs[regId];
-        case 0x37: return regs[regId];
-        case 0x38: return regs[regId];
-        case 0x39: return regs[regId];
-        case 0x3a: return (regs[regId] << 16) >> 16;
-        case 0x3b: return regs[regId];
-        case 0x3c: return regs[regId];
-        case 0x3d: return regs[regId];
-        case 0x3e: return regs[regId];
-        case 0x3f: return regs[regId];
-        default: abort('get gte.r' + hex(regId, 2) + ' not yet implemented')
+        case 0x3a: return s16lo(regs[regId]);
+        default: return regs[regId];
       }
     },
 
@@ -510,37 +459,37 @@ mdlr('enge:psx:gte', m => {
       regs[regId] = data;
 
       switch (regId) {
-        case 0x00: v0[1] = (data << 16) >> 16; v0[2] = (data << 0) >> 16; break;
-        case 0x01: v0[3] = (data << 16) >> 16; break;
-        case 0x02: v1[1] = (data << 16) >> 16; v1[2] = (data << 0) >> 16; break;
-        case 0x03: v1[3] = (data << 16) >> 16; break;
-        case 0x04: v2[1] = (data << 16) >> 16; v2[2] = (data << 0) >> 16; break;
-        case 0x05: v2[3] = (data << 16) >> 16; break;
+        case 0x00: v0[1] = s16lo(data); v0[2] = s16hi(data); break;
+        case 0x01: v0[3] = s16lo(data); break;
+        case 0x02: v1[1] = s16lo(data); v1[2] = s16hi(data); break;
+        case 0x03: v1[3] = s16lo(data); break;
+        case 0x04: v2[1] = s16lo(data); v2[2] = s16hi(data); break;
+        case 0x05: v2[3] = s16lo(data); break;
         case 0x06: rgb[3] = data; break;
         case 0x07: break;
-        case 0x08: ir[0] = (data << 16) >> 16; break;
-        case 0x09: ir[1] = (data << 16) >> 16; break;
-        case 0x0a: ir[2] = (data << 16) >> 16; break;
-        case 0x0b: ir[3] = (data << 16) >> 16; break;
-        case 0x0c: sx[0] = (data << 16) >> 16; sy[0] = (data << 0) >> 16; break;
-        case 0x0d: sx[1] = (data << 16) >> 16; sy[1] = (data << 0) >> 16; break;
-        case 0x0e: sx[2] = (data << 16) >> 16; sy[2] = (data << 0) >> 16; break;
+        case 0x08: ir[0] = s16lo(data); break;
+        case 0x09: ir[1] = s16lo(data); break;
+        case 0x0a: ir[2] = s16lo(data); break;
+        case 0x0b: ir[3] = s16lo(data); break;
+        case 0x0c: sx[0] = s16lo(data); sy[0] = s16hi(data); break;
+        case 0x0d: sx[1] = s16lo(data); sy[1] = s16hi(data); break;
+        case 0x0e: sx[2] = s16lo(data); sy[2] = s16hi(data); break;
         case 0x0f: sx[0] = sx[1]; sy[0] = sy[1];
           sx[1] = sx[2]; sy[1] = sy[2];
-          sx[2] = (data << 16) >> 16; sy[2] = (data << 0) >> 16;
+          sx[2] = s16lo(data); sy[2] = s16hi(data);
           break;
-        case 0x10: sz[0] = (data << 16) >>> 16; break;
-        case 0x11: sz[1] = (data << 16) >>> 16; break;
-        case 0x12: sz[2] = (data << 16) >>> 16; break;
-        case 0x13: sz[3] = (data << 16) >>> 16; break;
+        case 0x10: sz[0] = u16lo(data); break;
+        case 0x11: sz[1] = u16lo(data); break;
+        case 0x12: sz[2] = u16lo(data); break;
+        case 0x13: sz[3] = u16lo(data); break;
         case 0x14: rgb[0] = data; break;
         case 0x15: rgb[1] = data; break;
         case 0x16: rgb[2] = data; break;
         case 0x17: break;
-        case 0x18: mac[0] = (data << 0) >> 0; break;
-        case 0x19: mac[1] = (data << 0) >> 0; break;
-        case 0x1a: mac[2] = (data << 0) >> 0; break;
-        case 0x1b: mac[3] = (data << 0) >> 0; break;
+        case 0x18: mac[0] = s32(data); break;
+        case 0x19: mac[1] = s32(data); break;
+        case 0x1a: mac[2] = s32(data); break;
+        case 0x1b: mac[3] = s32(data); break;
         case 0x1c: ir[1] = (data & 0x001f) << 7;
           ir[2] = (data & 0x03e0) << 2;
           ir[3] = (data & 0x7c00) >> 3;
@@ -548,43 +497,43 @@ mdlr('enge:psx:gte', m => {
         case 0x1d: break; // readonly
         case 0x1e: countLeadingZeros(data); break;
         case 0x1f: break; // readonly
-        case 0x20: rt[0] = (data << 16) >> 16; rt[1] = (data << 0) >> 16; break;
-        case 0x21: rt[2] = (data << 16) >> 16; rt[3] = (data << 0) >> 16; break;
-        case 0x22: rt[4] = (data << 16) >> 16; rt[5] = (data << 0) >> 16; break;
-        case 0x23: rt[6] = (data << 16) >> 16; rt[7] = (data << 0) >> 16; break;
-        case 0x24: regs[regId] = rt[8] = (data << 16) >> 16; break;
-        case 0x25: tr[0] = (data << 0) >> 0; break;
-        case 0x26: tr[1] = (data << 0) >> 0; break;
-        case 0x27: tr[2] = (data << 0) >> 0; break;
-        case 0x28: ll[0] = (data << 16) >> 16; ll[1] = (data << 0) >> 16; break;
-        case 0x29: ll[2] = (data << 16) >> 16; ll[3] = (data << 0) >> 16; break;
-        case 0x2a: ll[4] = (data << 16) >> 16; ll[5] = (data << 0) >> 16; break;
-        case 0x2b: ll[6] = (data << 16) >> 16; ll[7] = (data << 0) >> 16; break;
-        case 0x2c: regs[regId] = ll[8] = (data << 16) >> 16; break;
-        case 0x2d: bk[0] = (data << 0) >> 0; break;
-        case 0x2e: bk[1] = (data << 0) >> 0; break;
-        case 0x2f: bk[2] = (data << 0) >> 0; break;
-        case 0x30: lc[0] = (data << 16) >> 16; lc[1] = (data << 0) >> 16; break;
-        case 0x31: lc[2] = (data << 16) >> 16; lc[3] = (data << 0) >> 16; break;
-        case 0x32: lc[4] = (data << 16) >> 16; lc[5] = (data << 0) >> 16; break;
-        case 0x33: lc[6] = (data << 16) >> 16; lc[7] = (data << 0) >> 16; break;
-        case 0x34: regs[regId] = lc[8] = (data << 16) >> 16; break;
-        case 0x35: fc[0] = (data << 0) >> 0; break;
-        case 0x36: fc[1] = (data << 0) >> 0; break;
-        case 0x37: fc[2] = (data << 0) >> 0; break;
-        case 0x38: regs[regId] = (data << 0) >> 0; break;
-        case 0x39: regs[regId] = (data << 0) >> 0; break;
-        case 0x3a: regs[regId] = (data << 16) >>> 16; break;
-        case 0x3b: regs[regId] = (data << 16) >> 16; break;
-        case 0x3c: regs[regId] = (data << 0) >> 0; break;
-        case 0x3d: regs[regId] = zsf3 = (data << 16) >> 16; break;
-        case 0x3e: regs[regId] = zsf4 = (data << 16) >> 16; break;
+        case 0x20: rt[0] = s16lo(data); rt[1] = s16hi(data); break;
+        case 0x21: rt[2] = s16lo(data); rt[3] = s16hi(data); break;
+        case 0x22: rt[4] = s16lo(data); rt[5] = s16hi(data); break;
+        case 0x23: rt[6] = s16lo(data); rt[7] = s16hi(data); break;
+        case 0x24: regs[regId] = rt[8] = s16lo(data); break;
+        case 0x25: tr[0] = s32(data); break;
+        case 0x26: tr[1] = s32(data); break;
+        case 0x27: tr[2] = s32(data); break;
+        case 0x28: ll[0] = s16lo(data); ll[1] = s16hi(data); break;
+        case 0x29: ll[2] = s16lo(data); ll[3] = s16hi(data); break;
+        case 0x2a: ll[4] = s16lo(data); ll[5] = s16hi(data); break;
+        case 0x2b: ll[6] = s16lo(data); ll[7] = s16hi(data); break;
+        case 0x2c: regs[regId] = ll[8] = s16lo(data); break;
+        case 0x2d: bk[0] = s32(data); break;
+        case 0x2e: bk[1] = s32(data); break;
+        case 0x2f: bk[2] = s32(data); break;
+        case 0x30: lc[0] = s16lo(data); lc[1] = s16hi(data); break;
+        case 0x31: lc[2] = s16lo(data); lc[3] = s16hi(data); break;
+        case 0x32: lc[4] = s16lo(data); lc[5] = s16hi(data); break;
+        case 0x33: lc[6] = s16lo(data); lc[7] = s16hi(data); break;
+        case 0x34: regs[regId] = lc[8] = s16lo(data); break;
+        case 0x35: fc[0] = s32(data); break;
+        case 0x36: fc[1] = s32(data); break;
+        case 0x37: fc[2] = s32(data); break;
+        case 0x38: regs[regId] = s32(data); break;
+        case 0x39: regs[regId] = s32(data); break;
+        case 0x3a: regs[regId] = u16lo(data); break;
+        case 0x3b: regs[regId] = s16lo(data); break;
+        case 0x3c: regs[regId] = s32(data); break;
+        case 0x3d: regs[regId] = zsf3 = s16lo(data); break;
+        case 0x3e: regs[regId] = zsf4 = s16lo(data); break;
         case 0x3f: regs[regId] = data & 0x7ffff000;
           if (regs[regId] & 0x7f87e000) {
             regs[regId] |= 0x80000000;
           }
           break;
-        default: abort('gte.set(r' + hex(regId, 2) + ', ' + hex(data) + ') not yet implemented')
+        default: abort(hex(regId, 2));
       }
     },
 
@@ -618,7 +567,7 @@ mdlr('enge:psx:gte', m => {
         case 0x3d: gpf(); break;
         case 0x3e: gpl(); break;
         case 0x3f: nccs(v0); nccs(v1); nccs(v2); break;
-        default: abort('gte.$' + hex(commandId, 5) + ' not yet implemented')
+        default: abort(hex(commandId, 5));
       }
     },
 
@@ -646,11 +595,10 @@ mdlr('enge:psx:gte', m => {
         case 0x3d: return 5;
         case 0x3e: return 5;
         case 0x3f: return 39;
-        default: abort('gte.$' + hex(commandId, 5) + ' has no cycles')
-          return 5;
+        default: abort(hex(commandId, 5));
       }
     }
-  });
+  };
 
   // flag bits
   for (var i = 0; i <= 31; ++i) {

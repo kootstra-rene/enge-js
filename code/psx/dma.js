@@ -3,7 +3,7 @@ mdlr('enge:psx:dma', m => {
   let dpcr = 0;
   let dicr = 0;
 
-  const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent].map(a => a.bind(psx));
+  const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
 
   const completeIrq = channel => {
     const enable = 1 << (16 + channel);
@@ -254,8 +254,6 @@ mdlr('enge:psx:dma', m => {
 
     unsetEvent(self);
   });
-
-  Object.seal(dma);
 
   return { dma };
 })

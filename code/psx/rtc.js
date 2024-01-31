@@ -489,12 +489,9 @@ mdlr('enge:psx:rtc', m => {
     }
   }
 
-  Object.seal(rc0);
-  Object.seal(rc1);
-  Object.seal(rc2);
-  Object.seal(dot);
+  dot.event = psx.addEvent(0, dot.complete.bind(dot));
 
   return {
-    rc0, rc1, rc2, dot
+    rc0, rc1, rc2
   }
 })

@@ -6,6 +6,7 @@ mdlr('enge:psx:spu', m => {
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
+  const view = new DataView(memory.buffer);
 
   const init = () => {
     const context = new AudioContext();
@@ -44,22 +45,16 @@ mdlr('enge:psx:spu', m => {
       spu.checkIrq();
 
       let audio = [0.0, 0.0];
-      for (let i = 0; i < 24; ++i) {
-        let voice = voices[i];
+      for (let voice of voices) {
         if (!voice.advance(memory, audio)) continue;
 
         l += audio[0];
         r += audio[1];
 
-        if (i === 3) {
-          const mono = (audio[0] * 0x8000) >>> 0;
-          memory[0x0C00 + captureIndex] = mono & 0xff;
-          memory[0x0C01 + captureIndex] = mono >> 8;
-        }
-        if (i === 1) {
-          const mono = (audio[1] * 0x8000) >>> 0;
-          memory[0x0800 + captureIndex] = mono & 0xff;
-          memory[0x0801 + captureIndex] = mono >> 8;
+        if (voice.capture) {
+          // todo: verify cacpture left or right channel
+          const mono = (audio[0] * 0x8000) >> 0;
+          view.setInt16(voice.capture + captureIndex, mono, true);
         }
       }
 
@@ -70,13 +65,11 @@ mdlr('enge:psx:spu', m => {
       let cdSampleR = (cdxa[1] * cdVolumeRight);
       {
         const mono = (cdSampleL * 0x8000) >>> 0;
-        memory[0x0000 + captureIndex] = mono & 0xff;
-        memory[0x0001 + captureIndex] = mono >> 8;
+        view.setInt16(0x0000 + captureIndex, mono, true);
       }
       {
         const mono = (cdSampleR * 0x8000) >>> 0;
-        memory[0x0400 + captureIndex] = mono & 0xff;
-        memory[0x0401 + captureIndex] = mono >> 8;
+        view.setInt16(0x0400 + captureIndex, mono, true);
       }
       l += cdSampleL;
       r += cdSampleR;
@@ -84,8 +77,8 @@ mdlr('enge:psx:spu', m => {
       l = (l * mainVolumeLeft);
       r = (r * mainVolumeRight);
 
-      left[writeIndex] = Math.max(Math.min(l, 1.0), -1.0);
-      right[writeIndex] = Math.max(Math.min(r, 1.0), -1.0);
+      left[writeIndex] = l;//Math.max(Math.min(l, 1.0), -1.0);
+      right[writeIndex] = r;//Math.max(Math.min(r, 1.0), -1.0);
       writeIndex = (writeIndex + 1) % frameCount;
 
       if (captureIndex === 0x000) {
@@ -370,6 +363,6 @@ mdlr('enge:psx:spu', m => {
     }
   }
 
-  return { spu: Object.seal(spu), xa2flt, xa2pcm };
+  return { spu, xa2flt, xa2pcm };
 
 })

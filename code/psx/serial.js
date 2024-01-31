@@ -127,7 +127,5 @@ mdlr('enge:psx:serial', m => {
     }
   }
 
-  Object.seal(joy);
-
   return { joy };
 })

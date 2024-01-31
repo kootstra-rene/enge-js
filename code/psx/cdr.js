@@ -41,6 +41,8 @@ mdlr('enge:psx:cdr', m => {
 
   let currTrack = {};
 
+  const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
+
   const floor = a => a >> 0;
 
   const itob = i => floor(i / 10) * 16 + floor(i % 10);
@@ -84,7 +86,7 @@ mdlr('enge:psx:cdr', m => {
   };
 
   const completeCmd = (self) => {
-    psx.unsetEvent(self);
+    unsetEvent(self);
     if (irq & 0x1f) {
       setCommandEvent(64);
       return;
@@ -372,7 +374,7 @@ mdlr('enge:psx:cdr', m => {
         playIndex = 0;
         if (currLoc === currTrack.end) {
           if (mode & 0x02) {
-            psx.unsetEvent(self);
+            unsetEvent(self);
             return command(0x99);
           }
         }
@@ -419,15 +421,15 @@ mdlr('enge:psx:cdr', m => {
 
       default:
         abort(hex(ncmdread, 2));
-        psx.unsetEvent(eventRead);
+        unsetEvent(eventRead);
     }
   };
 
-  const eventCmd = psx.addEvent(0, completeCmd);
-  const setCommandEvent = psx.setEvent.bind(psx, eventCmd);
+  const eventCmd = addEvent(0, completeCmd);
+  const setCommandEvent = e => setEvent(eventCmd, e);
 
-  const eventRead = psx.addEvent(0, completeRead);
-  const setReadEvent = psx.setEvent.bind(psx, eventRead);
+  const eventRead = addEvent(0, completeRead);
+  const setReadEvent = e => setEvent(eventRead, e);
 
   const command = (data) => {
     let nevtctrl = 0x0200;
@@ -639,14 +641,14 @@ mdlr('enge:psx:cdr', m => {
   };
 
   const stopReading = () => {
-    psx.unsetEvent(eventRead);
+    unsetEvent(eventRead);
     statusCode &= ~0x80;
     statusCode &= ~0x20;
     ncmdread = 0;
   };
 
   return {
-    cdr: Object.seal({
+    cdr: {
       rd08r1800: () => {
         return status;
       },
@@ -794,6 +796,6 @@ mdlr('enge:psx:cdr', m => {
         sectorData16 = new Int16Array(data.buffer);
         sectorData8 = new Int8Array(data.buffer);
       }
-    })
+    }
   }
 })

@@ -200,12 +200,19 @@ mdlr('enge:psx:spu-voice', m => {
     }
   }
 
-  class Voice {
+  const voice = {
+    capture :0,
+
     setId(voiceId) {
       id = voiceId;
+      if (voiceId === 1) this.capture = 0x0800;
+      if (voiceId === 3) this.capture = 0x0c00;
       return this;
-    }
+    },
+
     advance(ram, audio) {
+      if (!adsrState) return adsrState;
+
       pitchCounter += pitchStep;
 
       if (pitchCounter >= BLOCKSIZE) {
@@ -222,10 +229,12 @@ mdlr('enge:psx:spu-voice', m => {
       audio[1] = (sample * adsrVolume * volumeRight);
 
       return adsrState;
-    }
+    },
+
     checkIrq(offset) {
       return (blockAddress <= offset) && (offset < (blockAddress + 16));
-    }
+    },
+
     keyOn() {
       s0 = 0.0;
       s1 = 0.0;
@@ -233,22 +242,28 @@ mdlr('enge:psx:spu-voice', m => {
       blockAddress = regs[0x6] << 3;
       repeatAddress = regs[0x0e] << 3;
       startAdsrAttack();
-    }
+    },
+
     echoOn() {
       // todo: reverb
-    }
+    },
+
     modOn() {
       // todo: pitch modulation
-    }
+    },
+
     noiseOn() {
       // todo: noise
-    }
+    },
+
     keyOff() {
       startAdsrRelease();
-    }
+    },
+
     getRegister(addr) {
       return regs[addr & 15];
-    }
+    },
+
     setRegister(addr, data) {
       regs[addr & 15] = data;
       switch (addr % 16) {
@@ -295,8 +310,6 @@ mdlr('enge:psx:spu-voice', m => {
     }
   }
 
+  return { voice };
 
-  return {
-    voice: Object.seal(new Voice()),
-  };
 })

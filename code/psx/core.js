@@ -11,13 +11,13 @@ mdlr('enge:psx:core', m => {
   }
 
   psx.addEvent = (clocks, cb) => {
-    const event = Object.seal({
+    const event = {
       id: ++lastId,
       active: true,
       clock: +psx.clock + +clocks,
       start: +psx.clock,
       cb
-    });
+    };
 
     if (psx.eventClock > event.clock) {
       psx.eventClock = event.clock;
@@ -76,29 +76,21 @@ mdlr('enge:psx:core', m => {
   psx.handleEvents = (entry) => {
     let eventClock = Number.MAX_SAFE_INTEGER;
 
-    const triggeredEvents = [];
     for (let event of events) {
+      if (!event.active) continue;
+
       if (psx.clock >= event.clock) {
-        triggeredEvents.push(event);
+        event.cb(event, psx.clock);
       }
-    }
-
-    for (let event of triggeredEvents) {
-      event.cb(event, psx.clock);
-    }
-
-    for (let event of events) {
-      if (event.clock < eventClock && event.active) {
+      if (event.clock < eventClock) {
         eventClock = event.clock;
       }
-    }
+    };
 
     psx.eventClock = eventClock;
 
     return cpuInterrupt(entry);
   }
-
-  Object.seal(psx);
 
   return { psx };
 })

@@ -1,6 +1,6 @@
 mdlr('enge:webgl2', m => {
 
-  const {createVertexBuffer,createProgramFromScripts} = m.require('enge:webgl2:utils');
+  const { createVertexBuffer, createProgramFromScripts } = m.require('enge:webgl2:utils');
 
   const $gpu = {
   };
@@ -36,8 +36,10 @@ mdlr('enge:webgl2', m => {
     return abort();
   }
 
-  const [STENCIL_TEST, FRAMEBUFFER, READ_FRAMEBUFFER, DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, RGBA, UNSIGNED_BYTE, NEAREST, COLOR_BUFFER_BIT] = [gl.STENCIL_TEST, gl.FRAMEBUFFER, gl.READ_FRAMEBUFFER, gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.COLOR_BUFFER_BIT];
-  const [gl_enable, gl_disable, gl_getUniformLocation, gl_texSubImage2D, gl_bindFramebuffer, gl_framebufferTexture2D, gl_blitFramebuffer, gl_enableVertexAttribArray, gl_getAttribLocation, gl_vertexAttribPointer, gl_bindTexture, gl_texImage2D, gl_createFramebuffer] = [gl.enable, gl.disable, gl.getUniformLocation, gl.texSubImage2D, gl.bindFramebuffer, gl.framebufferTexture2D, gl.blitFramebuffer, gl.enableVertexAttribArray, gl.getAttribLocation, gl.vertexAttribPointer, gl.bindTexture, gl.texImage2D, gl.createFramebuffer].map(a => a.bind(gl));
+  const [ONE, ZERO, CONSTANT_ALPHA, BLEND, FUNC_ADD, STENCIL_TEST, FRAMEBUFFER, READ_FRAMEBUFFER, DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, RGBA, UNSIGNED_BYTE, NEAREST, COLOR_BUFFER_BIT]
+    = [gl.ONE, gl.ZERO, gl.CONSTANT_ALPHA, gl.BLEND, gl.FUNC_ADD, gl.STENCIL_TEST, gl.FRAMEBUFFER, gl.READ_FRAMEBUFFER, gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.COLOR_BUFFER_BIT];
+  const [gl_blendColor, gl_blendFuncSeparate, gl_blendEquationSeparate, gl_enable, gl_disable, gl_getUniformLocation, gl_texSubImage2D, gl_bindFramebuffer, gl_framebufferTexture2D, gl_blitFramebuffer, gl_enableVertexAttribArray, gl_getAttribLocation, gl_vertexAttribPointer, gl_bindTexture, gl_texImage2D, gl_createFramebuffer]
+    = [gl.blendColor, gl.blendFuncSeparate, gl.blendEquationSeparate, gl.enable, gl.disable, gl.getUniformLocation, gl.texSubImage2D, gl.bindFramebuffer, gl.framebufferTexture2D, gl.blitFramebuffer, gl.enableVertexAttribArray, gl.getAttribLocation, gl.vertexAttribPointer, gl.bindTexture, gl.texImage2D, gl.createFramebuffer].map(a => a.bind(gl));
 
   const largePrimitive = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
     if (Math.abs(x1 - x2) > 1023) return true;
@@ -83,7 +85,7 @@ mdlr('enge:webgl2', m => {
       if (gl) {
         gl_disable(STENCIL_TEST);
         gl_disable(gl.DEPTH_TEST);
-        gl_disable(gl.BLEND);
+        gl_disable(BLEND);
         gl_disable(gl.CULL_FACE);
         gl_disable(gl.DITHER);
         gl_disable(gl.POLYGON_OFFSET_FILL);
@@ -91,7 +93,7 @@ mdlr('enge:webgl2', m => {
         gl_disable(gl.SCISSOR_TEST);
 
         gl_enableVertexAttribArray(0);
-        gl.blendColor(0.0, 0.0, 0.0, 0.0);
+        gl_blendColor(0.0, 0.0, 0.0, 0.0);
         gl.clearDepth(0.0);
 
         this.displayBuffer = gl.createBuffer();
@@ -206,30 +208,30 @@ mdlr('enge:webgl2', m => {
 
       switch (mode & 0x7) {
         case 0: {
-          gl_enable(gl.BLEND);
-          gl.blendEquation(gl.FUNC_ADD);
-          gl.blendColor(0.0, 0.0, 0.0, 0.5);
-          gl.blendFuncSeparate(gl.CONSTANT_ALPHA, gl.CONSTANT_ALPHA, gl.ONE, gl.ZERO);
+          gl_enable(BLEND);
+          gl_blendEquationSeparate(FUNC_ADD, FUNC_ADD);
+          gl_blendFuncSeparate(CONSTANT_ALPHA, CONSTANT_ALPHA, ONE, ZERO);
+          gl_blendColor(0.0, 0.0, 0.0, 0.5);
         } break;
         case 1: {
-          gl_enable(gl.BLEND);
-          gl.blendEquation(gl.FUNC_ADD);
-          gl.blendColor(0.0, 0.0, 0.0, 1.0);
-          gl.blendFuncSeparate(gl.CONSTANT_ALPHA, gl.CONSTANT_ALPHA, gl.ONE, gl.ZERO);
+          gl_enable(BLEND);
+          gl_blendEquationSeparate(FUNC_ADD, FUNC_ADD);
+          gl_blendFuncSeparate(CONSTANT_ALPHA, CONSTANT_ALPHA, ONE, ZERO);
+          gl_blendColor(0.0, 0.0, 0.0, 1.0);
         } break;
         case 2: {
-          gl_enable(gl.BLEND);
-          gl.blendEquationSeparate(gl.FUNC_REVERSE_SUBTRACT, gl.FUNC_ADD);
-          gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR, gl.ONE, gl.ZERO);
+          gl_enable(BLEND);
+          gl_blendEquationSeparate(gl.FUNC_REVERSE_SUBTRACT, FUNC_ADD);
+          gl_blendFuncSeparate(ZERO, gl.ONE_MINUS_SRC_COLOR, ONE, ZERO);
         } break;
         case 3: {
-          gl_enable(gl.BLEND);
-          gl.blendEquation(gl.FUNC_ADD);
-          gl.blendColor(0.0, 0.0, 0.0, 0.75);
-          gl.blendFuncSeparate(gl.ONE_MINUS_CONSTANT_ALPHA, gl.ONE, gl.ONE, gl.ZERO);
+          gl_enable(BLEND);
+          gl_blendEquationSeparate(FUNC_ADD, FUNC_ADD);
+          gl_blendFuncSeparate(gl.ONE_MINUS_CONSTANT_ALPHA, ONE,ONE, ZERO);
+          gl_blendColor(0.0, 0.0, 0.0, 0.75);
         } break;
         case 4: {
-          gl_disable(gl.BLEND);
+          gl_disable(BLEND);
         } break;
       }
     }
@@ -591,14 +593,8 @@ mdlr('enge:webgl2', m => {
   }
 
   const flushVertexBuffer = () => {
-    flushBuffer(vertexBuffer);
-
-    for (let mode = 4; mode >= 0; --mode) {
-      flushBuffer(renderer.buffers[mode], mode);
-    }
-    // gl.flush();
-    // copyVramToShadowVram(renderer);
-    // flushDepth(renderer);
+    flushBuffer(renderer.buffers[4], 4);
+    flushBuffer(renderer.buffers[$mode], $mode);
   }
 
   const getDisplayArrays = ({ x, y, w, h }) => {

@@ -6,6 +6,9 @@ mdlr('enge:psx:mdec', m => {
   const SCALERC256 = (y, x) => {
     return scale[256 + 128 + y + x];
   };
+  const SCALERC32 = (y, x) => {
+    return SCALERC256(y,x)>>>3;
+  };
 
   const zscan = [
     0, 1, 8, 16, 9, 2, 3, 10,
@@ -152,32 +155,32 @@ mdlr('enge:psx:mdec', m => {
     let Y, r, g, b, a = mdc.STP;
 
     Y = blk[o + 0] << 0;
-    r = SCALERC256(Y, R) >>> 3;
-    g = SCALERC256(Y, G) >>> 3;
-    b = SCALERC256(Y, B) >>> 3;
+    r = SCALERC32(Y, R);
+    g = SCALERC32(Y, G);
+    b = SCALERC32(Y, B);
     memory[(base + 0) >>> 1] = a | (b << 10) | (g << 5) | r;
 
     Y = blk[o + 1] << 0;
-    r = SCALERC256(Y, R) >>> 3;
-    g = SCALERC256(Y, G) >>> 3;
-    b = SCALERC256(Y, B) >>> 3;
+    r = SCALERC32(Y, R);
+    g = SCALERC32(Y, G);
+    b = SCALERC32(Y, B);
     memory[(base + 2) >>> 1] = a | (b << 10) | (g << 5) | r;
 
     Y = blk[o + 8] << 0;
-    r = SCALERC256(Y, R) >>> 3;
-    g = SCALERC256(Y, G) >>> 3;
-    b = SCALERC256(Y, B) >>> 3;
+    r = SCALERC32(Y, R);
+    g = SCALERC32(Y, G);
+    b = SCALERC32(Y, B);
     memory[(base + 32) >>> 1] = a | (b << 10) | (g << 5) | r;
 
     Y = blk[o + 9] << 0;
-    r = SCALERC256(Y, R) >>> 3;
-    g = SCALERC256(Y, G) >>> 3;
-    b = SCALERC256(Y, B) >>> 3;
+    r = SCALERC32(Y, R);
+    g = SCALERC32(Y, G);
+    b = SCALERC32(Y, B);
     memory[(base + 34) >>> 1] = a | (b << 10) | (g << 5) | r;
   };
 
   const yuv2rgb15 = (blk, addr) => {
-    let x, y;
+    let y;
     let ro = 0;
     let bo = 64;
     let yo = 64 * 2;
@@ -228,9 +231,7 @@ mdlr('enge:psx:mdec', m => {
   };
 
   const yuv2rgb24 = (blk, addr) => {
-    if (addr & 3) abort();
-
-    let x, y;
+    let y;
     let ro = 0;
     let bo = 64;
     let yo = 64 * 2;
@@ -284,19 +285,22 @@ mdlr('enge:psx:mdec', m => {
       const transferSize = (blck >>> 16) * (blck & 0xffff);
 
       switch (mdc.r1820 >>> 29) {
-        case 0x0:
+        // case 0x0:
         case 0x1:
           mdc.rl = addr;
           break;
 
         case 0x2:
           iqtab_init(addr, transferSize << 2);
-          if (mdc.r1820 !== 0x40000001) return abort('unsupported quant mode');
+          if (mdc.r1820 !== 0x40000001) return abort();
           break;
 
         default:
-          console.log('not implemented', mdc.r1820 >>> 29);
+          console.log(hex(mdc.r1820 >>> 29));
       }
+
+      mdc.r1820 &= 0xf87fffff;
+      mdc.r1820 |= (mdc.r1824 & 0x1e000000) >> 2;
 
       return transferSize;
     },
@@ -317,16 +321,18 @@ mdlr('enge:psx:mdec', m => {
       while (addr < end) {
         mdc.rl = rl2blk(blk, mdc.rl);
         switch (depth) {
-          case 0: console.warn('unsupported depth', depth);
+          case 0: // todo: implement
             addr += (4 * 16) << 1;
             break;
-          case 1: console.warn('unsupported depth', depth);
+          case 1: // todo: implement
             addr += (8 * 16) << 1;
             break;
-          case 2: yuv2rgb24(blk, addr);
+          case 2:
+            yuv2rgb24(blk, addr);
             addr += (24 * 16) << 1;
             break;
-          case 3: yuv2rgb15(blk, addr);
+          case 3:
+            yuv2rgb15(blk, addr);
             addr += (16 * 16) << 1;
             break;
         }
@@ -346,13 +352,13 @@ mdlr('enge:psx:mdec', m => {
     }
   }
 
+  mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
+
   for (let i = 0; i < 256; ++i) {
     scale[0 + i] = 0;
     scale[256 + i] = i;
     scale[512 + i] = 255;
   }
-
-  Object.seal(mdc);
 
   return { mdc };
 })

@@ -14,10 +14,8 @@ mdlr('enge:psx', m => {
     m.require('enge:psx:mdec'),
     m.require('enge:psx:gpu'),
     m.require('enge:psx:gte'),
-    m.require('enge:psx:dma'),
     m.require('enge:psx:mmu'),
     m.require('enge:psx:rec'),
-    m.require('enge:psx:rtc'),
     m.require('enge:psx:spu'),
   );
 

@@ -1,4 +1,11 @@
+// todo: switch to dataview https://v8.dev/blog/dataview
+
 mdlr('enge:psx:mmu', m => {
+
+  const { dma } = m.require('enge:psx:dma');
+  const { rc0, rc1, rc2 } = m.require('enge:psx:rtc');
+
+  window.dma = dma; // todo: fix this dependency of mdec
 
   const map = new Int32Array(0x02000000 >> 2);
   const map8 = new Int8Array(map.buffer);
@@ -6,7 +13,7 @@ mdlr('enge:psx:mmu', m => {
   const ram = new DataView(map.buffer, 0, 2 * 1024 * 1024);
   const rom = new DataView(map.buffer, 0x01c00000, 512 * 1024);
 
-  function hwRead8(addr) {
+  const hwRead8 = (addr) =>{
     psx.clock += 3;
     switch (addr & 0x3fff) {
       case 0x1040: return joy.rd08r1040();
@@ -39,7 +46,7 @@ mdlr('enge:psx:mmu', m => {
     }
   }
 
-  function memRead8(base) {
+  const memRead8 = (base) => {
     if (base < 0x00800000) {
       psx.clock += 2;
       return ram.getInt8(base & 0x001fffff);
@@ -62,10 +69,10 @@ mdlr('enge:psx:mmu', m => {
     if (base === 0x01fe0130) {
       return map8[base >>> 0] >> 0;
     }
-    abort(`r8: unable to load from $${hex(base, 8)}`)
+    abort(hex(base, 8));
   }
 
-  function hwRead16(addr) {
+  const hwRead16 = (addr) => {
     psx.clock += 3;
     switch (addr & 0x3fff) {
       case 0x1014: return map16[addr >>> 1];
@@ -108,7 +115,7 @@ mdlr('enge:psx:mmu', m => {
     }
   }
 
-  function memRead16(base) {
+  const memRead16 = (base) => {
     if (base < 0x00800000) {
       psx.clock += 3;
       return ram.getInt16(base & 0x001fffff, true);
@@ -132,10 +139,10 @@ mdlr('enge:psx:mmu', m => {
     if (base === 0x01fe0130) {
       return map16[base >>> 1] >> 0;
     }
-    abort(`r16: unable to load from $${hex(base, 8)}`)
+    abort(hex(base, 8));
   }
 
-  function hwRead32(addr) {
+  const hwRead32 = (addr) => {
     psx.clock += 3;
     switch (addr & 0x3fff) {
       case 0x1014: return map[addr >>> 2] >> 0;
@@ -187,10 +194,10 @@ mdlr('enge:psx:mmu', m => {
         }
         break;
     }
-    abort(`r32: unable to load from $${hex(addr, 8)}`)
+    abort(hex(addr, 8));
   }
 
-  function memRead32(base) {
+  const memRead32 = (base) => {
     if (base < 0x00800000) {
       psx.clock += 5;
       return ram.getInt32(base & 0x001fffff, true);
@@ -215,10 +222,10 @@ mdlr('enge:psx:mmu', m => {
       psx.clock += 24;
       return map[base >>> 2];
     }
-    abort(`r32: unable to load from $${hex(base, 8)}`)
+    abort(hex(base, 8));
   }
 
-  function hwWrite8(addr, data) {
+  const hwWrite8 = (addr, data) => {
     switch (addr & 0x3fff) {
       case 0x1040: return joy.wr08r1040(data);
       case 0x10f6: return dma.wr08r10f6(data);
@@ -226,11 +233,11 @@ mdlr('enge:psx:mmu', m => {
       case 0x1801: return cdr.wr08r1801(data);
       case 0x1802: return cdr.wr08r1802(data);
       case 0x1803: return cdr.wr08r1803(data);
-      default: abort(`w8: unable to store at $${hex(addr, 8)}`);
     }
+    abort(hex(addr, 8));
   }
 
-  function memWrite8(base, data) {
+  const  memWrite8 = (base, data) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map8[(addr | cpu.forceWriteBits) >>> 0] = data;
@@ -246,10 +253,10 @@ mdlr('enge:psx:mmu', m => {
       map8[base >>> 0] = data;
       return;
     }
-    abort(`w8: unable to store at $${hex(base, 8)}`)
+    abort(hex(base, 8));
   }
 
-  function hwWrite16(addr, data) {
+  const hwWrite16 = (addr, data) => {
     switch (addr & 0x3fff) {
       case 0x1014: return map16[addr >>> 1] = data;
       case 0x1048: return joy.wr16r1048(data);
@@ -275,12 +282,11 @@ mdlr('enge:psx:mmu', m => {
           map16[addr >>> 1] = data;
           return spu.setInt16(addr & 0x3fff, data);
         }
-        abort(`w16: unable to store at $${hex(addr, 8)}`);
-        break;
     }
+    abort(hex(addr, 8));
   }
 
-  function memWrite16(base, data) {
+  const memWrite16 = (base, data) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map16[(addr | cpu.forceWriteBits) >>> 1] = data;
@@ -292,56 +298,56 @@ mdlr('enge:psx:mmu', m => {
       if (base >= 0x01801000) hwWrite16(base, data);
       return;
     }
-    abort(`w16: unable to store at $${hex(base, 8)}`)
+    abort(hex(base, 8));
   }
 
-  function hwWrite32(addr, data) {
+  const hwWrite32 = (addr, data) => {
     switch (addr & 0x3fff) {
-      case 0x1000: break;
-      case 0x1004: break;
-      case 0x1008: break;
-      case 0x100c: break;
-      case 0x1010: break;
-      case 0x1014: break;
-      case 0x1018: break;
-      case 0x101c: break;
-      case 0x1020: break;
-      case 0x1060: break;
-      case 0x1070: cpu.istat &= (data & cpu.imask); break;
-      case 0x1074: cpu.imask = data >>> 0; break;
-      case 0x1080: dma.r1080 = data >>> 0; break;
-      case 0x1084: dma.r1084 = data >>> 0; break;
-      case 0x1088: dma.wr32r1088(data); break;
-      case 0x1090: dma.r1090 = data >>> 0; break;
-      case 0x1094: dma.r1094 = data >>> 0; break;
-      case 0x1098: dma.wr32r1098(data); break;
-      case 0x10a0: dma.r10a0 = data >>> 0; break;
-      case 0x10a4: dma.r10a4 = data >>> 0; break;
-      case 0x10a8: dma.wr32r10a8(data); break;
-      case 0x10b0: dma.r10b0 = data >>> 0; break;
-      case 0x10b4: dma.r10b4 = data >>> 0; break;
-      case 0x10b8: dma.wr32r10b8(data); break;
-      case 0x10c0: dma.r10c0 = data >>> 0; break;
-      case 0x10c4: dma.r10c4 = data >>> 0; break;
-      case 0x10c8: dma.wr32r10c8(data); break;
-      case 0x10e0: dma.r10e0 = data >>> 0; break;
-      case 0x10e4: dma.r10e4 = data >>> 0; break;
-      case 0x10e8: dma.wr32r10e8(data); break;
-      case 0x10f0: dma.wr32r10f0(data); break;
-      case 0x10f4: dma.wr32r10f4(data); break;
-      case 0x1100: rc0.setValue(data); break;
-      case 0x1104: rc0.setMode(data); break;
-      case 0x1108: rc0.setTarget(data); break;
-      case 0x1110: rc1.setValue(data); break;
-      case 0x1114: rc1.setMode(data); break;
-      case 0x1118: rc1.setTarget(data); break;
-      case 0x1120: rc2.setValue(data); break;
-      case 0x1124: rc2.setMode(data); break;
-      case 0x1128: rc2.setTarget(data); break;
-      case 0x1810: gpu.wr32r1810(data); break;
-      case 0x1814: gpu.wr32r1814(data); break;
-      case 0x1820: mdc.wr32r1820(data); break;
-      case 0x1824: mdc.wr32r1824(data); break;
+      case 0x1000: return;
+      case 0x1004: return;
+      case 0x1008: return;
+      case 0x100c: return;
+      case 0x1010: return;
+      case 0x1014: return;
+      case 0x1018: return;
+      case 0x101c: return;
+      case 0x1020: return;
+      case 0x1060: return;
+      case 0x1070: cpu.istat &= (data & cpu.imask); return;
+      case 0x1074: cpu.imask = data >>> 0; return;
+      case 0x1080: dma.r1080 = data >>> 0; return;
+      case 0x1084: dma.r1084 = data >>> 0; return;
+      case 0x1088: dma.wr32r1088(data); return;
+      case 0x1090: dma.r1090 = data >>> 0; return;
+      case 0x1094: dma.r1094 = data >>> 0; return;
+      case 0x1098: dma.wr32r1098(data); return;
+      case 0x10a0: dma.r10a0 = data >>> 0; return;
+      case 0x10a4: dma.r10a4 = data >>> 0; return;
+      case 0x10a8: dma.wr32r10a8(data); return;
+      case 0x10b0: dma.r10b0 = data >>> 0; return;
+      case 0x10b4: dma.r10b4 = data >>> 0; return;
+      case 0x10b8: dma.wr32r10b8(data); return;
+      case 0x10c0: dma.r10c0 = data >>> 0; return;
+      case 0x10c4: dma.r10c4 = data >>> 0; return;
+      case 0x10c8: dma.wr32r10c8(data); return;
+      case 0x10e0: dma.r10e0 = data >>> 0; return;
+      case 0x10e4: dma.r10e4 = data >>> 0; return;
+      case 0x10e8: dma.wr32r10e8(data); return;
+      case 0x10f0: dma.wr32r10f0(data); return;
+      case 0x10f4: dma.wr32r10f4(data); return;
+      case 0x1100: rc0.setValue(data); return;
+      case 0x1104: rc0.setMode(data); return;
+      case 0x1108: rc0.setTarget(data); return;
+      case 0x1110: rc1.setValue(data); return;
+      case 0x1114: rc1.setMode(data); return;
+      case 0x1118: rc1.setTarget(data); return;
+      case 0x1120: rc2.setValue(data); return;
+      case 0x1124: rc2.setMode(data); return;
+      case 0x1128: rc2.setTarget(data); return;
+      case 0x1810: gpu.wr32r1810(data); return;
+      case 0x1814: gpu.wr32r1814(data); return;
+      case 0x1820: mdc.wr32r1820(data); return;
+      case 0x1824: mdc.wr32r1824(data); return;
 
       default:
         if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
@@ -350,12 +356,11 @@ mdlr('enge:psx:mmu', m => {
           spu.setInt16((addr + 2) & 0x3fff, data >>> 16);
           return;
         }
-        abort(`w32: unable to store at $${hex(addr, 8)}`);
-        break;
     }
+    abort(hex(addr, 8));
   }
 
-  function memWrite32(base, data) {
+  const memWrite32 = (base, data) =>{
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map[(addr | cpu.forceWriteBits) >>> 2] = data;
@@ -371,7 +376,7 @@ mdlr('enge:psx:mmu', m => {
       map[base >>> 2] = data;
       return;
     }
-    abort(`w32: unable to store at $${hex(base, 8)}`)
+    abort(hex(base, 8));
   }
 
   return {

@@ -5,16 +5,17 @@ mdlr('enge:psx:index', m => {
 
   const PSX_SPEED = 44100 * 768; // 33868800 cyles
 
-  function abort() {
+  const abort = () => {
     console.error(Array.prototype.slice.call(arguments).join(' '));
     canvas.style.borderColor = 'red';
     running = false;
     spu.silence();
-    throw 'abort';
+    throw new Error;
   }
 
+  let endAnimationFrame = false;
   let hasFocus = true;
-  document.addEventListener("visibilitychange", function () {
+  document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === 'visible') {
       hasFocus = true;
     } else {
@@ -30,26 +31,20 @@ mdlr('enge:psx:index', m => {
     counter: 0
   };
 
-  function isTouchEnabled() {
-    return ('ontouchstart' in window) ||
-      (navigator.maxTouchPoints > 0) ||
-      (navigator.msMaxTouchPoints > 0);
-  }
+  // function isTouchEnabled() {
+  //   return ('ontouchstart' in window) ||
+  //     (navigator.maxTouchPoints > 0) ||
+  //     (navigator.msMaxTouchPoints > 0);
+  // }
 
-  mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
-
-  dot.event = psx.addEvent(0, dot.complete.bind(dot));
-
-  let frameEvent = psx.addEvent(0, endMainLoop);
-  let endAnimationFrame = false;
-  function endMainLoop(self, clock) {
+  const frameEvent = psx.addEvent(0, (self, clock) => {
     endAnimationFrame = true;
     psx.unsetEvent(self);
-  }
+  });
 
-  function runFrame() {
+  const runFrame = () => {
     let entry = getCacheEntry(cpu.pc);
-    if (!entry) return abort('invalid pc')
+    if (!entry) return abort();
 
     handleGamePads();
 
@@ -64,7 +59,7 @@ mdlr('enge:psx:index', m => {
     cpu.pc = entry.pc;
   }
 
-  function mainLoop(stamp) {
+  const mainLoop = (stamp) => {
     const delta = stamp - context.timeStamp;
     context.timeStamp = stamp;
     if (!running || !hasFocus || delta > 250) return;
@@ -82,12 +77,12 @@ mdlr('enge:psx:index', m => {
     context.emutime = psx.clock / (PSX_SPEED / 1000);
   }
 
-  function emulate(stamp) {
+  const emulate = (stamp) => {
     mainLoop(stamp);
     requestAnimationFrame(emulate);
   }
 
-  function bios() {
+  const bios = () => {
     running = false;
 
     let entry = getCacheEntry(0xbfc00000);
@@ -104,10 +99,10 @@ mdlr('enge:psx:index', m => {
     cpu.pc = entry.pc;
   }
 
-  function openFile(file) {
+  const openFile = (file) => {
     var reader = new FileReader();
 
-    reader.onload = function (event) {
+    reader.onload = (event) => {
       console.log(escape(file.name), file.size);
 
       loadFileData(event.target.result)
@@ -116,7 +111,7 @@ mdlr('enge:psx:index', m => {
     reader.readAsArrayBuffer(file);
   }
 
-  function loadFileData(arrayBuffer) {
+  const loadFileData = (arrayBuffer) => {
     const view = new DataView(arrayBuffer);
 
     if (view.getUint16(0, true) === 0x5350) { // PS
@@ -166,14 +161,14 @@ mdlr('enge:psx:index', m => {
 
       tracks.push({ id: 0, begin: 0, end: lastLoc });
       const sectorLength = 2352;
-      function isDataSector(startLoc) {
+      const isDataSector = (startLoc) => {
         let mask1 = view.getInt32(startLoc * sectorLength + 0, true) >>> 0;
         let mask2 = view.getInt32(startLoc * sectorLength + 4, true) >>> 0;
         let mask3 = view.getInt32(startLoc * sectorLength + 8, true) >>> 0;
         return (mask1 === 0xffffff00 && mask2 === 0xffffffff && mask3 === 0x00ffffff) || (!mask1 && !mask2 && !mask3);
       }
 
-      function isEmptySector(startLoc) {
+      const isEmptySector = (startLoc) => {
         let mask = 0;
         for (let i = 0; i < sectorLength; i += 4) {
           mask |= view.getInt32(startLoc * sectorLength + i, true);
@@ -218,24 +213,23 @@ mdlr('enge:psx:index', m => {
     }
   }
 
-  function handleFileSelect(evt) {
+  const handleFileSelect = (evt) => {
     evt.stopPropagation();
     evt.preventDefault();
 
     const fileList = evt.dataTransfer ? evt.dataTransfer.files : evt.target.files;
 
-    var output = [];
-    for (var i = 0, f; f = fileList[i]; i++) {
+    for (let i = 0, f; f = fileList[i]; ++i) {
       openFile(f);
     }
   }
 
-  function handleDragOver(evt) {
+  const handleDragOver = (evt) => {
     evt.stopPropagation();
     evt.preventDefault();
   }
 
-  function init() {
+  const init = () => {
     canvas = document.getElementById('display');
 
     document.addEventListener('dragover', handleDragOver, false);
@@ -257,14 +251,14 @@ mdlr('enge:psx:index', m => {
 
     emulate(performance.now());
 
-    canvas.addEventListener("dblclick", function (e) {
+    canvas.addEventListener("dblclick", () => {
       running = !running;
       if (!running) {
         spu.silence();
       }
     });
 
-    canvas.addEventListener("touchstart", function (e) {
+    canvas.addEventListener("touchstart", () => {
       running = !running;
       if (!running) {
         spu.silence();
@@ -272,14 +266,14 @@ mdlr('enge:psx:index', m => {
     });
 
 
-    window.addEventListener("keydown", function (e) {
+    window.addEventListener("keydown", e => {
       if (e.key === 'F12') return; // allow developer tools
       if (e.key === 'F11') return; // allow full screen
       if (e.key === 'F5') return; // allow page refresh
       e.preventDefault();
     }, false);
 
-    window.addEventListener("keyup", function (e) {
+    window.addEventListener("keyup", e => {
       if (e.key === '1' && e.ctrlKey) renderer.setMode('disp');
       if (e.key === '2' && e.ctrlKey) renderer.setMode('draw');
       if (e.key === '3' && e.ctrlKey) renderer.setMode('clut8');
