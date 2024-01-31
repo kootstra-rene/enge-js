@@ -48,3 +48,5 @@ Only one memory card is supported at this time. You can load it the same as the 
 I have started a [compatibility list](./compatability.md). So feel free to update it.
 
 # Release notes
+
+2024-01-31: publish latest state. [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) is running smoothly if your hardware supports it.
