@@ -491,7 +491,35 @@ mdlr('enge:psx:rtc', m => {
 
   dot.event = psx.addEvent(0, dot.complete.bind(dot));
 
-  return {
-    rc0, rc1, rc2
-  }
+  const rtc = {
+    rd32: (reg) => {
+      switch (true) {
+        case (reg === 0x1100): return rc0.getValue();
+        case (reg === 0x1104): return rc0.getMode();
+        case (reg === 0x1108): return rc0.getTarget();
+        case (reg === 0x1110): return rc1.getValue();
+        case (reg === 0x1114): return rc1.getMode();
+        case (reg === 0x1118): return rc1.getTarget();
+        case (reg === 0x1120): return rc2.getValue();
+        case (reg === 0x1124): return rc2.getMode();
+        case (reg === 0x1128): return rc2.getTarget();
+      }
+    },
+    wr32: (reg, data) => {
+      switch (true) {
+        case (reg === 0x1100): return rc0.setValue(data);
+        case (reg === 0x1104): return rc0.setMode(data);
+        case (reg === 0x1108): return rc0.setTarget(data);
+        case (reg === 0x1110): return rc1.setValue(data);
+        case (reg === 0x1114): return rc1.setMode(data);
+        case (reg === 0x1118): return rc1.setTarget(data);
+        case (reg === 0x1120): return rc2.setValue(data);
+        case (reg === 0x1124): return rc2.setMode(data);
+        case (reg === 0x1128): return rc2.setTarget(data);
+      }
+    }
+  };
+
+  return { rtc };
+
 })

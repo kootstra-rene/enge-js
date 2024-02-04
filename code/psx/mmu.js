@@ -3,7 +3,7 @@
 mdlr('enge:psx:mmu', m => {
 
   const { dma } = m.require('enge:psx:dma');
-  const { rc0, rc1, rc2 } = m.require('enge:psx:rtc');
+  const { rtc } = m.require('enge:psx:rtc');
 
   window.dma = dma; // todo: fix this dependency of mdec
 
@@ -13,8 +13,18 @@ mdlr('enge:psx:mmu', m => {
   const ram = new DataView(map.buffer, 0, 2 * 1024 * 1024);
   const rom = new DataView(map.buffer, 0x01c00000, 512 * 1024);
 
-  const hwRead8 = (addr) =>{
+  const hwRead8 = (addr) => {
+    const reg = addr & 0x3fff;
+
     psx.clock += 3;
+
+    switch (true) {
+      case reg >= 0x1100 && reg < 0x1130:
+        return rtc.rd32(reg);
+      case reg >= 0x1C00 && reg < 0x2000:
+        return spu.getInt16(reg);
+    }
+
     switch (addr & 0x3fff) {
       case 0x1040: return joy.rd08r1040();
       case 0x1044: return (joy.rd16r1044() << 24) >> 24;
@@ -23,7 +33,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x1070: return (cpu.istat << 24) >> 24;
       case 0x10f0: return (dma.rd16r10f0() << 24) >> 24;
       case 0x10f6: return dma.rd08r10f6();
-      case 0x1100: return (rc0.getValue() << 24) >> 24;
       case 0x1800: return cdr.rd08r1800();
       case 0x1801: return cdr.rd08r1801();
       case 0x1802: return cdr.rd08r1802();
@@ -38,9 +47,6 @@ mdlr('enge:psx:mmu', m => {
         if (addr >= 0x01802000) {
           psx.clock += 10;
           return map8[addr >>> 0];
-        }
-        if ((addr >= 0x01801C00) && (addr < 0x01802000)) { //chronocross
-          return spu.getInt16(addr & 0x3fff);
         }
         break;
     }
@@ -73,7 +79,17 @@ mdlr('enge:psx:mmu', m => {
   }
 
   const hwRead16 = (addr) => {
+    const reg = addr & 0x3fff;
+
     psx.clock += 3;
+
+    switch (true) {
+      case reg >= 0x1100 && reg < 0x1130:
+        return rtc.rd32(reg);
+      case reg >= 0x1C00 && reg < 0x2000:
+        return spu.getInt16(reg);
+    }
+
     switch (addr & 0x3fff) {
       case 0x1014: return map16[addr >>> 1];
       case 0x1044: return joy.rd16r1044();
@@ -86,15 +102,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x1070: return cpu.istat;
       case 0x1074: return cpu.imask;
       case 0x10f0: return dma.rd16r10f0();
-      case 0x1100: return rc0.getValue();
-      case 0x1104: return rc0.getMode();
-      case 0x1108: return rc0.getTarget();
-      case 0x1110: return rc1.getValue();
-      case 0x1114: return rc1.getMode();
-      case 0x1118: return rc1.getTarget();
-      case 0x1120: return rc2.getValue();
-      case 0x1124: return rc2.getMode();
-      case 0x1128: return rc2.getTarget();
       case 0x1130: return 0 >> 0;
       case 0x1800: return cdr.rd08r1800();
       case 0x1814: return (gpu.rd32r1814() << 16) >> 16;
@@ -107,9 +114,6 @@ mdlr('enge:psx:mmu', m => {
         if (addr >= 0x01802000) {
           psx.clock += 24;
           return map16[addr >>> 1];
-        }
-        if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
-          return spu.getInt16(addr & 0x3fff);
         }
         break;
     }
@@ -143,7 +147,18 @@ mdlr('enge:psx:mmu', m => {
   }
 
   const hwRead32 = (addr) => {
+    const reg = addr & 0x3fff;
+
     psx.clock += 3;
+
+    switch (true) {
+      case reg >= 0x1100 && reg < 0x1130:
+        return rtc.rd32(reg);
+      // case reg >= 0x1C00 && reg < 0x2000:
+      //   spu.setInt16(reg, data >>> 0);
+      //   return;
+    }
+
     switch (addr & 0x3fff) {
       case 0x1014: return map[addr >>> 2] >> 0;
       case 0x1020: return map[addr >>> 2] >> 0;
@@ -166,15 +181,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x10e8: return dma.r10e8 >> 0;
       case 0x10f0: return dma.rd32r10f0() >> 0;
       case 0x10f4: return dma.rd32r10f4() >> 0;
-      case 0x1100: return rc0.getValue() >> 0;
-      case 0x1104: return rc0.getMode() >> 0;
-      case 0x1108: return rc0.getTarget() >> 0;
-      case 0x1110: return rc1.getValue() >> 0;
-      case 0x1114: return rc1.getMode() >> 0;
-      case 0x1118: return rc1.getTarget() >> 0;
-      case 0x1120: return rc2.getValue() >> 0;
-      case 0x1124: return rc2.getMode() >> 0;
-      case 0x1128: return rc2.getTarget() >> 0;
       case 0x1800: return cdr.rd08r1800();
       case 0x1810: return gpu.rd32r1810() >> 0;
       case 0x1814: return gpu.rd32r1814() >> 0;
@@ -237,7 +243,7 @@ mdlr('enge:psx:mmu', m => {
     abort(hex(addr, 8));
   }
 
-  const  memWrite8 = (base, data) => {
+  const memWrite8 = (base, data) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map8[(addr | cpu.forceWriteBits) >>> 0] = data;
@@ -257,6 +263,17 @@ mdlr('enge:psx:mmu', m => {
   }
 
   const hwWrite16 = (addr, data) => {
+    const reg = addr & 0x3fff;
+
+    switch (true) {
+      case reg >= 0x1100 && reg < 0x1130:
+        rtc.wr32(reg, data);
+        return;
+      case reg >= 0x1C00 && reg < 0x2000:
+        spu.setInt16(reg, data >>> 0);
+        return;
+    }
+
     switch (addr & 0x3fff) {
       case 0x1014: return map16[addr >>> 1] = data;
       case 0x1048: return joy.wr16r1048(data);
@@ -268,20 +285,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x1070: cpu.istat &= ((data & 0xffff) & cpu.imask); return;
       case 0x1074: cpu.imask = data; return;
       case 0x10f0: return dma.wr32r10f0(data);
-      case 0x1100: return rc0.setValue(data);
-      case 0x1104: return rc0.setMode(data);
-      case 0x1108: return rc0.setTarget(data);
-      case 0x1110: return rc1.setValue(data);
-      case 0x1114: return rc1.setMode(data);
-      case 0x1118: return rc1.setTarget(data);
-      case 0x1120: return rc2.setValue(data);
-      case 0x1124: return rc2.setMode(data);
-      case 0x1128: return rc2.setTarget(data);
-      default:
-        if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
-          map16[addr >>> 1] = data;
-          return spu.setInt16(addr & 0x3fff, data);
-        }
     }
     abort(hex(addr, 8));
   }
@@ -302,7 +305,19 @@ mdlr('enge:psx:mmu', m => {
   }
 
   const hwWrite32 = (addr, data) => {
-    switch (addr & 0x3fff) {
+    const reg = addr & 0x3fff;
+
+    switch (true) {
+      case reg >= 0x1100 && reg < 0x1130:
+        rtc.wr32(reg, data);
+        return;
+      case reg >= 0x1C00 && reg < 0x2000:
+        spu.setInt16(reg + 0, data >>> 0);
+        spu.setInt16(reg + 2, data >>> 16);
+        return;
+    }
+
+    switch (reg) {
       case 0x1000: return;
       case 0x1004: return;
       case 0x1008: return;
@@ -335,32 +350,15 @@ mdlr('enge:psx:mmu', m => {
       case 0x10e8: dma.wr32r10e8(data); return;
       case 0x10f0: dma.wr32r10f0(data); return;
       case 0x10f4: dma.wr32r10f4(data); return;
-      case 0x1100: rc0.setValue(data); return;
-      case 0x1104: rc0.setMode(data); return;
-      case 0x1108: rc0.setTarget(data); return;
-      case 0x1110: rc1.setValue(data); return;
-      case 0x1114: rc1.setMode(data); return;
-      case 0x1118: rc1.setTarget(data); return;
-      case 0x1120: rc2.setValue(data); return;
-      case 0x1124: rc2.setMode(data); return;
-      case 0x1128: rc2.setTarget(data); return;
       case 0x1810: gpu.wr32r1810(data); return;
       case 0x1814: gpu.wr32r1814(data); return;
       case 0x1820: mdc.wr32r1820(data); return;
       case 0x1824: mdc.wr32r1824(data); return;
-
-      default:
-        if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
-          map[addr >>> 2] = data;
-          spu.setInt16((addr + 0) & 0x3fff, data >>> 0);
-          spu.setInt16((addr + 2) & 0x3fff, data >>> 16);
-          return;
-        }
     }
     abort(hex(addr, 8));
   }
 
-  const memWrite32 = (base, data) =>{
+  const memWrite32 = (base, data) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map[(addr | cpu.forceWriteBits) >>> 2] = data;
