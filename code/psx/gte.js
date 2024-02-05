@@ -36,6 +36,31 @@ mdlr('enge:psx:gte', m => {
   const $vec = [v0, v1, v2, ir];
   const $add = [tr, bk, fc, zr];
 
+  const $cycles = new Map([
+    [0x01, 15],
+    [0x06, 8],
+    [0x0c, 6],
+    [0x10, 8],
+    [0x11, 8],
+    [0x12, 8],
+    [0x13, 19],
+    [0x14, 13],
+    [0x16, 44],
+    [0x1b, 17],
+    [0x1c, 11],
+    [0x1e, 14],
+    [0x20, 30],
+    // [0x28, 5],
+    [0x29, 8],
+    [0x2a, 17],
+    // [0x2d, 5],
+    [0x2e, 6],
+    [0x30, 23],
+    // [0x3d, 5],
+    // [0x3e, 5],
+    [0x3f, 39],
+  ]);
+
   const lim = (value, lowerBound, lowerBit, upperBound, upperBit) => {
     if (value < lowerBound) { regs[0x3f] |= flag[lowerBit]; return lowerBound; }
     if (value > upperBound) { regs[0x3f] |= flag[upperBit]; return upperBound; }
@@ -571,33 +596,7 @@ mdlr('enge:psx:gte', m => {
       }
     },
 
-    cycles: (commandId) => {
-      switch (commandId & 0x3f) {
-        case 0x01: return 15;
-        case 0x06: return 8;
-        case 0x0C: return 6;
-        case 0x10: return 8;
-        case 0x11: return 8;
-        case 0x12: return 8;
-        case 0x13: return 19;
-        case 0x14: return 13;
-        case 0x16: return 44;
-        case 0x1b: return 17;
-        case 0x1c: return 11;
-        case 0x1e: return 14;
-        case 0x20: return 30;
-        case 0x28: return 5;
-        case 0x29: return 8;
-        case 0x2a: return 17;
-        case 0x2d: return 5;
-        case 0x2e: return 6;
-        case 0x30: return 23;
-        case 0x3d: return 5;
-        case 0x3e: return 5;
-        case 0x3f: return 39;
-        default: abort(hex(commandId, 5));
-      }
-    }
+    cycles: (commandId) => $cycles.get(commandId & 0x3f) || 5
   };
 
   // flag bits

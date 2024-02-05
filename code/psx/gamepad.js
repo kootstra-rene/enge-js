@@ -100,12 +100,10 @@ mdlr('enge:psx:gamepad', m => {
 
   window.addEventListener("gamepadconnected", (e) => {
     joypad = e.gamepad;
-    // console.log(`~~ Gamepad '${joypad.id}' connected  ~~`);
     document.getElementById('gamepad').classList.add('connected')
   });
 
   window.addEventListener("gamepaddisconnected", (e) => {
-    // console.log(`~~ Gamepad '${joypad.id}' disconnected  ~~`);
     document.getElementById('gamepad').classList.remove('connected')
     joypad = null;
   });

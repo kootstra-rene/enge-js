@@ -5,12 +5,11 @@ mdlr('enge:psx:index', m => {
 
   const PSX_SPEED = 44100 * 768; // 33868800 cyles
 
-  const abort = () => {
-    console.error(Array.prototype.slice.call(arguments).join(' '));
+  const abort = (...args) => {
     canvas.style.borderColor = 'red';
     running = false;
     spu.silence();
-    throw new Error;
+    throw new Error([...args].join(' '));
   }
 
   let endAnimationFrame = false;
@@ -37,12 +36,24 @@ mdlr('enge:psx:index', m => {
   //     (navigator.msMaxTouchPoints > 0);
   // }
 
-  const frameEvent = psx.addEvent(0, (self, clock) => {
+  const frameEvent = psx.addEvent(0, (self) => {
     endAnimationFrame = true;
     psx.unsetEvent(self);
   });
 
-  const runFrame = () => {
+  const mainLoop = (stamp) => {
+    const delta = stamp - context.timeStamp;
+    context.timeStamp = stamp;
+    if (!running || !hasFocus || delta > 250) return;
+
+    context.realtime += delta;
+
+    const diffTime = context.realtime - context.emutime;
+    const totalCycles = diffTime * (PSX_SPEED / 1000);
+
+    endAnimationFrame = false;
+    psx.setEvent(frameEvent, +totalCycles);
+
     let entry = getCacheEntry(cpu.pc);
     if (!entry) return abort();
 
@@ -57,24 +68,9 @@ mdlr('enge:psx:index', m => {
       }
     }
     cpu.pc = entry.pc;
-  }
-
-  const mainLoop = (stamp) => {
-    const delta = stamp - context.timeStamp;
-    context.timeStamp = stamp;
-    if (!running || !hasFocus || delta > 250) return;
-
-    context.realtime += delta;
-
-    const diffTime = context.realtime - context.emutime;
-    const totalCycles = diffTime * (PSX_SPEED / 1000);
-
-    endAnimationFrame = false;
-    psx.setEvent(frameEvent, +totalCycles);
-    ++context.counter;
-    runFrame();
 
     context.emutime = psx.clock / (PSX_SPEED / 1000);
+    ++context.counter;
   }
 
   const emulate = (stamp) => {
@@ -103,8 +99,6 @@ mdlr('enge:psx:index', m => {
     var reader = new FileReader();
 
     reader.onload = (event) => {
-      console.log(escape(file.name), file.size);
-
       loadFileData(event.target.result)
     };
 
@@ -115,9 +109,6 @@ mdlr('enge:psx:index', m => {
     const view = new DataView(arrayBuffer);
 
     if (view.getUint16(0, true) === 0x5350) { // PS
-      for (let i = 0; i < 0x40; i += 4) {
-        console.log(hex(i, 2), hex(view.getInt32(i, 8)));
-      }
       cpu.pc = view.getInt32(0x10, true);
       cpu.gpr[28] = view.getInt32(0x14, true);
       cpu.gpr[29] = view.getInt32(0x30, true) || 0x801ffff0;
@@ -135,7 +126,6 @@ mdlr('enge:psx:index', m => {
       running = true;
     }
     else if (view.getUint32(0, true) === 0x0000434d) { // MEMCARD
-      console.log('loaded MEMCARD');
       var copy = new Uint8Array(arrayBuffer);
       let card = joy.devices ? joy.devices[0].data : joy.cardOneMemory;
       for (var i = 0; i < copy.length; ++i) {
@@ -209,7 +199,7 @@ mdlr('enge:psx:index', m => {
       running = true;
     }
     else {
-      abort('Unsupported fileformat');
+      abort();
     }
   }
 

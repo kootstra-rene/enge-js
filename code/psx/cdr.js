@@ -94,7 +94,7 @@ mdlr('enge:psx:cdr', m => {
     const readCycles = PSX_SPEED / ((mode & 0x80) ? 150 : 75);
     const loc = currLoc - 150;
 
-    var currentCommand = ncmdctrl;
+    let currentCommand = ncmdctrl;
     ncmdctrl = 0;
     switch (currentCommand) {
       case 0x00: break;
@@ -531,12 +531,12 @@ mdlr('enge:psx:cdr', m => {
       }
       // todo: implement next two
       // switch ((nfo >>> 4) & 3) {
-      //   case 0: var bs = '4bit'; break;
-      //   case 1: var bs = '8bit'; break;
+      //   case 0: bs = '4bit'; break;
+      //   case 1: bs = '8bit'; break;
       // }
       // switch ((nfo >>> 6) & 1) {
-      //   case 0: var em = 'normal'; break;
-      //   case 1: var em = 'emphasis'; break;
+      //   case 0: em = 'normal'; break;
+      //   case 1: em = 'emphasis'; break;
       // }
       pcmidx = 0;
       xa.fill(0);
@@ -563,76 +563,79 @@ mdlr('enge:psx:cdr', m => {
   };
 
   const decodeMono = () => {
-    var ix = 0;
-    for (var sg = 0; sg < 18; ++sg) {
-      var decodeOffset = sectorOffset + 24 + (sg * 128);
+    let ix = 0;
+    for (let sg = 0; sg < 18; ++sg) {
+      const decodeOffset = sectorOffset + 24 + (sg * 128);
 
-      for (var su = 0; su < 8; ++su) {
-        var shiftFilter = sectorData8[decodeOffset + 4 + su];
-        var shift = (shiftFilter & 0x0f) >>> 0;
-        var filter = (shiftFilter & 0xf0) >>> 3;
-        var k0 = xa2flt[filter + 0]
-        var k1 = xa2flt[filter + 1]
+      for (let su = 0; su < 8; ++su) {
+        const shiftFilter = sectorData8[decodeOffset + 4 + su];
+        const shift = (shiftFilter & 0x0f) >>> 0;
+        const filter = (shiftFilter & 0xf0) >>> 3;
+        const k0 = xa2flt[filter + 0];
+        const k1 = xa2flt[filter + 1];
 
-        for (var sd = 0; sd < 28; ++sd) {
+        for (let sd = 0; sd < 28; ++sd) {
           const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
-          var data = sectorData8[offset] & 0xff;
+          const data = sectorData8[offset] & 0xff;
+          const index = (shift * 256 + data) * 2;
 
-          var index = (shift * 256 + data) * 2;
-
-          var s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + (su & 1)];
+          let s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + (su & 1)];
           sl[0] = sl[1];
           sl[1] = s;
 
-          xa[ix++] = s;
-          xa[ix++] = s;
+          xa[ix + sd * 2 + 0] = s;
+          xa[ix + sd * 2 + 1] = s;
         }
+        ix += 2 * 28;
       }
     }
     return ix;
   }
 
   const decodeStereo = () => {
-    var ix = 0;
+    let ix = 0;
 
-    for (var sg = 0; sg < 18; ++sg) {
-      var decodeOffset = sectorOffset + 24 + (sg * 128);
+    for (let sg = 0; sg < 18; ++sg) {
+      const decodeOffset = sectorOffset + 24 + (sg * 128);
 
-      for (var su = 0; su < 8; su += 2) {
-        var shiftFilter = sectorData8[decodeOffset + 4 + su];
-        var shift = (shiftFilter & 0x0f) >>> 0;
-        var filter = (shiftFilter & 0xf0) >>> 3;
-        var k0 = xa2flt[filter + 0]
-        var k1 = xa2flt[filter + 1]
+      for (let su = 0; su < 8; su += 2) {
+        {
+          const shiftFilter = sectorData8[decodeOffset + 4 + su];
+          const shift = (shiftFilter & 0x0f) >>> 0;
+          const filter = (shiftFilter & 0xf0) >>> 3;
+          const k0 = xa2flt[filter + 0];
+          const k1 = xa2flt[filter + 1];
 
-        for (var sd = 0; sd < 28; ++sd) {
-          const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
-          var data = sectorData8[offset] & 0xff;
-          var index = (shift * 256 + data) * 2;
+          for (let sd = 0; sd < 28; ++sd) {
+            const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+            const data = sectorData8[offset] & 0xff;
+            const index = (shift * 256 + data) * 2;
 
-          var s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + 0];
-          sl[0] = sl[1];
-          sl[1] = s;
+            let s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + 0];
+            sl[0] = sl[1];
+            sl[1] = s;
 
-          xa[ix + sd * 2 + 0] = s;
+            xa[ix + sd * 2 + 0] = s;
+          }
         }
+        {
+          const shiftFilter = sectorData8[decodeOffset + 5 + su];
+          const shift = (shiftFilter & 0x0f) >>> 0;
+          const filter = (shiftFilter & 0xf0) >>> 3;
+          const k0 = xa2flt[filter + 0];
+          const k1 = xa2flt[filter + 1];
 
-        var shiftFilter = sectorData8[decodeOffset + 5 + su];
-        var shift = (shiftFilter & 0x0f) >>> 0;
-        var filter = (shiftFilter & 0xf0) >>> 3;
-        var k0 = xa2flt[filter + 0]
-        var k1 = xa2flt[filter + 1]
+          for (let sd = 0; sd < 28; ++sd) {
+            const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+            const data = sectorData8[offset] & 0xff;
+            const index = (shift * 256 + data) * 2;
 
-        for (var sd = 0; sd < 28; ++sd) {
-          const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
-          var data = sectorData8[offset] & 0xff;
-          var index = (shift * 256 + data) * 2;
+            let s = (sr[1] * k0) + (sr[0] * k1) + xa2pcm[index + 1];
+            sr[0] = sr[1];
+            sr[1] = s;
 
-          var s = (sr[1] * k0) + (sr[0] * k1) + xa2pcm[index + 1];
-          sr[0] = sr[1];
-          sr[1] = s;
-
-          xa[ix + sd * 2 + 1] = s;
+            xa[ix + sd * 2 + 1] = s;
+          }
         }
         ix += 2 * 28;
       }

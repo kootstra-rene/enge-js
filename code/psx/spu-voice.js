@@ -53,7 +53,7 @@ mdlr('enge:psx:spu-voice', m => {
   let volumeLeft = 0.0;
   let volumeRight = 0.0;
 
-  let regs = new Int32Array(16);
+  let regs = new Int16Array(16);
 
   const adsrExponentialRateOffset = [
     0 + 32,
@@ -184,11 +184,11 @@ mdlr('enge:psx:spu-voice', m => {
       s1 = s0; s0 = value;
     }
 
+    blockAddress += 16;
+
     if ((flags & 4) === 4) {
       repeatAddress = blockAddress;
     }
-
-    blockAddress += 16;
 
     if ((flags & 1) === 1) {
       blockAddress = repeatAddress;
@@ -205,9 +205,9 @@ mdlr('enge:psx:spu-voice', m => {
 
     setId(voiceId) {
       id = voiceId;
-      if (voiceId === 1) this.capture = 0x0800;
-      if (voiceId === 3) this.capture = 0x0c00;
-      return this;
+      if (voiceId === 1) voice.capture = 0x0800;
+      if (voiceId === 3) voice.capture = 0x0c00;
+      return voice;
     },
 
     advance(ram, audio) {
@@ -219,7 +219,7 @@ mdlr('enge:psx:spu-voice', m => {
         pitchCounter -= BLOCKSIZE;
 
         decodeBlock(ram);
-        spu.checkIrq(this);
+        spu.checkIrq(voice);
       }
 
       const sample = buffer[pitchCounter >>> 12];
@@ -260,12 +260,13 @@ mdlr('enge:psx:spu-voice', m => {
       startAdsrRelease();
     },
 
-    getRegister(addr) {
+    rd16(addr) {
       return regs[addr & 15];
     },
 
-    setRegister(addr, data) {
+    wr16(addr, data) {
       regs[addr & 15] = data;
+
       switch (addr % 16) {
         case 0x0:
           volumeLeft = spu.getVolume(data);
@@ -277,7 +278,7 @@ mdlr('enge:psx:spu-voice', m => {
           pitchStep = Math.min(data, 0x4000);
           break;
         case 0x6:
-          blockAddress = data << 3;
+          // blockAddress = data << 3;
           break;
         case 0x8:
           adsrAttackMode = (data & 0x8000) >>> 15;
@@ -304,7 +305,7 @@ mdlr('enge:psx:spu-voice', m => {
           adsrLevel = data << 16;
           break;
         case 0xe:
-          repeatAddress = data << 3;
+          // repeatAddress = data << 3;
           break;
       }
     }

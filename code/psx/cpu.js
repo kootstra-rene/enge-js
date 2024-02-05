@@ -23,9 +23,8 @@ mdlr('enge:psx:cpu', m => {
         case 13: return cpu.cause >> 0;
         case 14: return cpu.epc >> 0;
         case 15: return 2 >> 0;
-        default: console.warn('getCtrl:' + reg);
-          return cop[reg];
       }
+      return cop[reg];
     },
 
     setCtrl: (reg, value) => {
@@ -44,7 +43,6 @@ mdlr('enge:psx:cpu', m => {
         case 13: cpu.cause = cpu.cause & 0xfffffcff;
           cpu.cause |= (value & 0x00000300);
           break;
-        default: cons1ole.warn('setCtrl:' + reg);
       }
     },
 

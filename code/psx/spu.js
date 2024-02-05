@@ -136,7 +136,7 @@ mdlr('enge:psx:spu', m => {
         default:
           if ((addr >= 0x1c00) && (addr < 0x1d80)) {
             const id = (addr - 0x1c00) >> 4;
-            return voices[id].getRegister(addr & 0xf);
+            return voices[id].rd16(addr & 0xf);
           }
           return map16[((0x01800000 + addr) & 0x01ffffff) >>> 1];
       }
@@ -154,54 +154,54 @@ mdlr('enge:psx:spu', m => {
           break;
         case 0x1d86: reverbVolumeRight = spu.getVolume(data);
           break;
-        case 0x1d88: for (var i = 0; i < 16; ++i) {
+        case 0x1d88: for (let i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[i].keyOn()
           spu.ENDX &= ~(1 << i);
         }
           break
-        case 0x1d8a: for (var i = 0; i < 8; ++i) {
+        case 0x1d8a: for (let i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[16 + i].keyOn()
           spu.ENDX &= ~(1 << (16 + i));
         }
           break
-        case 0x1d8c: for (var i = 0; i < 16; ++i) {
+        case 0x1d8c: for (let i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[i].keyOff()
         }
           break
-        case 0x1d8e: for (var i = 0; i < 8; ++i) {
+        case 0x1d8e: for (let i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[16 + i].keyOff()
         }
           break
-        case 0x1d90: for (var i = 0; i < 16; ++i) {
+        case 0x1d90: for (let i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[i].modOn()
         }
           break
-        case 0x1d92: for (var i = 0; i < 8; ++i) {
+        case 0x1d92: for (let i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[16 + i].modOn()
         }
           break
-        case 0x1d94: for (var i = 0; i < 16; ++i) {
+        case 0x1d94: for (let i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[i].noiseOn()
         }
           break
-        case 0x1d96: for (var i = 0; i < 8; ++i) {
+        case 0x1d96: for (let i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[16 + i].noiseOn()
         }
           break
-        case 0x1d98: for (var i = 0; i < 16; ++i) {
+        case 0x1d98: for (let i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[i].echoOn()
         }
           break
-        case 0x1d9a: for (var i = 0; i < 8; ++i) {
+        case 0x1d9a: for (let i = 0; i < 8; ++i) {
           if ((data & (1 << i)) === 0) continue
           voices[16 + i].echoOn()
         }
@@ -257,7 +257,7 @@ mdlr('enge:psx:spu', m => {
             const id = ((addr - 0x1c00) / 16) | 0;
             const voice = voices[id];
 
-            voice.setRegister(addr & 0xf, data);
+            voice.wr16(addr & 0xf, data);
             break;
           }
           if ((addr >= 0x1dc0) && (addr < 0x1e00)) {

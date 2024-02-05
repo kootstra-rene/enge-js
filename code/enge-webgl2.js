@@ -440,7 +440,6 @@ mdlr('enge:webgl2', m => {
     }
 
     onVBlankBegin() {
-      // console.log('onVBlankBegin')
     }
 
     onVBlankEnd() {
@@ -449,7 +448,6 @@ mdlr('enge:webgl2', m => {
         flushVertexBuffer();
         flushDepth();
         copyVramToShadowVram(this, false, true);
-        // console.log('onVBlankEnd')
 
         ++this.fpsRenderCounter;
         this.seenRender = false;

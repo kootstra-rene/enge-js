@@ -24,7 +24,6 @@ mdlr('enge:webgl', m => {
     flushes: 0,
 
     dump: () => {
-      // if ($stats.flushes) console.log(`flushes: ${$stats.flushes}`); else console.log('.');
       $stats.flushes = 0;
     }
   }
@@ -434,7 +433,7 @@ mdlr('enge:webgl', m => {
         gl.linkProgram(this.programDraw);
 
         if (!gl.getProgramParameter(this.programDraw, gl.LINK_STATUS)) {
-          console.log("Unable to initialize the shader program.");
+          abort();
         }
 
         gl.useProgram(this.programDraw);
@@ -448,7 +447,7 @@ mdlr('enge:webgl', m => {
         gl.linkProgram(this.programDisplay);
 
         if (!gl.getProgramParameter(this.programDisplay, gl.LINK_STATUS)) {
-          console.log("Unable to initialize the shader program.");
+          abort();
         }
 
         gl.useProgram(this.programDisplay);
@@ -463,7 +462,7 @@ mdlr('enge:webgl', m => {
         gl.linkProgram(this.program24bit);
 
         if (!gl.getProgramParameter(this.program24bit, gl.LINK_STATUS)) {
-          console.log("Unable to initialize the shader program.");
+          abort();
         }
 
         gl.useProgram(this.program24bit);
@@ -478,7 +477,7 @@ mdlr('enge:webgl', m => {
         gl.linkProgram(this.programTexture);
 
         if (!gl.getProgramParameter(this.programTexture, gl.LINK_STATUS)) {
-          console.log("Unable to initialize the shader program.");
+          abort();
         }
 
         gl.useProgram(this.programTexture);
@@ -486,7 +485,7 @@ mdlr('enge:webgl', m => {
         gl.uniform1i(this.programTexture.vram, 0);
       }
       catch (e) {
-        console.log("Failed to init shaders:\n\n" + e.stack);
+        abort();
       }
     }
     initTextures() {
@@ -603,31 +602,11 @@ mdlr('enge:webgl', m => {
         this.storeImageInTexture({ x: img.x, y: 0, w: img.w, h: h2, buffer: new Uint16Array(img.buffer.buffer, h1 * img.w), pixelCount: h2 * img.w });
         return;
       }
-      /*
-        var buffer = new Uint32Array(img.pixelCount);
-        const buf8 = new Uint8Array(buffer.buffer, 0, img.pixelCount << 2);
-      
-        for (let i = 0; i < img.pixelCount; ++i) {
-          const data = img.buffer[i] >>> 0;
-          const val32 = ((data & 0x8000) >> 15) ? 0xff000000 : 0x00000000;
-          const r = ((data & 0x001f) >>  0) << 3;
-          const g = ((data & 0x03e0) >>  5) << 11;
-          const b = ((data & 0x7c00) >> 10) << 19;
-          buffer[i] = val32 | r | g | b;
-        }
-      
-        gl.bindTexture(gl.TEXTURE_2D, this.tex16draw);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, buf8);
-        gl.bindTexture(gl.TEXTURE_2D, this.vramP2);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x, img.y, img.w, img.h, gl.RGBA, gl.UNSIGNED_BYTE, buf8);
-      */
-      // console.log(img.x, img.y, img.w, img.h)
       // copy image to GPU
       const view = new Uint8Array(img.buffer.buffer, 0, img.pixelCount << 1);
       gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
 
-      // return;
       // needed for 16bit video
       var x1 = img.x; var x2 = img.x + img.w;
       var y1 = img.y; var y2 = img.y + img.h;
@@ -931,8 +910,6 @@ mdlr('enge:webgl', m => {
         return;
       }
 
-      if (gpu.txflip || gpu.tyflip) console.warn('texture flip with triangles');
-
       var u1 = (data[uv1] >>> 0) & 255;
       var v1 = (data[uv1] >>> 8) & 255;
       var u2 = (data[uv2] >>> 0) & 255;
@@ -1116,16 +1093,6 @@ mdlr('enge:webgl', m => {
       h = (h & 0x1ff);
       if (!w || !h) return;
 
-      if ((x + w) > 1024) {
-        // unsupport 
-        console.log('fillRectangle does not support x-wrap', x, w);
-        return;
-      }
-      if ((y + h) > 512) {
-        // unsupport 
-        console.log('fillRectangle does not support y-wrap', h, y);
-        return;
-      }
       this.flushVertexBuffer(true);
       this.clearVRAM(x, y, w, h, c, false);
 
