@@ -4,23 +4,18 @@ mdlr('enge:psx:rtc', m => {
   const r11x4 = new Uint32Array(4);
   const r11x8 = new Uint32Array(4);
 
-  r11x0.fill(0);
-  r11x4.fill(0);
-  r11x8.fill(0xffff);
-
-  function limitReached(id, increment, cb) {
+  const limitReached = (id, increment, counter) => {
     const limitBit = (r11x4[id] & 0x008) ? 11 : 12;
     switch (limitBit) {
       case 11: var limit = +(r11x8[id] + 1.0);
         break;
       case 12: var limit = +(+0xffff + 1.0);
         break;
-      default: return abort('invalid limit bit');
     }
 
     let value = r11x0[id] + increment;
     if (value >= limit) {
-      if (cb) cb();
+      counter?.onLimitReached(counter);
       r11x4[id] |= (1 << limitBit);
       return value %= limit;
     }
@@ -30,8 +25,8 @@ mdlr('enge:psx:rtc', m => {
   const rc0 = {
     freerun: false,
 
-    getValue: function (bits32) {
-      const f = this.freerun;
+    getValue: () => {
+      const f = rc0.freerun;
 
       let cyclesToPeek = +0;
 
@@ -68,8 +63,6 @@ mdlr('enge:psx:rtc', m => {
             case 1: cyclesToPeek = !f ? +(psx.clock - dot.dispHStop) : +(psx.clock - dot.start); break;
           }
           break;
-
-        default: return abort(`RC0: invalid mode: $${hex(r11x4[0], 4)}`);
       }
 
       if (r11x4[0] & 0x100) {
@@ -80,17 +73,17 @@ mdlr('enge:psx:rtc', m => {
       }
     },
 
-    getTarget: function (bits32) {
+    getTarget: () => {
       return r11x8[0];
     },
 
-    getMode: function () {
+    getMode: () => {
       let result = r11x4[0];
       r11x4[0] &= 0xe7ff;
       return result;
     },
 
-    setMode: function (bits32) {
+    setMode: (bits32) => {
       r11x4[0] = (bits32 & 0x3ff) | (1 << 10);
 
       let cyclesToSkip = +0;
@@ -115,11 +108,9 @@ mdlr('enge:psx:rtc', m => {
           }
           break;
         case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
-          this.freerun = false;
+          rc0.freerun = false;
           cyclesToSkip = +0;
           break;
-
-        default: return abort(`RC0: invalid mode: $${hex(r11x4[0], 4)}`);
       }
 
       if (r11x4[0] & 0x100) {
@@ -130,24 +121,23 @@ mdlr('enge:psx:rtc', m => {
       }
     },
 
-    setTarget: function (bits32) {
+    setTarget: (bits32) => {
       if (!bits32) bits32 = 0xffff;
       r11x8[0] = bits32;
     },
 
-    setValue: function (bits32) {
-      if (bits32) return abort('not supported');
+    setValue: (bits32) => {
       r11x0[0] = bits32;
     },
 
-    onLimitReached: function () {
+    onLimitReached: () => {
       if (r11x4[0] & 0x0030) {
         cpu.istat |= 0x0010;
       }
     },
 
-    onScanLine: function () {
-      const f = this.freerun;
+    onScanLine: () => {
+      const f = rc0.freerun;
 
       let cyclesToAdd = +0;
 
@@ -169,17 +159,15 @@ mdlr('enge:psx:rtc', m => {
           break;
         case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
           cyclesToAdd = !f ? +(dot.stop - dot.dispHStop) : +(dot.stop - dot.start);
-          this.freerun = true;
+          rc0.freerun = true;
           break;
-
-        default: return abort(`RC1: invalid mode: $${hex(r11x4[0], 4)}`);
       }
 
       if (r11x4[0] & 0x100) {
-        r11x0[0] = limitReached(0, gpu.cyclesToDotClock(cyclesToAdd), this.onLimitReached);
+        r11x0[0] = limitReached(0, gpu.cyclesToDotClock(cyclesToAdd), rc0);
       }
       else {
-        r11x0[0] = limitReached(0, cyclesToAdd, this.onLimitReached);
+        r11x0[0] = limitReached(0, cyclesToAdd, rc0);
       }
     }
   }
@@ -187,8 +175,8 @@ mdlr('enge:psx:rtc', m => {
   const rc1 = {
     freerun: false,
 
-    getValue: function (bits32) {
-      const factor = dot.isInVBlank() ? 0.0 : 1.0;
+    getValue: () => {
+      // const factor = dot.isInVBlank() ? 0.0 : 1.0;
 
       switch (r11x4[1] & 0x107) {
         case 0x000: // no irq, clock source, target 0xffff+1
@@ -200,7 +188,7 @@ mdlr('enge:psx:rtc', m => {
         case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
           return limitReached(1, dot.isInVBlank() ? +0 : +0);
         case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
-          if (!this.freerun) return limitReached(1, +0);
+          if (!rc1.freerun) return limitReached(1, +0);
           return limitReached(1, +psx.eventCycles(dot.event));
 
         case 0x100: // no irq, h-blank source, target 0xffff+1
@@ -209,24 +197,22 @@ mdlr('enge:psx:rtc', m => {
         case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
           return limitReached(1, +0);
         case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
-          if (!this.freerun) return limitReached(1, +0);
+          if (!rc1.freerun) return limitReached(1, +0);
           return limitReached(1, +0);
-
-        default: return abort(`RC1: invalid mode: $${hex(r11x4[1], 4)}`);
       }
     },
 
-    getTarget: function (bits32) {
+    getTarget: () => {
       return r11x8[1];
     },
 
-    getMode: function () {
+    getMode: () => {
       let result = r11x4[1];
       r11x4[1] &= 0xe7ff;
       return result;
     },
 
-    setMode: function (bits32) {
+    setMode: (bits32) => {
       r11x4[1] = ((bits32 & 0x13f) | (1 << 10)) >>> 0;
 
       // todo: implement synchronisation
@@ -239,7 +225,7 @@ mdlr('enge:psx:rtc', m => {
           r11x0[1] = limitReached(1, +0);
           break;
         case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
-          this.freerun = false;
+          rc1.freerun = false;
           r11x0[1] = +0;
           break;
 
@@ -250,93 +236,88 @@ mdlr('enge:psx:rtc', m => {
           r11x0[1] = +0;
           break;
         case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
-          this.freerun = false;
+          rc1.freerun = false;
           r11x0[1] = +0;
           break;
-
-        default: return abort(`RC1: invalid mode: $${hex(r11x4[1], 4)}`);
       }
     },
 
-    setTarget: function (bits32) {
+    setTarget: (bits32) => {
       if (!bits32) bits32 = 0xffff;
       r11x8[1] = bits32 >>> 0;
     },
 
-    setValue: function (bits32) {
-      if (bits32) return abort('not supported');
+    setValue: (bits32) => {
       r11x0[1] = +bits32;
     },
 
-    onLimitReached: function () {
+    onLimitReached: () => {
       if (r11x4[1] & 0x0030) {
         cpu.istat |= 0x0020;
       }
     },
 
-    onScanLine: function (isVBlankStart) {
+    onScanLine: (isVBlankStart) => {
       const cyclesPerScanLine = +(dot.stop - dot.start);
 
       switch (r11x4[1] & 0x107) {
         case 0x000: // no irq, clock source, target 0xffff+1
-          r11x0[1] = limitReached(1, cyclesPerScanLine, this.onLimitReached);
+          r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
           break;
         case 0x001: // no irq, clock source, target 0xffff+1, pause in vblank
-          r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : cyclesPerScanLine, this.onLimitReached);
+          r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : cyclesPerScanLine, rc1);
           break;
         case 0x003: // no irq, clock source, target 0xffff+1, reset counter at vblank
-          r11x0[1] = limitReached(1, cyclesPerScanLine, this.onLimitReached);
+          r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
           if (isVBlankStart) r11x0[1] = 0;
           break;
         case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
-          r11x0[1] = limitReached(1, dot.isInVBlank() ? cyclesPerScanLine : +0, this.onLimitReached);
+          r11x0[1] = limitReached(1, dot.isInVBlank() ? cyclesPerScanLine : +0, rc1);
           if (dot.isInVBlank()) r11x0[1] = 0;
           break;
         case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
-          if (this.freerun) {
-            r11x0[1] = limitReached(1, cyclesPerScanLine, this.onLimitReached);
+          if (rc1.freerun) {
+            r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
           }
           else {
-            r11x0[1] = limitReached(1, +0, this.onLimitReached);
+            r11x0[1] = limitReached(1, +0, rc1);
             if (isVBlankStart) {
-              this.freerun = true;
+              rc1.freerun = true;
             }
           }
           break;
 
         case 0x100: // no irq, h-blank source, target 0xffff+1
-          r11x0[1] = limitReached(1, +1, this.onLimitReached);
+          r11x0[1] = limitReached(1, +1, rc1);
           break;
         case 0x101: // no irq, h-blank source, target 0xffff+1, pause in vblank
-          r11x0[1] = limitReached(1, dot.isInVBlank() ? + 0 : +1, this.onLimitReached);
+          r11x0[1] = limitReached(1, dot.isInVBlank() ? + 0 : +1, rc1);
           break;
         case 0x103: // no irq, h-blank source, target 0xffff+1, reset counter at vblank
-          r11x0[1] = limitReached(1, +1, this.onLimitReached);
+          r11x0[1] = limitReached(1, +1, rc1);
           if (isVBlankStart) r11x0[1] = 0;
           break;
         case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
-          r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : +1, this.onLimitReached);
+          r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : +1, rc1);
           if (isVBlankStart) r11x0[1] = 0;
           break;
         case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
-          if (this.freerun) {
-            r11x0[1] = limitReached(1, +1, this.onLimitReached);
+          if (rc1.freerun) {
+            r11x0[1] = limitReached(1, +1, rc1);
           }
           else {
-            r11x0[1] = limitReached(1, +0, this.onLimitReached);
+            r11x0[1] = limitReached(1, +0, rc1);
             if (isVBlankStart) {
-              this.freerun = true;
+              rc1.freerun = true;
             }
           }
           break;
-
-        default: return abort(`RC1: invalid mode: $${hex(r11x4[1], 4)}`);
       }
     }
   }
 
   const rc2 = {
-    getValue: function (bits32) {
+    getValue: () => {
       switch (r11x4[2] & 0x207) {
         case 0x000: // no irq, clock source, target 0xffff+1
         case 0x003: // no irq, clock source, target 0xffff+1, free run
@@ -352,22 +333,20 @@ mdlr('enge:psx:rtc', m => {
 
         case 0x200: // no irq, clock/8 source, target 0xffff+1
           return limitReached(2, 0.125 * +(psx.clock - dot.start));
-
-        default: return abort(`RC2: invalid mode: $${hex(r11x4[2], 4)}`);
       }
     },
 
-    getTarget: function (bits32) {
+    getTarget: () => {
       return r11x8[2];
     },
 
-    getMode: function () {
+    getMode: () => {
       let result = r11x4[2];
       r11x4[2] &= 0xe7ff;
       return result;
     },
 
-    setMode: function (bits32) {
+    setMode: (bits32) => {
       r11x4[2] = (bits32 & 0x3ff) | (1 << 10);
 
       switch (r11x4[2] & 0x207) {
@@ -390,50 +369,46 @@ mdlr('enge:psx:rtc', m => {
         case 0x200: // no irq, clock/8 source, reset @ 0xffff+1
           r11x0[2] = -0.125 * psx.eventCycles(dot.event);
           break;
-
-        default: return abort(`RC2: invalid mode: $${hex(r11x4[2], 4)}`);
       }
     },
 
-    setTarget: function (bits32) {
+    setTarget: (bits32) => {
       // todo: check setting target after setMode
       if (!bits32) bits32 = 0xffff;
       r11x8[2] = bits32 & 0xffff;
     },
 
-    setValue: function (bits32) {
-      if (bits32) return abort('not supported');
+    setValue: (bits32) => {
       r11x0[2] = bits32;
     },
 
-    onLimitReached: function () {
+    onLimitReached: () => {
       if (r11x4[2] & 0x0030) {
         cpu.istat |= 0x0040;
       }
     },
 
-    onScanLine: function () {
+    onScanLine: () => {
       switch (r11x4[2] & 0x207) {
         case 0x000: // no irq, clock source, target 0xffff+1
         case 0x003: // no irq, clock source, target 0xffff+1, free run
         case 0x005: // no irq, clock source, target 0xffff+1, free run
-          r11x0[2] = limitReached(2, +(dot.stop - dot.start), this.onLimitReached);
+          r11x0[2] = limitReached(2, +(dot.stop - dot.start), rc2);
           break;
 
         case 0x001: // no irq, clock source, target 0xffff+1, stop counter
         case 0x007: // no irq, clock source, target 0xffff+1, stop counter
-          r11x0[2] = limitReached(2, +0, this.onLimitReached);
+          r11x0[2] = limitReached(2, +0, rc2);
           break;
 
         case 0x200: // no irq, clock/8 source, reset @ 0xffff+1
-          r11x0[2] = limitReached(2, 0.125 * +(dot.stop - dot.start), this.onLimitReached);
+          r11x0[2] = limitReached(2, 0.125 * +(dot.stop - dot.start), rc2);
           break;
-
-        default: return abort(`RC2: invalid mode: $${hex(r11x4[2], 4)}`);
       }
     }
   }
 
+  const MAX_SAFE_INTEGER = +Number.MAX_SAFE_INTEGER;
 
   const dot = {
     event: null,
@@ -441,55 +416,53 @@ mdlr('enge:psx:rtc', m => {
     scanLine: 0,
     vblank: false,
 
-    dispHStart: +Number.MAX_SAFE_INTEGER,
-    dispHStop: +Number.MAX_SAFE_INTEGER,
-    start: +Number.MAX_SAFE_INTEGER,
-    stop: +Number.MAX_SAFE_INTEGER,
+    dispHStart: MAX_SAFE_INTEGER,
+    dispHStop: MAX_SAFE_INTEGER,
+    start: MAX_SAFE_INTEGER,
+    stop: MAX_SAFE_INTEGER,
 
-    upateToLastGpuState: function (self) {
+    upateToLastGpuState: (self) => {
       const videoCycles = ((gpu.status >> 20) & 1) ? 3406.0 : 3413.0;
       const cpuCycles = (videoCycles * 7.0 / 11.0) * (PSX_SPEED / (768 * 44100));
 
-      this.start = +self.clock;
-      this.stop = +cpuCycles + this.start;
+      dot.start = +self.clock;
+      dot.stop = +cpuCycles + dot.start;
 
-      this.dispHStart = this.start + (+gpu.dispL * 7.0 / 11.0);
-      this.dispHStop = this.start + (+gpu.dispR * 7.0 / 11.0);
+      dot.dispHStart = dot.start + (+gpu.dispL * 7.0 / 11.0);
+      dot.dispHStop = dot.start + (+gpu.dispR * 7.0 / 11.0);
     },
 
-    complete: function (self, clock) {
-      this.upateToLastGpuState(self);
+    complete: (self) => {
+      dot.upateToLastGpuState(self);
 
       const linesPerFrame = ((gpu.status >> 20) & 1) ? 314 : 263;
-      this.scanLine = (this.scanLine + 1) % linesPerFrame;
-      this.vblank = (this.scanLine < gpu.dispT) || (this.scanLine >= gpu.dispB);
+      dot.scanLine = (dot.scanLine + 1) % linesPerFrame;
+      dot.vblank = (dot.scanLine < gpu.dispT) || (dot.scanLine >= gpu.dispB);
 
       rc0.onScanLine();
-      rc1.onScanLine(this.scanLine === gpu.dispB);
+      rc1.onScanLine(dot.scanLine === gpu.dispB);
       rc2.onScanLine();
-      gpu.onScanLine(this.scanLine);
+      gpu.onScanLine(dot.scanLine);
 
 
-      let scanlineCycles = this.stop - this.start;
+      let scanlineCycles = dot.stop - dot.start;
       psx.updateEvent(self, +scanlineCycles);
     },
 
-    isInVBlank: function () {
-      return this.vblank;
+    isInVBlank: () => {
+      return dot.vblank;
     },
 
-    whereInScanLine: function () {
-      if (psx.clock < this.dispHStart) {
+    whereInScanLine: () => {
+      if (psx.clock < dot.dispHStart) {
         return -1 >> 0;
       }
-      if (psx.clock < this.dispHStop) {
+      if (psx.clock < dot.dispHStop) {
         return 0 >> 0;
       }
       return 1 >> 0;
     }
   }
-
-  dot.event = psx.addEvent(0, dot.complete.bind(dot));
 
   const rtc = {
     rd32: (reg) => {
@@ -519,6 +492,12 @@ mdlr('enge:psx:rtc', m => {
       }
     }
   };
+
+  dot.event = psx.addEvent(0, dot.complete.bind(dot));
+
+  r11x0.fill(0);
+  r11x4.fill(0);
+  r11x8.fill(0xffff);
 
   return { rtc };
 

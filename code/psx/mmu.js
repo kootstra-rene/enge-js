@@ -22,7 +22,7 @@ mdlr('enge:psx:mmu', m => {
       case reg >= 0x1100 && reg < 0x1130:
         return rtc.rd32(reg);
       case reg >= 0x1C00 && reg < 0x2000:
-        return spu.getInt16(reg);
+        return !(reg & 1) && spu.getInt16(reg);
     }
 
     switch (addr & 0x3fff) {
