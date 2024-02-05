@@ -244,9 +244,11 @@ mdlr('enge:webgl2', m => {
       var y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
       var x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
       var y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
-
       if (outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
       if (largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+
+      c1 = getColor(data, c1);
+      c2 = getColor(data, c2);
 
       // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
@@ -258,43 +260,39 @@ mdlr('enge:webgl2', m => {
 
       if (x1 !== x2 || y1 !== y2) {
         if (w >= h) {
-          buffer.addVertex(x1, y1 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
-          buffer.addVertex(x1, y1 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
-          buffer.addVertex(x2, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+          buffer.addVertex(x1, y1 + 1, 0, 0, c1);
+          buffer.addVertex(x1, y1 + 0, 0, 0, c1);
+          buffer.addVertex(x2, y2 + 0, 0, 0, c2);
 
-          buffer.addVertex(x2, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-          buffer.addVertex(x2, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-          buffer.addVertex(x1, y1 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
+          buffer.addVertex(x2, y2 + 0, 0, 0, c2);
+          buffer.addVertex(x2, y2 + 1, 0, 0, c2);
+          buffer.addVertex(x1, y1 + 1, 0, 0, c1);
 
         }
         else {
-          buffer.addVertex(x1 + 0, y1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
-          buffer.addVertex(x1 + 1, y1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
-          buffer.addVertex(x2 + 1, y2, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+          buffer.addVertex(x1 + 0, y1, 0, 0, c1);
+          buffer.addVertex(x1 + 1, y1, 0, 0, c1);
+          buffer.addVertex(x2 + 1, y2, 0, 0, c2);
 
-          buffer.addVertex(x2 + 1, y2, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-          buffer.addVertex(x2 + 0, y2, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-          buffer.addVertex(x1 + 0, y1, 0, 0, ((data[0] & 0xff000000) | (data[c1] & 0x00ffffff)));
+          buffer.addVertex(x2 + 1, y2, 0, 0, c2);
+          buffer.addVertex(x2 + 0, y2, 0, 0, c2);
+          buffer.addVertex(x1 + 0, y1, 0, 0, c1);
         }
       }
       else {
-        buffer.addVertex(x2 + 0, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-        buffer.addVertex(x2 + 1, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-        buffer.addVertex(x2 + 0, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+        buffer.addVertex(x2 + 0, y2 + 0, 0, 0, c2);
+        buffer.addVertex(x2 + 1, y2 + 0, 0, 0, c2);
+        buffer.addVertex(x2 + 0, y2 + 1, 0, 0, c2);
 
-        buffer.addVertex(x2 + 0, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-        buffer.addVertex(x2 + 1, y2 + 0, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
-        buffer.addVertex(x2 + 1, y2 + 1, 0, 0, ((data[0] & 0xff000000) | (data[c2] & 0x00ffffff)));
+        buffer.addVertex(x2 + 0, y2 + 1, 0, 0, c2);
+        buffer.addVertex(x2 + 1, y2 + 0, 0, 0, c2);
+        buffer.addVertex(x2 + 1, y2 + 1, 0, 0, c2);
       }
     }
 
     drawTriangle(data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
       this.seenRender = true;
       this.updateDrawArea();
-
-      c1 = getColor(data, c1);
-      c2 = getColor(data, c2);
-      c3 = getColor(data, c3);
 
       const x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
       const y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
@@ -305,6 +303,10 @@ mdlr('enge:webgl2', m => {
 
       if (outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
       if (largePrimitive(x1, y1, x2, y2, x3, y3)) return;
+
+      c1 = getColor(data, c1);
+      c2 = getColor(data, c2);
+      c3 = getColor(data, c3);
 
       // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);

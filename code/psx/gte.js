@@ -89,6 +89,11 @@ mdlr('enge:psx:gte', m => {
     ir[3] = lim(mac[3], lm, 22, 32767.0, 22);
   };
 
+  const overflow = () => {
+    if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
+    if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+  }
+
   const depthCue = () => {
     // [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
     ir[1] = ((fc[0] * 4096.0) - mac[1]) / sf;
@@ -138,8 +143,7 @@ mdlr('enge:psx:gte', m => {
   const avsz3 = () => {
     // MAC0 = ZSF3*(SZ1+SZ2+SZ3)
     mac[0] = zsf3 * (sz[1] + sz[2] + sz[3]);
-    if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-    if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+    overflow();
     // OTZ  =  MAC0/1000h
     regs[0x07] = lim(mac[0] / 4096.0, 0.0, 18, 65535.0, 18);
   };
@@ -147,8 +151,7 @@ mdlr('enge:psx:gte', m => {
   const avsz4 = () => {
     // MAC0 =  ZSF4*(SZ0+SZ1+SZ2+SZ3)
     mac[0] = zsf4 * (sz[0] + sz[1] + sz[2] + sz[3]);
-    if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-    if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+    overflow();
     // OTZ  =  MAC0/1000h
     regs[0x07] = lim(mac[0] / 4096.0, 0.0, 18, 65535.0, 18);
   };
@@ -350,8 +353,7 @@ mdlr('enge:psx:gte', m => {
   const nclip = () => {
     // MAC0 = SX0*SY1 + SX1*SY2 + SX2*SY0 - SX0*SY2 - SX1*SY0 - SX2*SY1
     mac[0] = sx[0] * (sy[1] - sy[2]) + sx[1] * (sy[2] - sy[0]) + sx[2] * (sy[0] - sy[1]);
-    if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-    if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+    overflow();
   };
 
   const ncs = (vec) => {
@@ -377,6 +379,9 @@ mdlr('enge:psx:gte', m => {
     limit(lm);
   };
 
+  const MAXRTPS = 8796093022207;
+  const MINRTPS = -8796093022208;
+
   const rtps = (vec) => {
     const h = regs[0x3a] & 0xffff;
     const ofx = regs[0x38];
@@ -386,14 +391,14 @@ mdlr('enge:psx:gte', m => {
 
     // [MAC1,MAC2,MAC3] = (TR*1000h + RT*Vx) SAR (sf*12)
     mac[1] = ((tr[0] * 4096.0) + (rt[0] * vec[1]) + (rt[1] * vec[2]) + (rt[2] * vec[3])) / sf;
-    if (mac[1] > 8796093022207) regs[0x3f] |= flag[30];
-    if (mac[1] < -8796093022208) regs[0x3f] |= flag[27];
+    if (mac[1] > MAXRTPS) regs[0x3f] |= flag[30];
+    if (mac[1] < MINRTPS) regs[0x3f] |= flag[27];
     mac[2] = ((tr[1] * 4096.0) + (rt[3] * vec[1]) + (rt[4] * vec[2]) + (rt[5] * vec[3])) / sf;
-    if (mac[2] > 8796093022207) regs[0x3f] |= flag[29];
-    if (mac[2] < -8796093022208) regs[0x3f] |= flag[26];
+    if (mac[2] > MAXRTPS) regs[0x3f] |= flag[29];
+    if (mac[2] < MINRTPS) regs[0x3f] |= flag[26];
     mac[3] = ((tr[2] * 4096.0) + (rt[6] * vec[1]) + (rt[7] * vec[2]) + (rt[8] * vec[3])) / sf;
-    if (mac[3] > 8796093022207) regs[0x3f] |= flag[28];
-    if (mac[3] < -8796093022208) regs[0x3f] |= flag[25];
+    if (mac[3] > MAXRTPS) regs[0x3f] |= flag[28];
+    if (mac[3] < MINRTPS) regs[0x3f] |= flag[25];
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -417,14 +422,11 @@ mdlr('enge:psx:gte', m => {
       hsz3 = 131071.0;
     }
     mac[0] = (hsz3 * ir[1]) + ofx; sx[2] = mac[0] / 65536.0;
-    if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-    if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+    overflow();
     mac[0] = (hsz3 * ir[2]) + ofy; sy[2] = mac[0] / 65536.0;
-    if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-    if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+    overflow();
     mac[0] = (hsz3 * dqa) + dqb; ir[0] = mac[0] / 4096.0;
-    if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
-    if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+    overflow();
 
     sx[2] = lim(sx[2], -1024.0, 14, 1023.0, 14);
     sy[2] = lim(sy[2], -1024.0, 13, 1023.0, 13);

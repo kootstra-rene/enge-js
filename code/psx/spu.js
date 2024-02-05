@@ -2,7 +2,7 @@ mdlr('enge:psx:spu', m => {
 
   const frameCount = (1.0 * 44100) >> 1;
 
-  const CYCLES_PER_EVENT = 8;
+  const SAMPLES_PER_EVENT = 16; // ~0.4ms
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
@@ -30,13 +30,13 @@ mdlr('enge:psx:spu', m => {
   };
 
   psx.addEvent(0, (self, clock) => {
-    psx.updateEvent(self, (PSX_SPEED / 44100 * CYCLES_PER_EVENT));
+    psx.updateEvent(self, (PSX_SPEED / 44100 * SAMPLES_PER_EVENT));
     if (!left || !right) return;
 
     SPUSTAT &= ~(0x003F);
     SPUSTAT |= (SPUSTATm & 0x003F);
 
-    for (let tt = CYCLES_PER_EVENT; tt > 0; --tt) {
+    for (let tt = SAMPLES_PER_EVENT; tt > 0; --tt) {
       ++totalSamples;
 
       let l = 0, r = 0;

@@ -53,7 +53,7 @@ mdlr('enge:psx:spu-voice', m => {
   let volumeLeft = 0.0;
   let volumeRight = 0.0;
 
-  let regs = new Int16Array(16);
+  let regs = new Uint16Array(16);
 
   const adsrExponentialRateOffset = [
     0 + 32,
@@ -184,11 +184,11 @@ mdlr('enge:psx:spu-voice', m => {
       s1 = s0; s0 = value;
     }
 
-    blockAddress += 16;
-
     if ((flags & 4) === 4) {
       repeatAddress = blockAddress;
     }
+
+    blockAddress += 16;
 
     if ((flags & 1) === 1) {
       blockAddress = repeatAddress;
@@ -266,7 +266,6 @@ mdlr('enge:psx:spu-voice', m => {
 
     wr16(addr, data) {
       regs[addr & 15] = data;
-
       switch (addr % 16) {
         case 0x0:
           volumeLeft = spu.getVolume(data);
@@ -277,9 +276,9 @@ mdlr('enge:psx:spu-voice', m => {
         case 0x4:
           pitchStep = Math.min(data, 0x4000);
           break;
-        case 0x6:
-          // blockAddress = data << 3;
-          break;
+        // case 0x6:
+        //   blockAddress = data << 3;
+        //   break;
         case 0x8:
           adsrAttackMode = (data & 0x8000) >>> 15;
           adsrAttackRate = (((data & 0x7F00) >>> 8) ^ 0x7F);
@@ -301,11 +300,11 @@ mdlr('enge:psx:spu-voice', m => {
             adsrLinearSustainRate = -rateTable[adsrSustainRate - 0x0F + 32];
           }
           break;
-        case 0xc:
-          adsrLevel = data << 16;
-          break;
+        // case 0xc:
+        //   adsrLevel = data << 16;
+        //   break;
         case 0xe:
-          // repeatAddress = data << 3;
+          repeatAddress = data << 3;
           break;
       }
     }
