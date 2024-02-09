@@ -369,7 +369,9 @@ mdlr('enge:psx:cdr', m => {
     let readCycles = 33868800 / ((mode & 0x80) ? 150 : 75);
     let loc = currLoc - 150;
     switch (ncmdread) {
-      case 0x00: break;
+      case 0x00:
+        unsetEvent(eventRead);
+        break;
       case 0x03:
         playIndex = 0;
         if (currLoc === currTrack.end) {
@@ -421,7 +423,6 @@ mdlr('enge:psx:cdr', m => {
 
       default:
         abort(hex(ncmdread, 2));
-        unsetEvent(eventRead);
     }
   };
 

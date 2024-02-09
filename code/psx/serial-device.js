@@ -27,7 +27,7 @@ mdlr('enge:psx:serial-device', m => {
       return this;
     },
     setMemoryCard: buffer => {
-      for (let i = 0; i < buffer.length; i++) {
+      for (let i = 0; i < buffer.length; ++i) {
         memory[i] = buffer[i];
       }
     },
@@ -69,7 +69,7 @@ mdlr('enge:psx:serial-device', m => {
 
       if (mode === 0x52) {
         if (data === -1) {
-          let dataIndex = received.length;
+          const dataIndex = received.length;
           switch (true) {
             case (dataIndex === 4):
               data = received[3];
@@ -88,7 +88,7 @@ mdlr('enge:psx:serial-device', m => {
               break;
 
             case (dataIndex >= 9 && dataIndex < 137):
-              let offset = (addr * 128) + dataIndex - 9;
+              const offset = (addr * 128) + dataIndex - 9;
               data = memory[offset];
               checkSum ^= data;
               break;
@@ -101,7 +101,7 @@ mdlr('enge:psx:serial-device', m => {
       }
       if (mode === 0x57) {
         if (data === -1) {
-          let dataIndex = received.length;
+          const dataIndex = received.length;
           switch (true) {
             case (dataIndex === 3):
               data = received[3];
@@ -113,7 +113,7 @@ mdlr('enge:psx:serial-device', m => {
               addr = (data << 8) | byte;
               break;
             case (dataIndex >= 5 && dataIndex < 133):
-              let offset = (addr * 128) + dataIndex - 5;
+              const offset = (addr * 128) + dataIndex - 5;
               data = memory[offset - 1];
               memory[offset] = byte;
               checkSum ^= byte;

@@ -2,8 +2,6 @@ mdlr('enge:psx:spu', m => {
 
   const frameCount = (1.0 * 44100) >> 1;
 
-  const SAMPLES_PER_EVENT = 16; // ~0.4ms
-
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
   const view = new DataView(memory.buffer);
@@ -29,64 +27,62 @@ mdlr('enge:psx:spu', m => {
     // todo: implement reverb later
   };
 
-  psx.addEvent(0, (self, clock) => {
-    psx.updateEvent(self, (PSX_SPEED / 44100 * SAMPLES_PER_EVENT));
+  psx.addEvent(0, (self) => {
+    psx.updateEvent(self, 768); // 1 sample
     if (!left || !right) return;
 
     SPUSTAT &= ~(0x003F);
     SPUSTAT |= (SPUSTATm & 0x003F);
 
-    for (let tt = SAMPLES_PER_EVENT; tt > 0; --tt) {
-      ++totalSamples;
+    ++totalSamples;
 
-      let l = 0, r = 0;
+    let l = 0, r = 0;
 
-      const captureIndex = (totalSamples % 0x200) << 1;
-      spu.checkIrq();
+    const captureIndex = (totalSamples % 0x200) << 1;
+    spu.checkIrq();
 
-      let audio = [0.0, 0.0];
-      for (let voice of voices) {
-        if (!voice.advance(memory, audio)) continue;
+    let audio = [0.0, 0.0];
+    for (let voice of voices) {
+      if (!voice.advance(memory, audio)) continue;
 
-        l += audio[0];
-        r += audio[1];
+      l += audio[0];
+      r += audio[1];
 
-        if (voice.capture) {
-          // todo: verify cacpture left or right channel
-          const mono = (audio[0] * 0x8000) >> 0;
-          view.setInt16(voice.capture + captureIndex, mono, true);
-        }
+      if (voice.capture) {
+        // todo: verify cacpture left or right channel
+        const mono = (audio[0] * 0x8000) >> 0;
+        view.setInt16(voice.capture + captureIndex, mono, true);
       }
+    }
 
-      var cdxa = [0.0, 0.0];
-      cdr.nextpcm(cdxa);
+    var cdxa = [0.0, 0.0];
+    cdr.nextpcm(cdxa);
 
-      let cdSampleL = (cdxa[0] * cdVolumeLeft);
-      let cdSampleR = (cdxa[1] * cdVolumeRight);
-      {
-        const mono = (cdSampleL * 0x8000) >>> 0;
-        view.setInt16(0x0000 + captureIndex, mono, true);
-      }
-      {
-        const mono = (cdSampleR * 0x8000) >>> 0;
-        view.setInt16(0x0400 + captureIndex, mono, true);
-      }
-      l += cdSampleL;
-      r += cdSampleR;
+    let cdSampleL = (cdxa[0] * cdVolumeLeft);
+    let cdSampleR = (cdxa[1] * cdVolumeRight);
+    {
+      const mono = (cdSampleL * 0x8000) >>> 0;
+      view.setInt16(0x0000 + captureIndex, mono, true);
+    }
+    {
+      const mono = (cdSampleR * 0x8000) >>> 0;
+      view.setInt16(0x0400 + captureIndex, mono, true);
+    }
+    l += cdSampleL;
+    r += cdSampleR;
 
-      l = (l * mainVolumeLeft);
-      r = (r * mainVolumeRight);
+    l = (l * mainVolumeLeft);
+    r = (r * mainVolumeRight);
 
-      left[writeIndex] = l;//Math.max(Math.min(l, 1.0), -1.0);
-      right[writeIndex] = r;//Math.max(Math.min(r, 1.0), -1.0);
-      writeIndex = (writeIndex + 1) % frameCount;
+    left[writeIndex] = l;//Math.max(Math.min(l, 1.0), -1.0);
+    right[writeIndex] = r;//Math.max(Math.min(r, 1.0), -1.0);
+    writeIndex = (writeIndex + 1) % frameCount;
 
-      if (captureIndex === 0x000) {
-        SPUSTAT &= ~0x0800;
-      }
-      if (captureIndex === 0x200) {
-        SPUSTAT |= 0x0800;
-      }
+    if (captureIndex === 0x000) {
+      SPUSTAT &= ~0x0800;
+    }
+    if (captureIndex === 0x200) {
+      SPUSTAT |= 0x0800;
     }
   });
 
@@ -124,7 +120,6 @@ mdlr('enge:psx:spu', m => {
     },
 
     getVolume: data => {
-      // if (data & 0x8000) return 0.75; // no sweep yet
       return ((data << 17) >> 16) / 0x8000;
     },
 
@@ -155,54 +150,54 @@ mdlr('enge:psx:spu', m => {
         case 0x1d86: reverbVolumeRight = spu.getVolume(data);
           break;
         case 0x1d88: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[i].keyOn()
           spu.ENDX &= ~(1 << i);
         }
           break
         case 0x1d8a: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[16 + i].keyOn()
           spu.ENDX &= ~(1 << (16 + i));
         }
           break
         case 0x1d8c: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[i].keyOff()
         }
           break
         case 0x1d8e: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[16 + i].keyOff()
         }
           break
         case 0x1d90: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[i].modOn()
         }
           break
         case 0x1d92: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[16 + i].modOn()
         }
           break
         case 0x1d94: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[i].noiseOn()
         }
           break
         case 0x1d96: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[16 + i].noiseOn()
         }
           break
         case 0x1d98: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[i].echoOn()
         }
           break
         case 0x1d9a: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue
+          if ((data & (1 << i)) === 0) continue;
           voices[16 + i].echoOn()
         }
           break
@@ -218,8 +213,11 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1da6: ramOffset = data << 3;
           break
-        case 0x1da8: memory[ramOffset + 0] = (data >> 0) & 0xff;
-          memory[ramOffset + 1] = (data >> 8) & 0xff;
+        case 0x1da8:
+          // memory[ramOffset + 0] = (data >> 0) & 0xff;
+          // memory[ramOffset + 1] = (data >> 8) & 0xff;
+          ramOffset = ramOffset % memory.byteLength;
+          view.setInt16(ramOffset, data, true);
           ramOffset += 2;
           spu.checkIrq();
           break
@@ -236,13 +234,17 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1dae:  // SPUSTAT (read-only)
           break
-        case 0x1db0: cdVolumeLeft = data / 0x8000;
+        case 0x1db0:
+          cdVolumeLeft = ((data << 16) >> 16) / 0x8000;
           break
-        case 0x1db2: cdVolumeRight = data / 0x8000;
+        case 0x1db2:
+          cdVolumeRight = ((data << 16) >> 16) / 0x8000;
           break
-        case 0x1db4: extVolumeLeft = data / 0x8000;
+        case 0x1db4:
+          extVolumeLeft = ((data << 16) >> 16) / 0x8000;
           break
-        case 0x1db6: extVolumeRight = data / 0x8000;
+        case 0x1db6:
+          extVolumeRight = ((data << 16) >> 16) / 0x8000;
           break
         case 0x1db8:  // ??? Legend of Dragoon
           break
@@ -271,13 +273,12 @@ mdlr('enge:psx:spu', m => {
     dmaTransferMode0200: (addr, blck) => {
       if (!(addr & 0x007fffff)) return 0x10;
 
-      var transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
-      clearCodeCache(addr, transferSize);
+      let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
+      // clearCodeCache(addr, transferSize); // optimistice assumption (performance reasons)
 
       while (transferSize > 0) {
-        var data = 0;
-        data |= (memory[ramOffset + 0] >>> 0) << 0;
-        data |= (memory[ramOffset + 1] >>> 0) << 8;
+        ramOffset = ramOffset % memory.byteLength;
+        const data = view.getInt16(ramOffset, true);
         map16[(addr & 0x001fffff) >>> 1] = data;
         ramOffset += 2;
         transferSize -= 2;
@@ -289,12 +290,12 @@ mdlr('enge:psx:spu', m => {
 
     dmaTransferMode0201: (addr, blck) => {
       if (!(addr & 0x007fffff)) return 0x10;
-      var transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
+      let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
 
       while (transferSize > 0) {
+        ramOffset = ramOffset % memory.byteLength;
         const data = map16[(addr & 0x001fffff) >>> 1];
-        memory[ramOffset + 0] = (data >> 0) & 0xff;
-        memory[ramOffset + 1] = (data >> 8) & 0xff;
+        view.setInt16(ramOffset, data, true);
         spu.checkIrq();
         ramOffset += 2;
         transferSize -= 2;

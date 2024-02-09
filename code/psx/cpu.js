@@ -30,12 +30,6 @@ mdlr('enge:psx:cpu', m => {
     setCtrl: (reg, value) => {
       cop[reg] = value >> 0;
       switch (reg) {
-        case 3: break;
-        case 5: break;
-        case 6: break;
-        case 7: break;
-        case 9: break;
-        case 11: break;
         case 12: cpu.sr = value;
           // trick to force writing to unused memory location with isolated cache
           cpu.forceWriteBits = (value & 0x00010000) ? 0x01fffffc >>> 0 : 0x00000000 >>> 0;

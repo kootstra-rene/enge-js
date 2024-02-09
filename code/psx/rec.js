@@ -2,7 +2,7 @@ mdlr('enge:psx:rec', m => {
 
   const getOF = (opcode) => {
     const offset = ((opcode << 16) >> 16);
-    return `(${offset} + ${state.reg(state.rs)}) & 0x01ffffff`;
+    return `(${offset} + ${getRS()}) & 0x01ffffff`;
   };
   const getRS = () => {
     return state.reg(state.rs);

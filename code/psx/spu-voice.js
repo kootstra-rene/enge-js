@@ -1,47 +1,21 @@
 mdlr('enge:psx:spu-voice', m => {
 
-  const BLOCKSIZE = (28 * 0x1000) >>> 0;
-
-  // ADSR
-  const rateTable = new Uint32Array(160);
-
-  (table => {
-    let r, rs, rd;
-
-    table.fill(0);
-
-    r = 3; rs = 1; rd = 0;
-
-    for (let i = 32; i < 160; ++i) {
-      if (r < 0x7FFFFFFF) {
-        r += rs;
-        rd++;
-        if (rd === 5) {
-          rd = 1;
-          rs *= 2;
-        }
-      }
-      if (r > 0x7FFFFFFF) r = 0x7FFFFFFF;
-
-      table[i] = r;
-    }
-  })(rateTable);
+  let BLOCKSIZE = (28 * 0x1000) >>> 0;
 
   let id = 0;
   let adsrLevel = 0;
   let adsrState = 0;
   let adsrAttackMode = 0;
   let adsrAttackRate = 0;
-  let adsrDecayMode = 0;
   let adsrDecayRate = 0;
   let adsrSustainMode = 0;
   let adsrSustainRate = 0;
   let adsrSustainLevel = 0;
   let adsrSustainDirection = 0;
-  let adsrLinearSustainRate = 0;
   let adsrReleaseMode = 0;
   let adsrReleaseRate = 0;
-  let adsrLinearReleaseRate = 0;
+  let sweepLeft = [];
+  let sweepRight = [];
 
   let pitchStep = 0;
   let pitchCounter = BLOCKSIZE;
@@ -55,73 +29,35 @@ mdlr('enge:psx:spu-voice', m => {
 
   let regs = new Uint16Array(16);
 
-  const adsrExponentialRateOffset = [
-    0 + 32,
-    4 + 32,
-    6 + 32,
-    8 + 32,
-    9 + 32,
-    10 + 32,
-    11 + 32,
-    12 + 32,
-  ];
+  const adsrStep = (direction, mode, rate, level = adsrLevel) => {
+    const table = direction ? envelopeExponentialDecrease : envelopeExponentialIncrease;
+    const offset = mode ? table[level >>> 28] : 0;
+    const step = envelopStep[rate + offset];
+    return direction ? -step : step;
+  }
 
   const adsrAttack = () => {
-    if (adsrAttackMode) {
-      // exponential attack
-      if (adsrLevel < 0x60000000) {
-        adsrLevel += rateTable[adsrAttackRate - 0x10 + 32];
-      }
-      else {
-        adsrLevel += rateTable[adsrAttackRate - 0x18 + 32];
-      }
-    }
-    else {
-      // linear attack
-      adsrLevel += rateTable[adsrAttackRate - 0x10 + 32];
-    }
+    adsrLevel += adsrStep(0, adsrAttackMode, adsrAttackRate);
+
     if (adsrLevel >= 0x7FFFFFFF) {
       adsrState = 2; // decay
     }
   }
 
   const adsrDecay = () => {
-    if (adsrDecayMode) {
-      const offset = adsrExponentialRateOffset[(adsrLevel >> 29) & 0x7] - 0x18;
-      adsrLevel -= rateTable[adsrDecayRate + offset];
-    }
-    if (((adsrLevel >> 28) & 0xF) <= adsrSustainLevel) {
+    adsrLevel += adsrStep(1, 1, adsrDecayRate);
+
+    if (((adsrLevel >>> 27) & 15) <= adsrSustainLevel) {
       adsrState = 3; // sustain
     }
   }
 
   const adsrSustain = () => {
-    if (!adsrSustainMode) {
-      adsrLevel += adsrLinearSustainRate;
-      return;
-    }
-
-    if (adsrSustainDirection == 0) {
-      if (adsrLevel < 0x60000000)
-        adsrLevel += rateTable[adsrSustainRate - 0x10 + 32];
-
-      else
-        adsrLevel += rateTable[adsrSustainRate - 0x18 + 32];
-    }
-    else {
-      const offset = adsrExponentialRateOffset[(adsrLevel >> 29) & 0x7] - 0x1B;
-      adsrLevel -= rateTable[adsrSustainRate + offset];
-    }
+    adsrLevel += adsrStep(adsrSustainDirection, adsrSustainMode, adsrSustainRate);
   }
 
   const adsrRelease = () => {
-    if (!adsrReleaseMode) {
-      adsrLevel -= adsrLinearReleaseRate;
-    }
-    else {
-      const offset = adsrExponentialRateOffset[(adsrLevel >> 29) & 0x7] - 0x18;
-      adsrLevel -= rateTable[adsrReleaseRate + offset];
-    }
+    adsrLevel += adsrStep(1, adsrReleaseMode, adsrReleaseRate);
   }
 
   const mixADSR = () => {
@@ -142,7 +78,9 @@ mdlr('enge:psx:spu-voice', m => {
         break;
     }
 
-    if (adsrLevel > 0x7FFFFFFF) adsrLevel = 0x7FFFFFFF;
+    if (adsrLevel > 0x7FFFFFFF) {
+      adsrLevel = 0x7FFFFFFF;
+    }
     if (adsrLevel < 0) {
       if (adsrState === 4) {
         if (id !== 1 && id !== 3) {
@@ -154,6 +92,7 @@ mdlr('enge:psx:spu-voice', m => {
 
     return (regs[0x0c] = adsrLevel >>> 16) / 0x8000;
   }
+
   const startAdsrAttack = () => {
     adsrState = 1;
     adsrLevel = 0;
@@ -172,16 +111,16 @@ mdlr('enge:psx:spu-voice', m => {
     const k0 = xa2flt[filter + 0];
     const k1 = xa2flt[filter + 1];
 
-    let sample = 0;
-    let value;
+    let sample = -1;
     for (let offset = 2; offset < 16; ++offset) {
       let data = ram[blockAddress + offset];
       let index = ((shift << 8) + data) << 1;
+      let value;
 
-      buffer[sample++] = value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 0];
-      s1 = s0; s0 = value;
-      buffer[sample++] = value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 1];
-      s1 = s0; s0 = value;
+      value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 0];
+      s1 = s0; s0 = buffer[++sample] = value;
+      value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 1];
+      s1 = s0; s0 = buffer[++sample] = value;
     }
 
     if ((flags & 4) === 4) {
@@ -198,10 +137,11 @@ mdlr('enge:psx:spu-voice', m => {
         adsrLevel = 0;
       }
     }
+
   }
 
   const voice = {
-    capture :0,
+    capture: 0,
 
     setId(voiceId) {
       id = voiceId;
@@ -211,7 +151,7 @@ mdlr('enge:psx:spu-voice', m => {
     },
 
     advance(ram, audio) {
-      if (!adsrState) return adsrState;
+      if (!adsrState) return adsrState; // note: this is an optimisation that behave differently then the hardware does.
 
       pitchCounter += pitchStep;
 
@@ -225,8 +165,8 @@ mdlr('enge:psx:spu-voice', m => {
       const sample = buffer[pitchCounter >>> 12];
       const adsrVolume = mixADSR();
 
-      audio[0] = (sample * adsrVolume * volumeLeft)
-      audio[1] = (sample * adsrVolume * volumeRight);
+      audio[0] = (sample * adsrVolume * volumeLeft * mixSweep(sweepLeft))
+      audio[1] = (sample * adsrVolume * volumeRight * mixSweep(sweepRight));
 
       return adsrState;
     },
@@ -240,7 +180,7 @@ mdlr('enge:psx:spu-voice', m => {
       s1 = 0.0;
       pitchCounter = BLOCKSIZE;
       blockAddress = regs[0x6] << 3;
-      repeatAddress = regs[0x0e] << 3;
+      repeatAddress = regs[0xe] << 3;
       startAdsrAttack();
     },
 
@@ -268,10 +208,22 @@ mdlr('enge:psx:spu-voice', m => {
       regs[addr & 15] = data;
       switch (addr % 16) {
         case 0x0:
-          volumeLeft = spu.getVolume(data);
+          if (data & 0x8000) {
+            sweepLeft = getEnvelope(data);
+          }
+          else {
+            sweepLeft = [];
+            volumeLeft = spu.getVolume(data);
+          }
           break;
         case 0x2:
-          volumeRight = spu.getVolume(data);
+          if (data & 0x8000) {
+            sweepRight = getEnvelope(data);
+          }
+          else {
+            sweepRight = [];
+            volumeRight = spu.getVolume(data);
+          }
           break;
         case 0x4:
           pitchStep = Math.min(data, 0x4000);
@@ -280,25 +232,18 @@ mdlr('enge:psx:spu-voice', m => {
         //   blockAddress = data << 3;
         //   break;
         case 0x8:
-          adsrAttackMode = (data & 0x8000) >>> 15;
-          adsrAttackRate = (((data & 0x7F00) >>> 8) ^ 0x7F);
-          adsrDecayMode = 1;
-          adsrDecayRate = (((data & 0x00F0) >>> 4) ^ 0x1F) << 2;
-          adsrSustainLevel = (data & 0x000F) >>> 0;
+          adsrAttackMode = data >>> 15;
+          adsrAttackRate = ((data >>> 8) & 127);
+          adsrDecayRate = ((data >>> 4) & 15) << 3;
+          adsrSustainLevel = 1 + (data & 15);
           break;
         case 0xa:
-          adsrSustainMode = (data & 0x8000) >>> 15;
-          adsrSustainDirection = (data & 0x4000) >>> 14;
-          adsrSustainRate = (((data & 0x1FC0) >>> 6) ^ 0x7F);
+          adsrSustainMode = data >>> 15;
+          adsrSustainDirection = (data >>> 14) & 1;
+          // adsrSustainRate = (((data & 0x1FC0) >>> 6) ^ 0x7F);
+          adsrSustainRate = (((data & 0x1FC0) >>> 6));
           adsrReleaseMode = (data & 0x0020) >>> 5;
           adsrReleaseRate = (((data & 0x001F) >>> 0) ^ 0x1F) << 2;
-          adsrLinearReleaseRate = rateTable[adsrReleaseRate - 0x0C + 32];
-          if (adsrSustainDirection == 0) {
-            adsrLinearSustainRate = rateTable[adsrSustainRate - 0x10 + 32];
-          }
-          else {
-            adsrLinearSustainRate = -rateTable[adsrSustainRate - 0x0F + 32];
-          }
           break;
         // case 0xc:
         //   adsrLevel = data << 16;
@@ -308,6 +253,39 @@ mdlr('enge:psx:spu-voice', m => {
           break;
       }
     }
+  }
+
+  const envelopStep = [];
+
+  const envelopeExponentialIncrease = [0, 0, 0, 0, 0, 0, 8, 8];
+  const envelopeExponentialDecrease = [12, 8, 6, 4, 3, 2, 1, 0];
+
+  const getEnvelope = (data) => {
+    const mode = (data & (1 << 14)) ? 1 : 0;
+    const direction = (data & (1 << 13)) ? 1 : 0;
+    const rate = (data >> 0) & 127;
+
+    return [mode, direction, rate, adsrLevel];
+  }
+
+  const mixSweep = (sweep) => {
+    const { mode, direction, rate, level} = sweep;
+
+    if (mode === undefined) return 1.0;
+
+    sweep[3] += adsrStep(direction, mode, rate, level);
+
+    return (sweep[3] >>> 16) / 0x8000;
+  }
+
+  for (let i = 0; i < 140; ++i) {
+    const step = i & 3;
+    const shift = i >> 2;
+
+    const $cycles = 1 << Math.max(0, shift - 11);
+    const $step = (5 + step) << Math.max(0, 11 - shift);
+
+    envelopStep[i] = (($step / $cycles * 0x10000) >>> 0);
   }
 
   return { voice };

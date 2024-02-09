@@ -227,7 +227,7 @@ mdlr('enge:webgl2', m => {
         case 3: {
           gl_enable(BLEND);
           gl_blendEquationSeparate(FUNC_ADD, FUNC_ADD);
-          gl_blendFuncSeparate(gl.ONE_MINUS_CONSTANT_ALPHA, ONE,ONE, ZERO);
+          gl_blendFuncSeparate(gl.ONE_MINUS_CONSTANT_ALPHA, ONE, ONE, ZERO);
           gl_blendColor(0.0, 0.0, 0.0, 0.75);
         } break;
         case 4: {
@@ -441,10 +441,10 @@ mdlr('enge:webgl2', m => {
       $gpu.daM = true;
     }
 
-    onVBlankBegin() {
+    onVBlankEnd() {
     }
 
-    onVBlankEnd() {
+    onVBlankBegin() {
       ++this.fpsCounter;
       if (this.seenRender) {
         flushVertexBuffer();
@@ -868,51 +868,49 @@ mdlr('enge:webgl2:utils', m => {
     const view = new DataView(buffer.buffer);
 
     const bytesPerVertex = 24;
-    buffer.addVertex = function (x, y, u, v, c = 0x00808080, cl) {
+    let index = 0;
+    buffer.addVertex = (x, y, u, v, c = 0x00808080, cl) => {
       if (reverse) {
-        this.index -= bytesPerVertex;
+        index -= bytesPerVertex;
       }
-      view.setInt16(this.index + 0, x, true);
-      view.setInt16(this.index + 2, y, true);
-      view.setInt16(this.index + 4, primitiveId, true);
-      view.setInt16(this.index + 6, u, true);
-      view.setInt16(this.index + 8, v, true);
-      view.setUint32(this.index + 10, c, true);
-      view.setUint32(this.index + 14, gpu.twin, true);
-      view.setUint16(this.index + 18, cl >>> 0, true);
-      view.setUint8(this.index + 20, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
+      view.setInt16(index + 0, x, true);
+      view.setInt16(index + 2, y, true);
+      view.setInt16(index + 4, primitiveId, true);
+      view.setInt16(index + 6, u, true);
+      view.setInt16(index + 8, v, true);
+      view.setUint32(index + 10, c, true);
+      view.setUint32(index + 14, gpu.twin, true);
+      view.setUint16(index + 18, cl >>> 0, true);
+      view.setUint8(index + 20, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
       if (!reverse) {
-        this.index += bytesPerVertex;
+        index += bytesPerVertex;
       }
     }
 
-    buffer.reset = function () {
-      this.index = reverse ? this.length : 0;
+    buffer.reset = () => {
+      index = reverse ? buffer.length : 0;
     }
 
-    buffer.size = function () {
+    buffer.size = () => {
       if (reverse) {
-        return (this.length - this.index) / bytesPerVertex;
+        return (buffer.length - index) / bytesPerVertex;
       }
-      return this.index / bytesPerVertex;
+      return index / bytesPerVertex;
     }
 
-    buffer.view = function () {
+    buffer.view = () => {
       if (reverse) {
-        return new Uint8Array(this.buffer, this.index, this.length - this.index);
+        return new Uint8Array(buffer.buffer, index, buffer.length - index);
       }
-      return new Uint8Array(this.buffer, 0, this.index);
+      return new Uint8Array(buffer.buffer, 0, index);
     }
 
-    buffer.base = function () {
-      return reverse ? this.index : 0;
+    buffer.base = () => {
+      return reverse ? index : 0;
     }
-    // buffer.canHold = function(vertices) {
-    //   return (this.index + (vertices * bytesPerVertex)) < this.length;
-    // }
 
-    buffer.bytes = function () {
-      return reverse ? this.length - this.index : this.index;
+    buffer.bytes = () => {
+      return reverse ? buffer.length - index : index;
     }
 
     buffer.reset();

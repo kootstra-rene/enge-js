@@ -262,16 +262,7 @@ mdlr('enge:psx:gpu', m => {
           gpu.status |= ((data & 0x40) ? 0x010000 : 0x000000);
           break;
         case 0x10:
-          switch (data & 0xf) {
-            case 0x02:
-            case 0x03:
-            case 0x04:
-            case 0x05:
-            case 0x07:
-            case 0x08:
-              gpu.result = gpu.info[data & 0xf];
-              break;
-          }
+          gpu.result = gpu.info[data & 0xf];
           break;
         case 0x40: break; // ???
         default: console.warn('gpu.cmnd' + hex(data >>> 24, 2));

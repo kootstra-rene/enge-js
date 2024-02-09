@@ -565,52 +565,56 @@ mdlr('enge:psx:gte', m => {
     },
 
     command: (commandId) => {
-      sf = (commandId >> 19) & 0x1 ? 4096.0 : 1.0;
-      isf = (commandId >> 19) & 0x1 ? 1.0 : 4096.0;
-      lm = (commandId >> 10) & 0x1;
+      sf = (commandId >> 19) & 1 ? 4096.0 : 1.0;
+      isf = (commandId >> 19) & 1 ? 1.0 : 4096.0;
+      lm = (commandId >> 10) & 1;
 
       regs[0x3f] = 0;
 
-      switch (commandId & 0x3f) {
-        case 0x01: rtps(v0); break;
-        case 0x06: nclip(); break;
-        case 0x0c: op(); break;
-        case 0x10: dpcs(rgb[3]); break;
-        case 0x11: intpl(); break;
-        case 0x12: mvmva(commandId); break;
-        case 0x13: ncds(v0); break;
-        case 0x14: cdp(); break;
-        case 0x16: ncds(v0); ncds(v1); ncds(v2); break;
-        case 0x1b: nccs(v0); break;
-        case 0x1c: cc(); break;
-        case 0x1e: ncs(v0); break;
-        case 0x20: ncs(v0); ncs(v1); ncs(v2); break;
-        case 0x28: sqr(); break;
-        case 0x29: dcpl(); break;
-        case 0x2a: dpcs(rgb[0]); dpcs(rgb[0]); dpcs(rgb[0]); break;
-        case 0x2d: avsz3(); break;
-        case 0x2e: avsz4(); break;
-        case 0x30: rtps(v0); rtps(v1); rtps(v2); break;
-        case 0x3d: gpf(); break;
-        case 0x3e: gpl(); break;
-        case 0x3f: nccs(v0); nccs(v1); nccs(v2); break;
-        default: abort(hex(commandId, 5));
-      }
+      $command.get(commandId & 0x3f)(commandId);
     },
 
     cycles: (commandId) => $cycles.get(commandId & 0x3f) || 5
   };
 
+  const f1 = f => { f(v0) };
+  const f3 = f => { f(v0); f(v1); f(v2) };
+
+  const $command = new Map([
+    [0x01, _ => f1(rtps)],
+    [0x06, _ => nclip()],
+    [0x0c, _ => op()],
+    [0x10, _ => dpcs(rgb[3])],
+    [0x11, _ => intpl()],
+    [0x12, _ => mvmva(_)],
+    [0x13, _ => f1(ncds)],
+    [0x14, _ => cdp()],
+    [0x16, _ => f3(ncds)],
+    [0x1b, _ => f1(nccs)],
+    [0x1c, _ => cc()],
+    [0x1e, _ => f1(ncs)],
+    [0x20, _ => f3(ncs)],
+    [0x28, _ => sqr()],
+    [0x29, _ => dcpl()],
+    [0x2a, _ => {dpcs(rgb[0]); dpcs(rgb[0]); dpcs(rgb[0])}],
+    [0x2d, _ => avsz3()],
+    [0x2e, _ => avsz4()],
+    [0x30, _ => f3(rtps)],
+    [0x3d, _ => gpf()],
+    [0x3e, _ => gpl()],
+    [0x3f, _ => f3(nccs)],
+  ]);
+
   // flag bits
-  for (var i = 0; i <= 31; ++i) {
+  for (let i = 0; i <= 31; ++i) {
     flag[i] = (1 << i);
   }
 
-  for (var i = 23; i <= 30; ++i) {
+  for (let i = 23; i <= 30; ++i) {
     flag[i] |= 0x80000000;
   }
 
-  for (var i = 13; i <= 18; ++i) {
+  for (let i = 13; i <= 18; ++i) {
     flag[i] |= 0x80000000;
   }
 
