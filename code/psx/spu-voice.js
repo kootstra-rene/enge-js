@@ -242,7 +242,7 @@ mdlr('enge:psx:spu-voice', m => {
           adsrSustainDirection = (data >>> 14) & 1;
           adsrSustainRate = (data >>> 6) & 127;
           adsrReleaseMode = (data >>> 5) & 1;
-          adsrReleaseRate = (data & 32) << 2;
+          adsrReleaseRate = (data & 31) << 2;
           break;
         // case 0xc:
         //   adsrLevel = data << 16;
