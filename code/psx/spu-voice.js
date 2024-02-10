@@ -232,18 +232,17 @@ mdlr('enge:psx:spu-voice', m => {
         //   blockAddress = data << 3;
         //   break;
         case 0x8:
-          adsrAttackMode = data >>> 15;
+          adsrAttackMode = (data >>> 15) & 1
           adsrAttackRate = ((data >>> 8) & 127);
           adsrDecayRate = ((data >>> 4) & 15) << 3;
           adsrSustainLevel = 1 + (data & 15);
           break;
         case 0xa:
-          adsrSustainMode = data >>> 15;
+          adsrSustainMode = (data >>> 15) & 1;
           adsrSustainDirection = (data >>> 14) & 1;
-          // adsrSustainRate = (((data & 0x1FC0) >>> 6) ^ 0x7F);
-          adsrSustainRate = (((data & 0x1FC0) >>> 6));
-          adsrReleaseMode = (data & 0x0020) >>> 5;
-          adsrReleaseRate = (((data & 0x001F) >>> 0) ^ 0x1F) << 2;
+          adsrSustainRate = (data >>> 6) & 127;
+          adsrReleaseMode = (data >>> 5) & 1;
+          adsrReleaseRate = (data & 32) << 2;
           break;
         // case 0xc:
         //   adsrLevel = data << 16;
@@ -283,7 +282,7 @@ mdlr('enge:psx:spu-voice', m => {
     const shift = i >> 2;
 
     const $cycles = 1 << Math.max(0, shift - 11);
-    const $step = (5 + step) << Math.max(0, 11 - shift);
+    const $step = (8 - step) << Math.max(0, 11 - shift);
 
     envelopStep[i] = (($step / $cycles * 0x10000) >>> 0);
   }
