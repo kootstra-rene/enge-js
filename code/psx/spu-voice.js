@@ -36,45 +36,30 @@ mdlr('enge:psx:spu-voice', m => {
     return direction ? -step : step;
   }
 
-  const adsrAttack = () => {
-    adsrLevel += adsrStep(0, adsrAttackMode, adsrAttackRate);
-
-    if (adsrLevel >= 0x7FFFFFFF) {
-      adsrState = 2; // decay
-    }
-  }
-
-  const adsrDecay = () => {
-    adsrLevel += adsrStep(1, 1, adsrDecayRate);
-
-    if (((adsrLevel >>> 27) & 15) <= adsrSustainLevel) {
-      adsrState = 3; // sustain
-    }
-  }
-
-  const adsrSustain = () => {
-    adsrLevel += adsrStep(adsrSustainDirection, adsrSustainMode, adsrSustainRate);
-  }
-
-  const adsrRelease = () => {
-    adsrLevel += adsrStep(1, adsrReleaseMode, adsrReleaseRate);
-  }
-
   const mixADSR = () => {
     switch (adsrState) {
       case 0x0:
-        return 0.0;
+        adsrLevel = 0.0;
       case 0x1:
-        adsrAttack();
+        adsrLevel += adsrStep(0, adsrAttackMode, adsrAttackRate);
+        if (adsrLevel >= 0x7FFFFFFF) {
+          adsrState = 2;
+        }
         break;
       case 0x2:
-        adsrDecay();
+        adsrLevel += adsrStep(1, 1, adsrDecayRate);
+        if (((adsrLevel >>> 27) & 15) <= adsrSustainLevel) {
+          adsrState = 3;
+        }
         break;
       case 0x3:
-        adsrSustain();
+        adsrLevel += adsrStep(adsrSustainDirection, adsrSustainMode, adsrSustainRate);
         break;
       case 0x4:
-        adsrRelease();
+        adsrLevel += adsrStep(1, adsrReleaseMode, adsrReleaseRate);
+        if (adsrLevel <= 0) {
+          adsrState = 0;
+        }
         break;
     }
 
@@ -82,11 +67,6 @@ mdlr('enge:psx:spu-voice', m => {
       adsrLevel = 0x7FFFFFFF;
     }
     if (adsrLevel < 0) {
-      if (adsrState === 4) {
-        if (id !== 1 && id !== 3) {
-          adsrState = 0;
-        }
-      }
       adsrLevel = 0;
     }
 
@@ -259,6 +239,8 @@ mdlr('enge:psx:spu-voice', m => {
   const envelopeExponentialIncrease = [0, 0, 0, 0, 0, 0, 8, 8];
   const envelopeExponentialDecrease = [12, 8, 6, 4, 3, 2, 1, 0];
 
+  const max = (a, b) => a > b ? a : b;
+
   const getEnvelope = (data) => {
     const mode = (data & (1 << 14)) ? 1 : 0;
     const direction = (data & (1 << 13)) ? 1 : 0;
@@ -268,7 +250,7 @@ mdlr('enge:psx:spu-voice', m => {
   }
 
   const mixSweep = (sweep) => {
-    const { mode, direction, rate, level} = sweep;
+    const { mode, direction, rate, level } = sweep;
 
     if (mode === undefined) return 1.0;
 
@@ -281,8 +263,8 @@ mdlr('enge:psx:spu-voice', m => {
     const step = i & 3;
     const shift = i >> 2;
 
-    const $cycles = 1 << Math.max(0, shift - 11);
-    const $step = (8 - step) << Math.max(0, 11 - shift);
+    const $cycles = 1 << max(0, shift - 11);
+    const $step = (8 - step) << max(0, 11 - shift);
 
     envelopStep[i] = (($step / $cycles * 0x10000) >>> 0);
   }

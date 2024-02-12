@@ -1,10 +1,14 @@
 mdlr('enge:psx:spu', m => {
 
+  const reverb = m.require('enge:psx:spu-reverb');
+
   const frameCount = (1.0 * 44100) >> 1;
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
   const view = new DataView(memory.buffer);
+
+  const regs = new Map;
 
   const init = () => {
     const context = new AudioContext();
@@ -22,10 +26,6 @@ mdlr('enge:psx:spu', m => {
     source.connect(context.destination);
     source.start();
   }
-
-  const setReverbRegister = (addr, data) => {
-    // todo: implement reverb later
-  };
 
   psx.addEvent(0, (self) => {
     psx.updateEvent(self, 768); // 1 sample
@@ -71,6 +71,12 @@ mdlr('enge:psx:spu', m => {
     l += cdSampleL;
     r += cdSampleR;
 
+    if (SPUCNT & 0x80) {
+      const [rl, rr] = reverb.advance(totalSamples, l, r, view);
+      l += rl;
+      r += rr;
+    }
+
     l = (l * mainVolumeLeft);
     r = (r * mainVolumeRight);
 
@@ -99,14 +105,10 @@ mdlr('enge:psx:spu', m => {
 
   let mainVolumeLeft = 0.0;
   let mainVolumeRight = 0.0;
-  let reverbVolumeLeft = 0.0;
-  let reverbVolumeRight = 0.0;
   let cdVolumeLeft = 0.0;
   let cdVolumeRight = 0.0;
   let extVolumeLeft = 0.0;
   let extVolumeRight = 0.0;
-
-  let reverbOffset = 0;
 
   let spu = {
     ENDX: 0x00ffffff,
@@ -133,21 +135,29 @@ mdlr('enge:psx:spu', m => {
             const id = (addr - 0x1c00) >> 4;
             return voices[id].rd16(addr & 0xf);
           }
-          return map16[((0x01800000 + addr) & 0x01ffffff) >>> 1];
+          if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
+            return reverb.rd16(addr);
+          }
+          return regs.get(addr);
       }
     },
 
     setInt16: (addr, data) => {
       data &= 0xffff;
+      regs.set(addr, data);
 
       switch (addr) {
-        case 0x1d80: mainVolumeLeft = spu.getVolume(data);
+        case 0x1d80:
+          mainVolumeLeft = spu.getVolume(data);
           break;
-        case 0x1d82: mainVolumeRight = spu.getVolume(data);
+        case 0x1d82:
+          mainVolumeRight = spu.getVolume(data);
           break;
-        case 0x1d84: reverbVolumeLeft = spu.getVolume(data);
+        case 0x1d84:
+          reverb.wr16(addr, data);
           break;
-        case 0x1d86: reverbVolumeRight = spu.getVolume(data);
+        case 0x1d86:
+          reverb.wr16(addr, data);
           break;
         case 0x1d88: for (let i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue;
@@ -207,22 +217,28 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1da0:  // ??? Legend of Dragoon
           break
-        case 0x1da2: reverbOffset = data << 3;
+        case 0x1da2:
+          reverb.wr16(addr, data);
           break
         case 0x1da4: irqOffset = data << 3;
           break
         case 0x1da6: ramOffset = data << 3;
           break
         case 0x1da8:
-          // memory[ramOffset + 0] = (data >> 0) & 0xff;
-          // memory[ramOffset + 1] = (data >> 8) & 0xff;
           ramOffset = ramOffset % memory.byteLength;
           view.setInt16(ramOffset, data, true);
           ramOffset += 2;
           spu.checkIrq();
           break
         case 0x1dac: break
-        case 0x1daa: SPUCNT = data;
+        case 0x1daa:
+          if (!(SPUCNT & 0x80) && (data & 0x80)) {
+            console.log('reverb', 'on');
+          }
+          if ((SPUCNT & 0x80) && !(data & 0x80)) {
+            console.log('reverb', 'off');
+          }
+          SPUCNT = data;
           if ((!left || !right) && SPUCNT & 0x8000) {
             init();
           }
@@ -256,14 +272,14 @@ mdlr('enge:psx:spu', m => {
           break
         default:
           if ((addr >= 0x1c00) && (addr < 0x1d80)) {
-            const id = ((addr - 0x1c00) / 16) | 0;
+            const id = (addr - 0x1c00) >>> 4;
             const voice = voices[id];
 
-            voice.wr16(addr & 0xf, data);
+            voice.wr16(addr & 15, data);
             break;
           }
           if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
-            setReverbRegister(addr, data);
+            reverb.wr16(addr, data);
             break;
           }
           abort(hex(addr, 4));
