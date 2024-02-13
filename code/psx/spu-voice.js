@@ -121,6 +121,7 @@ mdlr('enge:psx:spu-voice', m => {
   }
 
   const voice = {
+    reverb: 0,
     capture: 0,
 
     setId(voiceId) {
@@ -164,8 +165,9 @@ mdlr('enge:psx:spu-voice', m => {
       startAdsrAttack();
     },
 
-    echoOn() {
+    echoOn(enabled) {
       // todo: reverb
+      voice.reverb = enabled;
     },
 
     modOn() {

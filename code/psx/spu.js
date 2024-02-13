@@ -42,12 +42,17 @@ mdlr('enge:psx:spu', m => {
     spu.checkIrq();
 
     let audio = [0.0, 0.0];
+    let reverbLeft = 0.0, reverbRight = 0.0;
     for (let voice of voices) {
       if (!voice.advance(memory, audio)) continue;
 
       l += audio[0];
       r += audio[1];
 
+      if (voice.reverb) {
+        reverbLeft += audio[0];
+        reverbRight += audio[1];
+      }
       if (voice.capture) {
         // todo: verify cacpture left or right channel
         const mono = (audio[0] * 0x8000) >> 0;
@@ -71,8 +76,12 @@ mdlr('enge:psx:spu', m => {
     l += cdSampleL;
     r += cdSampleR;
 
+    if (SPUCNT & 0x04) {
+      reverbLeft += cdSampleL;
+      reverbRight += cdSampleR;
+    }
     if (SPUCNT & 0x80) {
-      const [rl, rr] = reverb.advance(totalSamples, l, r, view);
+      const [rl, rr] = reverb.advance(totalSamples, reverbLeft, reverbRight, view);
       l += rl;
       r += rr;
     }
@@ -202,13 +211,13 @@ mdlr('enge:psx:spu', m => {
         }
           break
         case 0x1d98: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue;
-          voices[i].echoOn()
+          // if ((data & (1 << i)) === 0) continue;
+          voices[i].echoOn(data & (1 << i))
         }
           break
         case 0x1d9a: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue;
-          voices[16 + i].echoOn()
+          // if ((data & (1 << i)) === 0) continue;
+          voices[16 + i].echoOn(data & (1 << i))
         }
           break
         case 0x1d9c:  // readonly Voice 0..15 on/off
