@@ -50,3 +50,4 @@ I have started a [compatibility list](./compatability.md). So feel free to updat
 # Release notes
 
 2024-01-31: publish latest state. [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) is running smoothly if your hardware supports it.
+2024-02-13: SPU envelope refactors and added SPU Reverb for voices and CD-Audio.
