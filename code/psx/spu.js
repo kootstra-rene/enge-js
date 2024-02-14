@@ -12,6 +12,7 @@ mdlr('enge:psx:spu', m => {
 
   const init = () => {
     const context = new AudioContext();
+    const gainNode = context.createGain();
     const buffer = context.createBuffer(2, frameCount, context.sampleRate);
     const source = context.createBufferSource();
 
@@ -23,9 +24,16 @@ mdlr('enge:psx:spu', m => {
     source.playbackRate.value = 44100 / context.sampleRate;
     source.buffer = buffer;
     source.loop = true;
-    source.connect(context.destination);
+    source.connect(gainNode);
+    gainNode.connect(context.destination);
     source.start();
+
+    spu.setVolume = (volume) => gainNode.gain.setValueAtTime(volume, context.currentTime);
+
+    spu.setVolume(0.75);
   }
+
+
 
   psx.addEvent(0, (self) => {
     psx.updateEvent(self, 768); // 1 sample
@@ -131,7 +139,7 @@ mdlr('enge:psx:spu', m => {
     },
 
     getVolume: data => {
-      return ((data << 17) >> 16) / 0x8000;
+      return Math.abs((data << 17) >> 16) / 0x8000;
     },
 
     getInt16: addr => {
@@ -291,7 +299,8 @@ mdlr('enge:psx:spu', m => {
             reverb.wr16(addr, data);
             break;
           }
-          abort(hex(addr, 4));
+          console.log('spu.setInt16:', hex(addr, 4), hex(data));
+        // abort(hex(addr, 4));
       }
     },
 
@@ -299,7 +308,7 @@ mdlr('enge:psx:spu', m => {
       if (!(addr & 0x007fffff)) return 0x10;
 
       let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
-      // clearCodeCache(addr, transferSize); // optimistice assumption (performance reasons)
+      clearCodeCache(addr, transferSize); // optimistice assumption (performance reasons)
 
       while (transferSize > 0) {
         ramOffset = ramOffset % memory.byteLength;

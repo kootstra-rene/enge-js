@@ -31,14 +31,14 @@ mdlr('enge:psx:mmu', m => {
       case 0x1054: return 0 >> 0;
       case 0x1060: return map8[addr >>> 0] >> 0;
       case 0x1070: return (cpu.istat << 24) >> 24;
-      case 0x10f0: return (dma.rd16r10f0() << 24) >> 24;
+      case 0x10f0: return dma.rd16r10f0();
       case 0x10f6: return dma.rd08r10f6();
       case 0x1800: return cdr.rd08r1800();
       case 0x1801: return cdr.rd08r1801();
       case 0x1802: return cdr.rd08r1802();
       case 0x1803: return cdr.rd08r1803();
-      case 0x1814: return (gpu.rd32r1814() << 24) >> 24;
-      case 0x1824: return (mdc.rd32r1824() << 24) >> 24;
+      case 0x1814: return gpu.rd32r1814();
+      case 0x1824: return mdc.rd32r1824();
       default:
         if (addr < 0x01801000) {
           psx.clock -= 3;
@@ -96,16 +96,16 @@ mdlr('enge:psx:mmu', m => {
       case 0x104a: return joy.rd16r104a();
       case 0x104e: return joy.rd16r104e();
       case 0x1054: return 0x00;
-      case 0x105a: return 0x00;
-      case 0x105e: return 0x00;
+      case 0x105a: return 0;
+      case 0x105e: return 0;
       case 0x1060: return map16[addr >>> 1] >> 0;
       case 0x1070: return cpu.istat;
       case 0x1074: return cpu.imask;
       case 0x10f0: return dma.rd16r10f0();
-      case 0x1130: return 0 >> 0;
+      case 0x1130: return 0;
       case 0x1800: return cdr.rd08r1800();
-      case 0x1814: return (gpu.rd32r1814() << 16) >> 16;
-      case 0x1824: return (mdc.rd32r1824() << 16) >> 16;
+      case 0x1814: return gpu.rd32r1814();
+      case 0x1824: return mdc.rd32r1824();
       default:
         if (addr < 0x01801000) {
           psx.clock -= 3;
@@ -299,6 +299,10 @@ mdlr('enge:psx:mmu', m => {
     if ((base >= 0x01800000) && (base < 0x01802000)) {
       map16[base >>> 1] = data;
       if (base >= 0x01801000) hwWrite16(base, data);
+      return;
+    }
+    if ((base >= 0x01802000) && (base < 0x01803000)) {
+      map16[base >>> 1] = data;
       return;
     }
     abort(hex(base, 8));
