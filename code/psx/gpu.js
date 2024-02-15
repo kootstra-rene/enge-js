@@ -631,7 +631,6 @@ mdlr('enge:psx:gpu', m => {
         addr = addr & 0x001fffff;
         // seen.add(addr);
         let header = ram.getInt32(addr, true);
-        dma.r10e0n = header;
         let nitem = header >>> 24;
 
         addr = addr + 4; ++words;

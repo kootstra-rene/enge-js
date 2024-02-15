@@ -19,6 +19,8 @@ mdlr('enge:psx:mmu', m => {
     psx.clock += 3;
 
     switch (true) {
+      case reg >= 0x1080 && reg < 0x1100:
+        return dma.rd08(reg);
       case reg >= 0x1100 && reg < 0x1130:
         return rtc.rd32(reg);
       case reg >= 0x1C00 && reg < 0x2000:
@@ -31,8 +33,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x1054: return 0 >> 0;
       case 0x1060: return map8[addr >>> 0] >> 0;
       case 0x1070: return (cpu.istat << 24) >> 24;
-      case 0x10f0: return dma.rd16r10f0();
-      case 0x10f6: return dma.rd08r10f6();
       case 0x1800: return cdr.rd08r1800();
       case 0x1801: return cdr.rd08r1801();
       case 0x1802: return cdr.rd08r1802();
@@ -84,6 +84,8 @@ mdlr('enge:psx:mmu', m => {
     psx.clock += 3;
 
     switch (true) {
+      case reg >= 0x1080 && reg < 0x1100:
+        return dma.rd16(reg);
       case reg >= 0x1100 && reg < 0x1130:
         return rtc.rd32(reg);
       case reg >= 0x1C00 && reg < 0x2000:
@@ -101,7 +103,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x1060: return map16[addr >>> 1] >> 0;
       case 0x1070: return cpu.istat;
       case 0x1074: return cpu.imask;
-      case 0x10f0: return dma.rd16r10f0();
       case 0x1130: return 0;
       case 0x1800: return cdr.rd08r1800();
       case 0x1814: return gpu.rd32r1814();
@@ -152,6 +153,8 @@ mdlr('enge:psx:mmu', m => {
     psx.clock += 3;
 
     switch (true) {
+      case reg >= 0x1080 && reg < 0x1100:
+        return dma.rd32(reg);
       case reg >= 0x1100 && reg < 0x1130:
         return rtc.rd32(reg);
       // case reg >= 0x1C00 && reg < 0x2000:
@@ -167,20 +170,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x1060: return map[addr >>> 2] >> 0;
       case 0x1070: return cpu.istat >> 0;
       case 0x1074: return cpu.imask >> 0;
-      case 0x1080: return dma.r1080 >> 0;
-      case 0x1088: return dma.r1088 >> 0;
-      case 0x1090: return dma.r1090 >> 0;
-      case 0x1098: return dma.r1098 >> 0;
-      case 0x10a0: return dma.r10a0 >> 0;
-      case 0x10a8: return dma.r10a8 >> 0;
-      case 0x10b0: return dma.r10b0 >> 0;
-      case 0x10b8: return dma.r10b8 >> 0;
-      case 0x10c0: return dma.r10c0 >> 0;
-      case 0x10c8: return dma.r10c8 >> 0;
-      case 0x10e0: return dma.r10e0 >> 0;
-      case 0x10e8: return dma.r10e8 >> 0;
-      case 0x10f0: return dma.rd32r10f0() >> 0;
-      case 0x10f4: return dma.rd32r10f4() >> 0;
       case 0x1800: return cdr.rd08r1800();
       case 0x1810: return gpu.rd32r1810() >> 0;
       case 0x1814: return gpu.rd32r1814() >> 0;
@@ -232,9 +221,16 @@ mdlr('enge:psx:mmu', m => {
   }
 
   const hwWrite8 = (addr, data) => {
+    const reg = addr & 0x3fff;
+
+    switch (true) {
+      case reg >= 0x1080 && reg < 0x1100:
+        dma.wr08(reg, data);
+        return;
+    }
+
     switch (addr & 0x3fff) {
       case 0x1040: return joy.wr08r1040(data);
-      case 0x10f6: return dma.wr08r10f6(data);
       case 0x1800: return cdr.wr08r1800(data);
       case 0x1801: return cdr.wr08r1801(data);
       case 0x1802: return cdr.wr08r1802(data);
@@ -266,6 +262,9 @@ mdlr('enge:psx:mmu', m => {
     const reg = addr & 0x3fff;
 
     switch (true) {
+      case reg >= 0x1080 && reg < 0x1100:
+        dma.wr16(reg, data);
+        return;
       case reg >= 0x1100 && reg < 0x1130:
         rtc.wr32(reg, data);
         return;
@@ -284,7 +283,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x105e: return;
       case 0x1070: cpu.istat &= ((data & 0xffff) & cpu.imask); return;
       case 0x1074: cpu.imask = data; return;
-      case 0x10f0: return dma.wr32r10f0(data);
     }
     abort(hex(addr, 8));
   }
@@ -312,6 +310,9 @@ mdlr('enge:psx:mmu', m => {
     const reg = addr & 0x3fff;
 
     switch (true) {
+      case reg >= 0x1080 && reg < 0x1100:
+        dma.wr32(reg, data);
+        return;
       case reg >= 0x1100 && reg < 0x1130:
         rtc.wr32(reg, data);
         return;
@@ -334,26 +335,6 @@ mdlr('enge:psx:mmu', m => {
       case 0x1060: return;
       case 0x1070: cpu.istat &= (data & cpu.imask); return;
       case 0x1074: cpu.imask = data >>> 0; return;
-      case 0x1080: dma.r1080 = data >>> 0; return;
-      case 0x1084: dma.r1084 = data >>> 0; return;
-      case 0x1088: dma.wr32r1088(data); return;
-      case 0x1090: dma.r1090 = data >>> 0; return;
-      case 0x1094: dma.r1094 = data >>> 0; return;
-      case 0x1098: dma.wr32r1098(data); return;
-      case 0x10a0: dma.r10a0 = data >>> 0; return;
-      case 0x10a4: dma.r10a4 = data >>> 0; return;
-      case 0x10a8: dma.wr32r10a8(data); return;
-      case 0x10b0: dma.r10b0 = data >>> 0; return;
-      case 0x10b4: dma.r10b4 = data >>> 0; return;
-      case 0x10b8: dma.wr32r10b8(data); return;
-      case 0x10c0: dma.r10c0 = data >>> 0; return;
-      case 0x10c4: dma.r10c4 = data >>> 0; return;
-      case 0x10c8: dma.wr32r10c8(data); return;
-      case 0x10e0: dma.r10e0 = data >>> 0; return;
-      case 0x10e4: dma.r10e4 = data >>> 0; return;
-      case 0x10e8: dma.wr32r10e8(data); return;
-      case 0x10f0: dma.wr32r10f0(data); return;
-      case 0x10f4: dma.wr32r10f4(data); return;
       case 0x1810: gpu.wr32r1810(data); return;
       case 0x1814: gpu.wr32r1814(data); return;
       case 0x1820: mdc.wr32r1820(data); return;
