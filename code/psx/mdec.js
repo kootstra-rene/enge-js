@@ -310,7 +310,7 @@ mdlr('enge:psx:mdec', m => {
 
       addr = addr & 0x001fffff;
       const numberOfWords = (blck >>> 16) * (blck & 0xffff);
-      clearCodeCache(addr, numberOfWords << 2); // optimistice assumption (performance reasons)
+      // clearCodeCache(addr, numberOfWords << 2); // optimistice assumption (performance reasons)
 
       const blk = mdc.block;
       const end = addr + (numberOfWords << 2);

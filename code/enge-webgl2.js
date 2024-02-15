@@ -330,7 +330,7 @@ mdlr('enge:webgl2', m => {
 
       var x = $gpu.daX + ((data[1] << 21) >> 21);
       var y = $gpu.daY + ((data[1] << 5) >> 21);
-      var c = getColor(data, 0);
+      var c = getColor(data, 0, true);
       var w = (data[2] << 16) >> 16;
       var h = (data[2] >> 16);
       if (!w || !h) return;
@@ -409,7 +409,7 @@ mdlr('enge:webgl2', m => {
     updateDrawArea() {
       if ($gpu.daM) {
         flushVertexBuffer();
-        copyVramToShadowVram(this, true);
+        copyVramToShadowVram(true);
         flushDepth();
         $gpu.daM = false;
 
@@ -449,7 +449,7 @@ mdlr('enge:webgl2', m => {
       if (this.seenRender) {
         flushVertexBuffer();
         flushDepth();
-        copyVramToShadowVram(this, false, true);
+        copyVramToShadowVram(false, true);
 
         ++this.fpsRenderCounter;
         this.seenRender = false;
@@ -493,24 +493,9 @@ mdlr('enge:webgl2', m => {
     }
   }
 
-  function getColor(data, index = 0) {
-    return (data[0] & 0xff000000) | (data[index] & 0x00f8f8f8);
-
-    var c;
-    if (data[0] & 0x04000000) {
-      if (data[0] & 0x01000000) {
-        // blend texture
-        c = ((data[0] & 0xff000000) | (data[index] & 0x00ffffff));
-      }
-      else {
-        // raw texture
-        c = ((data[0] & 0xff000000) | (0x00808080));
-      }
-    }
-    else {
-      c = ((data[0] & 0xff000000) | (data[index] & 0x00ffffff));
-    }
-    return c;
+  function getColor(data, index = 0, forceFlat = false) {
+    const mask = forceFlat || (data[0] & 0x10000000) ? 0x00f8f8f8 : 0x00ffffff;
+    return (data[0] & 0xff000000) | (data[index] & mask);
   }
 
   function flushDepth() {
@@ -526,7 +511,7 @@ mdlr('enge:webgl2', m => {
     gl_disable(gl.DEPTH_TEST);
   }
 
-  function copyVramToShadowVram(renderer, old = false, display = false) {
+  function copyVramToShadowVram(old = false, display = false) {
     if (!display) {
       const X1 = 4 * (old ? $gpu.daLold : $gpu.daL);
       const Y1 = 4 * (old ? $gpu.daTold : $gpu.daT);
