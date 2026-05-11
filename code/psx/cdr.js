@@ -443,6 +443,7 @@ mdlr('enge:psx:cdr', m => {
       case 0x01:  //- CdlNop
         nevtctrl = 0xc4e1;
         break;
+      case 0x02:  //- CdlSetloc
       case 0x03:  //- CdlPlay
       case 0x0b:  //- CdlMute
       case 0x0c:  //- CdlDemute
@@ -460,7 +461,6 @@ mdlr('enge:psx:cdr', m => {
         break;
       case 0x0a:  //- CdlInit
         nevtctrl = 0x13cce;
-      case 0x02:  //- CdlSetloc
       case 0x06:  //- CdlReadN
       case 0x07:  //- CdlStandby
       case 0x08:  //- CdlStop
