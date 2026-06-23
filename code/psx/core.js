@@ -1,4 +1,4 @@
-mdlr('enge:psx:core', m => {
+mdlr('enge:psx:core', ({ include }) => {
 
   let lastId = 0;
 

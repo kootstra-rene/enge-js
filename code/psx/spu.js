@@ -1,6 +1,6 @@
-mdlr('enge:psx:spu', m => {
+mdlr('enge:psx:spu', ({ include }) => {
 
-  const reverb = m.require('enge:psx:spu-reverb');
+  const reverb = include('enge:psx:spu-reverb');
 
   const frameCount = (1.0 * 44100) >> 1;
 
@@ -368,7 +368,7 @@ mdlr('enge:psx:spu', m => {
   //- init
   for (let i = 0; i < 24; ++i) {
     // mdlr does not cache compiled modules, so this works perfectly
-    const { voice } = m.require('enge:psx:spu-voice');
+    const { voice } = include('enge:psx:spu-voice');
     voices[i] = voice.setId(i);
   }
 

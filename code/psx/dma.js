@@ -1,4 +1,4 @@
-mdlr('enge:psx:dma', m => {
+mdlr('enge:psx:dma', ({ include }) => {
 
   const dmaDebug = new URLSearchParams(window.location.search).has('debug-cd');
   const dmaLog = (...args) => {
@@ -27,9 +27,11 @@ mdlr('enge:psx:dma', m => {
   }
 
   const rd32r10f4 = () => {
-    // faulty needs more
     //IF b15=1 OR (b23=1 AND (b16-22 AND b24-30)>0) THEN b31=1 ELSE b31=0
-    return dicr & 0x7fffffff;
+    const flags = (dicr >> 24) & 0x7f;
+    const enables = (dicr >> 16) & 0x7f;
+    const master = ((dicr & 0x8000) || ((dicr & 0x800000) && (flags & enables))) ? 0x80000000 : 0;
+    return (dicr & 0x7fffffff) | master;
   }
 
   const wr08r10f6 = data => {
@@ -136,7 +138,8 @@ mdlr('enge:psx:dma', m => {
         default: abort(hex(ctrl));
       }
 
-      setEvent(eventDMA3, ((transferSize * (cdr.mode & 0x80) ? 0x1400 : 0x2800) / 0x100) >>> 0);
+      const rate = (cdr.mode & 0x80) ? 0x1400 : 0x2800;
+      setEvent(eventDMA3, ((transferSize * rate) / 0x100) >>> 0);
     }
     else {
       r10b8 &= 0xfeffffff;

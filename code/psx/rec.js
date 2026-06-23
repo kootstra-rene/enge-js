@@ -1,4 +1,4 @@
-mdlr('enge:psx:rec', m => {
+mdlr('enge:psx:rec', ({ include }) => {
 
   const getOF = (opcode) => {
     const offset = ((opcode << 16) >> 16);

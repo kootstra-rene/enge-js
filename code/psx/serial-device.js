@@ -1,6 +1,6 @@
-mdlr('enge:psx:serial-device', m => {
+mdlr('enge:psx:serial-device', ({ include }) => {
 
-  const { encode } = m.require('base64');
+  const { encode } = include('base64');
 
   const memory = new Uint8Array(128 * 1024);
 

@@ -1,26 +1,26 @@
-mdlr('enge:psx', m => {
+mdlr('enge:psx', ({ include }) => {
 
   Object.assign(window,
-    m.require('enge:psx:core'),
-    m.require('enge:psx:trace'),
+    include('enge:psx:core'),
+    include('enge:psx:trace'),
   );
 
   Object.assign(window,
-    m.require('enge:psx:serial'),
-    m.require('enge:psx:gamepad'),
+    include('enge:psx:serial'),
+    include('enge:psx:gamepad'),
 
-    m.require('enge:psx:cpu'),
-    m.require('enge:psx:cdr'),
-    m.require('enge:psx:mdec'),
-    m.require('enge:psx:gpu'),
-    m.require('enge:psx:gte'),
-    m.require('enge:psx:mmu'),
-    m.require('enge:psx:rec'),
-    m.require('enge:psx:spu'),
+    include('enge:psx:cpu'),
+    include('enge:psx:cdr'),
+    include('enge:psx:mdec'),
+    include('enge:psx:gpu'),
+    include('enge:psx:gte'),
+    include('enge:psx:mmu'),
+    include('enge:psx:rec'),
+    include('enge:psx:spu'),
   );
 
   Object.assign(window,
-    m.require('enge:psx:index'),
+    include('enge:psx:index'),
   );
 
 })

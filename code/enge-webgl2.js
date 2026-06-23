@@ -1,6 +1,6 @@
-mdlr('enge:webgl2', m => {
+mdlr('enge:webgl2', ({ include }) => {
 
-  const { createVertexBuffer, createProgramFromScripts } = m.require('enge:webgl2:utils');
+  const { createVertexBuffer, createProgramFromScripts } = include('enge:webgl2:utils');
 
   const $gpu = {
   };
@@ -746,7 +746,7 @@ mdlr('enge:webgl2', m => {
   window.renderer = new WebGLRenderer();
 })
 
-mdlr('enge:webgl2:utils', m => {
+mdlr('enge:webgl2:utils', ({ include }) => {
   /**
    * Creates and compiles a shader.
    *
@@ -919,13 +919,13 @@ mdlr('enge:webgl2:utils', m => {
 
 })
 
-mdlr('enge:psx:webgl2', m => {
+mdlr('enge:psx:webgl2', ({ include }) => {
 
   Object.assign(window,
-    m.require('enge:utils'),
+    include('enge:utils'),
   );
 
-  m.require('enge:webgl2');
-  m.require('enge:psx');
+  include('enge:webgl2');
+  include('enge:psx');
 
 })

@@ -1,4 +1,4 @@
-mdlr('enge:webgl', m => {
+mdlr('enge:webgl', ({ include }) => {
 
   //todo:
   //      image loading in draw area should be displayed and not loaded into textuer buffers (MDEC ?)
@@ -1323,13 +1323,13 @@ mdlr('enge:webgl', m => {
   window.renderer = new WebGLRenderer(document.getElementById('display'));
 })
 
-mdlr('enge:psx:webgl', m => {
+mdlr('enge:psx:webgl', ({ include }) => {
 
   Object.assign(window,
-    m.require('enge:utils'),
+    include('enge:utils'),
   );
 
-  m.require('enge:webgl');
-  m.require('enge:psx');
+  include('enge:webgl');
+  include('enge:psx');
 
 })

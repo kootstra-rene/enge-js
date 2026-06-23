@@ -1,4 +1,4 @@
-mdlr('enge:psx:trace', m => {
+mdlr('enge:psx:trace', ({ include }) => {
 
   const gameCodeRegEx = /[A-Za-z]{4}_[0-9]{3}\.[0-9]{2}/;
 

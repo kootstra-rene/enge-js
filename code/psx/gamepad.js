@@ -1,4 +1,4 @@
-mdlr('enge:psx:gamepad', m => {
+mdlr('enge:psx:gamepad', ({ include }) => {
 
   let controller = null;
   const joypads = [null, null];

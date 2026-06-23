@@ -1,4 +1,4 @@
-mdlr('enge:psx:rtc', m => {
+mdlr('enge:psx:rtc', ({ include }) => {
 
   const r11x0 = new Float64Array(4);
   const r11x4 = new Uint32Array(4);

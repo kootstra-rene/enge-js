@@ -1,4 +1,4 @@
-mdlr('enge:psx:spu-voice', m => {
+mdlr('enge:psx:spu-voice', ({ include }) => {
 
   let BLOCKSIZE = (28 * 0x1000) >>> 0;
 

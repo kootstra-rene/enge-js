@@ -1,14 +1,14 @@
 // todo: switch to dataview https://v8.dev/blog/dataview
 
-mdlr('enge:psx:mmu', m => {
+mdlr('enge:psx:mmu', ({ include }) => {
 
   const irqDebug = new URLSearchParams(window.location.search).has('debug-cd');
   const irqLog = (...args) => {
     if (irqDebug) console.debug('[IRQ]', ...args);
   };
 
-  const { dma } = m.require('enge:psx:dma');
-  const { rtc } = m.require('enge:psx:rtc');
+  const { dma } = include('enge:psx:dma');
+  const { rtc } = include('enge:psx:rtc');
 
   window.dma = dma; // todo: fix this dependency of mdec
 

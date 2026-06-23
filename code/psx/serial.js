@@ -1,8 +1,8 @@
-mdlr('enge:psx:serial', m => {
+mdlr('enge:psx:serial', ({ include }) => {
 
   const devices = [
-    m.require('enge:psx:serial-device').setId(0),
-    m.require('enge:psx:serial-device').setId(1),
+    include('enge:psx:serial-device').setId(0),
+    include('enge:psx:serial-device').setId(1),
   ];
 
   const syncWithDevice = (device, data) => {

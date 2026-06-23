@@ -1,4 +1,4 @@
-mdlr('enge:psx:cdr', m => {
+mdlr('enge:psx:cdr', () => {
 
   const cdDebug = new URLSearchParams(window.location.search).has('debug-cd') ||
     window.localStorage.getItem('enge-debug-cdrom') === '1';
@@ -99,6 +99,13 @@ mdlr('enge:psx:cdr', m => {
 
   const itob = i => floor(i / 10) * 16 + floor(i % 10);
   const btoi = b => floor(b / 16) * 10 + floor(b % 16);
+
+  // Seek time scales with head travel distance. Full-disc seek ~= 80ms (~2.7M cycles);
+  // short seeks bottom out at a small fixed latency. 330000 ~= sectors across a full disc.
+  const seekCycles = (targetLoc, currentLoc) => {
+    const distance = Math.abs(targetLoc - currentLoc);
+    return Math.min(2700000, (distance / 330000) * 2700000 + 20000) >>> 0;
+  };
 
   const results = new Array(16);
   const pushResults = results.push.bind(results);
@@ -368,7 +375,7 @@ mdlr('enge:psx:cdr', m => {
       } break;
 
       case 0x15:
-        setCommandEvent(0x1000 >>> 0);
+        setCommandEvent(seekCycles(seekLoc, currLoc));
         ncmdctrl = 0x150;
         enqueueEvent(3, 0x42);
         status |= 0x80;
@@ -379,7 +386,7 @@ mdlr('enge:psx:cdr', m => {
         break;
 
       case 0x16:
-        setCommandEvent(0x1000 >>> 0);
+        setCommandEvent(seekCycles(seekLoc, currLoc));
         ncmdctrl = 0x160;
         enqueueEvent(3, 0x42);
         status |= 0x80;
@@ -1197,6 +1204,10 @@ mdlr('enge:psx:cdr', m => {
           sectors: files.reduce((sectors, file) => sectors + file.size / remoteSectorSize, 0),
           files
         };
+      },
+
+      get mode() {
+        return mode;
       }
     }
   }

@@ -1,4 +1,4 @@
-mdlr('enge:psx:gpu', m => {
+mdlr('enge:psx:gpu', ({ include }) => {
 
   const debugGame = new URLSearchParams(window.location.search).has('debug-game');
   let debugGpuCommandCount = 0;

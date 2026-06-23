@@ -1,4 +1,4 @@
-mdlr('enge:psx:cpu', m => {
+mdlr('enge:psx:cpu', ({ include }) => {
 
   const cop = new Int32Array(32);
   const gpr = new Int32Array(32);

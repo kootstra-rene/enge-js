@@ -1,4 +1,4 @@
-mdlr('enge:psx:mdec', m => {
+mdlr('enge:psx:mdec', ({ include }) => {
 
   const iq = new Int32Array(128);
 

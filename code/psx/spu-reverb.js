@@ -1,4 +1,4 @@
-mdlr('enge:psx:spu-reverb', m => {
+mdlr('enge:psx:spu-reverb', ({ include }) => {
 
   let vLOUT;
   let vROUT;
@@ -41,13 +41,13 @@ mdlr('enge:psx:spu-reverb', m => {
   let left;
   let right;
 
-  const s16 = d => Math.abs(d << 16) >> 16;
+  const s16 = d => (d << 16) >> 16;
   const u16d8 = d => (d << 16) >>> 13;
 
   const writeHandlers = new Map([
     [0x1d84, data => vLOUT = s16(data)],
     [0x1d86, data => vROUT = s16(data)],
-    [0x1da2, data => bufferAddress = mBASE = u16d8(data)],
+    [0x1da2, data => { const m = u16d8(data); if (m !== mBASE) bufferAddress = m; mBASE = m; }],
     [0x1dc0, data => dAPF1 = u16d8(data)],
     [0x1dc2, data => dAPF2 = u16d8(data)],
     [0x1dc4, data => vIIR = s16(data)],
@@ -82,13 +82,15 @@ mdlr('enge:psx:spu-reverb', m => {
     [0x1dfe, data => vRIN = s16(data)],
   ]);
 
+  const registers = new Map();
+
   const loc = addr => mBASE + (bufferAddress + addr) % (0x80000 - mBASE);
   const saturate = data => data < -32768 ? -32768 : data > 32767 ? 32767 : data;
 
   const rd16 = addr => memory.getInt16(loc(addr), true);
   const wr16 = (addr, data) => memory.setInt16(loc(addr), saturate(data), true);
 
-  const norm = data => (data / 0x8000) >> 0;
+  const norm = data => Math.round(data / 0x8000);
 
   const reverbLeft = sample => {
     // ___Input from Mixer(Input volume multiplied with incoming data)_____________
@@ -156,9 +158,10 @@ mdlr('enge:psx:spu-reverb', m => {
       return (sampleIndex & 1) ? [left, reverbRight(sampleRight)] : [reverbLeft(sampleLeft), right];
     },
     rd16: (addr) => {
-      console.log('rd16', hex(addr, 4));
+      return registers.get(addr) ?? 0;
     },
     wr16: (addr, data) => {
+      registers.set(addr, data & 0xffff);
       writeHandlers.get(addr)(data);
     }
 

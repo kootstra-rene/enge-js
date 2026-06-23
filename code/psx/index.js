@@ -1,4 +1,4 @@
-mdlr('enge:psx:index', m => {
+mdlr('enge:psx:index', ({ include }) => {
 
   let running = false;
   let canvas = undefined;
