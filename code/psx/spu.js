@@ -281,11 +281,11 @@ mdlr('enge:psx:spu', m => {
           break
         case 0x1db8:  // ??? Legend of Dragoon
           break
-        case 0x1dba:  // ??? Legend of Dragoon 
+        case 0x1dba:  // ??? Legend of Dragoon
           break
-        case 0x1dbc:  // ??? Legend of Dragoon 
+        case 0x1dbc:  // ??? Legend of Dragoon
           break
-        case 0x1dbe:  // ??? Legend of Dragoon 
+        case 0x1dbe:  // ??? Legend of Dragoon
           break
         default:
           if ((addr >= 0x1c00) && (addr < 0x1d80)) {

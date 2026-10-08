@@ -34,19 +34,21 @@ mdlr('enge:utils', m => {
 	})();
 
 
-	settings.updateQuality = update => {
+	settings.updateQuality = quality => {
 		const elem = document.getElementById('quality');
-		if (!elem) return;
-
-		if (update) {
+		const select = document.getElementById('quality-select');
+		if (quality === true) {
 			settings.quality <<= 1;
 			if (settings.quality > 4) settings.quality = 1;
-
-			localStorage.setItem('config', JSON.stringify(settings));
-			elem.classList.add('restart');
 		}
-
-		elem.innerText = `Q${settings.quality}`;
+		else if (quality !== undefined) {
+			settings.quality = Number(quality) || 1;
+		}
+		if (quality !== undefined) {
+			localStorage.setItem('config', JSON.stringify(settings));
+		}
+		if (select) select.value = String(settings.quality);
+		if (elem) elem.innerText = `Q${settings.quality}`;
 	}
 
   window.addEventListener('storage', () => {

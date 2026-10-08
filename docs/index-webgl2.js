@@ -1,1 +1,7827 @@
-'use strict';globalThis.mdlr=(()=>{let r,t,e={},l=(r,t,e={})=>u[r]?.l(t,{name:t,require:(u,a)=>([r,t]=n(u),e[u]??l(r,t,a))}),n=e=>([,r="unit",t]=/^(?:\[([a-z]+)\])?([-:a-z0-9_]+)$/.exec(e),[r,`[${r}]${t}`]),u={mdlr:{r:(r,t)=>{/^\[mdlr\]::[a-z]+$/.test(r)?t(u):e[r]=t},l:(r,t)=>e[r](t)}};return(e,a)=>{[r,t]=n(e),a?.constructor===Function?u[r]?.r(t,a):l(r,t,a)}})();mdlr('[mdlr]::unit',(l=>{let r={};l.unit={r:(l,t)=>{r[l]=t},l:(l,t)=>r[l](t)}}));mdlr('base64',(e=>{const t='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',r={};return t.split('').forEach(((e,t)=>r[e]=t)),r['=']=0,{decode:e=>{let t=e.length,n=t/4*3;'='===e[t-2]&&--n,'='===e[t-1]&&--n;const o=new Uint8Array(n);let l=0;for(let n=0;n<t;n+=4){const t=r[e[n+0]]<<18|r[e[n+1]]<<12|r[e[n+2]]<<6|r[e[n+3]];o[l+0]=t>>16&255,o[l+1]=t>>8&255,o[l+2]=t>>0&255,l+=3}return o},encode:e=>{const r=new Uint8Array(e.buffer),n=r.byteLength,o=n%3,l=n-o;let c,s,f,a,d,u='';for(let e=0;e<l;e+=3)d=r[e]<<16|r[e+1]<<8|r[e+2],c=d>>18&63,s=d>>12&63,f=d>>6&63,a=d>>0&63,u+=t[c]+t[s]+t[f]+t[a];return 1==o?(d=r[l],c=(252&d)>>2,s=(3&d)<<4,u+=t[c]+t[s]+'=='):2==o&&(d=r[l]<<8|r[l+1],c=(64512&d)>>10,s=(1008&d)>>4,f=(15&d)<<2,u+=t[c]+t[s]+t[f]+'='),u}}}));mdlr('enge:psx',(e=>{Object.assign(window,e.require('enge:psx:core'),e.require('enge:psx:trace')),Object.assign(window,e.require('enge:psx:serial'),e.require('enge:psx:gamepad'),e.require('enge:psx:cpu'),e.require('enge:psx:cdr'),e.require('enge:psx:mdec'),e.require('enge:psx:gpu'),e.require('enge:psx:gte'),e.require('enge:psx:mmu'),e.require('enge:psx:rec'),e.require('enge:psx:spu')),Object.assign(window,e.require('enge:psx:index'))}));mdlr('enge:psx:cdr',(e=>{let a=new Int8Array(0),r=new Int16Array(0),s=24,c=0,t=0,n=0,b=0,l=0,k=0,i=0,f=0,o=255,d=0,h=!1,u=0,w=0,x=1,g=0,p=0,v=1,m=1,y=0,A=0,E=1,I=0,C=0,F=0,P=0,S={};const[T,D,M]=[psx.addEvent,psx.setEvent,psx.unsetEvent],O=e=>e>>0,X=e=>16*O(e/10)+O(e%10),j=e=>10*O(e/16)+O(e%16),q=new Array(16),z=q.push.bind(q),B=new Array(16),G=new Float32Array(18816),H=new Float32Array(8064),J=[],K=[0,0],L=[0,0],N=e=>((255&e)>>>0)/128,Q=e=>{f=224&f|31&e,31&f&o&&(cpu.istat|=4)},R=(e,...a)=>{s=-129&s|32,z(a),Q(e)},U=()=>{B.length=0},V=T(0,(e=>{if(M(e),31&f)return void W(64);const r=PSX_SPEED/(128&d?150:75),l=u-150;let k=n;switch(n=0,k){case 0:break;case 1:a.length?R(3,2):R(5,1);break;case 2:w=0!==B[0]||0!==B[1]||0!==B[2]?4500*j(B[0])+75*j(B[1])+j(B[2]):u,R(3,2);break;case 3:0!==B.length&&0!==B[0]||(u=w),1===B.length&&(S=J[j(B[0])],u=w=S.begin+150),Z(r>>>0),t=3,R(3,130);break;case 6:Z(r>>>0),t=6,R(3,66),u=w;break;case 7:R(3,0),n=112,s|=128;break;case 112:case 160:case 480:R(2,2);break;case 8:R(3,2),W((128&d?25845878:13863626)>>>0),n=128,s|=128;break;case 128:R(2,0);break;case 9:z(32|c),W((128&d?1097107:2168860)>>>0),n=144,s|=160,Q(3);break;case 144:c=-33&c|2,z(c),s=-129&s|32,Q(2);break;case 153:c=-161&c|2,z(c),s=-129&s|32,Q(4);break;case 10:R(3,2),W(4096),n=160,s|=128;break;case 11:R(3,2),h=!0;break;case 12:R(3,2),h=!1;break;case 13:F=B[0],P=B[1],R(3,2);break;case 14:R(3,2),d=B[0];break;case 15:R(3,2,d,0,F,P);break;case 16:{const e=b+12;z(a[e+0],a[e+1],a[e+2],a[e+3],a[e+4],a[e+5],a[e+6],a[e+7]),s=-129&s|32,Q(3)}break;case 17:{let e=u-150-S.begin,a=e/4500>>0,r=(e/75>>0)%60,c=e%75;z(X(S.id),1,X(a),X(r),X(c)),z(X((u-150)/75/60%60)),z(X((u-150)/75%60)),z(X((u-150)%75)),s=-129&s|32,Q(3)}break;case 18:W(4096),n=288,c|=2,z(c),s|=32,Q(3);break;case 288:c|=2;let e=l/4500>>0,k=(l/75>>0)%60,i=l%75;z(130,X(S.id),1,X(e),X(k),X(i),0,0),s=-129&s|32,Q(1);break;case 19:c|=2,z(c,1,X(J.length-1)),s=-129&s|32,Q(3);break;case 20:{let e=0,a=J[j(B[0])];if(!a){c|=16,z(17,128),s=-129&s|32,Q(5);break}e=0===B[0]?O((a.end+150)/75):O((a.begin+150)/75),c|=2,z(c,X(O(e/60)),X(O(e%60))),s=-129&s|32,Q(3)}break;case 21:W(4096),n=336,R(3,66),s|=128;break;case 336:case 352:R(2,2),u=w;break;case 22:W(4096),n=352,R(3,66),s|=128;break;case 25:z(153,2,1,195),s=-129&s|32,Q(3);break;case 26:W(18944),z(c),n=416,s|=32,Q(3);break;case 416:a.length?(z(2,0,32,0,101,78,71,69),s=-129&s|32,Q(2)):(c|=16,z(17,128),s=-129&s|32,Q(5));break;case 27:Z(r>>>0),t=27,R(3,66),u=w;break;case 30:W(4096),n=480,R(3,2);break;default:abort(hex(n,2))}U()})),W=e=>D(V,e),Y=T(0,(e=>{if(31&f)return void psx.updateEvent(e,64);let a=33868800/(128&d?150:75),r=u-150;switch(t){case 0:M(Y);break;case 3:if(i=0,u===S.end&&2&d)return M(e),$(153);if(5==(5&d)){switch(r%75){case 0:case 20:case 40:case 60:{let e=r/4500>>0,a=(r/75>>0)%60,c=r%75;z(130,X(S.id),1,X(e),X(a),X(c),0,0),s=-129&s|96,Q(1)}break;case 10:case 30:case 50:case 70:{let e=u-S.begin,a=e/4500>>0,r=(e/75>>0)%60,c=e%75;z(130,X(S.id),1,X(a),128|X(r),X(c),0,0),s=-129&s|96,Q(1)}}ee(u),psx.updateEvent(e,a),u++;break}case 6:case 27:z(34),s=-129&s|96,Q(1),ee(u),psx.updateEvent(e,a),u++;break;default:abort(hex(t,2))}})),Z=e=>D(Y,e),$=e=>{let a=512;switch(Q(0),q.length=0,s|=128,n=e,e){case 1:a=50401;break;case 3:case 11:case 12:case 13:case 14:case 15:case 16:case 17:case 18:case 19:case 20:case 25:case 26:case 30:break;case 10:a=81102;case 2:case 6:case 7:case 8:case 21:case 22:case 27:case 9:se();break;case 153:break;default:abort(hex(e,2))}W(a>>>0)},ee=e=>{if(a.length<=0)return;for(let a=1;a<J.length;++a){let r=S=J[a];if(r.begin<e&&e<r.end)break}b=2352*(e-150);let r=0;switch(48&d){case 0:l=24,r=2048;break;case 16:l=24,r=2328;break;case 32:case 48:l=12,r=2340}if(k=l+r,0!=(72&d)){if(2!==a[b+15])return;if(72==(72&d)){if(a[b+16]!==F)return;if(a[b+17]!==P)return}if(68!=(68&a[b+18]))return;let e,r,s=a[b+19];switch(s>>>0&3){case 0:e=ae;break;case 1:e=re}switch(s>>>2&1){case 0:r=37800;break;case 1:r=18900}I=0,H.fill(0),G.fill(0);let c=e?.call()||0,t=44100*c/r,n=0,l=0;c=-1;for(let e=0;e<t;e+=2)G[++c]=H[n+0],G[++c]=H[n+1],l+=r,l>=44100&&(l-=44100,n+=2);C=c}},ae=()=>{let e=0;for(let r=0;r<18;++r){const s=b+24+128*r;for(let r=0;r<8;++r){const c=a[s+4+r],t=(15&c)>>>0,n=(240&c)>>>3,b=xa2flt[n+0],l=xa2flt[n+1];for(let c=0;c<28;++c){const n=2*(256*t+(255&a[s+16+4*c+r/2>>>0]));let k=K[1]*b+K[0]*l+xa2pcm[n+(1&r)];K[0]=K[1],K[1]=k,H[e+2*c+0]=k,H[e+2*c+1]=k}e+=56}}return e},re=()=>{let e=0;for(let r=0;r<18;++r){const s=b+24+128*r;for(let r=0;r<8;r+=2){{const c=a[s+4+r],t=(15&c)>>>0,n=(240&c)>>>3,b=xa2flt[n+0],l=xa2flt[n+1];for(let c=0;c<28;++c){const n=2*(256*t+(255&a[s+16+4*c+r/2>>>0]));let k=K[1]*b+K[0]*l+xa2pcm[n+0];K[0]=K[1],K[1]=k,H[e+2*c+0]=k}}{const c=a[s+5+r],t=(15&c)>>>0,n=(240&c)>>>3,b=xa2flt[n+0],l=xa2flt[n+1];for(let c=0;c<28;++c){const n=2*(256*t+(255&a[s+16+4*c+r/2>>>0]));let k=L[1]*b+L[0]*l+xa2pcm[n+1];L[0]=L[1],L[1]=k,H[e+2*c+1]=k}}e+=56}}return e},se=()=>{M(Y),c&=-129,c&=-33,t=0};return{cdr:{rd08r1800:()=>s,rd08r1801:()=>33==(35&s)?(1===q.length&&(s&=-97),q.shift()):0,rd08r1802:()=>64&s?a[b+l++]:0,rd08r1803:()=>{switch(3&s){case 0:return 224|o;case 1:return f}},wr08r1800:e=>{s=-4&s|3&e},wr08r1801:e=>{switch(3&s){case 0:$(e);break;case 3:E=N(e)}},wr08r1802:e=>{switch(3&s){case 0:B.push(e),16===B.length&&(s&=-17);break;case 1:o=e,f=0;break;case 2:m=N(e);break;case 3:A=N(e)}},wr08r1803:e=>{switch(3&s){case 0:128===e&&(s|=64);break;case 1:31&e&o&&(e=>{f&=~(31&e&o)})(e),64&e&&U();break;case 2:y=N(e);break;case 3:32&e&&(x=m,g=y,p=A,v=E)}},nextpcm:e=>{if(3===t){if(S.audio){let a=b+i>>1,s=r[a+0]/32768,c=r[a+1]/32768,t=s*x+c*p,n=c*v+s*g;e[0]=t,e[1]=n}return S.data&&(e[0]=0,e[1]=0),void(i+=4)}if(0!=(72&d)){I>=C-1&&(I=C-1);let a=G[I+0],r=G[I+1],s=a*x+r*p,c=r*v+a*g;e[0]=s,e[1]=c,I+=2}},dmaTransferMode0000:(e,a)=>{if(!(8388607&e))return 16;const c=(65535&a)<<2;clearCodeCache(e,c);for(let a=0;a<c;a+=2)map16[(2097151&e)>>1]=r[b+l>>1],l+=2,e+=2;return l>=k&&(s&=-65),c},setTOC:e=>{J.splice(0,J.length,...e)},setCdImage:e=>{r=new Int16Array(e.buffer),a=new Int8Array(e.buffer)}}}}));mdlr('enge:psx:core',(c=>{let e=0;const t=[],l=[],o={clock:0,eventClock:0,addEvent:(c,l)=>{const n={id:++e,active:!0,clock:+o.clock+ +c,start:+o.clock,cb:l};return o.eventClock>n.clock&&(o.eventClock=n.clock),t.push(n),n},updateEvent:(c,e)=>(c.start=c.clock,c.clock+=+e,c.active=!0,o.eventClock>c.clock&&(o.eventClock=c.clock),c),unsetEvent:c=>{if(!c.active)return;const e=t.findIndex((e=>e.id===c.id));return-1!==e&&(l.push(c),t.splice(e,1),c.active=!1),c},eventCycles:c=>+o.clock-c.start,setEvent:(c,e)=>{if(!c.active){const e=l.findIndex((e=>e.id===c.id));-1!==e&&(l.splice(e,1),t.push(c))}return c.clock=+o.clock+ +e,c.start=+o.clock,c.active=!0,o.eventClock>c.clock&&(o.eventClock=c.clock),c},handleEvents:c=>{let e=Number.MAX_SAFE_INTEGER;for(let c of t)c.active&&(o.clock>=c.clock&&c.cb(c,o.clock),c.clock<e&&(e=c.clock));return o.eventClock=e,cpuInterrupt(c)}};return{psx:o}}));mdlr('enge:psx:cpu',(e=>{const r=new Int32Array(32),s=new Int32Array(32),c={gpr:s,cause:0,cycles:0,epc:0,hi:0,imask:0,istat:0,icurr:0,lo:0,pc:0,sr:0,forceWriteBits:0,getCtrl:e=>{switch(e){case 12:return c.sr>>0;case 13:return c.cause>>0;case 14:return c.epc>>0;case 15:return 2}return r[e]},setCtrl:(e,s)=>{switch(r[e]=s>>0,e){case 12:c.sr=s,c.forceWriteBits=65536&s?33554428:0;break;case 13:c.cause=4294966527&c.cause,c.cause|=768&s}},rfe:()=>{c.sr=-16&c.sr|c.sr>>2&15},lwl:(e,r)=>{const c=memRead32(-4&r&33554431);switch(3&r){case 0:s[e]=16777215&s[e]|c<<24;break;case 1:s[e]=65535&s[e]|c<<16;break;case 2:s[e]=255&s[e]|c<<8;break;case 3:s[e]=0&s[e]|c<<0}},lwr:(e,r)=>{const c=memRead32(-4&r&33554431);switch(3&r){case 0:s[e]=0&s[e]|c>>>0;break;case 1:s[e]=4278190080&s[e]|c>>>8;break;case 2:s[e]=4294901760&s[e]|c>>>16;break;case 3:s[e]=4294967040&s[e]|c>>>24}},swl:(e,r)=>{let c=memRead32(-4&r&33554431)>>>0;switch(3&r){case 0:c=4294967040&c|s[e]>>>24;break;case 1:c=4294901760&c|s[e]>>>16;break;case 2:c=4278190080&c|s[e]>>>8;break;case 3:c=0&c|s[e]>>>0}memWrite32(-4&r&33554431,c)},swr:(e,r)=>{let c=memRead32(-4&r&33554431)>>>0;switch(3&r){case 0:c=0&c|s[e]<<0;break;case 1:c=255&c|s[e]<<8;break;case 2:c=65535&c|s[e]<<16;break;case 3:c=16777215&c|s[e]<<24}memWrite32(-4&r&33554431,c)},neg:e=>{let r=e>>0&65535,s=e>>16&65535,c=1+(65535&~r);return r=65535&c,c=(65535&~s)+(c>>>16),s=65535&c,s<<16|r},mult:(e,r)=>{r>>=0;let s=0;if((e>>=0)<0&&(s^=1,e=c.neg(e)),r<0&&(s^=1,r=c.neg(r)),c.multu(e,r),1===s){let e=c.lo>>>0&65535,r=c.lo>>>16&65535,s=c.hi>>>0&65535,a=c.hi>>>16&65535,t=1+(65535&~e);e=65535&t,t=(65535&~r)+(t>>>16),r=65535&t,t=(65535&~s)+(t>>>16),s=65535&t,t=(65535&~a)+(t>>>16),a=65535&t,c.hi=(a<<16|s)>>0,c.lo=(r<<16|e)>>>0}},multu:(e,r)=>{let s=65535&(e>>>=0),a=e>>>16,t=65535&(r>>>=0),i=r>>>16,u=0,l=0,n=0,m=0;m+=s*t,n+=m>>>16,m&=65535,n+=s*i,l+=n>>>16,n&=65535,n+=a*t,l+=n>>>16,n&=65535,l+=a*i,u+=l>>>16,l&=65535,c.hi=(u<<16|l)>>>0,c.lo=(n<<16|m)>>>0},div:(e,r)=>{0===r?e>>0>=0?(c.hi=e,c.lo=4294967295):(c.hi=e,c.lo=1):r>>0==-1&&e>>>0==2147483648?(c.hi=0,c.lo=-2147483648):(c.hi=(e>>0)%(r>>0)>>0,c.lo=(e>>0)/(r>>0)>>0)},divu:(e,r)=>{0===r?(c.hi=e,c.lo=4294967295):(c.hi=(e>>>0)%(r>>>0)>>>0,c.lo=(e>>>0)/(r>>>0)>>>0)}},a=(e,r)=>(c.sr=-64&c.sr|c.sr<<2&63,c.cause=-125&c.cause|e,c.epc=r,vector);return{cpu:c,cpuException:a,cpuInterrupt:e=>{if(1==(1&c.sr)){let r=768&c.cause,s=768&c.sr;if(0!=(r&s))return a(r&s,e.pc);if(1024==(1024&c.sr)&&c.istat&c.imask)return a(1024,e.pc)}return e}}}));mdlr('enge:psx:dma',(r=>{let e=0,a=0;const[c,s,d]=[psx.addEvent,psx.setEvent,psx.unsetEvent],n=r=>{const e=1<<16+r,c=1<<31|e<<8;a&e&&(cpu.istat|=8,a|=c)},t={r1080:0,r1084:0,r1088:0,r1080n:0,r1090:0,r1094:0,r1098:0,r1090n:0,r10a0:0,r10a4:0,r10a8:0,r10a0n:0,r10b0:0,r10b4:0,r10b8:0,r10b0n:0,r10c0:0,r10c4:0,r10c8:0,r10c0n:0,r10e0:0,r10e4:0,r10e8:0,r10e0n:0,completeDMA1:(r,e)=>{n(1),t.r1098&=4278190079,t.r1090=t.r1090n,d(r)},rd08r10f6:()=>a>>16&255,rd16r10f0:()=>65535&e,rd32r10f0:()=>e,rd32r10f4:()=>2147483647&a,wr32r10f0:r=>{e=r},wr08r10f6:r=>{a=a&~(2130706432&(r=r<<16|65535&a)|16777215)|16777215&r},wr32r10f4:r=>{a=a&~(2130706432&r|16777215)|16777215&r},wr32r1088:r=>{if(t.r1088=r,8&e){let e=10;switch(r){case 0:break;case 16777729:e=mdc.dmaTransferMode0201(t.r1080,t.r1084),t.r1080n=t.r1080+(e<<2);break;default:abort(hex(r))}s(b,272*e/256>>>0)}else t.r1088&=4278190079},wr32r1098:r=>{if(t.r1098=r,128&e){let e=10;switch(r){case 0:break;case 16777728:e=mdc.dmaTransferMode0200(t.r1090,t.r1094),t.r1090n=t.r1090+(e<<2);break;default:abort(hex(r))}}else t.r1098&=4278190079},wr32r10a8:r=>{if(t.r10a8=r,2048&e){let e=10;switch(r){case 0:case 1:case 1025:case 513:break;case 16777728:e=gpu.dmaTransferMode0200(t.r10a0,t.r10a4)||10,t.r10a0n=t.r10a0+(e<<2);break;case 16777729:e=gpu.dmaTransferMode0201(t.r10a0,t.r10a4)||10,t.r10a0n=t.r10a0+(e<<2);break;case 16778241:e=gpu.dmaTransferMode0401(t.r10a0,t.r10a4)||10,t.r10a0n=16777215;break;default:abort(hex(r))}s(f,272*e/256>>>0)}else t.r10a8&=4278190079},wr32r10b8:r=>{if(t.r10b8=r,32768&e){let e=10;switch(r){case 0:break;case 285212672:case 289407232:e=cdr.dmaTransferMode0000(t.r10b0,t.r10b4),t.r10b0n=t.r10b0+(e<<2);break;default:abort(hex(r))}s(l,(e*(128&cdr.mode)?5120:10240)/256>>>0)}else t.r10b8&=4278190079},wr32r10c8:r=>{if(t.r10c8=r,524288&e){let e=10;switch(r){case 513:break;case 16777216:case 16777728:e=spu.dmaTransferMode0200(t.r10c0,t.r10c4),t.r10c0n=t.r10c0+(e<<2);break;case 16777217:case 16777729:e=spu.dmaTransferMode0201(t.r10c0,t.r10c4),t.r10c0n=t.r10c0+(e<<2);break;default:abort(hex(r))}s(o,1056*e/256>>>0)}else t.r10c8&=4278190079},wr32r10e8:r=>{if(t.r10e8=1342177282&r|2,134217728&e){let e=10;switch(t.r10e8){case 2:t.r10e0n=t.r10e0=map[(33554431&t.r10e0)>>2];break;case 268435458:case 1342177282:e=gpu.dmaLinkedListMode0002(t.r10e0,t.r10e4),t.r10e0n=16777215;break;default:abort(hex(r)+' '+hex(t.r10e8))}s(m,272*e/256>>>0)}else t.r10e8&=4278190079}},b=c(0,((r,e)=>{n(0),t.r1088&=4278190079,t.r1080=t.r1080n,d(r)})),f=c(0,((r,e)=>{n(2),t.r10a8&=4278190079,t.r10a0=t.r10a0n,d(r)})),l=c(0,((r,e)=>{n(3),t.r10b8&=4278190079,t.r10b0=t.r10b0n,d(r)})),o=c(0,((r,e)=>{n(4),t.r10c8&=4278190079,t.r10c0=t.r10c0n,d(r)})),m=c(0,((r,e)=>{n(6),t.r10e8&=4278190079,t.r10e0=t.r10e0n,d(r)}));return{dma:t}}));mdlr('enge:psx:gamepad',(e=>{let t=null,s=null;const o=new Map,d=e=>{if(t===e)return;t=e;const s=document.getElementById('gamepad');s&&(s.classList.remove(...s.classList),s.classList.add('connected'),s.classList.add(e))},i=e=>e.pressed;return o.set(69,{bits:16,property:'hi'}),o.set(68,{bits:32,property:'hi'}),o.set(88,{bits:64,property:'hi'}),o.set(83,{bits:128,property:'hi'}),o.set(81,{bits:1,property:'hi'}),o.set(84,{bits:2,property:'hi'}),o.set(87,{bits:4,property:'hi'}),o.set(82,{bits:8,property:'hi'}),o.set(38,{bits:16,property:'lo'}),o.set(39,{bits:32,property:'lo'}),o.set(40,{bits:64,property:'lo'}),o.set(37,{bits:128,property:'lo'}),o.set(32,{bits:1,property:'lo'}),o.set(13,{bits:8,property:'lo'}),window.addEventListener("keydown",(e=>{const t=o.get(e.keyCode),s=joy.devices[0];void 0!==t&&(s[t.property]&=~t.bits,d('keyboard'))}),!1),window.addEventListener("keyup",(e=>{const t=o.get(e.keyCode),s=joy.devices[0];void 0!==t&&(s[t.property]|=t.bits)}),!1),window.addEventListener("gamepadconnected",(e=>{s=e.gamepad,document.getElementById('gamepad').classList.add('connected')})),window.addEventListener("gamepaddisconnected",(e=>{document.getElementById('gamepad').classList.remove('connected'),s=null})),{handleGamePads:()=>{if(!s)return;const e=navigator.getGamepads()[s.index];if(e){const t=joy.devices[0],{axes:s,buttons:o}=e;d('gamepad');let r=255;s[0]<=-.4&&(r&=-129),s[0]>=.4&&(r&=-33),s[1]<=-.4&&(r&=-17),s[1]>=.4&&(r&=-65),i(o[14])&&(r&=-129),i(o[15])&&(r&=-33),i(o[12])&&(r&=-17),i(o[13])&&(r&=-65),i(o[8])&&(r&=-2),i(o[9])&&(r&=-9),t.lo=r;let n=255;i(o[3])&&(n&=-17),i(o[1])&&(n&=-33),i(o[0])&&(n&=-65),i(o[2])&&(n&=-129),i(o[4])&&(n&=-5),i(o[6])&&(n&=-2),i(o[5])&&(n&=-9),i(o[7])&&(n&=-3),t.hi=n}}}}));mdlr('enge:psx:gpu',(t=>{const e=renderer,[p,c,r,a]=[e.drawLine,e.drawTriangle,e.drawRectangle,e.setDrawAreaOF].map((t=>t.bind(e))),k=new Set,s=[],i=new Int32Array(4096),n=(t,e)=>{6==(6&t[0]>>>24)?(t[0]|=2147483648,e(),nextPrimitive(),t[0]&=-33554433,e()):e()},d=[1,1,3,1,1,1,1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,4,4,4,7,7,7,7,5,5,5,5,9,9,9,9,6,6,6,6,9,9,9,9,8,8,8,8,12,12,12,12,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,3,3,3,3,4,4,4,4,2,2,2,2,0,0,0,0,2,2,2,2,3,3,3,3,2,2,2,2,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1];let u=0,f={dispB:256,dispL:0,dispR:0,dispT:16,dispX:0,dispY:0,dispW:0,drawAreaX1:0,drawAreaX2:0,drawAreaY1:0,drawAreaY2:0,heights:[1,2,1,2],hline:0,img:{w:0,h:0,x:0,y:0,index:0,pixelCount:0,buffer:new Uint16Array(524288)},info:new Uint32Array(16),maxheights:[240,480,256,512],maxwidths:[256,368,320,368,512,368,640,368],packetSize:0,result:2,status:343941120,tp:0,transferTotal:0,twin:0,tx:0,txflip:0,ty:0,tyflip:0,widths:[10,7,8,7,5,7,4,7],frame:0,internalFrame:0,updated:!1,cyclesToDotClock:function(t){switch(f.status>>16&7){case 0:return 11*t/7/10;case 1:case 3:case 5:case 7:return 11*t/7/7;case 2:return 11*t/7/8;case 4:return 11*t/7/5;case 6:return 11*t/7/4}},getDisplayArea:function(){if(f.status>>20&1)var t=f.dispT%256,e=Math.min(f.dispB,314);else t=f.dispT%240,e=Math.min(f.dispB,263);var p=e-t,c=f.dispR-f.dispL,r=f.maxwidths[f.status>>16&7],a=c/f.widths[f.status>>16&7];a=Math.min(r,a+2&-4);var k=f.maxheights[f.status>>19&3],s=f.heights[f.status>>19&3]*p;return s=Math.min(k,s),{x:f.dispX,y:f.dispY,w:a,h:s}},onScanLine:function(t){f.hline=t;let e=f.status&1<<22,p=!!(f.status>>20&1),c=p?314:263,r=f.dispB-f.dispT>>1,a=p?163:136,k=a-r,s=a+r;s>c&&(s=c),k<0&&(k=0),e?1==(1&f.frame)?f.status|=2147483648:f.status&=2147483647:1==(1&f.hline+(1&f.frame))?f.status|=2147483648:f.status&=2147483647,f.hline===s&&renderer.onVBlankBegin(),f.hline===k&&renderer.onVBlankEnd(),(f.hline>=s||f.hline<k)&&(f.status&=2147483647),++f.hline>=c&&(f.updated&&++f.internalFrame,f.updated=!1,cpu.istat|=1,f.hline=0,++f.frame)},rd32r1810:function(){return 134217728&f.rR1814&&abort('gpu.rd32r1810 not implemented'),f.result},rd32r1814:function(){return f.status},wr32r1810:t=>{if(268435456&f.status){if(i[u++]=t,1===u&&(f.packetSize=d[t>>>24]),u===f.packetSize){var e=i[0]>>>24;nextPrimitive(),s[e].call(f,i),u=0}}else{if(f.img.buffer[f.img.index++]=t>>>0&65535,--f.transferTotal<=0)return void f.imgTransferComplete(f.img);if(f.img.buffer[f.img.index++]=t>>>16&65535,--f.transferTotal<=0)return void f.imgTransferComplete(f.img)}},wr32r1814:t=>{switch(t>>>24){case 0:f.status=344064e3,u=0,f.dispL=512,f.dispR=3072,f.dispW=320,f.dispT=16,f.dispB=256,f.dispX=0,f.dispY=0,f.pcktE1([0]),f.pcktE2([0]),f.pcktE3([0]),f.pcktE4([0]),f.pcktE5([0]),f.pcktE6([0]),renderer.updateDrawArea?.call(renderer);break;case 1:f.status|=1879048192,u=0;break;case 2:case 64:break;case 3:f.status&=4286578687,f.status|=(1&t)<<23;break;case 4:f.status&=2684354559,f.status|=(3&t)<<29;break;case 5:f.dispX=t>>0&1023,f.dispY=t>>10&511;break;case 6:f.dispL=t>>0&4095,f.dispR=t>>12&4095;var e=f.dispR-f.dispL,p=f.maxwidths[f.status>>16&7],c=e/f.widths[f.status>>16&7];f.dispW=Math.min(p,c+2&-4);break;case 7:f.dispT=t>>0&1023,f.dispB=t>>10&1023,f.dispB<f.dispT&&(f.dispB+=288);break;case 8:f.status&=4286644223,f.status|=(63&t)<<17,f.status|=64&t?65536:0;break;case 16:f.result=f.info[15&t];break;default:console.warn('gpu.cmnd'+hex(t>>>24,2))}},invalidPacketHandler:t=>{},updateTexturePage:function(t){switch(void 0!==t&&(f.status=-2560&f.status|2559&t),f.tx=(f.status>>>0&15)<<6,f.ty=(f.status>>>4&1)<<8,f.tp=f.status>>>7&3,f.tp){case 0:f.tx<<=2;break;case 1:f.tx<<=1;break;case 2:case 3:f.tx<<=0}},pckt00:t=>{},pckt01:t=>{f.status=-134217729&(268435456|f.status)},pckt02:t=>{renderer.fillRectangle(t)},pckt03:t=>{},pckt04:t=>{},pckt05:t=>{},pckt08:t=>{},pckt09:t=>{},pckt0D:t=>{},pckt20:t=>{c(t,0,1,0,2,0,3)},pckt24:t=>{f.updateTexturePage(t[4]>>>16),n(t,(()=>{c(t,0,1,0,3,0,5,f.tx,f.ty,2,4,6,t[2]>>>16)}))},pckt28:t=>{c(t,0,1,0,2,0,3),c(t,0,2,0,3,0,4)},pckt2C:t=>{f.updateTexturePage(t[4]>>>16),n(t,(()=>{c(t,0,1,0,3,0,5,f.tx,f.ty,2,4,6,t[2]>>>16),c(t,0,3,0,5,0,7,f.tx,f.ty,4,6,8,t[2]>>>16)}))},pckt30:t=>{c(t,0,1,2,3,4,5)},pckt34:t=>{f.updateTexturePage(t[5]>>>16),n(t,(()=>{c(t,0,1,3,4,6,7,f.tx,f.ty,2,5,8,t[2]>>>16)}))},pckt38:t=>{c(t,0,1,2,3,4,5),c(t,2,3,4,5,6,7)},pckt3C:t=>{f.updateTexturePage(t[5]>>>16),n(t,(()=>{c(t,0,1,3,4,6,7,f.tx,f.ty,2,5,8,t[2]>>>16),c(t,3,4,6,7,9,10,f.tx,f.ty,5,8,11,t[2]>>>16)}))},pckt40:t=>{p(t,0,1,0,2)},pckt48:function(t,e){for(var c=2;c<e;c+=1)p(t,0,c-1,0,c)},pckt50:t=>{p(t,0,1,2,3)},pckt58:function(t,e){for(var c=3;c<e;c+=2)p(t,c-3,c-2,c-1,c)},pckt60:t=>{r([t[0],t[1],t[2]],0,0,0)},pckt64:t=>{const e=t[2]>>>0&255,p=t[2]>>>8&255;n(t,(()=>{r([t[0],t[1],t[3]],e,p,t[2]>>>16)}))},pckt68:t=>{r([t[0],t[1],65537],0,0,0)},pckt70:t=>{r([t[0],t[1],524296],0,0,0)},pckt74:t=>{const e=t[2]>>>0&255,p=t[2]>>>8&255;n(t,(()=>{r([t[0],t[1],524296],e,p,t[2]>>>16)}))},pckt78:t=>{r([t[0],t[1],1048592],0,0,0)},pckt7C:t=>{const e=t[2]>>>0&255,p=t[2]>>>8&255;n(t,(()=>{r([t[0],t[1],1048592],e,p,t[2]>>>16)}))},pckt80:t=>{if(t[1]!==t[2]){var e=t[1]>>0,p=t[1]>>16,c=t[2]>>0,r=t[2]>>16,a=t[3]>>0,k=t[3]>>16;c&=1023,r&=511,e&=1023,p&=511,(a=1+(a-1&1023))*(k=1+(k-1&511))&&renderer.moveImage(e,p,c,r,a,k)}},pcktA0:t=>{f.status&=-268435457;var e=t[1]<<16>>>16,p=t[1]<<0>>>16,c=t[2]<<16>>>16,r=t[2]<<0>>>16;f.img.w=1+(c-1&1023),f.img.h=1+(r-1&511),f.img.x=1023&e,f.img.y=511&p,f.img.index=0,f.transferTotal=f.img.w*f.img.h+1&-2,f.img.pixelCount=f.transferTotal},pcktC0:t=>{f.status|=134217728;var e=t[1]<<16>>>16,p=t[1]<<0>>>16,c=t[2]<<16>>>16,r=t[2]<<0>>>16;f.img.w=1+(c-1&1023),f.img.h=1+(r-1&511),f.img.x=1023&e,f.img.y=511&p,f.img.index=0,f.transferTotal=f.img.w*f.img.h+1&-2,f.img.pixelCount=f.transferTotal,renderer.loadImage(f.img.x,f.img.y,f.img.w,f.img.h,f.img.buffer)},pcktE1:t=>{f.status=4294965248&f.status|2047&t[0],f.txflip=t[0]>>>12&1,f.tyflip=t[0]>>>13&1,f.updateTexturePage()},pcktE2:t=>{f.info[2]=1048575&t[0];const e=((t[0]>>0&31)<<3<<0)+((t[0]>>5&31)<<3<<8)+((t[0]>>10&31)<<3<<16)+((t[0]>>15&31)<<3<<24);f.twin=e},pcktE3:t=>{f.info[3]=1048575&t[0],f.drawAreaX1=t[0]<<22>>>22,f.drawAreaY1=t[0]<<12>>>22,renderer.setDrawAreaTL(f.drawAreaX1,f.drawAreaY1)},pcktE4:t=>{f.info[4]=1048575&t[0],f.drawAreaX2=t[0]<<22>>>22,f.drawAreaY2=t[0]<<12>>>22,renderer.setDrawAreaBR(f.drawAreaX2,f.drawAreaY2)},pcktE5:t=>{f.info[5]=4194303&t[0];const e=t[0]<<21>>21,p=t[0]<<11>>22;a(e,p)},pcktE6:t=>{f.status&=4294961151,f.status|=(3&t[0])<<11},imgTransferComplete:function(t){renderer.storeImage(f.img),f.status|=268435456},dmaTransferMode0200:function(t,e){if(!(8388607&t))return 16;var p=(e>>16)*(65535&e)<<1;f.transferTotal-=p;const c=f.img;for(;--p>=0;){const e=f.img.buffer[c.index++];map16[(2097151&t)>>>1]=e,t+=2}return f.transferTotal<=0&&(f.status&=-134217729),(e>>16)*(65535&e)},dmaTransferMode0201:function(t,e){if(!(8388607&t))return 16;if(0==(-4&t))return(e>>16)*(65535&e);var p=(e>>16)*(65535&e)<<1;f.transferTotal-=p;const c=f.img;for(;--p>=0;){const e=map16[(2097151&t)>>>1];c.buffer[c.index++]=e,t+=2}return f.transferTotal<=0&&(f.imgTransferComplete(f.img),f.updated=!0),(e>>16)*(65535&e)},dmaTransferMode0401:function(t,e){if(!(8388607&t))return 16;if(0!==u&&abort('not implemented'),0==(-4&t))return(e>>16)*(65535&e);const p=new Set,c=i;let r=0;for(;;){t&=2097151;let e=ram.getInt32(t,!0);dma.r10e0n=e;let i=e>>>24;for(t+=4,++r;i>0;){if(p.has(t))return r;p.add(t);const n=ram.getInt32(t,!0)>>>0,u=n>>>24;if(0===d[u])return k.has(u)||(k.add(u),console.warn('invalid packetId:',hex(u,2),hex(e),hex(n))),r;if(u>=72&&u<80||u>=88&&u<96){let e=0;for(;e<4096;++e){const p=ram.getInt32(t,!0);if(t+=4,--i,++r,1431655765===p)break;if(1342197760===p)break;c[e]=p}if(i<0)return r;nextPrimitive(),s[u].call(f,c,e),f.updated=!0}else{for(var a=0;a<d[u];++a)c[a]=ram.getInt32(t,!0),t+=4,--i,++r;if(i<0)return r;nextPrimitive(),s[u].call(f,c,0),f.updated=!0}}if(8388608&e)break;t=2097151&e}return r},dmaLinkedListMode0002:function(t,e){if(!t)return;if(0==(-4&t))throw 43;e>=65536&&abort('unexpected blck size'),0===e&&(e=65536),t&=2097151;let p=e;for(;--e>=1;){const e=t-4&2097151;ram.setInt32(t,e,!0),t=e}return ram.setInt32(t,16777215,!0),p}};f.pckt21=f.pckt20,f.pckt22=f.pckt20,f.pckt23=f.pckt20,f.pckt25=f.pckt24,f.pckt26=f.pckt24,f.pckt27=f.pckt24,f.pckt29=f.pckt28,f.pckt2A=f.pckt28,f.pckt2B=f.pckt28,f.pckt2D=f.pckt2C,f.pckt2E=f.pckt2C,f.pckt2F=f.pckt2C,f.pckt31=f.pckt30,f.pckt32=f.pckt30,f.pckt33=f.pckt30,f.pckt35=f.pckt34,f.pckt36=f.pckt34,f.pckt37=f.pckt34,f.pckt39=f.pckt38,f.pckt3A=f.pckt38,f.pckt3B=f.pckt38,f.pckt3D=f.pckt3C,f.pckt3E=f.pckt3C,f.pckt3F=f.pckt3C,f.pckt41=f.pckt40,f.pckt42=f.pckt40,f.pckt43=f.pckt40,f.pckt44=f.pckt40,f.pckt45=f.pckt40,f.pckt46=f.pckt40,f.pckt47=f.pckt40,f.pckt49=f.pckt48,f.pckt4A=f.pckt48,f.pckt4B=f.pckt48,f.pckt4C=f.pckt48,f.pckt4D=f.pckt48,f.pckt4E=f.pckt48,f.pckt4F=f.pckt48,f.pckt51=f.pckt50,f.pckt52=f.pckt50,f.pckt53=f.pckt50,f.pckt54=f.pckt50,f.pckt55=f.pckt50,f.pckt56=f.pckt50,f.pckt57=f.pckt50,f.pckt59=f.pckt58,f.pckt5A=f.pckt58,f.pckt5B=f.pckt58,f.pckt5C=f.pckt58,f.pckt5D=f.pckt58,f.pckt5E=f.pckt58,f.pckt5F=f.pckt58,f.pckt61=f.pckt60,f.pckt62=f.pckt60,f.pckt63=f.pckt60,f.pckt65=f.pckt64,f.pckt66=f.pckt64,f.pckt67=f.pckt64,f.pckt69=f.pckt68,f.pckt6A=f.pckt68,f.pckt6B=f.pckt68,f.pckt71=f.pckt70,f.pckt72=f.pckt70,f.pckt73=f.pckt70,f.pckt75=f.pckt74,f.pckt76=f.pckt74,f.pckt77=f.pckt74,f.pckt79=f.pckt78,f.pckt7A=f.pckt78,f.pckt7B=f.pckt78,f.pckt7D=f.pckt7C,f.pckt7E=f.pckt7C,f.pckt7F=f.pckt7C;for(let t=0;t<256;++t){var o='pckt'+hex(t,2).toUpperCase();s[t]=f[o]||f.invalidPacketHandler}for(let t=129;t<=159;++t)s[t]=f.pckt80;for(let t=161;t<=191;++t)s[t]=f.pcktA0;for(let t=193;t<=223;++t)s[t]=f.pcktC0;return f.info[7]=2,f.info[8]=0,{gpu:f}}));mdlr('enge:psx:gte',(e=>{let a,r,s,c=0,n=0,t=0;const b=new Int32Array(4),k=new Int32Array(4),u=new Int32Array(4),o=new Int32Array(9),w=new Int32Array(9),y=new Int32Array(9),A=new Int32Array(9),I=new Int32Array(3),d=new Int32Array(3),i=new Int32Array(3),l=new Int32Array(4),v=new Float64Array(4),f=new Float64Array(4),g=new Int32Array(64),h=new Int32Array(32),m=new Int32Array(3),p=new Int32Array(3),x=new Int32Array(4),F=[y,o,w,A],M=[b,k,u,v],j=[i,I,d,A],q=new Map([[1,15],[6,8],[12,6],[16,8],[17,8],[18,8],[19,19],[20,13],[22,44],[27,17],[28,11],[30,14],[32,30],[41,8],[42,17],[46,6],[48,23],[63,39]]),z=(e,a,r,s,c)=>e<a?(g[63]|=h[r],a):e>s?(g[63]|=h[c],s):e,B=e=>{const a=e?0:-32768;v[1]=z(f[1],a,24,32767,24),v[2]=z(f[2],a,23,32767,23),v[3]=z(f[3],a,22,32767,22)},C=()=>{f[0]>2147483647&&(g[63]|=h[16]),f[0]<-2147483648&&(g[63]|=h[15])},D=()=>{v[1]=(4096*d[0]-f[1])/r,v[2]=(4096*d[1]-f[2])/r,v[3]=(4096*d[2]-f[3])/r,v[1]=z(v[1],-32768,24,32767,24),v[2]=z(v[2],-32768,23,32767,23),v[3]=z(v[3],-32768,22,32767,22)},E=()=>{f[1]=(f[1]+v[1]*v[0])/r,f[2]=(f[2]+v[2]*v[0])/r,f[3]=(f[3]+v[3]*v[0])/r,B(a)},G=(e,s,c)=>{f[1]=(4096*e[0]+s[0]*c[1]+s[1]*c[2]+s[2]*c[3])/r,f[2]=(4096*e[1]+s[3]*c[1]+s[4]*c[2]+s[5]*c[3])/r,f[3]=(4096*e[2]+s[6]*c[1]+s[7]*c[2]+s[8]*c[3])/r,B(a)},H=()=>{const e=l[3]>>>24,a=z(f[1]/16,0,21,255,21),r=z(f[2]/16,0,20,255,20),s=z(f[3]/16,0,19,255,19);l[0]=l[1],l[1]=l[2],l[2]=e<<24|s<<16|r<<8|a<<0},J=e=>{f[1]=65536*(e>>0&255),f[2]=65536*(e>>8&255),f[3]=65536*(e>>16&255),D(),E(),H()},K=e=>{G(A,o,e),G(I,w,v),f[1]=(l[3]>>0&255)*v[1]*16,f[2]=(l[3]>>8&255)*v[2]*16,f[3]=(l[3]>>16&255)*v[3]*16,f[1]=f[1]/r,f[2]=f[2]/r,f[3]=f[3]/r,B(a),H()},L=e=>{G(A,o,e),G(I,w,v),f[1]=(l[3]>>0&255)*v[1]*16,f[2]=(l[3]>>8&255)*v[2]*16,f[3]=(l[3]>>16&255)*v[3]*16,D(),E(),H()},N=e=>{G(A,o,e),G(I,w,v),H()},O=8796093022207,P=-8796093022208,Q=e=>{const c=65535&g[58],n=g[56],t=g[57],b=g[59],k=g[60];f[1]=(4096*i[0]+y[0]*e[1]+y[1]*e[2]+y[2]*e[3])/r,f[1]>O&&(g[63]|=h[30]),f[1]<P&&(g[63]|=h[27]),f[2]=(4096*i[1]+y[3]*e[1]+y[4]*e[2]+y[5]*e[3])/r,f[2]>O&&(g[63]|=h[29]),f[2]<P&&(g[63]|=h[26]),f[3]=(4096*i[2]+y[6]*e[1]+y[7]*e[2]+y[8]*e[3])/r,f[3]>O&&(g[63]|=h[28]),f[3]<P&&(g[63]|=h[25]),B(a),m[0]=m[1],m[1]=m[2],p[0]=p[1],p[1]=p[2],x[0]=x[1],x[1]=x[2],x[2]=x[3];let u=f[3]/s;x[3]=z(u,0,18,65535,18);let o=131072;o=(131072*c/x[3]+1)/2,o>131071&&(g[63]|=h[17],o=131071),f[0]=o*v[1]+n,m[2]=f[0]/65536,C(),f[0]=o*v[2]+t,p[2]=f[0]/65536,C(),f[0]=o*b+k,v[0]=f[0]/4096,C(),m[2]=z(m[2],-1024,14,1023,14),p[2]=z(p[2],-1024,13,1023,13),v[0]=z(v[0],0,12,4096,12)},R=e=>e<<16>>16,S=e=>e<<0>>16,T=e=>e<<0>>0,U=e=>e<<16>>>16,V={get:e=>{switch(e){case 7:return U(g[e]);case 8:return R(v[0]);case 9:return R(v[1]);case 10:return R(v[2]);case 11:return R(v[3]);case 12:return 65535&m[0]|p[0]<<16;case 13:return 65535&m[1]|p[1]<<16;case 14:case 15:return 65535&m[2]|p[2]<<16;case 16:return U(x[0]);case 17:return U(x[1]);case 18:return U(x[2]);case 19:return U(x[3]);case 20:return l[0];case 21:return l[1];case 22:return l[2];case 24:return f[0];case 25:return f[1];case 26:return f[2];case 27:return f[3];case 29:let a=0;return a|=v[1]>>7<<0,a|=v[2]>>7<<5,a|=v[3]>>7<<10,a;case 31:return t;case 58:return R(g[e]);default:return g[e]}},set:(e,a)=>{switch(g[e]=a,e){case 0:b[1]=R(a),b[2]=S(a);break;case 1:b[3]=R(a);break;case 2:k[1]=R(a),k[2]=S(a);break;case 3:k[3]=R(a);break;case 4:u[1]=R(a),u[2]=S(a);break;case 5:u[3]=R(a);break;case 6:l[3]=a;break;case 7:case 23:case 29:case 31:break;case 8:v[0]=R(a);break;case 9:v[1]=R(a);break;case 10:v[2]=R(a);break;case 11:v[3]=R(a);break;case 12:m[0]=R(a),p[0]=S(a);break;case 13:m[1]=R(a),p[1]=S(a);break;case 14:m[2]=R(a),p[2]=S(a);break;case 15:m[0]=m[1],p[0]=p[1],m[1]=m[2],p[1]=p[2],m[2]=R(a),p[2]=S(a);break;case 16:x[0]=U(a);break;case 17:x[1]=U(a);break;case 18:x[2]=U(a);break;case 19:x[3]=U(a);break;case 20:l[0]=a;break;case 21:l[1]=a;break;case 22:l[2]=a;break;case 24:f[0]=T(a);break;case 25:f[1]=T(a);break;case 26:f[2]=T(a);break;case 27:f[3]=T(a);break;case 28:v[1]=(31&a)<<7,v[2]=(992&a)<<2,v[3]=(31744&a)>>3;break;case 30:(e=>{if(2147483648&e&&(e^=4294967295),0===e)t=32;else{for(var a=31;0==(e&1<<a)&&a>=0;--a);t=31-a}})(a);break;case 32:y[0]=R(a),y[1]=S(a);break;case 33:y[2]=R(a),y[3]=S(a);break;case 34:y[4]=R(a),y[5]=S(a);break;case 35:y[6]=R(a),y[7]=S(a);break;case 36:g[e]=y[8]=R(a);break;case 37:i[0]=T(a);break;case 38:i[1]=T(a);break;case 39:i[2]=T(a);break;case 40:o[0]=R(a),o[1]=S(a);break;case 41:o[2]=R(a),o[3]=S(a);break;case 42:o[4]=R(a),o[5]=S(a);break;case 43:o[6]=R(a),o[7]=S(a);break;case 44:g[e]=o[8]=R(a);break;case 45:I[0]=T(a);break;case 46:I[1]=T(a);break;case 47:I[2]=T(a);break;case 48:w[0]=R(a),w[1]=S(a);break;case 49:w[2]=R(a),w[3]=S(a);break;case 50:w[4]=R(a),w[5]=S(a);break;case 51:w[6]=R(a),w[7]=S(a);break;case 52:g[e]=w[8]=R(a);break;case 53:d[0]=T(a);break;case 54:d[1]=T(a);break;case 55:d[2]=T(a);break;case 56:case 57:case 60:g[e]=T(a);break;case 58:g[e]=U(a);break;case 59:g[e]=R(a);break;case 61:g[e]=c=R(a);break;case 62:g[e]=n=R(a);break;case 63:g[e]=2147479552&a,2139611136&g[e]&&(g[e]|=2147483648);break;default:abort(hex(e,2))}},command:e=>{r=e>>19&1?4096:1,s=e>>19&1?1:4096,a=e>>10&1,g[63]=0,Y.get(63&e)(e)},cycles:e=>q.get(63&e)||5},W=e=>{e(b)},X=e=>{e(b),e(k),e(u)},Y=new Map([[1,_=>W(Q)],[6,_=>(f[0]=m[0]*(p[1]-p[2])+m[1]*(p[2]-p[0])+m[2]*(p[0]-p[1]),void C())],[12,_=>(f[1]=(v[3]*y[4]-v[2]*y[8])/r,f[2]=(v[1]*y[8]-v[3]*y[0])/r,f[3]=(v[2]*y[0]-v[1]*y[4])/r,void B(a))],[16,_=>J(l[3])],[17,_=>(f[1]=4096*v[1],f[2]=4096*v[2],f[3]=4096*v[3],D(),E(),void H())],[18,_=>{var e;G(j[(e=_)>>13&3],F[e>>17&3],M[e>>15&3])}],[19,_=>W(L)],[20,_=>(G(I,w,v),f[1]=(l[3]>>0&255)*v[1]*16,f[2]=(l[3]>>8&255)*v[2]*16,f[3]=(l[3]>>16&255)*v[3]*16,D(),E(),f[1]=f[1]/r,f[2]=f[2]/r,f[3]=f[3]/r,B(a),void H())],[22,_=>X(L)],[27,_=>W(K)],[28,_=>(G(I,w,v),f[1]=(l[3]>>0&255)*v[1]*16,f[2]=(l[3]>>8&255)*v[2]*16,f[3]=(l[3]>>16&255)*v[3]*16,f[1]=f[1]/r,f[2]=f[2]/r,f[3]=f[3]/r,B(a),void H())],[30,_=>W(N)],[32,_=>X(N)],[40,_=>(f[1]=v[1]*v[1]/r,f[2]=v[2]*v[2]/r,f[3]=v[3]*v[3]/r,void B(a))],[41,_=>(f[1]=(l[3]>>0&255)*v[1]*16,f[2]=(l[3]>>8&255)*v[2]*16,f[3]=(l[3]>>16&255)*v[3]*16,D(),E(),void H())],[42,_=>{J(l[0]),J(l[0]),J(l[0])}],[45,_=>(f[0]=c*(x[1]+x[2]+x[3]),C(),void(g[7]=z(f[0]/4096,0,18,65535,18)))],[46,_=>(f[0]=n*(x[0]+x[1]+x[2]+x[3]),C(),void(g[7]=z(f[0]/4096,0,18,65535,18)))],[48,_=>X(Q)],[61,_=>(f[1]=0,f[2]=0,f[3]=0,E(),void H())],[62,_=>(f[1]=f[1]*r,f[2]=f[2]*r,f[3]=f[3]*r,E(),void H())],[63,_=>X(K)]]);for(let e=0;e<=31;++e)h[e]=1<<e;for(let e=23;e<=30;++e)h[e]|=2147483648;for(let e=13;e<=18;++e)h[e]|=2147483648;return{gte:V}}));mdlr('enge:psx:index',(e=>{let t,r=!1;const n=(...e)=>{throw t.style.borderColor='red',r=!1,spu.silence(),new Error([...e].join(' '))};let o=!1,a=!0;document.addEventListener("visibilitychange",(()=>{'visible'===document.visibilityState?a=!0:(a=!1,spu.silence())}));const s={timeStamp:0,realtime:0,emutime:0,counter:0},d=psx.addEvent(0,(e=>{o=!0,psx.unsetEvent(e)})),i=e=>{(e=>{const t=e-s.timeStamp;if(s.timeStamp=e,!r||!a||t>250)return;s.realtime+=t;const i=33868.8*(s.realtime-s.emutime);o=!1,psx.setEvent(d,+i);let c=getCacheEntry(cpu.pc);if(!c)return n();handleGamePads();const l=psx;for(;!o;)c=c.code(l),l.clock>=l.eventClock&&(c=l.handleEvents(c));cpu.pc=c.pc,s.emutime=psx.clock/33868.8,++s.counter})(e),requestAnimationFrame(i)},c=()=>{r=!1;let e=getCacheEntry(3217031168);const t=psx;for(;196608!==e.pc;)e=e.code(t),t.clock>=t.eventClock&&(e=t.handleEvents(e));s.realtime=s.emutime=psx.clock/33868.8,vector=getCacheEntry(128),cpu.pc=e.pc},l=e=>{const t=new DataView(e);if(21328===t.getUint16(0,!0)){cpu.pc=t.getInt32(16,!0),cpu.gpr[28]=t.getInt32(20,!0),cpu.gpr[29]=t.getInt32(48,!0)||2149580784,cpu.gpr[30]=t.getInt32(48,!0)||2149580784,cpu.gpr[31]=cpu.pc;for(var n=t.getInt32(24,!0),o=t.getInt32(28,!0),a=0;a<o;++a)2048+a>=e.byteLength||ram.setInt8(2097151&n++,t.getInt8(2048+a,!0),!0);clearCodeCache(t.getInt32(24,!0),e.byteLength),r=!0}else if(17229===t.getUint32(0,!0)){var s=new Uint8Array(e);let t=joy.devices?joy.devices[0].data:joy.cardOneMemory;for(a=0;a<s.length;++a)t[a]=s[a]}else if(524288===e.byteLength){for(writeStorageStream('bios',e),a=0;a<524288;a+=4){const e=t.getInt32(a,!0);rom.setInt32(a,e,!0)}c();let r=document.querySelector('span.nobios');r&&r.classList.remove('nobios')}else{let n=e.byteLength/4/588,o=[];o.push({id:0,begin:0,end:n});const a=2352,s=e=>{let r=t.getInt32(e*a+0,!0)>>>0,n=t.getInt32(e*a+4,!0)>>>0,o=t.getInt32(e*a+8,!0)>>>0;return 4294967040===r&&4294967295===n&&16777215===o||!r&&!n&&!o},d=e=>{let r=0;for(let n=0;n<a;n+=4)r|=t.getInt32(e*a+n,!0);return r>>>0==0};let i,c,l,p=0;for(i=p;p<n&&s(p);)++p;for(c=p;p<n&&d(p);)++p;o.push({id:1,begin:i,end:c,data:!0});let u=2;if(p<n){for(i=p;p<n;){for(;p<n&&!d(p);)++p;for(c=p;p<n&&d(p);)++p;l=p,l-c<75||(o.push({id:u,begin:i,end:c,audio:!0}),i=p,u++)}i<n&&(c=l=n,o.push({id:u,begin:i,end:c,audio:!0}))}cdr.setCdImage(t),cdr.setTOC(o),r=!0}},p=e=>{e.stopPropagation(),e.preventDefault();const t=e.dataTransfer?e.dataTransfer.files:e.target.files;for(let e,o=0;e=t[o];++o)r=e,n=void 0,(n=new FileReader).onload=e=>{l(e.target.result)},n.readAsArrayBuffer(r);var r,n},u=e=>{e.stopPropagation(),e.preventDefault()};return{init:()=>{t=document.getElementById('display'),document.addEventListener('dragover',u,!1),document.addEventListener('drop',p,!1);const e=document.getElementById('file');e?.addEventListener('change',p,!1),settings.updateQuality();const n=document.getElementById('quality');n?.addEventListener('click',(e=>(settings.updateQuality(!0),e.stopPropagation(),e.preventDefault(),!1))),i(performance.now()),t.addEventListener("dblclick",(()=>{r=!r,r||spu.silence()})),t.addEventListener("touchstart",(()=>{r=!r,r||spu.silence()})),window.addEventListener("keydown",(e=>{'F12'!==e.key&&'F11'!==e.key&&'F5'!==e.key&&e.preventDefault()}),!1),window.addEventListener("keyup",(e=>{'1'===e.key&&e.ctrlKey&&renderer.setMode('disp'),'2'===e.key&&e.ctrlKey&&renderer.setMode('draw'),'3'===e.key&&e.ctrlKey&&renderer.setMode('clut8'),'4'===e.key&&e.ctrlKey&&renderer.setMode('clut4'),'0'===e.key&&e.ctrlKey&&renderer.setMode('page2'),'F12'!==e.key&&'F11'!==e.key&&'F5'!==e.key&&e.preventDefault()}),!1),readStorageStream('bios',(e=>{if(e){let r=new Uint32Array(e.buffer);for(var t=0;t<524288;t+=4)map[29360128+t>>>2]=r[t>>>2];let n=document.querySelector('span.nobios');n&&n.classList.remove('nobios'),c()}})),readStorageStream('card1',(e=>{e&&joy.devices[0].setMemoryCard(e)})),readStorageStream('card2',(e=>{e&&joy.devices[1].setMemoryCard(e)}))},PSX_SPEED:33868800,abort:n,context:s}}));mdlr('enge:psx:mdec',(e=>{const r=new Int32Array(128),t=new Uint8Array(768),n=(e,r)=>t[384+e+r],o=(e,r)=>n(e,r)>>>3,s=[0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63],c=[16384,22725,21407,19266,16384,12873,8867,4520,22725,31521,29692,26722,22725,17855,12299,6270,21407,29692,27969,25172,21407,16819,11585,5906,19266,26722,25172,22654,19266,15137,10426,5315,16384,22725,21407,19266,16384,12873,8867,4520,12873,17855,16819,15137,12873,10114,6967,3552,8867,12299,11585,10426,8867,6967,4799,2446,4520,6270,5906,5315,4520,3552,2446,1247],l=(e,r)=>{let t,n,o,s,c=r;for(let c=8;c>0;--c,r+=8){t=e[r+0]+e[r+4]>>0,n=e[r+0]-e[r+4]>>0,s=e[r+2]+e[r+6]>>0,o=e[r+2]-e[r+6]>>0,o=(362*o>>8)-s>>0;const c=t+s>>0,l=t-s>>0,a=n+o>>0,f=n-o>>0;s=e[r+3]+e[r+5]>>0,t=e[r+3]-e[r+5]>>0,n=e[r+1]+e[r+7]>>0,o=e[r+1]-e[r+7]>>0;const d=473*(o-t)>>8,m=n+s>>0,p=(669*t>>8)+d-m>>0,u=(362*(n-s)>>8)-p>>0,b=(277*o>>8)-d+u>>0;e[r+0]=c+m>>5,e[r+1]=a+p>>5,e[r+2]=f+u>>5,e[r+3]=l-b>>5,e[r+4]=l+b>>5,e[r+5]=f-u>>5,e[r+6]=a-p>>5,e[r+7]=c-m>>5}r=c;for(let c=8;c>0;--c,++r){t=e[r+0]+e[r+32]>>0,n=e[r+0]-e[r+32]>>0,s=e[r+16]+e[r+48]>>0,o=e[r+16]-e[r+48]>>0,o=(362*o>>8)-s>>0;const c=t+s>>0,l=t-s>>0,a=n+o>>0,f=n-o>>0;s=e[r+24]+e[r+40]>>0,t=e[r+24]-e[r+40]>>0,n=e[r+8]+e[r+56]>>0,o=e[r+8]-e[r+56]>>0;const d=473*(o-t)>>8,m=n+s>>0,p=(669*t>>8)+d-m>>0,u=(362*(n-s)>>8)-p>>0,b=(277*o>>8)-d+u>>0;e[r+0]=c+m>>0,e[r+8]=a+p>>0,e[r+16]=f+u>>0,e[r+24]=l-b>>0,e[r+32]=l+b>>0,e[r+40]=f-u>>0,e[r+48]=a-p>>0,e[r+56]=c-m>>0}},a=(e,t)=>{e.fill(0);let n=(2097151&t)>>>1;for(let t=0;t<6;++t){const o=t>=2?0:64,c=64*t,a=65535&map16[n++],f=a>>10,d=a<<22>>22;let m=0;for(e[c]=r[o]*d;;){const t=65535&map16[n++];if(m+=1+(t>>10),m<=63){const n=t<<22>>22,l=r[o+m]*f*n>>3;e[c+s[m]]=l}if(m>63)break}l(e,c)}return n<<1},f=(e,r,t,n,s)=>{const c=1433*n>>10,l=-351*s-728*n>>10,a=1807*s>>10,f=(2097151&e)>>>0,d=map16;let m,p,b,i,k=u.STP;m=r[t+0]<<0,p=o(m,c),b=o(m,l),i=o(m,a),d[f+0>>>1]=k|i<<10|b<<5|p,m=r[t+1]<<0,p=o(m,c),b=o(m,l),i=o(m,a),d[f+2>>>1]=k|i<<10|b<<5|p,m=r[t+8]<<0,p=o(m,c),b=o(m,l),i=o(m,a),d[f+32>>>1]=k|i<<10|b<<5|p,m=r[t+9]<<0,p=o(m,c),b=o(m,l),i=o(m,a),d[f+34>>>1]=k|i<<10|b<<5|p},d=(e,r)=>{let t,n=0,o=64,s=128;for(t=0;t<16;t+=2,n+=8,o+=8,s+=16,r+=64)8==t&&(s+=64),f(r+0,e,s+0,e[n+0],e[o+0]),f(r+4,e,s+2,e[n+1],e[o+1]),f(r+8,e,s+4,e[n+2],e[o+2]),f(r+12,e,s+6,e[n+3],e[o+3]),f(r+16,e,s+64,e[n+4],e[o+4]),f(r+20,e,s+66,e[n+5],e[o+5]),f(r+24,e,s+68,e[n+6],e[o+6]),f(r+28,e,s+70,e[n+7],e[o+7])},m=(e,r,t,o,s)=>{const c=1433*o>>10,l=-351*s-728*o>>10,a=1807*s>>10,f=(2097151&e)>>>0,d=map8;let m;m=r[t+0]<<0,d[f+0]=n(m,c),d[f+1]=n(m,l),d[f+2]=n(m,a),m=r[t+1]<<0,d[f+3]=n(m,c),d[f+4]=n(m,l),d[f+5]=n(m,a),m=r[t+8]<<0,d[f+48]=n(m,c),d[f+49]=n(m,l),d[f+50]=n(m,a),m=r[t+9]<<0,d[f+51]=n(m,c),d[f+52]=n(m,l),d[f+53]=n(m,a)},p=(e,r)=>{let t,n=0,o=64,s=128;for(t=0;t<16;t+=2,n+=8,o+=8,s+=16,r+=96)8==t&&(s+=64),m(r+0,e,s+0,e[n+0],e[o+0]),m(r+6,e,s+2,e[n+1],e[o+1]),m(r+12,e,s+4,e[n+2],e[o+2]),m(r+18,e,s+6,e[n+3],e[o+3]),m(r+24,e,s+64,e[n+4],e[o+4]),m(r+30,e,s+66,e[n+5],e[o+5]),m(r+36,e,s+68,e[n+6],e[o+6]),m(r+42,e,s+70,e[n+7],e[o+7])},u={r1820:0,r1824:2147745792,rl:0,STP:0,end:0,block:new Int32Array(384),rd32r1820:()=>u.r1820,wr32r1820:e=>{u.r1820=e},rd32r1824:()=>u.r1824,wr32r1824:e=>{2147483648&e&&(u.r1820=0,u.r1824=2147745792,psx.unsetEvent(u.event))},dmaTransferMode0201:(e,t)=>{if(!(8388607&e))return 16;e&=2097151;const n=(t>>>16)*(65535&t);switch(u.r1820>>>29){case 1:u.rl=e;break;case 2:if(((e,t)=>{for(let n=0;n<t;++n){const t=255&map8[(e+n&2097151)>>>0];r[n]=t*c[s[63&n]]>>12}})(e,n<<2),1073741825!==u.r1820)return abort();break;default:console.log(hex(u.r1820>>>29))}return u.r1820&=4169138175,u.r1820|=(503316480&u.r1824)>>2,n},dmaTransferMode0200:(e,r)=>{if(!(8388607&e))return 16;e&=2097151;const t=(r>>>16)*(65535&r),n=u.block,o=e+(t<<2),s=u.r1820>>>27&3;u.end=o,u.STP=u.r1820&1<<25?32768:0;let c=0;for(;e<o;){switch(u.rl=a(n,u.rl),s){case 0:e+=128;break;case 1:e+=256;break;case 2:p(n,e),e+=768;break;case 3:d(n,e),e+=512}c+=6}const l=PSX_SPEED/9e3*(c/6);return psx.setEvent(u.event,l>>>0),t},event:null,complete:(e,r)=>{dma.completeDMA1({}),psx.unsetEvent(e)}};u.event=psx.addEvent(0,u.complete.bind(u));for(let e=0;e<256;++e)t[0+e]=0,t[256+e]=e,t[512+e]=255;return{mdc:u}}));mdlr('enge:psx:mmu',(r=>{const{dma:e}=r.require('enge:psx:dma'),{rtc:c}=r.require('enge:psx:rtc');window.dma=e;const t=new Int32Array(8388608),s=new Int8Array(t.buffer),a=new Int16Array(t.buffer),u=new DataView(t.buffer,0,2097152),n=new DataView(t.buffer,29360128,524288);return{map:t,map8:s,map16:a,ram:u,rom:n,memRead8:r=>r<8388608?(psx.clock+=2,u.getInt8(2097151&r)):r>=25165824&&r<25178112?(r=>{const t=16383&r;switch(psx.clock+=3,!0){case t>=4352&&t<4400:return c.rd32(t);case t>=7168&&t<8192:return!(1&t)&&spu.getInt16(t)}switch(16383&r){case 4160:return joy.rd08r1040();case 4164:return joy.rd16r1044()<<24>>24;case 4180:return 0;case 4192:return s[r>>>0]>>0;case 4208:return cpu.istat<<24>>24;case 4336:return e.rd16r10f0()<<24>>24;case 4342:return e.rd08r10f6();case 6144:return cdr.rd08r1800();case 6145:return cdr.rd08r1801();case 6146:return cdr.rd08r1802();case 6147:return cdr.rd08r1803();case 6164:return gpu.rd32r1814()<<24>>24;case 6180:return mdc.rd32r1824()<<24>>24;default:if(r<25169920)return psx.clock-=3,s[r>>>0];if(r>=25174016)return psx.clock+=10,s[r>>>0]}})(r)<<24>>24:r>=27262976&&r<27787264?(psx.clock+=5,s[r>>>0]>>0):r>=29360128&&r<29884416?(psx.clock+=8,s[r>>>0]>>0):r>=16777216&&r<17301504?(psx.clock+=6,s[r>>>0]>>0):33423664===r?s[r>>>0]>>0:void abort(hex(r,8)),memRead16:r=>r<8388608?(psx.clock+=3,u.getInt16(2097151&r,!0)):r>=25165824&&r<25178112?(r=>{const t=16383&r;switch(psx.clock+=3,!0){case t>=4352&&t<4400:return c.rd32(t);case t>=7168&&t<8192:return spu.getInt16(t)}switch(16383&r){case 4116:return a[r>>>1];case 4164:return joy.rd16r1044();case 4170:return joy.rd16r104a();case 4174:return joy.rd16r104e();case 4180:case 4186:case 4190:case 4400:return 0;case 4192:return a[r>>>1]>>0;case 4208:return cpu.istat;case 4212:return cpu.imask;case 4336:return e.rd16r10f0();case 6144:return cdr.rd08r1800();case 6164:return gpu.rd32r1814()<<16>>16;case 6180:return mdc.rd32r1824()<<16>>16;default:if(r<25169920)return psx.clock-=3,a[r>>>1];if(r>=25174016)return psx.clock+=24,a[r>>>1]}})(r)<<16>>16:r>=27262976&&r<27787264?(psx.clock+=5,a[r>>>1]>>0):r>=29360128&&r<29884416||r>=16777216&&r<17301504?(psx.clock+=12,a[r>>>1]):33423664===r?a[r>>>1]>>0:void abort(hex(r,8)),memRead32:r=>r<8388608?(psx.clock+=5,u.getInt32(2097151&r,!0)):r>=25165824&&r<25178112?(r=>{const s=16383&r;if(psx.clock+=3,1==(s>=4352&&s<4400))return c.rd32(s);switch(16383&r){case 4116:case 4128:case 4192:return t[r>>>2]>>0;case 4164:return joy.rd16r1044()>>0;case 4180:return 0;case 4208:return cpu.istat>>0;case 4212:return cpu.imask>>0;case 4224:return e.r1080>>0;case 4232:return e.r1088>>0;case 4240:return e.r1090>>0;case 4248:return e.r1098>>0;case 4256:return e.r10a0>>0;case 4264:return e.r10a8>>0;case 4272:return e.r10b0>>0;case 4280:return e.r10b8>>0;case 4288:return e.r10c0>>0;case 4296:return e.r10c8>>0;case 4320:return e.r10e0>>0;case 4328:return e.r10e8>>0;case 4336:return e.rd32r10f0()>>0;case 4340:return e.rd32r10f4()>>0;case 6144:return cdr.rd08r1800();case 6160:return gpu.rd32r1810()>>0;case 6164:return gpu.rd32r1814()>>0;case 6176:return mdc.rd32r1820()>>0;case 6180:return mdc.rd32r1824()>>0;default:if(r<25169920)return psx.clock-=3,t[r>>>2]>>0;if(r>=25174016)return psx.clock+=56,t[r>>>2]>>0;if(r>=25172992&&r<25174016)return 65535&spu.getInt16(16383&r)|spu.getInt16(r+2&16383)<<16}abort(hex(r,8))})(r)>>0:r>=27262976&&r<27787264?(psx.clock+=9,t[r>>>2]>>0):r>=29360128&&r<29884416?(psx.clock+=24,t[r>>>2]>>0):33423664===r?t[r>>>2]>>0:r>=16777216&&r<17301504?(psx.clock+=24,t[r>>>2]):void abort(hex(r,8)),memWrite8:(r,c)=>{if(r<8388608){const e=2097151&r;return s[(e|cpu.forceWriteBits)>>>0]=c,void(fastCache[e]=0)}if(r>=25165824&&r<25174016)return s[r>>>0]=c,void(r>=25169920&&((r,c)=>{switch(16383&r){case 4160:return joy.wr08r1040(c);case 4342:return e.wr08r10f6(c);case 6144:return cdr.wr08r1800(c);case 6145:return cdr.wr08r1801(c);case 6146:return cdr.wr08r1802(c);case 6147:return cdr.wr08r1803(c)}abort(hex(r,8))})(r,c));25174081!==r?abort(hex(r,8)):s[r>>>0]=c},memWrite16:(r,t)=>{if(r<8388608){const e=2097151&r;return a[(e|cpu.forceWriteBits)>>>1]=t,void(fastCache[e]=0)}if(r>=25165824&&r<25174016)return a[r>>>1]=t,void(r>=25169920&&((r,t)=>{const s=16383&r;switch(!0){case s>=4352&&s<4400:return void c.wr32(s,t);case s>=7168&&s<8192:return void spu.setInt16(s,t>>>0)}switch(16383&r){case 4116:return a[r>>>1]=t;case 4168:return joy.wr16r1048(t);case 4170:return joy.wr16r104a(t);case 4174:return joy.wr16r104e(t);case 4184:case 4186:case 4190:return;case 4208:return void(cpu.istat&=65535&t&cpu.imask);case 4212:return void(cpu.imask=t);case 4336:return e.wr32r10f0(t)}abort(hex(r,8))})(r,t));abort(hex(r,8))},memWrite32:(r,s)=>{if(r<8388608){const e=2097151&r;return t[(e|cpu.forceWriteBits)>>>2]=s,void(fastCache[e]=0)}if(r>=25165824&&r<25174016)return t[r>>>2]=s,void(r>=25169920&&((r,t)=>{const s=16383&r;switch(!0){case s>=4352&&s<4400:return void c.wr32(s,t);case s>=7168&&s<8192:return spu.setInt16(s+0,t>>>0),void spu.setInt16(s+2,t>>>16)}switch(s){case 4096:case 4100:case 4104:case 4108:case 4112:case 4116:case 4120:case 4124:case 4128:case 4192:return;case 4208:return void(cpu.istat&=t&cpu.imask);case 4212:return void(cpu.imask=t>>>0);case 4224:return void(e.r1080=t>>>0);case 4228:return void(e.r1084=t>>>0);case 4232:return void e.wr32r1088(t);case 4240:return void(e.r1090=t>>>0);case 4244:return void(e.r1094=t>>>0);case 4248:return void e.wr32r1098(t);case 4256:return void(e.r10a0=t>>>0);case 4260:return void(e.r10a4=t>>>0);case 4264:return void e.wr32r10a8(t);case 4272:return void(e.r10b0=t>>>0);case 4276:return void(e.r10b4=t>>>0);case 4280:return void e.wr32r10b8(t);case 4288:return void(e.r10c0=t>>>0);case 4292:return void(e.r10c4=t>>>0);case 4296:return void e.wr32r10c8(t);case 4320:return void(e.r10e0=t>>>0);case 4324:return void(e.r10e4=t>>>0);case 4328:return void e.wr32r10e8(t);case 4336:return void e.wr32r10f0(t);case 4340:return void e.wr32r10f4(t);case 6160:return void gpu.wr32r1810(t);case 6164:return void gpu.wr32r1814(t);case 6176:return void mdc.wr32r1820(t);case 6180:return void mdc.wr32r1824(t)}abort(hex(r,8))})(r,s));33423664!==r?abort(hex(r,8)):t[r>>>2]=s}}}));mdlr('enge:psx:rec',(e=>{const t=e=>`(${e<<16>>16} + ${r()}) & 0x01ffffff`,r=()=>h.reg(h.rs),c=()=>h.reg(h.rt),n=(e,t)=>(e?h.reg(e)+' = ':'')+`${t};`,a={'02':(e,t)=>(e.stop=!0,e.jump=!0,e.skipNext=!0,e.branchTarget=(8388607&t)<<2,n(0,`target = _${hex(e.branchTarget)}`)),'03':(e,t)=>(e.stop=!0,e.jump=!0,e.branchTarget=(8388607&t)<<2,n(0,`target = _${hex(e.branchTarget)};\n`+e.reg(31)+' = 0x'+hex(e.pc+8))),'04':(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} === ${c()}) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)}`)),'05':(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} !== ${c()}) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)}`)),'06':(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} <= 0) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)}`)),'07':(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} > 0) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)}`)),'08':(e,t)=>n(e.rt,(t<<16>>16)+' + '+r()),'09':(e,t)=>n(e.rt,(t<<16>>16)+' + '+r()),'0A':(e,t)=>n(e.rt,'('+r()+' < '+(t<<16>>16)+') ? 1 : 0'),'0B':(e,t)=>n(e.rt,'(('+r()+' >>> 0) < ('+(t<<16>>16)+' >>> 0)) ? 1 : 0'),'0C':(e,t)=>n(e.rt,r()+' & 0x'+hex(t,4)),'0D':(e,t)=>n(e.rt,r()+' | 0x'+hex(t,4)),'0E':(e,t)=>n(e.rt,r()+' ^ 0x'+hex(t,4)),'0F':(e,t)=>n(e.rt,'0x'+hex((65535&t)<<16)),20:(e,r)=>n(e.rt,'(memRead8('+t(r)+') << 24) >> 24'),21:(e,r)=>n(e.rt,'(memRead16 ('+t(r)+') << 16) >> 16'),22:(e,r)=>n(0,'cpu.lwl('+e.rt+', '+t(r)+')'),23:(e,r)=>n(e.rt,'memRead32('+t(r)+')'),24:(e,r)=>n(e.rt,'memRead8('+t(r)+') & 0xff'),25:(e,r)=>n(e.rt,'memRead16('+t(r)+') & 0xffff'),26:(e,r)=>n(0,'cpu.lwr('+e.rt+', '+t(r)+')'),28:(e,r)=>n(0,'memWrite8('+t(r)+', '+c()+')'),29:(e,r)=>n(0,'memWrite16('+t(r)+', '+c()+')'),'2A':(e,r)=>n(0,'cpu.swl('+e.rt+', '+t(r)+')'),'2B':(e,r)=>n(0,`memWrite32(${t(r)}, ${c()})`),'2E':(e,r)=>n(0,'cpu.swr('+e.rt+', '+t(r)+')'),32:(e,r)=>n(0,'gte.set('+e.rt+', memRead32('+t(r)+'))'),'3A':(e,r)=>n(0,'memWrite32('+t(r)+', gte.get('+e.rt+'))'),40:(e,t)=>0===t?'':n(e.rd,c()+' << '+(t>>6&31)),42:(e,t)=>n(e.rd,c()+' >>> '+(t>>6&31)),43:(e,t)=>n(e.rd,c()+' >> '+(t>>6&31)),44:(e,t)=>n(e.rd,c()+' << ('+r()+' & 0x1f)'),46:(e,t)=>n(e.rd,c()+' >>> ('+r()+' & 0x1f)'),47:(e,t)=>n(e.rd,c()+' >> ('+r()+' & 0x1f)'),48:(e,t)=>(e.stop=!0,e.jump=!0,e.skipNext=!0,n(0,'target = getCacheEntry('+r()+')')),49:(e,t)=>(e.stop=!0,e.jump=!0,n(e.rd,'0x'+hex(e.pc+8)+';\ntarget = getCacheEntry('+r()+')')),'4C':(e,t)=>(e.stop=!0,e.syscall=!0,n(0,'target = cpuException(8 << 2, 0x'+hex(e.pc)+')')),'4D':(e,t)=>'//break',50:(e,t)=>n(e.rd,'cpu.hi'),51:(e,t)=>n(0,'cpu.hi = '+r()),52:(e,t)=>n(e.rd,'cpu.lo'),53:(e,t)=>n(0,'cpu.lo = '+r()),58:(e,t)=>{const a=n(0,'cpu.mult('+r()+', '+c()+')');return e.cycles+=8,a},59:(e,t)=>{const a=n(0,'cpu.multu('+r()+', '+c()+')');return e.cycles+=8,a},'5A':(e,t)=>{const a=n(0,'cpu.div('+r()+', '+c()+')');return e.cycles+=35,a},'5B':(e,t)=>{const a=n(0,'cpu.divu('+r()+', '+c()+')');return e.cycles+=35,a},60:(e,t)=>n(e.rd,r()+' + '+c()),61:(e,t)=>n(e.rd,r()+' + '+c()),62:(e,t)=>n(e.rd,r()+' - '+c()),63:(e,t)=>n(e.rd,r()+' - '+c()),64:(e,t)=>n(e.rd,r()+' & '+c()),65:(e,t)=>n(e.rd,r()+' | '+c()),66:(e,t)=>n(e.rd,r()+' ^ '+c()),67:(e,t)=>n(e.rd,'~('+r()+' | '+c()+')'),'6A':(e,t)=>n(e.rd,'('+r()+' < '+c()+') ? 1 : 0'),'6B':(e,t)=>n(e.rd,'(('+r()+' >>> 0) < ('+c()+' >>> 0)) ? 1 : 0'),80:(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} < 0) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)}`)),81:(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} >= 0) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)}`)),90:(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} < 0) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)};\n`+e.reg(31)+' = 0x'+hex(e.pc+8))),91:(e,t)=>(e.stop=!0,e.branchTarget=e.pc+4+4*(t<<16>>16),n(0,`target = (${r()} >= 0) ? _${hex(e.branchTarget)} : _${hex(e.pc+8)};\n`+e.reg(31)+' = 0x'+hex(e.pc+8))),A0:(e,t)=>n(e.rt,'cpu.getCtrl('+e.rd+')'),A4:(e,t)=>n(0,'cpu.setCtrl('+e.rd+', '+c()+')'),B0:(e,t)=>n(0,'cpu.rfe()'),C0:(e,t)=>n(e.rt,'gte.get('+e.rd+')'),C2:(e,t)=>n(e.rt,'gte.get('+(32+e.rd)+')'),C4:(e,t)=>n(0,'gte.set('+e.rd+', '+c()+')'),C6:(e,t)=>n(0,'gte.set('+(32+e.rd)+', '+c()+')'),D0:(e,t)=>(e.cycles+=gte.cycles(33554431&t),n(0,'gte.command(0x'+hex(33554431&t)+')')),invalid:(e,t)=>{abort('invalid instruction')}};a.D1=a.D0,a.D2=a.D0,a.D3=a.D0,a.D4=a.D0,a.D5=a.D0,a.D6=a.D0,a.D7=a.D0,a.D8=a.D0,a.D9=a.D0,a.DA=a.D0,a.DB=a.D0,a.DC=a.D0,a.DD=a.D0,a.DE=a.D0,a.DF=a.D0;const s=new Array(256);for(let e=0;e<256;++e)s[e]=a[`${hex(e,2).toUpperCase()}`]||a.invalid;function p(e,t){const r=u(e.pc),c=map[r>>2];let n=0;switch(c>>>26&63){default:n=0+(c>>>26&63);break;case 0:n=64+(c>>>0&63);break;case 1:n=128+(c>>>16&31);break;case 16:n=160+(c>>>21&31);break;case 18:n=192+(c>>>21&31)}e.rd=c>>>11&31,e.rs=c>>>21&31,e.rt=c>>>16&31,t.push(s[n](e,c))}const h={pc:0,rt:0,rs:0,rd:0,stop:!1,break:!1,syscall:!1,cause:!1,sr:!1,cycles:0,skipNext:!1,entry:null,branchTarget:0,jump:!1,entryPC:0,reg:e=>e?'gpr['+e+']':'0',clear:function(){h.branchTarget=0,h.jump=!1,h.stop=!1,h.break=!1,h.syscall=!1,h.cause=!1,h.sr=!1,h.cycles=0,h.skipNext=!1}},o=new Map,l=new Uint8Array(2097152);function u(e){let t=33554431&e;return t<8388608&&(t&=2097151),t}l.fill(0);let g=0;function i(){return this.code=(e=>{const t=e.pc>>>0;let r=(e=>{const t=e.pc>>>0;h.clear(),h.pc=t,h.entryPC=t,h.entry=e;const r=[];for(;!h.stop&&h.cycles<2048;)p(h,r),h.cycles+=1,h.pc+=4;if(!h.stop&&h.cycles>=64){h.branchTarget=h.pc>>>0&33554431,h.skipNext=!0,h.jump=!0;const e=n(0,`target = _${hex(h.branchTarget)}`);r.push(e)}return!h.stop||h.break||h.syscall||h.sr||(p(h,r),h.cycles+=1,h.pc+=4),160!==t&&176!==t&&192!==t||r.unshift(`trace(${t}, gpr[9]);`),r.push('psx.clock += '+h.cycles+';'),r})(e).join('\n').split('\n'),c=[h.branchTarget>>>0,h.skipNext?0:h.pc>>>0].filter((e=>null!==e||void 0!==e));return r.push(' '),r.push('return target;'),r.unshift("const gpr = cpu.gpr; let target;\n"),t<2097152&&(r.unshift(`if (!fastCache[${t}]) { return invalidateCache(this); }`),l[t]=1),((e,t,r)=>{const c=["  return function $"+hex(e).toUpperCase()+"(psx) { ++calls;\n    "+t.replace(/[\r\n]/g,'\n    ')+"\n  }"];return c.unshift(''),[...new Set(r?.filter((e=>e))||[])].forEach((e=>{c.unshift(`  const _${hex(e)} = getCacheEntry(0x${hex(e)});`)})),c.unshift("'use strict;'"),new Function(c.join('\n'))()})(t,r.filter((e=>e)).join('\n'),c)})(this),this}const d=33868800,x=0===window.location.href.indexOf('file://');let f=0,$=0,b=0;return psx.addEvent(0,(e=>{const t=renderer.fpsRenderCounter-b;b=renderer.fpsRenderCounter,x&&console.log(`${calls} ${(d/calls).toFixed(1)} ${g} ${context.counter-f}/${renderer.fpsCounter-$}/${t}`),psx.setEvent(e,d),f=context.counter,$=renderer.fpsCounter,g=0,calls=0})),window.calls=0,window.vector=null,window.fastCache=l,window.cached=o,window.invalidateCache=e=>(e.code=i,e),window.resetCacheEntry=e=>(e.code=i,e),{getCacheEntry:function(e){const t=u(e);let r=o.get(t);return r||(o.set(t,r=(e=>({pc:e>>>0,code:null}))(t)),r.code=i),r},clearCodeCache:function(e,t){const r=u(e);r>=2097152||(l.fill(0,r,r+t),++g)}}}));mdlr('enge:psx:rtc',(e=>{const s=new Float64Array(4),a=new Uint32Array(4),t=new Uint32Array(4),c=(e,c,r)=>{const n=8&a[e]?11:12;switch(n){case 11:var p=+(t[e]+1);break;case 12:p=65536}let i=s[e]+c;return i>=p?(r?.onLimitReached(r),a[e]|=1<<n,i%p):i},r={freerun:!1,getValue:()=>{const e=r.freerun;let s=0;switch(7&a[0]){case 0:s=+(psx.clock-o.start);break;case 1:switch(o.whereInScanLine()){case-1:s=0;break;case 0:s=+(psx.clock-o.dispHStart);break;case 1:s=+(o.dispHStop-o.dispHStart)}break;case 3:switch(o.whereInScanLine()){case-1:case 0:s=+(psx.clock-o.start);break;case 1:s=+(psx.clock-o.dispHStop)}break;case 5:switch(o.whereInScanLine()){case-1:s=+(psx.clock-o.start);break;case 0:s=+(o.dispHStart-o.start);break;case 1:s=+(psx.clock-o.dispHStop)}break;case 7:switch(o.whereInScanLine()){case-1:case 0:s=e?+(psx.clock-o.start):0;break;case 1:s=e?+(psx.clock-o.start):+(psx.clock-o.dispHStop)}}return 256&a[0]?c(0,+gpu.cyclesToDotClock(s)):c(0,+s)},getTarget:()=>t[0],getMode:()=>{let e=a[0];return a[0]&=59391,e},setMode:e=>{a[0]=1023&e|1024;let t=0;switch(7&e){case 0:t=+(psx.clock-o.start);break;case 1:switch(o.whereInScanLine()){case-1:t=0;break;case 0:t=+(psx.clock-o.dispHStart);break;case 1:t=0}break;case 3:case 5:switch(o.whereInScanLine()){case-1:case 0:t=0;break;case 1:t=+(psx.clock-o.dispHStop)}break;case 7:r.freerun=!1,t=0}256&a[0]?(s[0]=0,c(0,-gpu.cyclesToDotClock(t))):(s[0]=0,c(0,-t))},setTarget:e=>{e||(e=65535),t[0]=e},setValue:e=>{s[0]=e},onLimitReached:()=>{48&a[0]&&(cpu.istat|=16)},onScanLine:()=>{const e=r.freerun;let t=0;switch(7&a[0]){case 0:t=+(o.stop-o.start);break;case 1:t=+(o.dispHStop-o.dispHStart);break;case 3:case 5:switch(o.whereInScanLine()){case-1:case 0:t=0;break;case 1:t=-+(psx.clock-o.dispHStop)}break;case 7:t=e?+(o.stop-o.start):+(o.stop-o.dispHStop),r.freerun=!0}256&a[0]?s[0]=c(0,gpu.cyclesToDotClock(t),r):s[0]=c(0,t,r)}},n={freerun:!1,getValue:()=>{switch(263&a[1]){case 0:return c(1,+(psx.clock-o.start));case 1:return c(1,o.isInVBlank()?0:+psx.eventCycles(o.event));case 3:return c(1,+psx.eventCycles(o.event));case 5:return c(1,(o.isInVBlank(),0));case 7:return n.freerun?c(1,+psx.eventCycles(o.event)):c(1,0);case 256:case 257:case 259:case 261:return c(1,0);case 263:return n.freerun,c(1,0)}},getTarget:()=>t[1],getMode:()=>{let e=a[1];return a[1]&=59391,e},setMode:e=>{switch(a[1]=(319&e|1024)>>>0,263&a[1]){case 0:case 1:case 3:case 5:s[1]=-+(psx.clock-o.start),s[1]=c(1,0);break;case 7:case 263:n.freerun=!1,s[1]=0;break;case 256:case 257:case 259:case 261:s[1]=0}},setTarget:e=>{e||(e=65535),t[1]=e>>>0},setValue:e=>{s[1]=+e},onLimitReached:()=>{48&a[1]&&(cpu.istat|=32)},onScanLine:e=>{const t=+(o.stop-o.start);switch(263&a[1]){case 0:s[1]=c(1,t,n);break;case 1:s[1]=c(1,o.isInVBlank()?0:t,n);break;case 3:s[1]=c(1,t,n),e&&(s[1]=0);break;case 5:s[1]=c(1,o.isInVBlank()?t:0,n),o.isInVBlank()&&(s[1]=0);break;case 7:n.freerun?s[1]=c(1,t,n):(s[1]=c(1,0,n),e&&(n.freerun=!0));break;case 256:s[1]=c(1,1,n);break;case 257:s[1]=c(1,o.isInVBlank()?0:1,n);break;case 259:s[1]=c(1,1,n),e&&(s[1]=0);break;case 261:s[1]=c(1,o.isInVBlank()?0:1,n),e&&(s[1]=0);break;case 263:n.freerun?s[1]=c(1,1,n):(s[1]=c(1,0,n),e&&(n.freerun=!0))}}},p={getValue:()=>{switch(519&a[2]){case 0:case 3:case 5:case 8:return c(2,+(psx.clock-o.start));case 1:case 7:return c(2,0);case 512:return c(2,.125*+(psx.clock-o.start))}},getTarget:()=>t[2],getMode:()=>{let e=a[2];return a[2]&=59391,e},setMode:e=>{switch(a[2]=1023&e|1024,519&a[2]){case 0:case 3:case 5:s[2]=-+(psx.clock-o.start),s[2]=c(2,0);break;case 1:case 7:s[2]=0;break;case 8:s[2]=-1*psx.eventCycles(o.event);break;case 512:s[2]=-.125*psx.eventCycles(o.event)}},setTarget:e=>{e||(e=65535),t[2]=65535&e},setValue:e=>{s[2]=e},onLimitReached:()=>{48&a[2]&&(cpu.istat|=64)},onScanLine:()=>{switch(519&a[2]){case 0:case 3:case 5:s[2]=c(2,+(o.stop-o.start),p);break;case 1:case 7:s[2]=c(2,0,p);break;case 512:s[2]=c(2,.125*+(o.stop-o.start),p)}}},i=+Number.MAX_SAFE_INTEGER,o={event:null,remainder:0,scanLine:0,vblank:!1,dispHStart:i,dispHStop:i,start:i,stop:i,upateToLastGpuState:e=>{const s=7*(gpu.status>>20&1?3406:3413)/11*(PSX_SPEED/33868800);o.start=+e.clock,o.stop=+s+o.start,o.dispHStart=o.start+7*+gpu.dispL/11,o.dispHStop=o.start+7*+gpu.dispR/11},complete:e=>{o.upateToLastGpuState(e);const s=gpu.status>>20&1?314:263;o.scanLine=(o.scanLine+1)%s,o.vblank=o.scanLine<gpu.dispT||o.scanLine>=gpu.dispB,r.onScanLine(),n.onScanLine(o.scanLine===gpu.dispB),p.onScanLine(),gpu.onScanLine(o.scanLine);let a=o.stop-o.start;psx.updateEvent(e,+a)},isInVBlank:()=>o.vblank,whereInScanLine:()=>psx.clock<o.dispHStart?-1:psx.clock<o.dispHStop?0:1},u={rd32:e=>{switch(!0){case 4352===e:return r.getValue();case 4356===e:return r.getMode();case 4360===e:return r.getTarget();case 4368===e:return n.getValue();case 4372===e:return n.getMode();case 4376===e:return n.getTarget();case 4384===e:return p.getValue();case 4388===e:return p.getMode();case 4392===e:return p.getTarget()}},wr32:(e,s)=>{switch(!0){case 4352===e:return r.setValue(s);case 4356===e:return r.setMode(s);case 4360===e:return r.setTarget(s);case 4368===e:return n.setValue(s);case 4372===e:return n.setMode(s);case 4376===e:return n.setTarget(s);case 4384===e:return p.setValue(s);case 4388===e:return p.setMode(s);case 4392===e:return p.setTarget(s)}}};return o.event=psx.addEvent(0,o.complete.bind(o)),s.fill(0),a.fill(0),t.fill(65535),{rtc:u}}));mdlr('enge:psx:serial',(e=>{const r=[e.require('enge:psx:serial-device').setId(0),e.require('enge:psx:serial-device').setId(1)],n=(e,r)=>{let n=e.sendReceiveByte(255&r),t=e.hasMore();s(n,!t)},s=(e,r)=>{c|=2,a=255&e,r||psx.setEvent(t,8*i>>>0)},t=psx.addEvent(0,((e,r)=>{c|=512,cpu.istat|=128,psx.unsetEvent(e)}));let i=136,a=0,d=0,c=0,l=0,o={devices:r,rd08r1040:()=>(2&c&&(c&=-3),a),rd16r1044:()=>c,rd16r104a:()=>l,rd16r104e:()=>i,wr08r1040:function(e){let t=null;switch(0==(2&l)&&abort(),2==(2&l)&&(t=8192&l?r[1]:r[0]),d){case 0:if(!t)return s(255,!0);s(255,!1),d=255&e,129===d&&t.init(),1===d&&t.init();break;case 1:t.buildControllerResponse(255&e),d=2;case 2:n(t,e);break;case 129:t.buildMemCardResponse(255&e),d=130;case 130:n(t,e);break;case 131:return s(255,!0);default:console.warn('unknown command state:',hex(d,4),' device:',t.id)}},wr16r1048:e=>{13!==e&&abort(hex(e,4))},wr16r104a:function(e){l=-81&e,(64&e||!(2&l))&&(2==(2&l)&&null.init(),psx.unsetEvent(t),d=0,c=5),16&e&&(c&=-513)},wr16r104e:function(e){136!==e&&abort(`invalid JOY_BAUD: $${hex(e,4)}`),i=65535&e}};return{joy:o}}));mdlr('enge:psx:serial-device',(e=>{const{encode:s}=e.require('base64'),t=new Uint8Array(131072),a=(e,s)=>{n.push(...e);for(let e=0;e<128;++e)n.push(-1);n.push(...s)};let r=0,c=0,n=[],h=[],i=0,o=0;return{lo:255,hi:255,setId:function(e){return r=e,this},setMemoryCard:e=>{for(let s=0;s<e.length;++s)t[s]=e[s]},init:()=>{c=0,n=[],h=[]},buildMemCardResponse:e=>{switch(c=e,e){case 82:a([0,90,93,0,-1,92,-1,-1,-1],[-1,71]);break;case 87:a([0,90,93,-1,-1],[-1,92,93,71]);break;default:n.push(255)}},buildControllerResponse:function(e){switch(c=e,e){case 66:n.push(65,90,this.lo,this.hi);break;case 67:n.push(255);break;default:return abort(hex(e,2))}},sendReceiveByte:e=>{n.length<=0&&console.log(`#${r}: reading unexpected in mode $${hex(c,2)}`);let a=n.shift()||0;if(82===c&&-1===a){const e=h.length;switch(!0){case 4===e:a=h[3];break;case 6===e:a=93;break;case 7===e:a=h[3],i=a;break;case 8===e:o=h[3]<<8|h[4],a=h[4],i^=a;break;case e>=9&&e<137:a=t[128*o+e-9],i^=a;break;case 137===e:a=255&i}}if(87===c&&-1===a){const c=h.length;switch(!0){case 3===c:a=h[3],i=a;break;case 4===c:a=h[3],i^=a,o=a<<8|e;break;case c>=5&&c<133:const n=128*o+c-5;a=t[n-1],t[n]=e,i^=e;break;case 133===c:a=t[132],localStorage.setItem(`card${r+1}`,s(t))}}return h.push(e),255&a},hasMore:()=>n.length>0}}));mdlr('enge:psx:spu',(e=>{const r=e.require('enge:psx:spu-reverb'),a=22050,t=new Uint8Array(524288),c=new Array(24),s=new DataView(t.buffer),n=new Map;psx.addEvent(0,(e=>{if(psx.updateEvent(e,768),!o||!l)return;p&=-64,p|=63&d,++k;let n=0,f=0;const b=k%512<<1;y.checkIrq();let I=[0,0],w=0,x=0;for(let e of c)if(e.advance(t,I)&&(n+=I[0],f+=I[1],e.reverb&&(w+=I[0],x+=I[1]),e.capture)){const r=32768*I[0]>>0;s.setInt16(e.capture+b,r,!0)}var O=[0,0];cdr.nextpcm(O);let q=O[0]*v,D=O[1]*m;{const e=32768*q>>>0;s.setInt16(0+b,e,!0)}{const e=32768*D>>>0;s.setInt16(1024+b,e,!0)}if(n+=q,f+=D,4&i&&(w+=q,x+=D),128&i){const[e,a]=r.advance(k,w,x,s);n+=e,f+=a}n*=g,f*=h,o[u]=n,l[u]=f,u=(u+1)%a,0===b&&(p&=-2049),512===b&&(p|=2048)}));let o=null,l=null,f=0,b=0,u=5512,k=0,i=0,p=0,d=0,g=0,h=0,v=0,m=0,I=0,w=0,y={ENDX:16777215,silence:()=>{if(o&&l)for(var e=0;e<a;++e)o[e]=l[e]=0},getVolume:e=>(e<<17>>16)/32768,getInt16:e=>{switch(e){case 7594:return i;case 7598:return-64&p|63&i;case 7580:return y.ENDX;default:return e>=7168&&e<7552?c[e-7168>>4].rd16(15&e):e>=7616&&e<7680?r.rd16(e):n.get(e)}},setInt16:(e,u)=>{switch(u&=65535,n.set(e,u),e){case 7552:g=y.getVolume(u);break;case 7554:h=y.getVolume(u);break;case 7556:case 7558:case 7586:r.wr16(e,u);break;case 7560:for(let e=0;e<16;++e)0!=(u&1<<e)&&(c[e].keyOn(),y.ENDX&=~(1<<e));break;case 7562:for(let e=0;e<8;++e)0!=(u&1<<e)&&(c[16+e].keyOn(),y.ENDX&=~(1<<16+e));break;case 7564:for(let e=0;e<16;++e)0!=(u&1<<e)&&c[e].keyOff();break;case 7566:for(let e=0;e<8;++e)0!=(u&1<<e)&&c[16+e].keyOff();break;case 7568:for(let e=0;e<16;++e)0!=(u&1<<e)&&c[e].modOn();break;case 7570:for(let e=0;e<8;++e)0!=(u&1<<e)&&c[16+e].modOn();break;case 7572:for(let e=0;e<16;++e)0!=(u&1<<e)&&c[e].noiseOn();break;case 7574:for(let e=0;e<8;++e)0!=(u&1<<e)&&c[16+e].noiseOn();break;case 7576:for(let e=0;e<16;++e)c[e].echoOn(u&1<<e);break;case 7578:for(let e=0;e<8;++e)c[16+e].echoOn(u&1<<e);break;case 7580:case 7582:case 7584:case 7596:case 7598:case 7608:case 7610:case 7612:case 7614:break;case 7588:b=u<<3;break;case 7590:f=u<<3;break;case 7592:f%=t.byteLength,s.setInt16(f,u,!0),f+=2,y.checkIrq();break;case 7594:!(128&i)&&128&u&&console.log('reverb','on'),128&i&&!(128&u)&&console.log('reverb','off'),i=u,o&&l||!(32768&i)||(()=>{const e=new AudioContext,r=e.createBuffer(2,a,e.sampleRate),t=e.createBufferSource();o=r.getChannelData(0),o.fill(0),l=r.getChannelData(1),l.fill(0),t.playbackRate.value=44100/e.sampleRate,t.buffer=r,t.loop=!0,t.connect(e.destination),t.start()})(),64&i&&(p&=-65),d=63&i;break;case 7600:v=(u<<16>>16)/32768;break;case 7602:m=(u<<16>>16)/32768;break;case 7604:I=(u<<16>>16)/32768;break;case 7606:w=(u<<16>>16)/32768;break;default:if(e>=7168&&e<7552){c[e-7168>>>4].wr16(15&e,u);break}if(e>=7616&&e<7680){r.wr16(e,u);break}abort(hex(e,4))}},dmaTransferMode0200:(e,r)=>{if(!(8388607&e))return 16;let a=(r>>16)*(65535&r)*4>>>0;for(;a>0;){f%=t.byteLength;const r=s.getInt16(f,!0);map16[(2097151&e)>>>1]=r,f+=2,a-=2,e+=2}return(r>>16)*(65535&r)},dmaTransferMode0201:(e,r)=>{if(!(8388607&e))return 16;let a=(r>>16)*(65535&r)*4>>>0;for(;a>0;){f%=t.byteLength;const r=map16[(2097151&e)>>>1];s.setInt16(f,r,!0),y.checkIrq(),f+=2,a-=2,e+=2}return(r>>16)*(65535&r)},checkIrq:e=>{if(32832!=(32832&i))return;const r=k%512<<1;let a=!1;void 0!==e?a=e.checkIrq(b):(f===b&&(a=!0),r===b&&(a=!0)),a&&(cpu.istat|=512,p|=64)}};for(let r=0;r<24;++r){const{voice:a}=e.require('enge:psx:spu-voice');c[r]=a.setId(r)}const x=new Float32Array(32);x.fill(0),x[2]=60/64,x[3]=0,x[4]=115/64,x[5]=-52/64,x[6]=98/64,x[7]=-55/64,x[8]=122/64,x[9]=-60/64;const O=new Float32Array(8192);for(let e=0;e<16;++e)for(let r=0;r<256;++r){const a=(e<<8)+r<<1;var q;32768&(q=(240&r)<<8)&&(q|=4294901760),O[a+1]=(q>>e)/32768,32768&(q=(15&r)<<12)&&(q|=4294901760),O[a+0]=(q>>e)/32768}return{spu:y,xa2flt:x,xa2pcm:O}}));mdlr('enge:psx:spu-reverb',(e=>{let t,n,r,s,l,o,c,d,g,u,a,p,v,w,x,I,b,h,m,M,f,i,j,k,q,y,z,A,B,C,D,E,F,G,H,J,K,L,N;const O=e=>e<<16>>16,P=e=>e<<16>>>13,Q=new Map([[7556,e=>t=O(e)],[7558,e=>n=O(e)],[7586,e=>K=r=e<<16>>>13],[7616,e=>s=P(e)],[7618,e=>l=P(e)],[7620,e=>o=O(e)],[7622,e=>c=O(e)],[7624,e=>d=O(e)],[7626,e=>g=O(e)],[7628,e=>u=O(e)],[7630,e=>a=O(e)],[7632,e=>p=O(e)],[7634,e=>v=O(e)],[7636,e=>w=P(e)],[7638,e=>x=P(e)],[7640,e=>I=P(e)],[7642,e=>b=P(e)],[7644,e=>h=P(e)],[7646,e=>m=P(e)],[7648,e=>M=P(e)],[7650,e=>f=P(e)],[7652,e=>i=P(e)],[7654,e=>j=P(e)],[7656,e=>k=P(e)],[7658,e=>q=P(e)],[7660,e=>y=P(e)],[7662,e=>z=P(e)],[7664,e=>A=P(e)],[7666,e=>B=P(e)],[7668,e=>C=P(e)],[7670,e=>D=P(e)],[7672,e=>E=P(e)],[7674,e=>F=P(e)],[7676,e=>G=O(e)],[7678,e=>H=O(e)]]),R=e=>r+(K+e)%(524288-r),S=e=>J.getInt16(R(e),!0),T=(e,t)=>J.setInt16(R(e),(e=>e<-32768?-32768:e>32767?32767:e)(t),!0),U=e=>e/32768>>0,V=e=>{const n=G*e;T(w,U((n+U(S(M)*a)-S(w-2))*o)+S(w-2)),T(i,U((n+U(S(B)*a)-S(i-2))*o)+S(i-2));let r=U(c*S(I))+U(d*S(h))+U(g*S(k))+U(u*S(y));return r-=U(p*S(C-s)),T(C,r),r=U(r*p)+S(C-s),r-=U(v*S(E-l)),T(E,r),r=U(r*v)+S(E-l),L=U(r*t)/32768},W=e=>{const t=H*e;T(x,U((t+U(S(f)*a)-S(x-2))*o)+S(x-2)),T(j,U((t+U(S(A)*a)-S(j-2))*o)+S(j-2));let r=U(c*S(b))+U(d*S(m))+U(g*S(q))+U(u*S(z));return r-=U(p*S(D-s)),T(D,r),r=U(r*p)+S(D-s),r-=U(v*S(F-l)),T(F,r),r=U(r*v)+S(F-l),K+=2,N=U(r*n)/32768};return{advance:(e,t,n,r)=>(J=r,1&e?[L,W(n)]:[V(t),N]),rd16:e=>{console.log('rd16',hex(e,4))},wr16:(e,t)=>{Q.get(e)(t)}}}));mdlr('enge:psx:spu-voice',(e=>{let r=114688,a=0,c=0,t=0,s=0,n=0,o=0,u=0,l=0,k=0,i=0,p=0,b=0,d=[],m=[],f=0,v=r,h=0,w=0,x=new Float32Array(28),O=0,y=0,g=0,I=0,q=new Uint16Array(16);const A=(e,r,a,t=c)=>{const s=r?(e?M:F)[t>>>28]:0,n=E[a+s];return e?-n:n},V=()=>{t=4},D={reverb:0,capture:0,setId:e=>(a=e,1===e&&(D.capture=2048),3===e&&(D.capture=3072),D),advance(e,E){if(!t)return t;v+=f,v>=r&&(v-=r,(e=>{const r=e[w+0],t=e[w+1],s=(15&r)>>>0,n=(240&r)>>>3,o=xa2flt[n+0],u=xa2flt[n+1];let l=-1;for(let r=2;r<16;++r){let a,c=(s<<8)+e[w+r]<<1;a=O*o+y*u+xa2pcm[c+0],y=O,O=x[++l]=a,a=O*o+y*u+xa2pcm[c+1],y=O,O=x[++l]=a}4==(4&t)&&(h=w),w+=16,1==(1&t)&&(w=h,spu.ENDX|=1<<a,0==(2&t)&&(V(),c=0))})(e),spu.checkIrq(D));const F=x[v>>>12],M=(()=>{switch(t){case 0:c=0;case 1:c+=A(0,s,n),c>=2147483647&&(t=2);break;case 2:c+=A(1,1,o),(c>>>27&15)<=k&&(t=3);break;case 3:c+=A(i,u,l);break;case 4:c+=A(1,p,b),c<=0&&(t=0)}return c>2147483647&&(c=2147483647),c<0&&(c=0),(q[12]=c>>>16)/32768})();return E[0]=F*M*g*X(d),E[1]=F*M*I*X(m),t},checkIrq:e=>w<=e&&e<w+16,keyOn(){O=0,y=0,v=r,w=q[6]<<3,h=q[14]<<3,t=1,c=0},echoOn(e){D.reverb=e},modOn(){},noiseOn(){},keyOff(){V()},rd16:e=>q[15&e],wr16(e,r){switch(q[15&e]=r,e%16){case 0:32768&r?d=U(r):(d=[],g=spu.getVolume(r));break;case 2:32768&r?m=U(r):(m=[],I=spu.getVolume(r));break;case 4:f=Math.min(r,16384);break;case 8:s=r>>>15&1,n=r>>>8&127,o=(r>>>4&15)<<3,k=1+(15&r);break;case 10:u=r>>>15&1,i=r>>>14&1,l=r>>>6&127,p=r>>>5&1,b=(31&r)<<2;break;case 14:h=r<<3}}},E=[],F=[0,0,0,0,0,0,8,8],M=[12,8,6,4,3,2,1,0],N=(e,r)=>e>r?e:r,U=e=>[16384&e?1:0,8192&e?1:0,e>>0&127,c],X=e=>{const{mode:r,direction:a,rate:c,level:t}=e;return void 0===r?1:(e[3]+=A(a,r,c,t),(e[3]>>>16)/32768)};for(let e=0;e<140;++e){const r=3&e,a=e>>2,c=1<<N(0,a-11),t=8-r<<N(0,11-a);E[e]=t/c*65536>>>0}return{voice:D}}));mdlr('enge:psx:trace',(e=>{const c=/[A-Za-z]{4}_[0-9]{3}\.[0-9]{2}/;let t='',n=null,r='';function o(e){t+=String.fromCharCode(e),10!==e&&13!==e||(t!==n&&(function(){const e=c.exec(t);if(e){let c=e[0].replace('.','').toUpperCase();r!==c&&(document.title=`eNGE - [${c}]`,r=c)}}(),n=t),console.debug(t),t='')}return{trace:function(e,c){switch(e){case 160:60===c&&o(cpu.gpr[4]);break;case 176:61===c&&o(cpu.gpr[4])}}}}));mdlr('enge:psx:webgl2',(e=>{Object.assign(window,e.require('enge:utils')),e.require('enge:webgl2'),e.require('enge:psx')}));mdlr('enge:utils',(t=>{const e=t.require('base64'),o=(()=>{const t=JSON.parse(localStorage.getItem('config')||'{}');return Object.assign({quality:1,overscan:0},t)})();return o.updateQuality=t=>{const e=document.getElementById('quality');e&&(t&&(o.quality<<=1,o.quality>4&&(o.quality=1),localStorage.setItem('config',JSON.stringify(o)),e.classList.add('restart')),e.innerText=`Q${o.quality}`)},window.addEventListener('storage',(()=>{const t=JSON.parse(localStorage.getItem('config')||'{}');Object.assign(o,t)})),{log:function(){console.log.call(console,('000000000000'+psx.clock).substr(-12)+']',Array.prototype.slice.call(arguments).join(''))},hex:function(t,e){return("00000000"+(t>>>0).toString(16)).substr(-(e||8))},readStorageStream:function(t,o){const n=localStorage.getItem(t);return o(n?e.decode(n):null)},writeStorageStream:function(t,o){const n=e.encode(o);localStorage.setItem(t,n)},settings:o}}));mdlr('enge:webgl2',(e=>{const{createVertexBuffer:r,createProgramFromScripts:a}=e.require('enge:webgl2:utils'),t={},d=new Uint32Array(65536),n=new Uint32Array(8388608),s=new Uint8Array(n.buffer),i=r(),l=document.getElementById('display'),o=document.querySelector('#ambilight').getContext('2d',{alpha:!1});o.imageSmoothingEnabled=!1;for(let e=0;e<65536;++e)d[e]=(e>>>0&31)<<3,d[e]|=(e>>>5&31)<<11,d[e]|=(e>>>10&31)<<19,d[e]|=e>>>15&1?4278190080:0;let u=null;try{u=l.getContext("webgl2",{alpha:!1,antialias:!1,preserveDrawingBuffer:!0,premultipliedAlpha:!1,depth:!1,stencil:!1})}catch(e){return abort()}const[T,E,R,c,h,f,p,A,x,g,b,m,w,D,B]=[u.ONE,u.ZERO,u.CONSTANT_ALPHA,u.BLEND,u.FUNC_ADD,u.STENCIL_TEST,u.FRAMEBUFFER,u.READ_FRAMEBUFFER,u.DRAW_FRAMEBUFFER,u.COLOR_ATTACHMENT0,u.TEXTURE_2D,u.RGBA,u.UNSIGNED_BYTE,u.NEAREST,u.COLOR_BUFFER_BIT],[S,y,V,F,M,P,C,L,N,O,U,I,v,H,Y,X]=[u.blendColor,u.blendFuncSeparate,u.blendEquationSeparate,u.enable,u.disable,u.getUniformLocation,u.texSubImage2D,u.bindFramebuffer,u.framebufferTexture2D,u.blitFramebuffer,u.enableVertexAttribArray,u.getAttribLocation,u.vertexAttribPointer,u.bindTexture,u.texImage2D,u.createFramebuffer].map((e=>e.bind(u))),k=(e,r,a,t,d,n,s=d,i=n)=>Math.abs(e-a)>1023||Math.abs(a-d)>1023||Math.abs(d-e)>1023||Math.abs(s-a)>1023||Math.abs(s-d)>1023||Math.abs(r-t)>511||Math.abs(t-n)>511||Math.abs(n-r)>511||Math.abs(i-t)>511||Math.abs(i-n)>511;function G(e,r=0){return 4278190080&e[0]|16316664&e[r]}function q(){F(u.DEPTH_TEST),L(p,ae),N(p,g,b,ee,0),N(p,u.DEPTH_ATTACHMENT,b,re,0),u.clearDepth(0),u.clear(u.DEPTH_BUFFER_BIT),L(p,null),primitiveId=1,M(u.DEPTH_TEST)}function W(e,r=!1,a=!1){if(a){const{x:e,y:r,w:a,h:t}=gpu.getDisplayArea();L(A,ae),N(A,g,b,ee,0),L(x,de),N(x,g,b,te,0),O(4*e,4*r,4*(e+a),4*(r+t),4*e,4*r,4*(e+a),4*(r+t),B,D)}else{const e=4*(r?t.daLold:t.daL),a=4*(r?t.daTold:t.daT),d=4*(r?t.daRold:t.daR+1),n=4*(r?t.daBold:t.daB+1);L(A,ae),N(A,g,b,ee,0),L(x,de),N(x,g,b,te,0),O(e,a,d,n,e,a,d,n,B,D)}L(p,null)}function z(e,r){e.size()&&(F(u.DEPTH_TEST),u.depthMask(!0),u.depthFunc(u.GREATER),renderer.setTransparencyMode(r,renderer.programRenderer),u.useProgram(renderer.programRenderer),u.viewport(0,0,4096,2048),u.bindBuffer(u.ARRAY_BUFFER,renderer.displayBuffer),u.bufferData(u.ARRAY_BUFFER,e,u.STREAM_DRAW,e.base(),e.bytes()),L(p,ae),N(p,g,b,ee,0),N(p,u.DEPTH_ATTACHMENT,b,re,0),H(b,te),u.drawArrays(u.TRIANGLES,0,e.size()),L(p,null),e.reset(),M(u.DEPTH_TEST))}let Z=4;const j=(e,r)=>{const a=33554432&r[0]?gpu.status>>5&3:4;return 4!==a&&a!==Z&&(J(),Z=a),e.buffers[a]},J=()=>{z(renderer.buffers[4],4),z(renderer.buffers[Z],Z)},K=(e,r,a={x:0,y:0,w:1024,h:512})=>{const d=e.programDisplay;l.width===a.w*settings.quality&&l.height===a.h*settings.quality||(l.width=o.canvas.width=a.w*settings.quality,l.height=o.canvas.height=a.h*settings.quality),u.viewport(0,0,l.width,l.height),u.useProgram(d);const n=gpu.getDisplayArea();u.uniform4i(d.displayArea,n.x,n.y,n.x+n.w-1,n.y+n.h-1),u.uniform1i(d.mode,r),u.uniform4i(d.drawArea,t.daL,t.daT,t.daR,t.daB),L(p,null),u.bindBuffer(u.ARRAY_BUFFER,e.displayBuffer),u.bufferData(u.ARRAY_BUFFER,(({x:e,y:r,w:a,h:t})=>(i.addVertex(0,0,e+0,r+0),i.addVertex(1024,0,e+a,r+0),i.addVertex(0,512,e+0,r+t),i.addVertex(0,512,e+0,r+t),i.addVertex(1024,0,e+a,r+0),i.addVertex(1024,512,e+a,r+t),i.view()))(a),u.STATIC_DRAW),u.activeTexture(u.TEXTURE0),H(b,ee),u.drawArrays(u.TRIANGLES,0,6),i.reset(),l.width&&l.height&&o.drawImage(l,0,0)},Q=24,$=()=>{const e=u.createTexture();return H(b,e),u.texParameteri(b,u.TEXTURE_WRAP_S,u.CLAMP_TO_EDGE),u.texParameteri(b,u.TEXTURE_WRAP_T,u.CLAMP_TO_EDGE),u.texParameteri(b,u.TEXTURE_MIN_FILTER,D),u.texParameteri(b,u.TEXTURE_MAG_FILTER,D),e},ee=$();Y(b,0,m,4096,2048,0,m,w,null);const re=((e,r)=>{const a=$();return Y(b,0,u.DEPTH_COMPONENT16,4096,2048,0,u.DEPTH_COMPONENT,u.UNSIGNED_SHORT,null),H(b,null),a})(),ae=X();L(p,ae),N(p,g,b,ee,0),H(b,re),N(p,u.DEPTH_ATTACHMENT,b,re,0),L(p,null);const te=$();Y(b,0,m,4096,2048,0,m,w,null);const de=X();L(p,de),N(p,g,b,te,0),L(p,null);const ne=$();Y(b,0,m,4096,2048,0,m,w,null);const se=X();window.primitiveId=0,window.nextPrimitive=()=>{++primitiveId},window.renderer=new class{buffers=[r(),r(),r(),r(),r(!0)];constructor(){this.mode='disp',this.fpsRenderCounter=0,this.fpsCounter=0,this.skipped=0,this.seenRender=!1,u?(M(f),M(u.DEPTH_TEST),M(c),M(u.CULL_FACE),M(u.DITHER),M(u.POLYGON_OFFSET_FILL),M(u.SAMPLE_COVERAGE),M(u.SCISSOR_TEST),U(0),S(0,0,0,0),u.clearDepth(0),this.displayBuffer=u.createBuffer(),this.programDisplay=(e=>{const r=a(u,'vertex','displayScreen');let t;return u.useProgram(r),r.displayArea=P(r,"u_disp"),r.mode=P(r,"u_mode"),r.drawArea=P(r,"u_draw"),u.bindBuffer(u.ARRAY_BUFFER,e),t=I(r,"a_position"),U(t),v(t,3,u.SHORT,!1,Q,0),t=I(r,"a_texcoord"),U(t),v(t,2,u.SHORT,!1,Q,6),r})(this.displayBuffer),this.renderBuffer=u.createBuffer(),this.programRenderer=(e=>{const r=a(u,'pixel','videoram');let t;return u.useProgram(r),r.drawArea=P(r,"u_draw"),t=I(r,"a_position"),U(t),v(t,3,u.SHORT,!1,Q,0),t=I(r,"a_texcoord"),U(t),v(t,2,u.SHORT,!1,Q,6),t=I(r,"a_color"),U(t),v(t,4,w,!0,Q,10),t=I(r,"a_twin"),U(t),v(t,4,w,!1,Q,14),t=I(r,"a_clut"),U(t),v(t,1,u.SHORT,!1,Q,18),t=I(r,"a_tmode"),U(t),v(t,1,u.BYTE,!1,Q,20),r})(this.renderBuffer),H(b,ee),n.fill(0),C(b,0,0,0,4096,2048,m,w,s),q()):alert("Error: Your browser does not appear to support WebGL.")}loadImage(e,r,a,t,d){J(),L(A,ae),N(A,g,b,ee,0),L(x,se),N(x,g,b,ne,0),O(4*e,4*r,4*(e+a),4*(r+t),e,r,e+a,r+t,B,D),L(A,se),u.readPixels(e,r,a,t,m,w,s);const i=a*t;for(let e=0;e<i;++e){const r=n[e];let a=0;a|=r>>>24&255?32768:0,a|=(r>>>19&31)<<10,a|=(r>>>11&31)<<5,a|=(r>>>3&31)<<0,d[e]=a}L(p,null)}moveImage(e,r,a,t,d,n){this.seenRender=!0,J(),L(A,ae),N(A,g,b,ee,0),L(x,de),N(x,g,b,te,0),O(4*e,4*r,4*(e+d),4*(r+n),4*a,4*t,4*(a+d),4*(t+n),B,D),L(A,de),N(A,g,b,te,0),L(x,ae),N(x,g,b,ee,0),O(4*a,4*t,4*(a+d),4*(t+n),4*a,4*t,4*(a+d),4*(t+n),B,D),L(A,de),N(A,g,b,te,0),L(x,se),N(x,g,b,ne,0),O(4*a,4*t,4*(a+d),4*(t+n),a,t,a+d,t+n,B,D),L(x,null),L(A,null),u.activeTexture(u.TEXTURE0+0)}storeImage(e){this.seenRender=!0,J();for(let r=0,a=e.pixelCount;r<a;++r){const a=e.buffer[r]>>>0;n[r]=d[a]}const{x:r,y:a,w:t,h:i}=e;H(b,ne),C(b,0,r,a,t,i,m,w,s),H(b,null),L(A,se),N(A,g,b,ne,0),L(x,ae),N(x,g,b,ee,0),O(r,a,r+t,a+i,4*r,4*a,4*(r+t),4*(a+i),B,D),L(A,ae),N(A,g,b,ee,0),L(x,de),N(x,g,b,te,0),O(4*r,4*a,4*(r+t),4*(a+i),4*r,4*a,4*(r+t),4*(a+i),B,D),L(p,null)}setTransparencyMode(e,r){switch(u.useProgram(r),7&e){case 0:F(c),V(h,h),y(R,R,T,E),S(0,0,0,.5);break;case 1:F(c),V(h,h),y(R,R,T,E),S(0,0,0,1);break;case 2:F(c),V(u.FUNC_REVERSE_SUBTRACT,h),y(E,u.ONE_MINUS_SRC_COLOR,T,E);break;case 3:F(c),V(h,h),y(u.ONE_MINUS_CONSTANT_ALPHA,T,T,E),S(0,0,0,.75);break;case 4:M(c)}}drawLine(e,r,a,d,n){this.seenRender=!0,this.updateDrawArea();var s=t.daX+(e[a]<<21>>21),i=t.daY+(e[a]<<5>>21),l=t.daX+(e[n]<<21>>21),o=t.daY+(e[n]<<5>>21);if(k(s,i,l,o,s,i))return;r=G(e,r),d=G(e,d);const u=j(renderer,e);var T=Math.abs(s-l),E=Math.abs(i-o),R=u;s!==l||i!==o?T>=E?(R.addVertex(s,i+1,0,0,r),R.addVertex(s,i+0,0,0,r),R.addVertex(l,o+0,0,0,d),R.addVertex(l,o+0,0,0,d),R.addVertex(l,o+1,0,0,d),R.addVertex(s,i+1,0,0,r)):(R.addVertex(s+0,i,0,0,r),R.addVertex(s+1,i,0,0,r),R.addVertex(l+1,o,0,0,d),R.addVertex(l+1,o,0,0,d),R.addVertex(l+0,o,0,0,d),R.addVertex(s+0,i,0,0,r)):(R.addVertex(l+0,o+0,0,0,d),R.addVertex(l+1,o+0,0,0,d),R.addVertex(l+0,o+1,0,0,d),R.addVertex(l+0,o+1,0,0,d),R.addVertex(l+1,o+0,0,0,d),R.addVertex(l+1,o+1,0,0,d))}drawTriangle(e,r,a,d,n,s,i,l,o,u,T,E,R){this.seenRender=!0,this.updateDrawArea();const c=t.daX+(e[a]<<21>>21),h=t.daY+(e[a]<<5>>21),f=t.daX+(e[n]<<21>>21),p=t.daY+(e[n]<<5>>21),A=t.daX+(e[i]<<21>>21),x=t.daY+(e[i]<<5>>21);if(k(c,h,f,p,A,x))return;r=G(e,r),d=G(e,d),s=G(e,s);const g=j(renderer,e),b=e[u]>>>0&255,m=e[u]>>>8&255,w=e[T]>>>0&255,D=e[T]>>>8&255,B=e[E]>>>0&255,S=e[E]>>>8&255;g.addVertex(c,h,b,m,r,R),g.addVertex(f,p,w,D,d,R),g.addVertex(A,x,B,S,s,R)}drawRectangle(e,r,a,d){this.seenRender=!0,this.updateDrawArea();var n=t.daX+(e[1]<<21>>21),s=t.daY+(e[1]<<5>>21),i=G(e,0),l=e[2]<<16>>16,o=e[2]>>16;if(!l||!o)return;if(k(n,s,n+l,s,n,s+o,n+l,s+o))return;const u=j(renderer,e);var T=r+0,E=r+l;gpu.txflip&&(T=r+0,E=r-l+1);var R=a+0,c=a+o;gpu.tyflip&&(R=a+0,c=a-o+1);var h=u;h.addVertex(n+0,s+0,T,R,i,d),h.addVertex(n+l,s+0,E,R,i,d),h.addVertex(n+0,s+o,T,c,i,d),h.addVertex(n+l,s+0,E,R,i,d),h.addVertex(n+0,s+o,T,c,i,d),h.addVertex(n+l,s+o,E,c,i,d)}fillRectangle(e){J();var r=e[1]<<16>>>16,a=e[1]<<0>>>16,t=e[2]<<16>>>16,d=e[2]<<0>>>16,i=16316664&e[0];(t||d)&&(r&=1008,a&=511,t=15+(1023&t)&-16,d&=511,n.fill(i,0,t*d),H(b,ne),C(b,0,r,a,t,d,m,w,s),H(b,null),L(A,se),N(A,g,b,ne,0),L(x,ae),N(x,g,b,ee,0),O(r,a,r+t,a+d,4*r,4*a,4*(r+t),4*(a+d),B,D),L(A,ae),N(A,g,b,ee,0),L(x,de),N(x,g,b,te,0),O(4*r,4*a,4*(r+t),4*(a+d),4*r,4*a,4*(r+t),4*(a+d),B,D),L(x,null),L(A,null),L(p,null))}updateDrawArea(){t.daM&&(J(),W(0,!0),q(),t.daM=!1,u.useProgram(this.programRenderer),u.uniform4i(this.programRenderer.drawArea,t.daL,t.daT,t.daR,t.daB))}setDrawAreaOF(e,r){t.daX=e,t.daY=r}setDrawAreaTL(e,r){t.daLold=t.daL,t.daTold=t.daT,t.daL=e,t.daT=r,t.daM=!0}setDrawAreaBR(e,r){t.daRold=t.daR,t.daBold=t.daB,t.daR=e,t.daB=r,t.daM=!0}onVBlankEnd(){}onVBlankBegin(){if(++this.fpsCounter,!this.seenRender)return;J(),q(),W(0,!1,!0),++this.fpsRenderCounter,this.seenRender=!1,this.setTransparencyMode(4,this.programDisplay);const e=gpu.getDisplayArea();switch(this.mode){case'clut4':K(this,3);break;case'clut8':K(this,2);break;case'draw':K(this,6);break;case'page2':K(this,7);break;case'disp':const r=settings.overscan*e.w,a=settings.overscan*e.h;e.x+=r>>1,e.y+=a>>1,e.w-=r>>0,e.h-=a>>0,K(this,gpu.status>>21&5,e)}}setMode(e){this.mode=e,this.seenRender=!0}}}));mdlr('enge:webgl2:utils',(e=>{function t(e,t,r){var n=document.getElementById(t);if(!n)throw"*** Error: unknown script element: "+t;var a=n.text;if(!r)if("x-shader/x-vertex"==n.type)r=e.VERTEX_SHADER;else if("x-shader/x-fragment"==n.type)r=e.FRAGMENT_SHADER;else if(!r)throw"*** Error: shader type not set";return function(e,t,r){var n=e.createShader(r);if(e.shaderSource(n,t),e.compileShader(n),!e.getShaderParameter(n,e.COMPILE_STATUS))throw"could not compile shader:"+e.getShaderInfoLog(n);return n}(e,a,r)}return{createProgramFromScripts:function(e,r,n){return function(e,t,r){var n=e.createProgram();if(e.attachShader(n,t),e.attachShader(n,r),e.linkProgram(n),!e.getProgramParameter(n,e.LINK_STATUS))throw"program filed to link:"+e.getProgramInfoLog(n);return n}(e,t(e,r,e.VERTEX_SHADER),t(e,n,e.FRAGMENT_SHADER))},createVertexBuffer:function(e=!1){const t=new Uint8Array(1048576),r=new DataView(t.buffer);let n=0;return t.addVertex=(t,a,i,o,s=8421504,u)=>{e&&(n-=24),r.setInt16(n+0,t,!0),r.setInt16(n+2,a,!0),r.setInt16(n+4,primitiveId,!0),r.setInt16(n+6,i,!0),r.setInt16(n+8,o,!0),r.setUint32(n+10,s,!0),r.setUint32(n+14,gpu.twin,!0),r.setUint16(n+18,u>>>0,!0),r.setUint8(n+20,gpu.status>>7&3|(31&gpu.status)<<2,!0),e||(n+=24)},t.reset=()=>{n=e?t.length:0},t.size=()=>e?(t.length-n)/24:n/24,t.view=()=>e?new Uint8Array(t.buffer,n,t.length-n):new Uint8Array(t.buffer,0,n),t.base=()=>e?n:0,t.bytes=()=>e?t.length-n:n,t.reset(),t}}}));mdlr('[unit]enge:psx:webgl2')
+'use strict';globalThis.mdlr=(()=>{const e={names:/^(?:\[(?<t>[a-z]+)\])?(?<n>[-:a-z0-9_]+)$/,modules:new Map,loader:new Map,info:(t,n="unit")=>{const[,o,r]=e.names.exec(t)??[];return{type:o??n,n:`[${o??n}]${r}`}},load:(t,n)=>e.loader.get(t.type)(t,n)};e.loader.set('unit',((n,o)=>{const r=new t(n,o);return e.modules.get(n.n)(r)})).set('mdlr',e.loader.get('unit')).set('node',(e=>require(e.n.replace('[node]',''))));class t{constructor(t,n={}){this.context=n,this.name=t.n,'mdlr'===t.type&&(this.$=t=>e[t])}require(t,n){return this.context[t]??e.load(e.info(t),n)}}return(t,n)=>{const o=e.info(t);if(n?.constructor!==Function)return e.load(o,n);e.modules.set(o.n,n)}})();
+mdlr('enge:psx:webgl2', m => {
+Object.assign(window,
+m.require('enge:utils'),
+);
+m.require('enge:webgl2');
+m.require('enge:psx');
+})
+mdlr('enge:utils', m => {
+const Base64 = m.require('base64');
+function readStorageStream(item, handler) {
+const base64text = localStorage.getItem(item);
+if (base64text) {
+const arrayBuffer = Base64.decode(base64text);
+return handler(arrayBuffer);
+}
+else {
+return handler(null);
+}
+}
+function writeStorageStream(item, arrayBuffer) {
+const base64text = Base64.encode(arrayBuffer);
+localStorage.setItem(item, base64text);
+}
+function hex(value, len) {
+return ("00000000" + (value >>> 0).toString(16)).substr(-(len || 8));
+}
+function log() {
+console.log.call(console, ('000000000000' + (psx.clock)).substr(-12) + ']', Array.prototype.slice.call(arguments).join(''));
+}
+const settings = (() => {
+const object = JSON.parse(localStorage.getItem('config') || '{}');
+const defaults = { quality: 1, overscan: 0.00 };
+return Object.assign(defaults, object);
+})();
+settings.updateQuality = quality => {
+const elem = document.getElementById('quality');
+const select = document.getElementById('quality-select');
+if (quality === true) {
+settings.quality <<= 1;
+if (settings.quality > 4) settings.quality = 1;
+}
+else if (quality !== undefined) {
+settings.quality = Number(quality) || 1;
+}
+if (quality !== undefined) {
+localStorage.setItem('config', JSON.stringify(settings));
+}
+if (select) select.value = String(settings.quality);
+if (elem) elem.innerText = `Q${settings.quality}`;
+}
+window.addEventListener('storage', () => {
+const object = JSON.parse(localStorage.getItem('config') || '{}');
+Object.assign(settings, object);
+});
+return { log, hex, readStorageStream, writeStorageStream, settings };
+})
+mdlr('enge:webgl2', m => {
+const { createVertexBuffer, createProgramFromScripts } = m.require('enge:webgl2:utils');
+const $gpu = {
+};
+const sbgr2rgba = new Uint32Array(65536);
+const transfer = new Uint32Array(4096 * 2048);
+const view = new Uint8Array(transfer.buffer);
+const vertexBuffer = createVertexBuffer();
+const canvas = document.getElementById('display');
+const ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
+ambilight.imageSmoothingEnabled = false;
+for (let i = 0; i < 65536; ++i) {
+sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
+sbgr2rgba[i] |= ((i >>> 5) & 0x1f) << 11;      // g
+sbgr2rgba[i] |= ((i >>> 10) & 0x1f) << 19;      // b
+sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
+}
+let gl = null;
+try {
+gl = canvas.getContext("webgl2", {
+alpha: false,
+antialias: false,
+preserveDrawingBuffer: true,
+premultipliedAlpha: false,
+depth: false,
+stencil: false,
+});
+}
+catch (e) {
+return abort();
+}
+const [ONE, ZERO, CONSTANT_ALPHA, BLEND, FUNC_ADD, STENCIL_TEST, FRAMEBUFFER, READ_FRAMEBUFFER, DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, RGBA, UNSIGNED_BYTE, NEAREST, COLOR_BUFFER_BIT]
+= [gl.ONE, gl.ZERO, gl.CONSTANT_ALPHA, gl.BLEND, gl.FUNC_ADD, gl.STENCIL_TEST, gl.FRAMEBUFFER, gl.READ_FRAMEBUFFER, gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST, gl.COLOR_BUFFER_BIT];
+const [gl_blendColor, gl_blendFuncSeparate, gl_blendEquationSeparate, gl_enable, gl_disable, gl_getUniformLocation, gl_texSubImage2D, gl_bindFramebuffer, gl_framebufferTexture2D, gl_blitFramebuffer, gl_enableVertexAttribArray, gl_getAttribLocation, gl_vertexAttribPointer, gl_bindTexture, gl_texImage2D, gl_createFramebuffer]
+= [gl.blendColor, gl.blendFuncSeparate, gl.blendEquationSeparate, gl.enable, gl.disable, gl.getUniformLocation, gl.texSubImage2D, gl.bindFramebuffer, gl.framebufferTexture2D, gl.blitFramebuffer, gl.enableVertexAttribArray, gl.getAttribLocation, gl.vertexAttribPointer, gl.bindTexture, gl.texImage2D, gl.createFramebuffer].map(a => a.bind(gl));
+const largePrimitive = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
+if (Math.abs(x1 - x2) > 1023) return true;
+if (Math.abs(x2 - x3) > 1023) return true;
+if (Math.abs(x3 - x1) > 1023) return true;
+if (Math.abs(x4 - x2) > 1023) return true;
+if (Math.abs(x4 - x3) > 1023) return true;
+if (Math.abs(y1 - y2) > 511) return true;
+if (Math.abs(y2 - y3) > 511) return true;
+if (Math.abs(y3 - y1) > 511) return true;
+if (Math.abs(y4 - y2) > 511) return true;
+if (Math.abs(y4 - y3) > 511) return true;
+return false;
+}
+const outsideDrawArea = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
+return false;
+if ((x1 < $gpu.daL) && (x2 < $gpu.daL) && (x3 < $gpu.daL) && (x4 < $gpu.daL)) return true;
+if ((x1 > $gpu.daR) && (x2 > $gpu.daR) && (x3 > $gpu.daR) && (x4 > $gpu.daR)) return true;
+if ((y1 < $gpu.daT) && (y2 < $gpu.daT) && (y3 < $gpu.daT) && (y4 < $gpu.daT)) return true;
+if ((y1 > $gpu.daB) && (y2 > $gpu.daB) && (y3 > $gpu.daB) && (y4 > $gpu.daB)) return true;
+return false;
+}
+// todo: refactor to completely move this class
+class WebGLRenderer {
+buffers = [
+createVertexBuffer(),
+createVertexBuffer(),
+createVertexBuffer(),
+createVertexBuffer(),
+createVertexBuffer(true),
+];
+constructor() {
+this.mode = 'disp';
+this.fpsRenderCounter = 0;
+this.fpsCounter = 0;
+this.skipped = 0;
+this.seenRender = false;
+if (gl) {
+gl_disable(STENCIL_TEST);
+gl_disable(gl.DEPTH_TEST);
+gl_disable(BLEND);
+gl_disable(gl.CULL_FACE);
+gl_disable(gl.DITHER);
+gl_disable(gl.POLYGON_OFFSET_FILL);
+gl_disable(gl.SAMPLE_COVERAGE);
+gl_disable(gl.SCISSOR_TEST);
+gl_enableVertexAttribArray(0);
+gl_blendColor(0.0, 0.0, 0.0, 0.0);
+gl.clearDepth(0.0);
+this.displayBuffer = gl.createBuffer();
+this.programDisplay = createProgramDisplay(this.displayBuffer);
+this.renderBuffer = gl.createBuffer();
+this.programRenderer = createProgramRenderer(this.renderBuffer);
+// copy texture data
+gl_bindTexture(TEXTURE_2D, vram);
+transfer.fill(0);
+gl_texSubImage2D(TEXTURE_2D, 0, 0, 0, 4096, 2048, RGBA, UNSIGNED_BYTE, view);
+flushDepth();
+}
+else {
+alert("Error: Your browser does not appear to support WebGL.");
+}
+}
+loadImage(x, y, w, h, buffer) {
+flushVertexBuffer();
+// blit from vram -> cache
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, (x + w), (y + h), COLOR_BUFFER_BIT, NEAREST);
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+gl.readPixels(x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+const size = w * h;
+for (let i = 0; i < size; ++i) {
+const data32 = transfer[i];
+let sbgr16 = 0;
+sbgr16 |= ((data32 >>> 24) & 0xff) ? 0x8000 : 0x0000;
+sbgr16 |= ((data32 >>> 19) & 0x1f) << 10;
+sbgr16 |= ((data32 >>> 11) & 0x1f) << 5;
+sbgr16 |= ((data32 >>> 3) & 0x1f) << 0;
+buffer[i] = sbgr16;
+}
+gl_bindFramebuffer(FRAMEBUFFER, null);
+}
+getVramState() {
+const buffer = new Uint16Array(1024 * 512);
+this.loadImage(0, 0, 1024, 512, buffer);
+return buffer;
+}
+setVramState(buffer) {
+this.storeImage({ x: 0, y: 0, w: 1024, h: 512, pixelCount: 1024 * 512, buffer });
+}
+moveImage(sx, sy, dx, dy, w, h) {
+this.seenRender = true;
+flushVertexBuffer();
+// blit from vram -> vramShadow
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_blitFramebuffer(4 * sx, 4 * sy, 4 * (sx + w), 4 * (sy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
+// blit from vramShadow -> vram
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
+// blit from vramShadow -> cache
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), dx, dy, (dx + w), (dy + h), COLOR_BUFFER_BIT, NEAREST);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+gl.activeTexture(gl.TEXTURE0 + 0);
+}
+storeImage(img) {
+this.seenRender = true;
+flushVertexBuffer();
+for (let i = 0, l = img.pixelCount; i < l; ++i) {
+const sbgr = img.buffer[i] >>> 0;
+transfer[i] = sbgr2rgba[sbgr];
+}
+const { x, y, w, h } = img;
+// copy texture data
+gl_bindTexture(TEXTURE_2D, cache);
+gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+gl_bindTexture(TEXTURE_2D, null);
+// blit from cache -> vram
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+// blit from vram -> vramShadow
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+gl_bindFramebuffer(FRAMEBUFFER, null);
+}
+setTransparencyMode(mode, program) {
+gl.useProgram(program);
+switch (mode & 0x7) {
+case 0: {
+gl_enable(BLEND);
+gl_blendEquationSeparate(FUNC_ADD, FUNC_ADD);
+gl_blendFuncSeparate(CONSTANT_ALPHA, CONSTANT_ALPHA, ONE, ZERO);
+gl_blendColor(0.0, 0.0, 0.0, 0.5);
+} break;
+case 1: {
+gl_enable(BLEND);
+gl_blendEquationSeparate(FUNC_ADD, FUNC_ADD);
+gl_blendFuncSeparate(CONSTANT_ALPHA, CONSTANT_ALPHA, ONE, ZERO);
+gl_blendColor(0.0, 0.0, 0.0, 1.0);
+} break;
+case 2: {
+gl_enable(BLEND);
+gl_blendEquationSeparate(gl.FUNC_REVERSE_SUBTRACT, FUNC_ADD);
+gl_blendFuncSeparate(ZERO, gl.ONE_MINUS_SRC_COLOR, ONE, ZERO);
+} break;
+case 3: {
+gl_enable(BLEND);
+gl_blendEquationSeparate(FUNC_ADD, FUNC_ADD);
+gl_blendFuncSeparate(gl.ONE_MINUS_CONSTANT_ALPHA, ONE, ONE, ZERO);
+gl_blendColor(0.0, 0.0, 0.0, 0.75);
+} break;
+case 4: {
+gl_disable(BLEND);
+} break;
+}
+}
+drawLine(data, c1, xy1, c2, xy2) {
+this.seenRender = true;
+this.updateDrawArea();
+var x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
+var y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
+var x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
+var y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
+if (outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
+if (largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+c1 = getColor(data, c1);
+c2 = getColor(data, c2);
+// if (!vertexBuffer.canHold(6)) flushVertexBuffer();
+const vertexBuffer = getVertexBuffer(renderer, data);
+var w = Math.abs(x1 - x2);
+var h = Math.abs(y1 - y2);
+var buffer = vertexBuffer;
+if (x1 !== x2 || y1 !== y2) {
+if (w >= h) {
+buffer.addVertex(x1, y1 + 1, 0, 0, c1);
+buffer.addVertex(x1, y1 + 0, 0, 0, c1);
+buffer.addVertex(x2, y2 + 0, 0, 0, c2);
+buffer.addVertex(x2, y2 + 0, 0, 0, c2);
+buffer.addVertex(x2, y2 + 1, 0, 0, c2);
+buffer.addVertex(x1, y1 + 1, 0, 0, c1);
+}
+else {
+buffer.addVertex(x1 + 0, y1, 0, 0, c1);
+buffer.addVertex(x1 + 1, y1, 0, 0, c1);
+buffer.addVertex(x2 + 1, y2, 0, 0, c2);
+buffer.addVertex(x2 + 1, y2, 0, 0, c2);
+buffer.addVertex(x2 + 0, y2, 0, 0, c2);
+buffer.addVertex(x1 + 0, y1, 0, 0, c1);
+}
+}
+else {
+buffer.addVertex(x2 + 0, y2 + 0, 0, 0, c2);
+buffer.addVertex(x2 + 1, y2 + 0, 0, 0, c2);
+buffer.addVertex(x2 + 0, y2 + 1, 0, 0, c2);
+buffer.addVertex(x2 + 0, y2 + 1, 0, 0, c2);
+buffer.addVertex(x2 + 1, y2 + 0, 0, 0, c2);
+buffer.addVertex(x2 + 1, y2 + 1, 0, 0, c2);
+}
+}
+drawTriangle(data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
+this.seenRender = true;
+this.updateDrawArea();
+const x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
+const y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
+const x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
+const y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
+const x3 = $gpu.daX + ((data[xy3] << 21) >> 21);
+const y3 = $gpu.daY + ((data[xy3] << 5) >> 21);
+if (outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
+if (largePrimitive(x1, y1, x2, y2, x3, y3)) return;
+c1 = getColor(data, c1);
+c2 = getColor(data, c2);
+c3 = getColor(data, c3);
+// if (!vertexBuffer.canHold(6)) flushVertexBuffer();
+const vertexBuffer = getVertexBuffer(renderer, data);
+const buffer = vertexBuffer;
+const u1 = (data[uv1] >>> 0) & 255;
+const v1 = (data[uv1] >>> 8) & 255;
+const u2 = (data[uv2] >>> 0) & 255;
+const v2 = (data[uv2] >>> 8) & 255;
+const u3 = (data[uv3] >>> 0) & 255;
+const v3 = (data[uv3] >>> 8) & 255;
+buffer.addVertex(x1, y1, u1, v1, c1, cl);
+buffer.addVertex(x2, y2, u2, v2, c2, cl);
+buffer.addVertex(x3, y3, u3, v3, c3, cl);
+}
+drawRectangle(data, tx, ty, cl) {
+this.seenRender = true;
+this.updateDrawArea();
+var x = $gpu.daX + ((data[1] << 21) >> 21);
+var y = $gpu.daY + ((data[1] << 5) >> 21);
+var c = getColor(data, 0, true);
+var w = (data[2] << 16) >> 16;
+var h = (data[2] >> 16);
+if (!w || !h) return;
+if (outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
+if (largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
+// if (!vertexBuffer.canHold(6)) flushVertexBuffer();
+const vertexBuffer = getVertexBuffer(renderer, data);
+var tl = tx + 0;
+var tr = tx + w;
+if (gpu.txflip) {
+tl = tx + 0;
+tr = tx - w + 1;
+}
+var tt = ty + 0;
+var tb = ty + h;
+if (gpu.tyflip) {
+tt = ty + 0;
+tb = ty - h + 1;
+}
+var buffer = vertexBuffer;
+buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
+buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
+buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
+buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
+buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
+buffer.addVertex(x + w, y + h, tr, tb, c, cl);
+}
+fillRectangle(data) {
+flushVertexBuffer();
+var x = (data[1] << 16) >>> 16;
+var y = (data[1] << 0) >>> 16;
+var w = (data[2] << 16) >>> 16;
+var h = (data[2] << 0) >>> 16;
+var c = (data[0] & 0x00f8f8f8);
+if (!w && !h) return;
+x = (x & 0x3f0);
+y = (y & 0x1ff);
+w = ((w & 0x3ff) + 15) & ~15;
+h = (h & 0x1ff);
+transfer.fill(c, 0, w * h);
+// copy texture data
+gl_bindTexture(TEXTURE_2D, cache);
+gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+gl_bindTexture(TEXTURE_2D, null);
+// blit from cache -> vram
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+// blit from vram -> vramShadow
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+gl_bindFramebuffer(FRAMEBUFFER, null);
+}
+updateDrawArea() {
+if ($gpu.daM) {
+flushVertexBuffer();
+copyVramToShadowVram(true);
+flushDepth();
+$gpu.daM = false;
+gl.useProgram(this.programRenderer);
+gl.uniform4i(this.programRenderer.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+}
+}
+setDrawAreaOF(x, y) {
+$gpu.daX = x;
+$gpu.daY = y;
+}
+setDrawAreaTL(x, y) {
+$gpu.daLold = $gpu.daL;
+$gpu.daTold = $gpu.daT;
+$gpu.daL = x;
+$gpu.daT = y;
+$gpu.daM = true;
+}
+setDrawAreaBR(x, y) {
+$gpu.daRold = $gpu.daR;
+$gpu.daBold = $gpu.daB;
+$gpu.daR = x;
+$gpu.daB = y;
+$gpu.daM = true;
+}
+onVBlankEnd() {
+}
+onVBlankBegin() {
+++this.fpsCounter;
+if (this.seenRender) {
+flushVertexBuffer();
+flushDepth();
+copyVramToShadowVram(false, true);
+++this.fpsRenderCounter;
+this.seenRender = false;
+}
+else return;
+this.setTransparencyMode(4, this.programDisplay);
+const area = gpu.getDisplayArea();
+switch (this.mode) {
+case 'clut4':
+showDisplay(this, 3);
+break;
+case 'clut8':
+showDisplay(this, 2);
+break;
+case 'draw':
+showDisplay(this, 6);
+break;
+case 'page2': // display-area and draw-area
+showDisplay(this, 7);
+break;
+case 'disp':
+const overscanx = settings.overscan * area.w;
+const overscany = settings.overscan * area.h;
+area.x += (overscanx >> 1);
+area.y += (overscany >> 1);
+area.w -= (overscanx >> 0);
+area.h -= (overscany >> 0);
+showDisplay(this, (gpu.status >> 21) & 0b101, area);
+break;
+}
+}
+setMode(mode) {
+this.mode = mode;
+this.seenRender = true;
+}
+}
+function getColor(data, index = 0, forceFlat = false) {
+const mask = forceFlat || (data[0] & 0x10000000) ? 0x00f8f8f8 : 0x00ffffff;
+return (data[0] & 0xff000000) | (data[index] & mask);
+}
+function flushDepth() {
+gl_enable(gl.DEPTH_TEST);
+gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0);
+gl.clearDepth(0.0);
+gl.clear(gl.DEPTH_BUFFER_BIT);
+gl_bindFramebuffer(FRAMEBUFFER, null);
+primitiveId = 1;
+gl_disable(gl.DEPTH_TEST);
+}
+function copyVramToShadowVram(old = false, display = false) {
+if (!display) {
+const X1 = 4 * (old ? $gpu.daLold : $gpu.daL);
+const Y1 = 4 * (old ? $gpu.daTold : $gpu.daT);
+const X2 = 4 * (old ? $gpu.daRold : $gpu.daR + 1);
+const Y2 = 4 * (old ? $gpu.daBold : $gpu.daB + 1);
+// blit from vram -> vramShadow
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+}
+else {
+const { x, y, w, h } = gpu.getDisplayArea();
+// blit from vram -> vramShadow
+gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+}
+gl_bindFramebuffer(FRAMEBUFFER, null);
+}
+function flushBuffer(vertexBuffer, mode) {
+if (vertexBuffer.size()) {
+gl_enable(gl.DEPTH_TEST);
+gl.depthMask(true);
+gl.depthFunc(gl.GREATER);
+renderer.setTransparencyMode(mode, renderer.programRenderer);
+gl.useProgram(renderer.programRenderer);
+gl.viewport(0, 0, 4096, 2048); // texture dimensions
+gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, vertexBuffer.base(), vertexBuffer.bytes());
+gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0)
+gl_bindTexture(TEXTURE_2D, vramShadow);
+gl.drawArrays(gl.TRIANGLES, 0, vertexBuffer.size());
+gl_bindFramebuffer(FRAMEBUFFER, null);
+vertexBuffer.reset();
+gl_disable(gl.DEPTH_TEST);
+}
+}
+// only called by primitives
+let $mode = 4;
+const nextPrimitive = () => {
+++primitiveId;
+}
+const getVertexBuffer = (renderer, data) => {
+const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
+if (mode !== 4 && mode !== $mode) {
+flushVertexBuffer();
+$mode = mode;
+}
+return renderer.buffers[mode];
+}
+const flushVertexBuffer = () => {
+flushBuffer(renderer.buffers[4], 4);
+flushBuffer(renderer.buffers[$mode], $mode);
+}
+const getDisplayArrays = ({ x, y, w, h }) => {
+vertexBuffer.addVertex(0, 0, x + 0, y + 0);
+vertexBuffer.addVertex(1024, 0, x + w, y + 0);
+vertexBuffer.addVertex(0, 512, x + 0, y + h);
+vertexBuffer.addVertex(0, 512, x + 0, y + h);
+vertexBuffer.addVertex(1024, 0, x + w, y + 0);
+vertexBuffer.addVertex(1024, 512, x + w, y + h);
+return vertexBuffer.view();
+}
+const showDisplay = (renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) => {
+const program = renderer.programDisplay;
+if ((canvas.width !== region.w * settings.quality) || (canvas.height !== region.h * settings.quality)) {
+canvas.width = ambilight.canvas.width = region.w * settings.quality;
+canvas.height = ambilight.canvas.height = region.h * settings.quality;
+}
+gl.viewport(0, 0, canvas.width, canvas.height);
+gl.useProgram(program);
+const area = gpu.getDisplayArea();
+gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
+gl.uniform1i(program.mode, mode);
+gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+gl_bindFramebuffer(FRAMEBUFFER, null);
+gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(region), gl.STATIC_DRAW);
+gl.activeTexture(gl.TEXTURE0);
+gl_bindTexture(TEXTURE_2D, vram);
+gl.drawArrays(gl.TRIANGLES, 0, 6);
+vertexBuffer.reset();
+if (canvas.width && canvas.height) {
+ambilight.drawImage(canvas, 0, 0);
+}
+}
+const vertexStride = 24;
+const createProgramDisplay = (displayBuffer) => {
+const program = createProgramFromScripts(gl, 'vertex', 'displayScreen');
+gl.useProgram(program);
+program.displayArea = gl_getUniformLocation(program, "u_disp");
+program.mode = gl_getUniformLocation(program, "u_mode");
+program.drawArea = gl_getUniformLocation(program, "u_draw");
+gl.bindBuffer(gl.ARRAY_BUFFER, displayBuffer);
+let pos;
+pos = gl_getAttribLocation(program, "a_position");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 3, gl.SHORT, false, vertexStride, 0);
+pos = gl_getAttribLocation(program, "a_texcoord");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 2, gl.SHORT, false, vertexStride, 6);
+return program;
+}
+const createProgramRenderer = (renderBuffer) => {
+const program = createProgramFromScripts(gl, 'pixel', 'videoram');
+gl.useProgram(program);
+program.drawArea = gl_getUniformLocation(program, "u_draw");
+let pos;
+pos = gl_getAttribLocation(program, "a_position");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 3, gl.SHORT, false, vertexStride, 0);
+pos = gl_getAttribLocation(program, "a_texcoord");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 2, gl.SHORT, false, vertexStride, 6);
+pos = gl_getAttribLocation(program, "a_color");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 4, UNSIGNED_BYTE, true, vertexStride, 10);
+pos = gl_getAttribLocation(program, "a_twin");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 4, UNSIGNED_BYTE, false, vertexStride, 14);
+pos = gl_getAttribLocation(program, "a_clut");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 1, gl.SHORT, false, vertexStride, 18);
+pos = gl_getAttribLocation(program, "a_tmode");
+gl_enableVertexAttribArray(pos);
+gl_vertexAttribPointer(pos, 1, gl.BYTE, false, vertexStride, 20);
+return program;
+}
+const createAndBindTexture = () => {
+const texture = gl.createTexture();
+gl_bindTexture(TEXTURE_2D, texture);
+gl.texParameteri(TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MIN_FILTER, NEAREST);
+gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MAG_FILTER, NEAREST);
+return texture;
+}
+const createDepthComponent = (width, height) => {
+const texture = createAndBindTexture();
+gl_texImage2D(TEXTURE_2D, 0, gl.DEPTH_COMPONENT16, width, height, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_SHORT, null);
+gl_bindTexture(TEXTURE_2D, null);
+return texture;
+}
+// create texture
+const vram = createAndBindTexture();
+gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+const vramDepth = createDepthComponent(4096, 2048);
+const fb_vram = gl_createFramebuffer();
+gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
+gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+gl_bindTexture(TEXTURE_2D, vramDepth);
+gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0)
+gl_bindFramebuffer(FRAMEBUFFER, null);
+// create texture
+const vramShadow = createAndBindTexture();
+gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+const fb_vramShadow = gl_createFramebuffer();
+gl_bindFramebuffer(FRAMEBUFFER, fb_vramShadow);
+gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+gl_bindFramebuffer(FRAMEBUFFER, null);
+// create texture
+const cache = createAndBindTexture();
+gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+const fb_cache = gl_createFramebuffer();
+window.primitiveId = 0;
+window.nextPrimitive = nextPrimitive;
+window.renderer = new WebGLRenderer();
+})
+mdlr('enge:psx', m => {
+Object.assign(window,
+m.require('enge:psx:core'),
+m.require('enge:psx:trace'),
+);
+Object.assign(window,
+m.require('enge:psx:serial'),
+m.require('enge:psx:gamepad'),
+m.require('enge:psx:cpu'),
+m.require('enge:psx:cdr'),
+m.require('enge:psx:mdec'),
+m.require('enge:psx:gpu'),
+m.require('enge:psx:gte'),
+m.require('enge:psx:mmu'),
+m.require('enge:psx:rec'),
+m.require('enge:psx:spu'),
+);
+Object.assign(window,
+m.require('enge:psx:index'),
+);
+})
+mdlr('base64', m => {
+const encodings = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+const decodings = {};
+encodings.split('').forEach((a, i) => decodings[a] = i);
+decodings['='] = 0;
+function decode(string) {
+let length = string.length;
+let byteLength = length / 4 * 3;
+if (string[length - 2] === '=') --byteLength;
+if (string[length - 1] === '=') --byteLength;
+const buffer = new Uint8Array(byteLength);
+let bi = 0;
+for (let i = 0; i < length; i += 4) {
+const a = decodings[string[i + 0]];
+const b = decodings[string[i + 1]];
+const c = decodings[string[i + 2]];
+const d = decodings[string[i + 3]];
+const value = a << 18 | b << 12 | c << 6 | d;
+buffer[bi + 0] = (value >> 16) & 255;
+buffer[bi + 1] = (value >> 8) & 255;
+buffer[bi + 2] = (value >> 0) & 255;
+bi += 3;
+}
+return buffer;
+}
+function encode(arrayBuffer) {
+let base64 = '';
+const bytes = new Uint8Array(arrayBuffer.buffer);
+const byteLength = bytes.byteLength;
+const byteRemainder = byteLength % 3;
+const mainLength = byteLength - byteRemainder;
+let a, b, c, d;
+let chunk;
+for (let i = 0; i < mainLength; i = i + 3) {
+chunk = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+a = (chunk >> 18) & 63;
+b = (chunk >> 12) & 63;
+c = (chunk >> 6) & 63;
+d = (chunk >> 0) & 63;
+base64 += encodings[a] + encodings[b] + encodings[c] + encodings[d];
+}
+if (byteRemainder == 1) {
+chunk = bytes[mainLength];
+a = (chunk & 252) >> 2;
+b = (chunk & 3) << 4;
+base64 += encodings[a] + encodings[b] + '==';
+}
+else if (byteRemainder == 2) {
+chunk = (bytes[mainLength] << 8) | bytes[mainLength + 1];
+a = (chunk & 64512) >> 10;
+b = (chunk & 1008) >> 4;
+c = (chunk & 15) << 2;
+base64 += encodings[a] + encodings[b] + encodings[c] + '=';
+}
+return base64;
+}
+return { decode, encode };
+})
+mdlr('enge:webgl2:utils', m => {
+/**
+* Creates and compiles a shader.
+*
+* @param {!WebGLRenderingContext} gl The WebGL Context.
+* @param {string} shaderSource The GLSL source code for the shader.
+* @param {number} shaderType The type of shader, VERTEX_SHADER or
+*     FRAGMENT_SHADER.
+* @return {!WebGLShader} The shader.
+*/
+function compileShader(gl, shaderSource, shaderType) {
+// Create the shader object
+var shader = gl.createShader(shaderType);
+// Set the shader source code.
+gl.shaderSource(shader, shaderSource);
+// Compile the shader
+gl.compileShader(shader);
+// Check if it compiled
+var success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+if (!success) {
+// Something went wrong during compilation; get the error
+throw "could not compile shader:" + gl.getShaderInfoLog(shader);
+}
+return shader;
+}
+/**
+* Creates a program from 2 shaders.
+*
+* @param {!WebGLRenderingContext) gl The WebGL context.
+* @param {!WebGLShader} vertexShader A vertex shader.
+* @param {!WebGLShader} fragmentShader A fragment shader.
+* @return {!WebGLProgram} A program.
+*/
+function createProgram(gl, vertexShader, fragmentShader) {
+// create a program.
+var program = gl.createProgram();
+// attach the shaders.
+gl.attachShader(program, vertexShader);
+gl.attachShader(program, fragmentShader);
+// link the program.
+gl.linkProgram(program);
+// Check if it linked.
+var success = gl.getProgramParameter(program, gl.LINK_STATUS);
+if (!success) {
+// something went wrong with the link
+throw ("program filed to link:" + gl.getProgramInfoLog(program));
+}
+return program;
+};
+/**
+* Creates a shader from the content of a script tag.
+*
+* @param {!WebGLRenderingContext} gl The WebGL Context.
+* @param {string} scriptId The id of the script tag.
+* @param {string} opt_shaderType. The type of shader to create.
+*     If not passed in will use the type attribute from the
+*     script tag.
+* @return {!WebGLShader} A shader.
+*/
+function createShaderFromScript(gl, scriptId, opt_shaderType) {
+// look up the script tag by id.
+var shaderScript = document.getElementById(scriptId);
+if (!shaderScript) {
+throw ("*** Error: unknown script element: " + scriptId);
+}
+// extract the contents of the script tag.
+var shaderSource = shaderScript.text;
+// If we didn't pass in a type, use the 'type' from
+// the script tag.
+if (!opt_shaderType) {
+if (shaderScript.type == "x-shader/x-vertex") {
+opt_shaderType = gl.VERTEX_SHADER;
+} else if (shaderScript.type == "x-shader/x-fragment") {
+opt_shaderType = gl.FRAGMENT_SHADER;
+} else if (!opt_shaderType) {
+throw ("*** Error: shader type not set");
+}
+}
+return compileShader(gl, shaderSource, opt_shaderType);
+};
+/**
+* Creates a program from 2 script tags.
+*
+* @param {!WebGLRenderingContext} gl The WebGL Context.
+* @param {string} vertexShaderId The id of the vertex shader script tag.
+* @param {string} fragmentShaderId The id of the fragment shader script tag.
+* @return {!WebGLProgram} A program
+*/
+function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId) {
+var vertexShader = createShaderFromScript(gl, vertexShaderId, gl.VERTEX_SHADER);
+var fragmentShader = createShaderFromScript(gl, fragmentShaderId, gl.FRAGMENT_SHADER);
+return createProgram(gl, vertexShader, fragmentShader);
+}
+/**
+*
+* @returns vertex-buffer
+*/
+function createVertexBuffer(reverse = false) {
+const buffer = new Uint8Array(1024 * 1024);
+const view = new DataView(buffer.buffer);
+const bytesPerVertex = 24;
+let index = 0;
+buffer.addVertex = (x, y, u, v, c = 0x00808080, cl) => {
+if (reverse) {
+index -= bytesPerVertex;
+}
+view.setInt16(index + 0, x, true);
+view.setInt16(index + 2, y, true);
+view.setInt16(index + 4, primitiveId, true);
+view.setInt16(index + 6, u, true);
+view.setInt16(index + 8, v, true);
+view.setUint32(index + 10, c, true);
+view.setUint32(index + 14, gpu.twin, true);
+view.setUint16(index + 18, cl >>> 0, true);
+view.setUint8(index + 20, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
+if (!reverse) {
+index += bytesPerVertex;
+}
+}
+buffer.reset = () => {
+index = reverse ? buffer.length : 0;
+}
+buffer.size = () => {
+if (reverse) {
+return (buffer.length - index) / bytesPerVertex;
+}
+return index / bytesPerVertex;
+}
+buffer.view = () => {
+if (reverse) {
+return new Uint8Array(buffer.buffer, index, buffer.length - index);
+}
+return new Uint8Array(buffer.buffer, 0, index);
+}
+buffer.base = () => {
+return reverse ? index : 0;
+}
+buffer.bytes = () => {
+return reverse ? buffer.length - index : index;
+}
+buffer.reset();
+return buffer;
+}
+return {
+createProgramFromScripts,
+createVertexBuffer,
+};
+})
+mdlr('enge:psx:core', m => {
+let lastId = 0;
+const events = [];
+const inactiveEvents = [];
+const psx = {
+clock: 0.0,
+eventClock: 0.0,
+}
+psx.addEvent = (clocks, cb) => {
+const event = {
+id: ++lastId,
+active: true,
+clock: +psx.clock + +clocks,
+start: +psx.clock,
+cb
+};
+if (psx.eventClock > event.clock) {
+psx.eventClock = event.clock;
+}
+events.push(event);
+return event;
+}
+psx.updateEvent = (event, clocks) => {
+event.start = event.clock;
+event.clock += +clocks;
+event.active = true;
+if (psx.eventClock > event.clock) {
+psx.eventClock = event.clock;
+}
+return event;
+}
+psx.unsetEvent = (event) => {
+if (!event.active) return;
+const index = events.findIndex(a => a.id === event.id);
+if (index !== -1) {
+inactiveEvents.push(event);
+events.splice(index, 1);
+event.active = false;
+}
+return event;
+}
+psx.eventCycles = (event) => {
+return +psx.clock - event.start;
+}
+psx.setEvent = (event, clocks) => {
+if (!event.active) {
+const index = inactiveEvents.findIndex(a => a.id === event.id);
+if (index !== -1) {
+inactiveEvents.splice(index, 1);
+events.push(event);
+}
+}
+event.clock = +psx.clock + +clocks;
+event.start = +psx.clock;
+event.active = true;
+if (psx.eventClock > event.clock) {
+psx.eventClock = event.clock;
+}
+return event;
+}
+psx.handleEvents = (entry) => {
+let eventClock = Number.MAX_SAFE_INTEGER;
+for (let event of events) {
+if (!event.active) continue;
+if (psx.clock >= event.clock) {
+event.cb(event, psx.clock);
+}
+if (event.clock < eventClock) {
+eventClock = event.clock;
+}
+};
+psx.eventClock = eventClock;
+return cpuInterrupt(entry);
+}
+// Events contain callbacks and therefore cannot be serialized directly.
+// Save their stable ids and timing, then restore those values onto the
+// existing event objects so closures remain intact.
+psx.getState = () => ({
+clock: psx.clock,
+eventClock: psx.eventClock,
+lastId,
+events: [...events, ...inactiveEvents].map(event => ({
+id: event.id,
+active: event.active,
+clock: event.clock,
+start: event.start
+}))
+});
+psx.setState = state => {
+if (!state) return;
+psx.clock = state.clock;
+psx.eventClock = state.eventClock;
+lastId = state.lastId;
+const allEvents = [...events, ...inactiveEvents];
+events.length = 0;
+inactiveEvents.length = 0;
+for (const saved of state.events || []) {
+const event = allEvents.find(candidate => candidate.id === saved.id);
+if (!event) continue;
+event.clock = saved.clock;
+event.start = saved.start;
+event.active = saved.active;
+(saved.active ? events : inactiveEvents).push(event);
+}
+};
+return { psx };
+})
+mdlr('enge:psx:trace', m => {
+const gameCodeRegEx = /[A-Za-z]{4}_[0-9]{3}\.[0-9]{2}/;
+let line = '';
+let lastLine = null;
+let gameCode = '';
+function traceBiosCalls(programCounter, functionId) {
+switch (programCounter) {
+case 0xa0:
+switch (functionId) {
+case 0x3c: BIOS_std_out_putchar(cpu.gpr[4]);
+break;
+}
+break;
+case 0xb0:
+switch (functionId) {
+case 0x3d: BIOS_std_out_putchar(cpu.gpr[4]);
+break;
+}
+break;
+}
+}
+function BIOS_std_out_putchar(charCode) {
+line += String.fromCharCode(charCode);
+if (charCode === 10 || charCode === 13) {
+if (line !== lastLine) {
+extractGameCodeFromCurrentLine();
+lastLine = line;
+}
+console.debug(line);
+line = '';
+}
+}
+function extractGameCodeFromCurrentLine() {
+const result = gameCodeRegEx.exec(line);
+if (result) {
+let gc = result[0].replace('.', '').toUpperCase();
+if (gameCode !== gc) {
+document.title = `eNGE - [${gc}]`;
+gameCode = gc;
+}
+}
+}
+return { trace: traceBiosCalls };
+})
+mdlr('enge:psx:serial', m => {
+const devices = [
+m.require('enge:psx:serial-device').setId(0),
+m.require('enge:psx:serial-device').setId(1),
+];
+const syncWithDevice = (device, data) => {
+let byte = device.sendReceiveByte(data & 0xff);
+let more = device.hasMore();
+setResult(byte, !more);
+}
+const setResult = (byte, last) => {
+r1044 |= 0x0002; // JOY_STAT.RX = 1
+data = byte & 0xff;
+if (!last) {
+// OpenBIOS expects the serial device to advance at the faster cadence
+// for both pad and memory-card transfers. This changes timing only; the
+// upstream memory-card commands, response bytes, and checksums remain
+// unchanged so card behavior can be tested independently.
+psx.setEvent(eventIRQ, (baud * 4) >>> 0);
+}
+}
+const eventIRQ = psx.addEvent(0, (self, clock) => {
+r1044 |= 0x0200; // JOY_STAT.IRQ = 1;
+cpu.istat |= 0x0080; // todo: should take care of edge triggering
+psx.unsetEvent(self);
+});
+let baud = 0x0088;
+let data = 0;
+let command = 0;
+let r1044 = 0; // JOY_STAT
+let r104a = 0; // JOY_CTRL
+let joy = {
+devices,
+rd08r1040: () => {
+if (r1044 & 0x0002) {
+r1044 &= ~0x0002; // JOY_STAT.RX = 0
+}
+return data;
+},
+rd16r1044: () => {
+return r1044;
+},
+rd16r104a: () => {
+return r104a;
+},
+rd16r104e: () => {
+return baud;
+},
+wr08r1040: function (data) {
+let device = null;
+if ((r104a & 0x0002) === 0x0000) {
+abort();
+}
+if ((r104a & 0x0002) === 0x0002) {
+device = (r104a & 0x2000) ? devices[1] : devices[0];
+}
+switch (command) {
+case 0x00:
+if (!device) {
+return setResult(0xff, true);
+}
+setResult(0xff, false);
+command = data & 0xff;
+if (command === 0x81) device.init();
+if (command === 0x01) device.init();
+break;
+case 0x01:
+device.buildControllerResponse(data & 0xff);
+command = 0x02;
+case 0x02:
+syncWithDevice(device, data);
+break;
+case 0x81:
+device.buildMemCardResponse(data & 0xff);
+command = 0x82;
+case 0x82:
+syncWithDevice(device, data);
+break;
+case 0x83:
+return setResult(0xff, true); // no memcard for now
+default: console.warn('unknown command state:', hex(command, 4), ' device:', device.id);
+break;
+}
+},
+wr16r1048: (data) => {
+if (data !== 0xd) abort(hex(data, 4));
+},
+wr16r104a: function (data) {
+r104a = data & ~(0x0010 | 0x0040); //  mask out write-only bits
+if ((data & 0x0040) || !(r104a & 0x0002)) {
+//  reset when pad is not selected or reset is requested
+let device = null;
+if ((r104a & 0x0002) === 0x0002) {
+device.init();
+}
+psx.unsetEvent(eventIRQ);
+command = 0;
+r1044 = 0x0005;
+}
+if ((data & 0x0010)) {
+r1044 &= ~(0x0200); // JOY_STAT.IRQ = 0
+}
+},
+wr16r104e: function (data) {
+if (data !== 0x88) abort(`invalid JOY_BAUD: $${hex(data, 4)}`);
+baud = data & 0xffff;
+}
+}
+return { joy };
+})
+mdlr('enge:psx:gamepad', m => {
+let controller = null;
+const joypads = [null, null];
+const keyboard = new Map();
+const virtual = { lo: 0xff, hi: 0xff };
+const keyboardState = { lo: 0xff, hi: 0xff };
+const debugPad = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug-pad') === '1';
+const debugInput = (...args) => {
+if (debugPad) console.log('[PAD]', ...args);
+};
+const setController = (type) => {
+if (controller === type) return;
+controller = type;
+const elem = document.getElementById('gamepad');
+if (elem) {
+elem.classList.remove(...elem.classList);
+elem.classList.add('connected');
+elem.classList.add(type);
+}
+}
+const buttonPressed = (b) => !!b?.pressed;
+const updateDevice = (pad, device) => {
+if (!device) return;
+const {axes = [], buttons = []} = pad || {};
+const axis = (index) => axes[index] || 0;
+let lo = virtual.lo & keyboardState.lo;
+if (axis(0) <= -0.4) { lo &= ~0x80 } // left
+if (axis(0) >= 0.4) { lo &= ~0x20 } // right
+if (axis(1) <= -0.4) { lo &= ~0x10 } // up
+if (axis(1) >= 0.4) { lo &= ~0x40 } // down
+if (buttonPressed(buttons[14])) { lo &= ~0x80 } // left
+if (buttonPressed(buttons[15])) { lo &= ~0x20 } // right
+if (buttonPressed(buttons[12])) { lo &= ~0x10 } // up
+if (buttonPressed(buttons[13])) { lo &= ~0x40 } // down
+if (buttonPressed(buttons[8])) { lo &= ~0x01 } // select
+if (buttonPressed(buttons[9])) { lo &= ~0x08 } // start
+device.lo = lo;
+let hi = virtual.hi & keyboardState.hi;
+if (buttonPressed(buttons[3])) { hi &= ~0x10 } // triangle
+if (buttonPressed(buttons[1])) { hi &= ~0x20 } // circle
+if (buttonPressed(buttons[0])) { hi &= ~0x40 } // cross
+if (buttonPressed(buttons[2])) { hi &= ~0x80 } // square
+if (buttonPressed(buttons[4])) { hi &= ~0x04 } // l1
+if (buttonPressed(buttons[6])) { hi &= ~0x01 } // l2
+if (buttonPressed(buttons[5])) { hi &= ~0x08 } // r1
+if (buttonPressed(buttons[7])) { hi &= ~0x02 } // r2
+device.hi = hi;
+};
+const releaseDevice = (device) => {
+if (device) {
+device.lo = 0xff;
+device.hi = 0xff;
+}
+};
+const setVirtualButton = (property, bit, pressed) => {
+if (pressed) virtual[property] &= ~bit;
+else virtual[property] |= bit;
+};
+window.engeSetVirtualButton = setVirtualButton;
+const virtualPointers = new Map();
+const virtualButtons = new Map();
+const releaseVirtualPointer = event => {
+const pointerId = event.pointerId;
+if (pointerId == null) return;
+const key = virtualPointers.get(pointerId);
+if (!key) return;
+virtualPointers.delete(pointerId);
+const stillPressed = [...virtualPointers.values()].includes(key);
+if (!stillPressed) {
+const [property, bit] = key.split(':');
+setVirtualButton(property, Number(bit), false);
+virtualButtons.get(key)?.classList.remove('is-pressed');
+}
+};
+document.querySelectorAll('[data-virtual-property]').forEach(button => {
+const property = button.dataset.virtualProperty;
+const bit = Number(button.dataset.virtualBit);
+const key = `${property}:${bit}`;
+virtualButtons.set(key, button);
+const release = event => {
+event.preventDefault();
+event.stopPropagation();
+releaseVirtualPointer(event);
+};
+button.addEventListener('pointerdown', event => {
+event.preventDefault();
+event.stopPropagation();
+releaseVirtualPointer(event);
+virtualPointers.set(event.pointerId, key);
+setVirtualButton(property, bit, true);
+button.classList.add('is-pressed');
+});
+button.addEventListener('pointerup', release);
+button.addEventListener('pointercancel', release);
+button.addEventListener('pointerleave', event => {
+if (event.pointerType === 'mouse') release(event);
+});
+button.addEventListener('contextmenu', event => {
+event.preventDefault();
+event.stopPropagation();
+});
+});
+window.addEventListener('pointerup', releaseVirtualPointer);
+window.addEventListener('pointercancel', releaseVirtualPointer);
+window.addEventListener('blur', () => {
+virtualPointers.clear();
+for (const button of document.querySelectorAll('[data-virtual-property]')) {
+setVirtualButton(button.dataset.virtualProperty, Number(button.dataset.virtualBit), false);
+button.classList.remove('is-pressed');
+}
+});
+const stick = document.querySelector('[data-virtual-stick]');
+const stickKnob = stick?.querySelector('.touch-stick-knob');
+let stickPointerId = null;
+const stickBits = { up: 16, down: 64, left: 128, right: 32 };
+const clearVirtualStick = () => {
+if (stickKnob) stickKnob.style.transform = 'translate(0, 0)';
+for (const bit of Object.values(stickBits)) setVirtualButton('lo', bit, false);
+};
+const updateVirtualStick = event => {
+if (!stick || !stickKnob) return;
+const bounds = stick.getBoundingClientRect();
+const centerX = bounds.left + bounds.width / 2;
+const centerY = bounds.top + bounds.height / 2;
+const radius = Math.min(bounds.width, bounds.height) * 0.36;
+let x = event.clientX - centerX;
+let y = event.clientY - centerY;
+const distance = Math.hypot(x, y);
+if (distance > radius) {
+x = x / distance * radius;
+y = y / distance * radius;
+}
+stickKnob.style.transform = `translate(${x}px, ${y}px)`;
+for (const bit of Object.values(stickBits)) setVirtualButton('lo', bit, false);
+if (distance < radius * 0.25) return;
+if (Math.abs(x) >= Math.abs(y)) {
+setVirtualButton('lo', x < 0 ? stickBits.left : stickBits.right, true);
+}
+else {
+setVirtualButton('lo', y < 0 ? stickBits.up : stickBits.down, true);
+}
+};
+const releaseVirtualStick = event => {
+if (stickPointerId !== null && event.pointerId != null && event.pointerId !== stickPointerId) return;
+stickPointerId = null;
+clearVirtualStick();
+};
+stick?.addEventListener('pointerdown', event => {
+event.preventDefault();
+event.stopPropagation();
+stickPointerId = event.pointerId;
+stick.setPointerCapture?.(event.pointerId);
+updateVirtualStick(event);
+});
+stick?.addEventListener('pointermove', event => {
+if (event.pointerId === stickPointerId) updateVirtualStick(event);
+});
+stick?.addEventListener('pointerup', releaseVirtualStick);
+stick?.addEventListener('pointercancel', releaseVirtualStick);
+stick?.addEventListener('lostpointercapture', releaseVirtualStick);
+window.addEventListener('pointerup', releaseVirtualStick);
+window.addEventListener('pointercancel', releaseVirtualStick);
+window.addEventListener('touchend', releaseVirtualStick, {passive: false});
+window.addEventListener('touchcancel', releaseVirtualStick, {passive: false});
+window.addEventListener('blur', releaseVirtualStick);
+const enge_gamepad_update = () => {
+if (!navigator.getGamepads) return;
+const pads = navigator.getGamepads();
+for (let index = 0; index < joypads.length; ++index) {
+if (!joypads[index] && pads[index]) joypads[index] = pads[index];
+}
+const usedPadIndices = new Set();
+for (let index = 0; index < joypads.length; ++index) {
+const pad = joypads[index] && pads[joypads[index].index];
+if (pad && usedPadIndices.has(pad.index)) {
+joypads[index] = null;
+releaseDevice(joy.devices[index]);
+continue;
+}
+if (pad) {
+usedPadIndices.add(pad.index);
+updateDevice(pad, joy.devices[index]);
+setController('gamepad');
+}
+else if (index === 0) {
+// Keep virtual and keyboard releases flowing to controller 1.
+updateDevice(null, joy.devices[index]);
+}
+else if (index === 1) {
+releaseDevice(joy.devices[index]);
+}
+}
+}
+// Thanks zaykho(https://github.com/zaykho) for helping to add this feature.
+// refactored the code to be slightly simpler and more inline with the rest
+// default keyboard mapping
+keyboard.set(69, { bits: 0x10, property: 'hi' }); /*  [^]  */
+keyboard.set(68, { bits: 0x20, property: 'hi' }); /*  [O]  */
+keyboard.set(88, { bits: 0x40, property: 'hi' }); /*  [X]  */
+keyboard.set(83, { bits: 0x80, property: 'hi' }); /*  [#]  */
+keyboard.set(81, { bits: 0x01, property: 'hi' }); /*  [L2]  */
+keyboard.set(84, { bits: 0x02, property: 'hi' }); /*  [R2]  */
+keyboard.set(87, { bits: 0x04, property: 'hi' }); /*  [L1]  */
+keyboard.set(82, { bits: 0x08, property: 'hi' }); /*  [R1]  */
+keyboard.set(38, { bits: 0x10, property: 'lo' }); /*  [u]  */
+keyboard.set(39, { bits: 0x20, property: 'lo' }); /*  [r]  */
+keyboard.set(40, { bits: 0x40, property: 'lo' }); /*  [d]  */
+keyboard.set(37, { bits: 0x80, property: 'lo' }); /*  [l]  */
+keyboard.set(32, { bits: 0x01, property: 'lo' }); /* [sel] */
+keyboard.set(13, { bits: 0x08, property: 'lo' }); /*[start]*/
+const keyboardCodes = new Map([
+['KeyE', 69], ['KeyD', 68], ['KeyX', 88], ['KeyS', 83],
+['KeyQ', 81], ['KeyT', 84], ['KeyW', 87], ['KeyR', 82],
+['ArrowUp', 38], ['ArrowRight', 39], ['ArrowDown', 40], ['ArrowLeft', 37],
+['Space', 32], ['Enter', 13]
+]);
+const getKeyboardMapping = event =>
+keyboard.get(event.keyCode) || keyboard.get(keyboardCodes.get(event.code));
+window.addEventListener("keydown", (e) => {
+const mapping = getKeyboardMapping(e);
+const device = joy.devices[0];
+if (mapping !== undefined) {
+e.preventDefault();
+keyboardState[mapping.property] &= ~mapping.bits;
+device[mapping.property] &= ~mapping.bits;
+debugInput('keydown', { key: e.key, code: e.code, property: mapping.property, bits: `0x${mapping.bits.toString(16)}`, lo: device.lo, hi: device.hi });
+setController('keyboard');
+}
+}, false);
+window.addEventListener("keyup", (e) => {
+const mapping = getKeyboardMapping(e);
+const device = joy.devices[0];
+if (mapping !== undefined) {
+e.preventDefault();
+keyboardState[mapping.property] |= mapping.bits;
+device[mapping.property] |= mapping.bits;
+debugInput('keyup', { key: e.key, code: e.code, property: mapping.property, bits: `0x${mapping.bits.toString(16)}`, lo: device.lo, hi: device.hi });
+}
+}, false);
+window.addEventListener("gamepadconnected", (e) => {
+const index = e.gamepad.index < joypads.length
+? e.gamepad.index
+: joypads.findIndex(pad => !pad);
+if (index >= 0) joypads[index] = e.gamepad;
+document.getElementById('gamepad')?.classList.add('connected')
+});
+window.addEventListener("gamepaddisconnected", (e) => {
+const index = joypads.findIndex(pad => pad?.index === e.gamepad.index);
+if (index >= 0) {
+joypads[index] = null;
+releaseDevice(joy.devices[index]);
+}
+if (!joypads.some(Boolean)) {
+document.getElementById('gamepad')?.classList.remove('connected');
+}
+});
+return {
+handleGamePads: enge_gamepad_update
+}
+})
+mdlr('enge:psx:cpu', m => {
+const cop = new Int32Array(32);
+const gpr = new Int32Array(32);
+const cpu = {
+gpr,
+cop,
+'cause': 0,
+'cycles': 0,
+'epc': 0,
+'hi': 0,
+'imask': 0,
+'istat': 0,
+'icurr': 0,
+'lo': 0,
+'pc': 0,
+'sr': 0,
+forceWriteBits: 0x00000000 >>> 0,
+getCtrl: (reg) => {
+switch (reg) {
+case 12: return cpu.sr >> 0;
+case 13: return cpu.cause >> 0;
+case 14: return cpu.epc >> 0;
+case 15: return 2 >> 0;
+}
+return cop[reg];
+},
+setCtrl: (reg, value) => {
+cop[reg] = value >> 0;
+switch (reg) {
+case 12: cpu.sr = value;
+// trick to force writing to unused memory location with isolated cache
+cpu.forceWriteBits = (value & 0x00010000) ? 0x01fffffc >>> 0 : 0x00000000 >>> 0;
+break;
+case 13: cpu.cause = cpu.cause & 0xfffffcff;
+cpu.cause |= (value & 0x00000300);
+break;
+}
+},
+rfe: () => {
+cpu.sr = (cpu.sr & ~0x0F) | ((cpu.sr >> 2) & 0x0F);
+},
+lwl: (reg, addr) => {
+const data = memRead32((addr & ~3) & 0x01ffffff);
+switch (addr & 3) {
+case 0: gpr[reg] = (gpr[reg] & 0x00FFFFFF) | (data << 24); break;
+case 1: gpr[reg] = (gpr[reg] & 0x0000FFFF) | (data << 16); break;
+case 2: gpr[reg] = (gpr[reg] & 0x000000FF) | (data << 8); break;
+case 3: gpr[reg] = (gpr[reg] & 0x00000000) | (data << 0); break;
+};
+},
+lwr: (reg, addr) => {
+const data = memRead32((addr & ~3) & 0x01ffffff);
+switch (addr & 3) {
+case 0: gpr[reg] = (gpr[reg] & 0x00000000) | (data >>> 0); break;
+case 1: gpr[reg] = (gpr[reg] & 0xFF000000) | (data >>> 8); break;
+case 2: gpr[reg] = (gpr[reg] & 0xFFFF0000) | (data >>> 16); break;
+case 3: gpr[reg] = (gpr[reg] & 0xFFFFFF00) | (data >>> 24); break;
+};
+},
+swl: (reg, addr) => {
+let data = memRead32((addr & ~3) & 0x01ffffff) >>> 0;
+switch (addr & 3) {
+case 0: data = (data & 0xFFFFFF00) | (gpr[reg] >>> 24); break;
+case 1: data = (data & 0xFFFF0000) | (gpr[reg] >>> 16); break;
+case 2: data = (data & 0xFF000000) | (gpr[reg] >>> 8); break;
+case 3: data = (data & 0x00000000) | (gpr[reg] >>> 0); break;
+};
+memWrite32((addr & ~3) & 0x01ffffff, data);
+},
+swr: (reg, addr) => {
+let data = memRead32((addr & ~3) & 0x01ffffff) >>> 0;
+switch (addr & 3) {
+case 0: data = (data & 0x00000000) | (gpr[reg] << 0); break;
+case 1: data = (data & 0x000000FF) | (gpr[reg] << 8); break;
+case 2: data = (data & 0x0000FFFF) | (gpr[reg] << 16); break;
+case 3: data = (data & 0x00FFFFFF) | (gpr[reg] << 24); break;
+};
+memWrite32((addr & ~3) & 0x01ffffff, data);
+},
+neg: (a) => {
+let a00 = (a >> 0) & 0xffff;
+let a16 = (a >> 16) & 0xffff;
+let v = (~a00 & 0xFFFF) + 1;
+a00 = v & 0xFFFF;
+v = (~a16 & 0xFFFF) + (v >>> 16);
+a16 = v & 0xFFFF;
+return (a16 << 16) | a00;
+},
+mult: (a, b) => {
+a >>= 0; b >>= 0;
+let n = 0;
+if (a < 0) { n ^= 1; a = cpu.neg(a); }
+if (b < 0) { n ^= 1; b = cpu.neg(b); }
+cpu.multu(a, b);
+if (n === 1) {
+let a00 = (cpu.lo >>> 0) & 0xffff;
+let a16 = (cpu.lo >>> 16) & 0xffff;
+let a32 = (cpu.hi >>> 0) & 0xffff;
+let a48 = (cpu.hi >>> 16) & 0xffff;
+let v = (~a00 & 0xFFFF) + 1;
+a00 = v & 0xFFFF;
+v = (~a16 & 0xFFFF) + (v >>> 16);
+a16 = v & 0xFFFF;
+v = (~a32 & 0xFFFF) + (v >>> 16);
+a32 = v & 0xFFFF;
+v = (~a48 & 0xFFFF) + (v >>> 16);
+a48 = v & 0xFFFF;
+cpu.hi = ((a48 << 16) | a32) >> 0;
+cpu.lo = ((a16 << 16) | a00) >>> 0;
+}
+},
+multu: (a, b) => {
+a >>>= 0; b >>>= 0;
+let a00 = a & 0xffff;
+let a16 = a >>> 16;
+let b00 = b & 0xffff;
+let b16 = b >>> 16;
+let c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+c00 += (a00 * b00);
+c16 += (c00 >>> 16);
+c00 &= 0xFFFF;
+c16 += (a00 * b16);
+c32 += (c16 >>> 16);
+c16 &= 0xFFFF;
+c16 += (a16 * b00);
+c32 += (c16 >>> 16);
+c16 &= 0xFFFF;
+c32 += (a16 * b16);
+c48 += (c32 >>> 16);
+c32 &= 0xFFFF;
+cpu.hi = ((c48 << 16) | c32) >>> 0;
+cpu.lo = ((c16 << 16) | c00) >>> 0;
+},
+div:  (a, b) => {
+if (b === 0) {
+if ((a >> 0) >= 0) {
+cpu.hi = a;
+cpu.lo = 0xffffffff;
+}
+else {
+cpu.hi = a;
+cpu.lo = 0x00000001;
+}
+}
+else if (((b >> 0) === -1) && ((a >>> 0) === 0x80000000)) {
+cpu.hi = 0 >> 0;
+cpu.lo = 0x80000000 >> 0;
+}
+else {
+cpu.hi = ((a >> 0) % (b >> 0)) >> 0;
+cpu.lo = ((a >> 0) / (b >> 0)) >> 0;
+}
+},
+divu:  (a, b) => {
+if (b === 0) {
+cpu.hi = a;
+cpu.lo = 0xffffffff;
+}
+else {
+cpu.hi = ((a >>> 0) % (b >>> 0)) >>> 0;
+cpu.lo = ((a >>> 0) / (b >>> 0)) >>> 0;
+}
+}
+};
+const cpuException = (id, pc) => {
+cpu.sr = (cpu.sr & ~0x3F) | ((cpu.sr << 2) & 0x3F);
+cpu.cause = (cpu.cause & ~0x7C) | id;
+cpu.epc = pc;
+return vector;
+}
+const cpuInterrupt = (entry) => {
+if ((cpu.sr & 1) === 1) {
+let ip = cpu.cause & 0x300;
+let im = cpu.sr & 0x300;
+if ((ip & im) !== 0) {
+return cpuException((ip & im), entry.pc);
+}
+else
+if ((cpu.sr & 0x400) === 0x400) {
+if (cpu.istat & cpu.imask) {
+return cpuException(0x400, entry.pc);
+}
+}
+}
+return entry;
+}
+return { cpu, cpuException, cpuInterrupt }
+})
+mdlr('enge:psx:cdr', m => {
+const cdDebug = new URLSearchParams(window.location.search).has('debug-cd') ||
+window.localStorage.getItem('enge-debug-cdrom') === '1';
+const cdLog = (...args) => {
+if (cdDebug) console.debug('[CDR]', ...args.map(value =>
+typeof value === 'object' ? JSON.stringify(value) : value));
+};
+let sectorData8 = new Int8Array(0);
+let sectorData16 = new Int16Array(0);
+// Remote discs are kept as a small LRU of HTTP range chunks. The current
+// sector remains in this fixed 2352-byte buffer for the synchronous CDR
+// register and DMA paths below.
+const remoteChunkSize = Math.floor((8 * 1024 * 1024) / 2352) * 2352;
+const remoteMaxChunks = 3;
+const remoteSectorSize = 2352;
+const remoteSector = new Uint8Array(remoteSectorSize);
+let remoteImage;
+let localImage;
+let remoteRead;
+let debugSectorLogCount = 0;
+let debugDmaLogCount = 0;
+let debugResponseLogCount = 0;
+const fetchRemoteChunk = (file, fileIndex, chunkIndex) => {
+const cached = file.chunks.get(chunkIndex);
+if (cached) return Promise.resolve(cached);
+if (file.pending.has(chunkIndex)) return file.pending.get(chunkIndex);
+const start = chunkIndex * remoteChunkSize;
+const end = Math.min(start + remoteChunkSize, file.size);
+cdLog('HTTP range', { file: fileIndex, chunk: chunkIndex, start, end: end - 1 });
+const request = fetch(file.url, {
+headers: { Range: `bytes=${start}-${end - 1}` }
+}).then(async response => {
+if (response.status !== 206) {
+throw new Error(`CD image server returned HTTP ${response.status}; byte ranges are required`);
+}
+const data = new Uint8Array(await response.arrayBuffer());
+cdLog('HTTP range complete', { file: fileIndex, chunk: chunkIndex, bytes: data.byteLength });
+file.chunks.set(chunkIndex, data);
+while (remoteImage.chunkCount() > remoteMaxChunks) {
+const oldestFile = remoteImage.files.find(candidate => candidate.chunks.size);
+oldestFile?.chunks.delete(oldestFile.chunks.keys().next().value);
+}
+return data;
+});
+file.pending.set(chunkIndex, request);
+request.then(
+() => file.pending.delete(chunkIndex),
+() => file.pending.delete(chunkIndex),
+);
+return request;
+};
+let status = 0x18;
+let statusCode = 0x00;
+let ncmdread = 0;
+let ncmdctrl = 0;
+let sectorOffset = 0;
+let sectorIndex = 0;
+let sectorEnd = 0;
+let playIndex = 0;
+let irq = 0;
+let irqEnable = 0xff;
+let mode = 0;
+let mute = false; // todo: implement mute
+let currLoc = 0;
+let seekLoc = 0;
+let volCdLeft2SpuLeft = 1.0;
+let volCdLeft2SpuRight = 0.0;
+let volCdRight2SpuLeft = 0.0;
+let volCdRight2SpuRight = 1.0;
+let volConfigCdLeft2SpuLeft = 1.0;
+let volConfigCdLeft2SpuRight = 0.0;
+let volConfigCdRight2SpuLeft = 0.0;
+let volConfigCdRight2SpuRight = 1.0;
+let pcmidx = 0;
+let pcmmax = 0;
+let filterFile = 0;
+let filterChan = 0;
+let currTrack = {};
+const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
+const floor = a => a >> 0;
+const itob = i => floor(i / 10) * 16 + floor(i % 10);
+const btoi = b => floor(b / 16) * 10 + floor(b % 16);
+const results = new Array(16);
+const pushResults = results.push.bind(results);
+const params = new Array(16);
+const pcm = new Float32Array(8064 * 44100 / 18900);
+const xa = new Float32Array(8064);
+const tracks = [];
+const sl = [0.0, 0.0];
+const sr = [0.0, 0.0];
+const getCdVolume = (data) => ((data & 0xff) >>> 0) / 0x80;
+const setIrq = (data) => {
+irq = (irq & 0xE0) | (data & 0x1F);
+if (irq & (0x1F & irqEnable)) {
+cpu.istat |= 0x0004;
+}
+if (cdDebug && (data & 0x1F)) {
+cdLog('interrupt asserted', {
+requested: data & 0x1F,
+irq,
+irqEnable,
+istat: cpu.istat >>> 0,
+});
+}
+};
+const acknowledgeInterrupt = (data) => {
+const before = irq;
+irq &= ~(data & (0x1F & irqEnable));
+if (cdDebug && (data & 0x1F)) {
+cdLog('interrupt acknowledged', {
+requested: data & 0x1F,
+before,
+after: irq,
+irqEnable,
+istat: cpu.istat >>> 0,
+});
+}
+};
+const enqueueEvent = (irq, ...params) => {
+// if (results.length) abort('not yet read all results');
+status = (status & ~0x80) | 0x20;
+pushResults(params);
+setIrq(irq);
+};
+const resetparams = () => {
+params.length = 0;
+};
+const completeCmd = (self) => {
+unsetEvent(self);
+if (irq & 0x1f) {
+setCommandEvent(64);
+return;
+}
+const readCycles = PSX_SPEED / ((mode & 0x80) ? 150 : 75);
+const loc = currLoc - 150;
+let currentCommand = ncmdctrl;
+ncmdctrl = 0;
+cdLog('complete command', `0x${currentCommand.toString(16).padStart(2, '0')}`, {
+status,
+statusCode,
+irq,
+loc: currLoc,
+results: results.length
+});
+switch (currentCommand) {
+case 0x00: break;
+case 0x01:
+if (!sectorData8.length) {
+enqueueEvent(5, 0x01);
+}
+else {
+enqueueEvent(3, 0x02);
+}
+break;
+case 0x02:
+if (!((params[0] === 0) && (params[1] === 0) && (params[2] === 0))) {
+seekLoc = (btoi(params[0]) * (60 * 75)) +
+(btoi(params[1]) * (75)) +
+(btoi(params[2]));
+}
+else {
+seekLoc = currLoc;
+}
+enqueueEvent(3, 0x02);
+break;
+case 0x03:
+if (params.length === 0 || params[0] === 0) {
+currLoc = seekLoc;
+}
+if (params.length === 1) {
+currTrack = tracks[btoi(params[0])];
+currLoc = seekLoc = currTrack.begin + 150;
+}
+setReadEvent(readCycles >>> 0);
+ncmdread = 0x03;
+enqueueEvent(3, 0x82);
+break;
+case 0x06:
+setReadEvent(readCycles >>> 0);
+ncmdread = 0x06;
+enqueueEvent(3, 0x42);
+currLoc = seekLoc;
+break;
+case 0x07:
+enqueueEvent(3, 0x00);
+ncmdctrl = 0x70;
+status |= 0x80;
+break
+case 0x70:
+enqueueEvent(2, 0x02);
+break;
+case 0x08:
+enqueueEvent(3, 0x02);
+setCommandEvent(((mode & 0x80) ? 0x18a6076 : 0xd38aca) >>> 0);
+ncmdctrl = 0x80;
+status |= 0x80;
+break;
+case 0x80:
+enqueueEvent(2, 0x00);
+break;
+case 0x09:
+pushResults(statusCode | 0x20);
+setCommandEvent(((mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0);
+ncmdctrl = 0x90;
+status |= 0xA0;
+setIrq(3);
+break;
+case 0x90:
+statusCode = (statusCode & ~0x20) | 0x02;
+pushResults(statusCode);
+status = (status & ~0x80) | 0x20;
+setIrq(2);
+break;
+case 0x99:
+statusCode = (statusCode & ~0xA0) | 0x02;
+pushResults(statusCode);
+status = (status & ~0x80) | 0x20;
+setIrq(4);
+break;
+case 0x0A:
+enqueueEvent(3, 0x02);
+setCommandEvent(0x1000 >>> 0);
+ncmdctrl = 0xA0;
+status |= 0x80;
+break;
+case 0xA0:
+enqueueEvent(2, 0x02);
+break;
+case 0x0B:
+enqueueEvent(3, 0x02);
+mute = true;
+break;
+case 0x0C:
+enqueueEvent(3, 0x02);
+mute = false;
+break;
+case 0x0D:
+filterFile = params[0];
+filterChan = params[1];
+enqueueEvent(3, 0x02);
+break;
+case 0x0E:
+enqueueEvent(3, 0x02);
+mode = params[0];
+break;
+case 0x0F:
+enqueueEvent(3, 0x02, mode, 0, filterFile, filterChan);
+break;
+case 0x10: {
+const offset = sectorOffset + 12;
+pushResults(
+sectorData8[offset + 0],
+sectorData8[offset + 1],
+sectorData8[offset + 2],
+sectorData8[offset + 3],
+sectorData8[offset + 4],
+sectorData8[offset + 5],
+sectorData8[offset + 6],
+sectorData8[offset + 7],
+);
+status = (status & ~0x80) | 0x20;
+setIrq(3);
+} break;
+case 0x11: {
+let loc = (currLoc - 150 - currTrack.begin);
+let mm = (loc / (60 * 75)) >> 0;
+let ss = ((loc / (75)) >> 0) % 60;
+let st = loc % 75;
+pushResults(itob(currTrack.id), 0x01, itob(mm), itob(ss), itob(st));
+pushResults(itob((((currLoc - 150) / 75) / 60) % 60));
+pushResults(itob((((currLoc - 150) / 75) % 60)));
+pushResults(itob((((currLoc - 150) % 75))));
+status = (status & ~0x80) | 0x20;
+setIrq(3);
+} break;
+case 0x12:
+setCommandEvent(0x1000 >>> 0);
+ncmdctrl = 0x120;
+statusCode |= 0x02;
+pushResults(statusCode);
+status |= 0x20;
+setIrq(3);
+break;
+case 0x120:
+statusCode |= 0x02;
+let amm = (loc / (60 * 75)) >> 0;
+let ass = ((loc / (75)) >> 0) % 60;
+let ast = loc % 75;
+pushResults(0x82, itob(currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
+status = (status & ~0x80) | 0x20;
+setIrq(1);
+break;
+case 0x13:
+statusCode |= 0x02;
+pushResults(statusCode, 0x01, itob(tracks.length - 1));
+status = (status & ~0x80) | 0x20;
+setIrq(3);
+break;
+case 0x14: {
+let mmss = 0;
+let track = tracks[btoi(params[0])];
+if (!track) {
+statusCode |= 0x10;
+pushResults(0x11, 0x80);
+status = (status & ~0x80) | 0x20;
+setIrq(5);
+break;
+}
+if (params[0] === 0) {
+mmss = floor((track.end + 150) / 75);
+}
+else {
+mmss = floor((track.begin + 150) / 75);
+}
+statusCode |= 0x02;
+pushResults(statusCode, itob(floor(mmss / 60)), itob(floor(mmss % 60)));
+status = (status & ~0x80) | 0x20;
+setIrq(3);
+} break;
+case 0x15:
+setCommandEvent(0x1000 >>> 0);
+ncmdctrl = 0x150;
+enqueueEvent(3, 0x42);
+status |= 0x80;
+break;
+case 0x150:
+enqueueEvent(2, 0x2);
+currLoc = seekLoc;
+break;
+case 0x16:
+setCommandEvent(0x1000 >>> 0);
+ncmdctrl = 0x160;
+enqueueEvent(3, 0x42);
+status |= 0x80;
+break;
+case 0x160:
+enqueueEvent(2, 0x2);
+currLoc = seekLoc;
+break;
+case 0x19:
+pushResults(0x99, 0x02, 0x01, 0xc3);
+status = (status & ~0x80) | 0x20;
+setIrq(3);
+break;
+case 0x1A:
+setCommandEvent(0x4a00 >>> 0);
+pushResults(statusCode);
+ncmdctrl = 0x1A0;
+status |= 0x20;
+setIrq(3);
+break;
+case 0x1A0:
+if (sectorData8.length) {
+// SCEA alternative: 0x53, 0x43, 0x45, 0x41.
+pushResults(0x02, 0x00, 0x20, 0x00, 0x65, 0x4e, 0x47, 0x45); // eNGE
+cdLog('GetID response', '02 00 20 00 65 4e 47 45 (eNGE)');
+status = (status & ~0x80) | 0x20;
+setIrq(2);
+}
+else {
+statusCode |= 0x10;
+pushResults(0x11, 0x80);
+status = (status & ~0x80) | 0x20;
+setIrq(5);
+}
+break;
+case 0x1B:
+setReadEvent(readCycles >>> 0);
+ncmdread = 0x1B;
+enqueueEvent(3, 0x42);
+currLoc = seekLoc;
+break;
+case 0x1E:
+setCommandEvent(0x1000 >>> 0);
+ncmdctrl = 0x1E0;
+enqueueEvent(3, 0x02);
+break;
+case 0x1E0:
+enqueueEvent(2, 0x02);
+break;
+default: abort(hex(ncmdctrl, 2));
+}
+resetparams();
+};
+const completeRead = (self) => {
+if (irq & 0x1f) {
+psx.updateEvent(self, 64);
+return;
+}
+let readCycles = 33868800 / ((mode & 0x80) ? 150 : 75);
+let loc = currLoc - 150;
+switch (ncmdread) {
+case 0x00:
+unsetEvent(eventRead);
+break;
+case 0x03:
+playIndex = 0;
+if (currLoc === currTrack.end) {
+if (mode & 0x02) {
+unsetEvent(self);
+return command(0x99);
+}
+}
+if ((mode & 0x05) == 0x05) {
+// A remote sector miss pauses this CD event until its range request
+// completes. The event is retried without advancing currLoc.
+if (!readSector(currLoc)) return;
+switch (loc % 75) {
+case 0:
+case 20:
+case 40:
+case 60: {
+let amm = (loc / (60 * 75)) >> 0;
+let ass = ((loc / (75)) >> 0) % 60;
+let ast = loc % 75;
+pushResults(0x82, itob(currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
+status = (status & ~0x80) | 0x60;
+setIrq(1);
+} break;
+case 10:
+case 30:
+case 50:
+case 70: {
+let loc = (currLoc - currTrack.begin);
+let amm = (loc / (60 * 75)) >> 0;
+let ass = ((loc / (75)) >> 0) % 60;
+let ast = loc % 75;
+pushResults(0x82, itob(currTrack.id), 1, itob(amm), 0x80 | itob(ass), itob(ast), 0, 0);
+status = (status & ~0x80) | 0x60;
+setIrq(1);
+} break;
+}
+psx.updateEvent(self, readCycles);
+currLoc++;
+break;
+}
+case 0x06:
+case 0x1b:
+if (!readSector(currLoc)) return;
+pushResults(0x22);
+status = (status & ~0x80) | 0x60;
+setIrq(1);
+psx.updateEvent(self, readCycles);
+currLoc++;
+break;
+default:
+abort(hex(ncmdread, 2));
+}
+};
+const eventCmd = addEvent(0, completeCmd);
+const setCommandEvent = e => setEvent(eventCmd, e);
+const eventRead = addEvent(0, completeRead);
+const setReadEvent = e => setEvent(eventRead, e);
+const command = (data) => {
+let nevtctrl = 0x0200;
+setIrq(0);
+results.length = 0;
+status |= 0x80;
+ncmdctrl = data;
+cdLog('command', `0x${data.toString(16).padStart(2, '0')}`, {
+params: [...params],
+status,
+statusCode,
+currLoc,
+seekLoc,
+hasDisc: sectorData8.length > 0,
+tracks: tracks.length
+});
+switch (data) {
+case 0x01:  //- CdlNop
+nevtctrl = 0xc4e1;
+break;
+case 0x02:  //- CdlSetloc
+case 0x03:  //- CdlPlay
+case 0x0b:  //- CdlMute
+case 0x0c:  //- CdlDemute
+case 0x0d:  //- CdlSetFilter
+case 0x0e:  //- CdlSetmode
+case 0x0f:  //- CdlGetparam
+case 0x10:  //- CdlGetLocL
+case 0x11:  //- CdlGetLocP
+case 0x12:  //- CdlSetSession
+case 0x13:  //- CdlGetTN
+case 0x14:  //- CdlGetTD
+case 0x19:  //- CdlTest
+case 0x1a:  //- CdlID
+case 0x1e:  //- CdlReadTOC
+break;
+case 0x0a:  //- CdlInit
+nevtctrl = 0x13cce;
+case 0x06:  //- CdlReadN
+case 0x07:  //- CdlStandby
+case 0x08:  //- CdlStop
+case 0x15:  //- CdlSeekL
+case 0x16:  //- CdlSeekP
+case 0x1B:  //- CdlReadS
+stopReading();
+break;
+case 0x09:  //- CdlPause
+stopReading();
+break;
+case 0x99:  //- CdlPause (auto)
+break;
+default: abort(hex(data, 2));
+}
+setCommandEvent(nevtctrl >>> 0);
+};
+const readSector = (readLoc) => {
+for (let i = 1; i < tracks.length; ++i) {
+let track = currTrack = tracks[i];
+if ((track.begin < readLoc) && (readLoc < track.end)) break;
+}
+if (remoteImage) {
+const track = currTrack || tracks[1];
+const fileIndex = track.fileIndex || 0;
+const file = remoteImage.files[fileIndex];
+const fileSector = (track.fileBegin || 0) + (readLoc - 150 - track.begin);
+const byteOffset = fileSector * remoteSectorSize;
+const chunkIndex = Math.floor(byteOffset / remoteChunkSize);
+const chunkOffset = byteOffset - chunkIndex * remoteChunkSize;
+const chunk = file.chunks.get(chunkIndex);
+if (!chunk || chunkOffset + remoteSectorSize > chunk.length) {
+if (!remoteRead || remoteRead.fileIndex !== fileIndex || remoteRead.chunkIndex !== chunkIndex) {
+cdLog('sector cache miss; requesting range', { readLoc, file: fileIndex, chunk: chunkIndex });
+const request = fetchRemoteChunk(file, fileIndex, chunkIndex);
+remoteRead = { fileIndex, chunkIndex, request };
+}
+remoteRead.request.then(() => setEvent(eventRead, 0)).catch(error => abort(error.message));
+return false;
+}
+// Read ahead while the current range is still being consumed. This is
+// especially important for CDDA tracks, where a cache miss is audible.
+if (chunkOffset + (remoteSectorSize * 32) >= chunk.length &&
+(chunkIndex + 1) * remoteChunkSize < file.size) {
+fetchRemoteChunk(file, fileIndex, chunkIndex + 1).catch(error => {
+console.warn('CD read-ahead failed:', error.message);
+});
+}
+remoteSector.set(chunk.subarray(chunkOffset, chunkOffset + remoteSectorSize));
+sectorData8 = new Int8Array(remoteSector.buffer);
+sectorData16 = new Int16Array(remoteSector.buffer);
+sectorOffset = 0;
+} else if (localImage) {
+const track = currTrack || tracks[1];
+const fileIndex = track?.fileIndex || 0;
+const file = localImage.files[fileIndex];
+const fileSector = (track?.fileBegin || 0) + (readLoc - 150 - (track?.begin || 0));
+const byteOffset = fileSector * remoteSectorSize;
+if (!file || byteOffset < 0 || byteOffset + remoteSectorSize > file.byteLength) return false;
+remoteSector.set(file.subarray(byteOffset, byteOffset + remoteSectorSize));
+sectorData8 = new Int8Array(remoteSector.buffer);
+sectorData16 = new Int16Array(remoteSector.buffer);
+sectorOffset = 0;
+}
+if (sectorData8.length <= 0) return false;
+if (cdDebug && (readLoc < 20 || readLoc % 75 === 0)) {
+cdLog('sector ready', { readLoc, track: currTrack.id, data: !!currTrack.data, audio: !!currTrack.audio });
+}
+if (!remoteImage && !localImage) sectorOffset = (readLoc - 150) * 2352;
+if (cdDebug && debugSectorLogCount < 64) {
+const header = Array.from(sectorData8.slice(sectorOffset + 0x0f, sectorOffset + 0x15), byte =>
+String.fromCharCode(byte & 0xff)).join('');
+cdLog('sector ready', {
+lba: readLoc - 150,
+readLoc,
+track: currTrack.id,
+mode: mode & 0x30,
+header,
+bytes: Array.from(sectorData8.slice(sectorOffset, sectorOffset + 16), byte =>
+(byte & 0xff).toString(16).padStart(2, '0')).join(' ')
+});
+debugSectorLogCount++;
+const lba = readLoc - 150;
+if (lba === 22 && (mode & 0x30) === 0) {
+const entries = [];
+for (let offset = 24; offset < 24 + 2048;) {
+const length = sectorData8[sectorOffset + offset] & 0xff;
+if (!length) break;
+const nameLength = sectorData8[sectorOffset + offset + 32] & 0xff;
+const name = Array.from(sectorData8.slice(
+sectorOffset + offset + 33,
+sectorOffset + offset + 33 + nameLength
+), byte => String.fromCharCode(byte & 0xff)).join('');
+entries.push(name);
+offset += length;
+}
+cdLog('root directory entries', entries);
+}
+}
+let sectorSize = 0;
+switch (mode & 0x30) {
+case 0x00: sectorIndex = 24;
+sectorSize = 2048;
+break;
+case 0x10: sectorIndex = 24;
+sectorSize = 2328;
+break;
+case 0x20:
+case 0x30: sectorIndex = 12;
+sectorSize = 2340;
+break;
+}
+sectorEnd = sectorIndex + sectorSize;
+if ((mode & 0x48) !== 0) {
+let sectorMode = sectorData8[sectorOffset + 0x0f];
+if (sectorMode !== 2) return true;
+if ((mode & 0x48) === 0x48) {
+let file = sectorData8[sectorOffset + 0x10];
+if (file !== filterFile) return true;
+let chan = sectorData8[sectorOffset + 0x11];
+if (chan !== filterChan) return true;
+}
+let sub = sectorData8[sectorOffset + 0x12];
+if ((sub & 0x44) !== 0x44) return true;
+let nfo = sectorData8[sectorOffset + 0x13];
+let ms, sr;
+switch ((nfo >>> 0) & 3) {
+case 0: ms = decodeMono; break;
+case 1: ms = decodeStereo; break;
+}
+switch ((nfo >>> 2) & 1) {
+case 0: sr = 37800; break;
+case 1: sr = 18900; break;
+}
+// todo: implement next two
+// switch ((nfo >>> 4) & 3) {
+//   case 0: bs = '4bit'; break;
+//   case 1: bs = '8bit'; break;
+// }
+// switch ((nfo >>> 6) & 1) {
+//   case 0: em = 'normal'; break;
+//   case 1: em = 'emphasis'; break;
+// }
+pcmidx = 0;
+xa.fill(0);
+pcm.fill(0);
+let ix = ms?.call() || 0;
+let samples = (44100 * ix) / sr;
+let i = 0;
+let upscaleFreq = 0;
+ix = -1;
+for (let s = 0; s < samples; s += 2) {
+pcm[++ix] = xa[i + 0];
+pcm[++ix] = xa[i + 1];
+upscaleFreq += sr;
+if (upscaleFreq >= 44100) {
+upscaleFreq -= 44100;
+i += 2;
+}
+}
+pcmmax = ix;
+}
+return true;
+};
+const decodeMono = () => {
+let ix = 0;
+for (let sg = 0; sg < 18; ++sg) {
+const decodeOffset = sectorOffset + 24 + (sg * 128);
+for (let su = 0; su < 8; ++su) {
+const shiftFilter = sectorData8[decodeOffset + 4 + su];
+const shift = (shiftFilter & 0x0f) >>> 0;
+const filter = (shiftFilter & 0xf0) >>> 3;
+const k0 = xa2flt[filter + 0];
+const k1 = xa2flt[filter + 1];
+for (let sd = 0; sd < 28; ++sd) {
+const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+const data = sectorData8[offset] & 0xff;
+const index = (shift * 256 + data) * 2;
+let s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + (su & 1)];
+sl[0] = sl[1];
+sl[1] = s;
+xa[ix + sd * 2 + 0] = s;
+xa[ix + sd * 2 + 1] = s;
+}
+ix += 2 * 28;
+}
+}
+return ix;
+}
+const decodeStereo = () => {
+let ix = 0;
+for (let sg = 0; sg < 18; ++sg) {
+const decodeOffset = sectorOffset + 24 + (sg * 128);
+for (let su = 0; su < 8; su += 2) {
+{
+const shiftFilter = sectorData8[decodeOffset + 4 + su];
+const shift = (shiftFilter & 0x0f) >>> 0;
+const filter = (shiftFilter & 0xf0) >>> 3;
+const k0 = xa2flt[filter + 0];
+const k1 = xa2flt[filter + 1];
+for (let sd = 0; sd < 28; ++sd) {
+const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+const data = sectorData8[offset] & 0xff;
+const index = (shift * 256 + data) * 2;
+let s = (sl[1] * k0) + (sl[0] * k1) + xa2pcm[index + 0];
+sl[0] = sl[1];
+sl[1] = s;
+xa[ix + sd * 2 + 0] = s;
+}
+}
+{
+const shiftFilter = sectorData8[decodeOffset + 5 + su];
+const shift = (shiftFilter & 0x0f) >>> 0;
+const filter = (shiftFilter & 0xf0) >>> 3;
+const k0 = xa2flt[filter + 0];
+const k1 = xa2flt[filter + 1];
+for (let sd = 0; sd < 28; ++sd) {
+const offset = (decodeOffset + 16 + (sd * 4) + (su / 2)) >>> 0;
+const data = sectorData8[offset] & 0xff;
+const index = (shift * 256 + data) * 2;
+let s = (sr[1] * k0) + (sr[0] * k1) + xa2pcm[index + 1];
+sr[0] = sr[1];
+sr[1] = s;
+xa[ix + sd * 2 + 1] = s;
+}
+}
+ix += 2 * 28;
+}
+}
+return ix;
+};
+const stopReading = () => {
+unsetEvent(eventRead);
+statusCode &= ~0x80;
+statusCode &= ~0x20;
+ncmdread = 0;
+};
+const resetForNewImage = () => {
+stopReading();
+status = 0x18;
+statusCode = 0x00;
+ncmdread = 0;
+ncmdctrl = 0;
+sectorOffset = 0;
+sectorIndex = 0;
+sectorEnd = 0;
+playIndex = 0;
+currLoc = 0;
+seekLoc = 0;
+irq = 0;
+results.length = 0;
+params.length = 0;
+currTrack = {};
+cpu.istat &= ~0x0004;
+};
+return {
+cdr: {
+rd08r1800: () => {
+if (cdDebug && debugResponseLogCount < 128) {
+cdLog('status register read', { status, irq, results: results.length });
+debugResponseLogCount++;
+}
+return status;
+},
+rd08r1801: () => {
+if ((status & 0x23) == 0x21) {
+if (results.length === 1) {
+status &= ~(0x40 | 0x20);
+}
+const result = results.shift();
+if (cdDebug && debugResponseLogCount < 128) {
+cdLog('result register read', {
+result,
+status,
+irq,
+remaining: results.length
+});
+debugResponseLogCount++;
+}
+return result;
+}
+if (cdDebug && debugResponseLogCount < 128) {
+cdLog('result register read while not ready', { status, irq, remaining: results.length });
+debugResponseLogCount++;
+}
+return 0;
+},
+rd08r1802: () => {
+if (status & 0x40) {
+return sectorData8[sectorOffset + sectorIndex++];
+}
+return 0x00;
+},
+rd08r1803: () => {
+switch (status & 3) {
+case 0: return 0xE0 | irqEnable;
+case 1:
+if (cdDebug && (irq & 0x1f || debugResponseLogCount < 128)) {
+cdLog('interrupt register read', { irq, status, results: results.length });
+if (!irq) debugResponseLogCount++;
+}
+return irq;
+};
+},
+wr08r1800: (data) => {
+status = (status & ~3) | (data & 3);
+},
+wr08r1801: (data) => {
+switch (status & 3) {
+case 0: command(data);
+break;
+case 3: volConfigCdRight2SpuRight = getCdVolume(data);
+break;
+};
+},
+wr08r1802: (data) => {
+switch (status & 3) {
+case 0:
+params.push(data);
+if (params.length === 16) status &= ~0x10;
+break;
+case 1:
+irqEnable = data;
+irq = 0;
+if (cdDebug) cdLog('interrupt register select/write', { irqEnable, irq });
+break;
+case 2:
+volConfigCdLeft2SpuLeft = getCdVolume(data);
+break;
+case 3:
+volConfigCdRight2SpuLeft = getCdVolume(data);
+break;
+};
+},
+wr08r1803: (data) => {
+switch (status & 3) {
+case 0:
+if (data === 0x80) {
+status |= 0x40;
+}
+break;
+case 1:
+if (cdDebug && (data & 0x1f)) {
+cdLog('interrupt register acknowledge write', { data, irq, irqEnable });
+}
+if (data & (0x1F & irqEnable)) {
+acknowledgeInterrupt(data);
+}
+if (data & 0x40) {
+resetparams();
+}
+break;
+case 2:
+volConfigCdLeft2SpuRight = getCdVolume(data);
+break;
+case 3:
+if (data & 0x20) {
+volCdLeft2SpuLeft = volConfigCdLeft2SpuLeft;
+volCdLeft2SpuRight = volConfigCdLeft2SpuRight;
+volCdRight2SpuLeft = volConfigCdRight2SpuLeft;
+volCdRight2SpuRight = volConfigCdRight2SpuRight;
+}
+break;
+};
+},
+nextpcm: (buf) => {
+if (ncmdread === 0x03) {
+if (currTrack.audio) {
+let offset = (sectorOffset + playIndex) >> 1;
+let sampleL = sectorData16[offset + 0] / 32768.0;
+let sampleR = sectorData16[offset + 1] / 32768.0;
+let sL = sampleL * volCdLeft2SpuLeft + sampleR * volCdRight2SpuLeft;
+let sR = sampleR * volCdRight2SpuRight + sampleL * volCdLeft2SpuRight;
+buf[0] = sL;
+buf[1] = sR;
+}
+if (currTrack.data) {
+buf[0] = 0.0;
+buf[1] = 0.0;
+}
+playIndex += 4;
+return;
+}
+if ((mode & 0x48) !== 0) {
+// if due to timing issues we read beyond the buffer, repeat last samples to reduce clicks.
+if (pcmidx >= (pcmmax - 1)) pcmidx = pcmmax - 1;
+let sampleL = pcm[pcmidx + 0];
+let sampleR = pcm[pcmidx + 1];
+let sL = sampleL * volCdLeft2SpuLeft + sampleR * volCdRight2SpuLeft;
+let sR = sampleR * volCdRight2SpuRight + sampleL * volCdLeft2SpuRight;
+buf[0] = sL;
+buf[1] = sR;
+pcmidx += 2;
+}
+},
+dmaTransferMode0000: (addr, blck) => {
+if (!(addr & 0x007fffff)) return 0x10;
+const transferSize = (blck & 0xFFFF) << 2;
+if (cdDebug && debugDmaLogCount < 32) {
+cdLog('DMA sector transfer', {
+addr: `0x${(addr >>> 0).toString(16).padStart(8, '0')}`,
+bytes: transferSize,
+sectorIndex,
+sectorEnd
+});
+debugDmaLogCount++;
+}
+clearCodeCache(addr, transferSize);
+for (let i = 0; i < transferSize; i += 2) {
+map16[(addr & 0x001fffff) >> 1] = sectorData16[(sectorOffset + sectorIndex) >> 1];
+sectorIndex += 2;
+addr += 2;
+}
+if (cdDebug && debugDmaLogCount <= 32) {
+const ramStart = (addr - transferSize) & 0x001fffff;
+cdLog('DMA payload check', {
+bytes: Array.from(map8.slice(ramStart, ramStart + 16), byte =>
+(byte & 0xff).toString(16).padStart(2, '0')).join(' '),
+text: String.fromCharCode(...Array.from(map8.slice(ramStart, ramStart + 8), byte => byte & 0xff))
+});
+// DMA starts at the sector payload (sector offset 24), so the
+// directory begins at RAM offset zero rather than RAM + 24.
+if (sectorEnd === 2072 && (map8[ramStart] & 0xff) === 0x30) {
+const entries = [];
+for (let offset = 0; offset < 2048;) {
+const length = map8[ramStart + offset] & 0xff;
+if (!length) break;
+const nameLength = map8[ramStart + offset + 32] & 0xff;
+const name = Array.from(map8.slice(
+ramStart + offset + 33,
+ramStart + offset + 33 + nameLength
+), byte => String.fromCharCode(byte & 0xff)).join('');
+entries.push(name);
+offset += length;
+}
+cdLog('DMA RAM directory entries', entries);
+}
+}
+if (sectorIndex >= sectorEnd) {
+status &= ~0x40;
+}
+return transferSize;
+},
+setTOC: (new_tracks) => {
+tracks.splice(0, tracks.length, ...new_tracks);
+},
+getState: () => ({
+status,
+statusCode,
+ncmdread,
+ncmdctrl,
+sectorOffset,
+sectorIndex,
+sectorEnd,
+playIndex,
+irq,
+irqEnable,
+mode,
+mute,
+currLoc,
+seekLoc,
+volCdLeft2SpuLeft,
+volCdLeft2SpuRight,
+volCdRight2SpuLeft,
+volCdRight2SpuRight,
+volConfigCdLeft2SpuLeft,
+volConfigCdLeft2SpuRight,
+volConfigCdRight2SpuLeft,
+volConfigCdRight2SpuRight,
+pcmidx,
+pcmmax,
+filterFile,
+filterChan,
+currTrackIndex: tracks.indexOf(currTrack),
+results: [...results],
+params: [...params],
+sectorData: sectorData8.slice(sectorOffset, sectorOffset + remoteSectorSize),
+pcm,
+xa,
+sl: [...sl],
+sr: [...sr]
+}),
+setState: state => {
+if (!state) return;
+status = state.status;
+statusCode = state.statusCode;
+ncmdread = state.ncmdread;
+ncmdctrl = state.ncmdctrl;
+sectorOffset = state.sectorOffset;
+sectorIndex = state.sectorIndex;
+sectorEnd = state.sectorEnd;
+playIndex = state.playIndex;
+irq = state.irq;
+irqEnable = state.irqEnable;
+mode = state.mode;
+mute = state.mute;
+currLoc = state.currLoc;
+seekLoc = state.seekLoc;
+volCdLeft2SpuLeft = state.volCdLeft2SpuLeft;
+volCdLeft2SpuRight = state.volCdLeft2SpuRight;
+volCdRight2SpuLeft = state.volCdRight2SpuLeft;
+volCdRight2SpuRight = state.volCdRight2SpuRight;
+volConfigCdLeft2SpuLeft = state.volConfigCdLeft2SpuLeft;
+volConfigCdLeft2SpuRight = state.volConfigCdLeft2SpuRight;
+volConfigCdRight2SpuLeft = state.volConfigCdRight2SpuLeft;
+volConfigCdRight2SpuRight = state.volConfigCdRight2SpuRight;
+pcmidx = state.pcmidx;
+pcmmax = state.pcmmax;
+filterFile = state.filterFile;
+filterChan = state.filterChan;
+currTrack = tracks[state.currTrackIndex] || {};
+results.length = 0;
+results.push(...state.results);
+params.length = 0;
+params.push(...state.params);
+if (state.sectorData) {
+remoteSector.set(state.sectorData);
+sectorData8 = new Int8Array(remoteSector.buffer);
+sectorData16 = new Int16Array(remoteSector.buffer);
+}
+pcm.set(state.pcm);
+xa.set(state.xa);
+sl[0] = state.sl[0];
+sl[1] = state.sl[1];
+sr[0] = state.sr[0];
+sr[1] = state.sr[1];
+remoteRead = undefined;
+},
+setCdImage: (data) => {
+resetForNewImage();
+remoteImage = undefined;
+localImage = undefined;
+sectorData16 = new Int16Array(data.buffer);
+sectorData8 = new Int8Array(data.buffer);
+},
+setCdImages: (dataBuffers) => {
+resetForNewImage();
+remoteImage = undefined;
+const files = dataBuffers.map(buffer => new Uint8Array(buffer));
+if (!files.length || files.some(file => !file.byteLength || file.byteLength % remoteSectorSize !== 0)) {
+throw new Error('Local CD images must be raw 2352-byte-sector BIN files');
+}
+localImage = {
+files,
+sectors: files.reduce((sectors, file) => sectors + file.byteLength / remoteSectorSize, 0)
+};
+sectorData8 = new Int8Array(remoteSector.buffer);
+sectorData16 = new Int16Array(remoteSector.buffer);
+return { size: files.reduce((size, file) => size + file.byteLength, 0), sectors: localImage.sectors, files };
+},
+setCdImageURL: async (url) => {
+return cdr.setCdImageURLs([url]);
+},
+setCdImageURLs: async (urls) => {
+// Discover the size with a one-byte range request. A full download is
+// deliberately rejected because it defeats the bounded-memory path.
+const files = await Promise.all(urls.map(async url => {
+const response = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+if (response.status !== 206) {
+throw new Error(`CD image server returned HTTP ${response.status}; byte ranges are required`);
+}
+const contentRange = response.headers.get('Content-Range');
+const match = contentRange?.match(/bytes\s+\d+-\d+\/(\d+)/i);
+const size = match ? Number(match[1]) : 0;
+if (!size || size % remoteSectorSize !== 0) {
+throw new Error('CD image size is unavailable or is not a raw 2352-byte-sector image');
+}
+return { url, size, chunks: new Map(), pending: new Map() };
+}));
+remoteImage = {
+files,
+chunkCount: () => files.reduce((count, file) => count + file.chunks.size, 0)
+};
+resetForNewImage();
+// The BIOS checks sectorData8.length to detect whether a disc is
+// present before issuing its first read. Keep the fixed sector views
+// visible even though the first sector has not been fetched yet.
+sectorData8 = new Int8Array(remoteSector.buffer);
+sectorData16 = new Int16Array(remoteSector.buffer);
+return {
+size: files.reduce((size, file) => size + file.size, 0),
+sectors: files.reduce((sectors, file) => sectors + file.size / remoteSectorSize, 0),
+files
+};
+}
+}
+}
+})
+mdlr('enge:psx:mdec', m => {
+const iq = new Int32Array(128);
+const scale = new Uint8Array(3 * 256);
+const SCALERC256 = (y, x) => {
+return scale[256 + 128 + y + x];
+};
+const SCALERC32 = (y, x) => {
+return SCALERC256(y,x)>>>3;
+};
+const zscan = [
+0, 1, 8, 16, 9, 2, 3, 10,
+17, 24, 32, 25, 18, 11, 4, 5,
+12, 19, 26, 33, 40, 48, 41, 34,
+27, 20, 13, 6, 7, 14, 21, 28,
+35, 42, 49, 56, 57, 50, 43, 36,
+29, 22, 15, 23, 30, 37, 44, 51,
+58, 59, 52, 45, 38, 31, 39, 46,
+53, 60, 61, 54, 47, 55, 62, 63
+];
+const aanscales = [
+0x4000, 0x58c5, 0x539f, 0x4b42, 0x4000, 0x3249, 0x22a3, 0x11a8,
+0x58c5, 0x7b21, 0x73fc, 0x6862, 0x58c5, 0x45bf, 0x300b, 0x187e,
+0x539f, 0x73fc, 0x6d41, 0x6254, 0x539f, 0x41b3, 0x2d41, 0x1712,
+0x4b42, 0x6862, 0x6254, 0x587e, 0x4b42, 0x3b21, 0x28ba, 0x14c3,
+0x4000, 0x58c5, 0x539f, 0x4b42, 0x4000, 0x3249, 0x22a3, 0x11a8,
+0x3249, 0x45bf, 0x41b3, 0x3b21, 0x3249, 0x2782, 0x1b37, 0x0de0,
+0x22a3, 0x300b, 0x2d41, 0x28ba, 0x22a3, 0x1b37, 0x12bf, 0x098e,
+0x11a8, 0x187e, 0x1712, 0x14c3, 0x11a8, 0x0de0, 0x098e, 0x04df,
+];
+const iqtab_init = (addr, size) => {
+for (let i = 0; i < size; ++i) {
+const q = map8[((addr + i) & 0x001fffff) >>> 0] & 0xff;
+iq[i] = (q * aanscales[zscan[i & 63]]) >> 12;
+}
+};
+const icdt = (blk, o) => {
+let z10, z11, z12, z13;
+let oo = o;
+for (let i = 8; i > 0; --i, o += 8) {
+z10 = (blk[o + 0] + blk[o + 4]) >> 0;
+z11 = (blk[o + 0] - blk[o + 4]) >> 0;
+z13 = (blk[o + 2] + blk[o + 6]) >> 0;
+z12 = (blk[o + 2] - blk[o + 6]) >> 0;
+z12 = (((z12 * 362) >> 8) - z13) >> 0;
+const tmp0 = (z10 + z13) >> 0;
+const tmp3 = (z10 - z13) >> 0;
+const tmp1 = (z11 + z12) >> 0;
+const tmp2 = (z11 - z12) >> 0;
+z13 = (blk[o + 3] + blk[o + 5]) >> 0;
+z10 = (blk[o + 3] - blk[o + 5]) >> 0;
+z11 = (blk[o + 1] + blk[o + 7]) >> 0;
+z12 = (blk[o + 1] - blk[o + 7]) >> 0;
+const z5 = ((z12 - z10) * 473) >> 8;
+const tmp7 = (z11 + z13) >> 0;
+const tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
+const tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
+const tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
+blk[o + 0] = (tmp0 + tmp7) >> 5;
+blk[o + 1] = (tmp1 + tmp6) >> 5;
+blk[o + 2] = (tmp2 + tmp5) >> 5;
+blk[o + 3] = (tmp3 - tmp4) >> 5;
+blk[o + 4] = (tmp3 + tmp4) >> 5;
+blk[o + 5] = (tmp2 - tmp5) >> 5;
+blk[o + 6] = (tmp1 - tmp6) >> 5;
+blk[o + 7] = (tmp0 - tmp7) >> 5;
+}
+o = oo;
+for (let i = 8; i > 0; --i, ++o) {
+z10 = (blk[o + 0] + blk[o + 32]) >> 0;
+z11 = (blk[o + 0] - blk[o + 32]) >> 0;
+z13 = (blk[o + 16] + blk[o + 48]) >> 0;
+z12 = (blk[o + 16] - blk[o + 48]) >> 0;
+z12 = (((z12 * 362) >> 8) - z13) >> 0;
+const tmp0 = (z10 + z13) >> 0;
+const tmp3 = (z10 - z13) >> 0;
+const tmp1 = (z11 + z12) >> 0;
+const tmp2 = (z11 - z12) >> 0;
+z13 = (blk[o + 24] + blk[o + 40]) >> 0;
+z10 = (blk[o + 24] - blk[o + 40]) >> 0;
+z11 = (blk[o + 8] + blk[o + 56]) >> 0;
+z12 = (blk[o + 8] - blk[o + 56]) >> 0;
+const z5 = ((z12 - z10) * 473) >> 8;
+const tmp7 = (z11 + z13) >> 0;
+const tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
+const tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
+const tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
+blk[o + 0] = (tmp0 + tmp7) >> 0;
+blk[o + 8] = (tmp1 + tmp6) >> 0;
+blk[o + 16] = (tmp2 + tmp5) >> 0;
+blk[o + 24] = (tmp3 - tmp4) >> 0;
+blk[o + 32] = (tmp3 + tmp4) >> 0;
+blk[o + 40] = (tmp2 - tmp5) >> 0;
+blk[o + 48] = (tmp1 - tmp6) >> 0;
+blk[o + 56] = (tmp0 - tmp7) >> 0;
+}
+};
+const rl2blk = (blk, addr) => {
+blk.fill(0);
+let base = (addr & 0x001fffff) >>> 1;
+for (let i = 0; i < 6; ++i) {
+const iqoff = i >= 2 ? 0 : 64;
+const o = 64 * i;
+const rl = map16[base++] & 0xffff;
+const q = rl >> 10;
+const dc = ((rl << 22) >> 22);
+let k = 0;
+blk[o] = iq[iqoff] * dc;
+for (; ;) {
+const rl = map16[base++] & 0xffff;
+k += ((rl >> 10) + 1);
+if (k <= 63) {
+const dc = ((rl << 22) >> 22);
+const val = (iq[iqoff + k] * q * dc) >> 3;
+blk[o + zscan[k]] = val;
+}
+if (k > 63) break;
+}
+icdt(blk, o);
+}
+return base << 1;
+};
+const putquadrgb15 = (addr, blk, o, Cr, Cb) => {
+const R = ((1433 * Cr)) >> 10;
+const G = ((-351 * Cb) - (728 * Cr)) >> 10;
+const B = ((1807 * Cb)) >> 10;
+const base = (addr & 0x001fffff) >>> 0;
+const memory = map16;
+let Y, r, g, b, a = mdc.STP;
+Y = blk[o + 0] << 0;
+r = SCALERC32(Y, R);
+g = SCALERC32(Y, G);
+b = SCALERC32(Y, B);
+memory[(base + 0) >>> 1] = a | (b << 10) | (g << 5) | r;
+Y = blk[o + 1] << 0;
+r = SCALERC32(Y, R);
+g = SCALERC32(Y, G);
+b = SCALERC32(Y, B);
+memory[(base + 2) >>> 1] = a | (b << 10) | (g << 5) | r;
+Y = blk[o + 8] << 0;
+r = SCALERC32(Y, R);
+g = SCALERC32(Y, G);
+b = SCALERC32(Y, B);
+memory[(base + 32) >>> 1] = a | (b << 10) | (g << 5) | r;
+Y = blk[o + 9] << 0;
+r = SCALERC32(Y, R);
+g = SCALERC32(Y, G);
+b = SCALERC32(Y, B);
+memory[(base + 34) >>> 1] = a | (b << 10) | (g << 5) | r;
+};
+const yuv2rgb15 = (blk, addr) => {
+let y;
+let ro = 0;
+let bo = 64;
+let yo = 64 * 2;
+for (y = 0; y < 16; y += 2, ro += 8, bo += 8, yo += 16, addr += 64) {
+if (y == 8) yo += 64;
+putquadrgb15(addr + 0, blk, yo + 0, blk[ro + 0], blk[bo + 0]);
+putquadrgb15(addr + 4, blk, yo + 2, blk[ro + 1], blk[bo + 1]);
+putquadrgb15(addr + 8, blk, yo + 4, blk[ro + 2], blk[bo + 2]);
+putquadrgb15(addr + 12, blk, yo + 6, blk[ro + 3], blk[bo + 3]);
+putquadrgb15(addr + 16, blk, yo + 64, blk[ro + 4], blk[bo + 4]);
+putquadrgb15(addr + 20, blk, yo + 66, blk[ro + 5], blk[bo + 5]);
+putquadrgb15(addr + 24, blk, yo + 68, blk[ro + 6], blk[bo + 6]);
+putquadrgb15(addr + 28, blk, yo + 70, blk[ro + 7], blk[bo + 7]);
+}
+};
+const putquadrgb24 = (addr, blk, o, Cr, Cb) => {
+const R = ((1433 * Cr)) >> 10;
+const G = ((-351 * Cb) - (728 * Cr)) >> 10;
+const B = ((1807 * Cb)) >> 10;
+const base = (addr & 0x001fffff) >>> 0;
+const memory = map8;
+let Y;
+Y = blk[o + 0] << 0;
+memory[base + 0] = SCALERC256(Y, R);
+memory[base + 1] = SCALERC256(Y, G);
+memory[base + 2] = SCALERC256(Y, B);
+Y = blk[o + 1] << 0;
+memory[base + 3] = SCALERC256(Y, R);
+memory[base + 4] = SCALERC256(Y, G);
+memory[base + 5] = SCALERC256(Y, B);
+Y = blk[o + 8] << 0;
+memory[base + 48] = SCALERC256(Y, R);
+memory[base + 49] = SCALERC256(Y, G);
+memory[base + 50] = SCALERC256(Y, B);
+Y = blk[o + 9] << 0;
+memory[base + 51] = SCALERC256(Y, R);
+memory[base + 52] = SCALERC256(Y, G);
+memory[base + 53] = SCALERC256(Y, B);
+};
+const yuv2rgb24 = (blk, addr) => {
+let y;
+let ro = 0;
+let bo = 64;
+let yo = 64 * 2;
+for (y = 0; y < 16; y += 2, ro += 8, bo += 8, yo += 16, addr += 96) {
+if (y == 8) yo += 64;
+putquadrgb24(addr + 0, blk, yo + 0, blk[ro + 0], blk[bo + 0]);
+putquadrgb24(addr + 6, blk, yo + 2, blk[ro + 1], blk[bo + 1]);
+putquadrgb24(addr + 12, blk, yo + 4, blk[ro + 2], blk[bo + 2]);
+putquadrgb24(addr + 18, blk, yo + 6, blk[ro + 3], blk[bo + 3]);
+putquadrgb24(addr + 24, blk, yo + 64, blk[ro + 4], blk[bo + 4]);
+putquadrgb24(addr + 30, blk, yo + 66, blk[ro + 5], blk[bo + 5]);
+putquadrgb24(addr + 36, blk, yo + 68, blk[ro + 6], blk[bo + 6]);
+putquadrgb24(addr + 42, blk, yo + 70, blk[ro + 7], blk[bo + 7]);
+}
+};
+const mdc = {
+r1820: 0,
+r1824: 0x80040000,
+rl: 0,
+STP: 0,
+end: 0,
+block: new Int32Array(6 * 64),
+rd32r1820: () => {
+return mdc.r1820;
+},
+wr32r1820: (data) => {
+mdc.r1820 = data;
+},
+rd32r1824: () => {
+return mdc.r1824;
+},
+wr32r1824: (data) => {
+if (data & 0x80000000) {
+mdc.r1820 = 0;
+mdc.r1824 = 0x80040000;
+psx.unsetEvent(mdc.event);
+}
+},
+dmaTransferMode0201: (addr, blck) => {
+if (!(addr & 0x007fffff)) return 0x10;
+addr = addr & 0x001fffff;
+const transferSize = (blck >>> 16) * (blck & 0xffff);
+switch (mdc.r1820 >>> 29) {
+// case 0x0:
+case 0x1:
+mdc.rl = addr;
+break;
+case 0x2:
+iqtab_init(addr, transferSize << 2);
+if (mdc.r1820 !== 0x40000001) return abort();
+break;
+default:
+console.log(hex(mdc.r1820 >>> 29));
+}
+mdc.r1820 &= 0xf87fffff;
+mdc.r1820 |= (mdc.r1824 & 0x1e000000) >> 2;
+return transferSize;
+},
+dmaTransferMode0200: (addr, blck) => {
+if (!(addr & 0x007fffff)) return 0x10;
+addr = addr & 0x001fffff;
+const numberOfWords = (blck >>> 16) * (blck & 0xffff);
+// clearCodeCache(addr, numberOfWords << 2); // optimistice assumption (performance reasons)
+const blk = mdc.block;
+const end = addr + (numberOfWords << 2);
+const depth = (mdc.r1820 >>> 27) & 3;
+mdc.end = end;
+mdc.STP = (mdc.r1820 & (1 << 25)) ? 0x8000 : 0x0000;
+let decodedMacroBlocks = 0;
+while (addr < end) {
+mdc.rl = rl2blk(blk, mdc.rl);
+switch (depth) {
+case 0: // todo: implement
+addr += (4 * 16) << 1;
+break;
+case 1: // todo: implement
+addr += (8 * 16) << 1;
+break;
+case 2:
+yuv2rgb24(blk, addr);
+addr += (24 * 16) << 1;
+break;
+case 3:
+yuv2rgb15(blk, addr);
+addr += (16 * 16) << 1;
+break;
+}
+decodedMacroBlocks += 6;
+}
+// 320x240x30 = 9000 16x16 blocks
+const decodingCyclesRemaining = (PSX_SPEED / 9000) * (decodedMacroBlocks / 6);
+psx.setEvent(mdc.event, decodingCyclesRemaining >>> 0);
+return numberOfWords;
+},
+event: null,
+complete: (self, clock) => {
+dma.completeDMA1({});
+psx.unsetEvent(self);
+}
+}
+mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
+for (let i = 0; i < 256; ++i) {
+scale[0 + i] = 0;
+scale[256 + i] = i;
+scale[512 + i] = 255;
+}
+return { mdc };
+})
+mdlr('enge:psx:gpu', m => {
+const debugGame = new URLSearchParams(window.location.search).has('debug-game');
+let debugGpuCommandCount = 0;
+const $renderer = renderer;
+const [drawLine, drawTriangle, drawRectangle, setDrawAreaOF] = [$renderer.drawLine, $renderer.drawTriangle, $renderer.drawRectangle, $renderer.setDrawAreaOF].map(a => a.bind($renderer));
+const missing = new Set;
+const handlers = [];
+const dmaBuffer = new Int32Array(4096);
+const renderTexture = (data, cb) => {
+const packetId = data[0] >>> 24;
+if ((packetId & 6) === 6) {
+data[0] |= 0x80000000;
+cb();
+nextPrimitive();
+data[0] &= ~0x02000000;
+cb();
+}
+else {
+cb();
+}
+}
+const packetSizes = [
+0x01, 0x01, 0x03, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x04, 0x04, 0x04, 0x04, 0x07, 0x07, 0x07, 0x07, 0x05, 0x05, 0x05, 0x05, 0x09, 0x09, 0x09, 0x09,
+0x06, 0x06, 0x06, 0x06, 0x09, 0x09, 0x09, 0x09, 0x08, 0x08, 0x08, 0x08, 0x0C, 0x0C, 0x0C, 0x0C,
+0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+0x03, 0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04, 0x02, 0x02, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00,
+0x02, 0x02, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, 0x02, 0x02, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03,
+0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
+];
+let dmaIndex = 0;
+let gpu = {
+dispB: 256,
+dispL: 0,
+dispR: 0,
+dispT: 16,
+dispX: 0,
+dispY: 0,
+dispW: 0,
+drawAreaX1: 0,
+drawAreaX2: 0,
+drawAreaY1: 0,
+drawAreaY2: 0,
+heights: [1, 2, 1, 2],
+hline: 0,
+img: { w: 0, h: 0, x: 0, y: 0, index: 0, pixelCount: 0, buffer: new Uint16Array(1024 * 512) },
+info: new Uint32Array(16),
+maxheights: [240, 480, 256, 512],
+maxwidths: [256, 368, 320, 368, 512, 368, 640, 368],
+packetSize: 0,
+result: 2,
+status: 0x14802000,
+tp: 0,
+transferTotal: 0,
+twin: 0,
+tx: 0,
+txflip: 0,
+ty: 0,
+tyflip: 0,
+widths: [10, 7, 8, 7, 5, 7, 4, 7],
+frame: 0,
+internalFrame: 0,
+updated: false,
+cyclesToDotClock: function (cycles) {
+switch ((gpu.status >> 16) & 7) {
+case 0: return +(cycles * 11.0 / 7.0 / 10.0);
+case 1: return +(cycles * 11.0 / 7.0 / 7.0);
+case 2: return +(cycles * 11.0 / 7.0 / 8.0);
+case 3: return +(cycles * 11.0 / 7.0 / 7.0);
+case 4: return +(cycles * 11.0 / 7.0 / 5.0);
+case 5: return +(cycles * 11.0 / 7.0 / 7.0);
+case 6: return +(cycles * 11.0 / 7.0 / 4.0);
+case 7: return +(cycles * 11.0 / 7.0 / 7.0);
+}
+},
+getDisplayArea: function () {
+if ((gpu.status >> 20) & 1) {
+var t = gpu.dispT % 256; var b = Math.min(gpu.dispB, 314);
+}
+else {
+var t = gpu.dispT % 240; var b = Math.min(gpu.dispB, 263);
+}
+var dispH = b - t;
+var dispW = gpu.dispR - gpu.dispL;
+var maxwidth = gpu.maxwidths[(gpu.status >> 16) & 7];
+var width = dispW / gpu.widths[(gpu.status >> 16) & 7];
+width = Math.min(maxwidth, (width + 2) & ~3);
+var maxheight = gpu.maxheights[(gpu.status >> 19) & 3];
+var height = gpu.heights[(gpu.status >> 19) & 3] * dispH;
+height = Math.min(maxheight, height);
+return { x: gpu.dispX, y: gpu.dispY, w: width, h: height };
+},
+onScanLine: function (scanline) {
+gpu.hline = scanline;
+let interlaced = gpu.status & (1 << 22);
+let PAL = ((gpu.status >> 20) & 1) ? true : false;
+let vsync = PAL ? 314 : 263;
+let halfheight = (gpu.dispB - gpu.dispT) >> 1;
+let center = PAL ? 163 : 136;
+let vblankend = center - halfheight;
+let vblankbegin = center + halfheight;
+if (vblankbegin > vsync) vblankbegin = vsync;
+if (vblankend < 0) vblankend = 0;
+if (interlaced) {
+if ((gpu.frame & 1) === 1) {
+gpu.status |= 0x80000000;
+}
+else {
+gpu.status &= 0x7fffffff;
+}
+}
+else {
+const oddLine = gpu.hline + (gpu.frame & 1); // toggle even/odd on every frame
+if ((oddLine & 1) === 1) {
+gpu.status |= 0x80000000;
+}
+else {
+gpu.status &= 0x7fffffff;
+}
+}
+if (gpu.hline === vblankbegin) {
+renderer.onVBlankBegin();
+}
+if (gpu.hline === vblankend) {
+renderer.onVBlankEnd();
+}
+if ((gpu.hline >= vblankbegin) || (gpu.hline < vblankend)) {
+// always even during vlbank.
+gpu.status &= 0x7fffffff;
+}
+if (++gpu.hline >= vsync) {
+const frameUpdated = gpu.updated;
+if (gpu.updated) {
+++gpu.internalFrame;
+}
+gpu.updated = false;
+cpu.istat |= 0x0001;
+gpu.hline = 0;
+++gpu.frame;
+if (debugGame && (gpu.frame % 60) === 0) {
+console.debug('[GPU] frame', JSON.stringify({
+frame: gpu.frame,
+internalFrame: gpu.internalFrame,
+updated: frameUpdated,
+status: `0x${(gpu.status >>> 0).toString(16)}`,
+display: gpu.getDisplayArea()
+}));
+}
+}
+},
+rd32r1810: function () {
+if (gpu.rR1814 & 0x08000000) {
+abort('gpu.rd32r1810 not implemented');
+}
+return gpu.result;
+},
+rd32r1814: function () {
+return gpu.status;
+},
+wr32r1810: data => {
+if (debugGame && debugGpuCommandCount < 64) {
+console.debug('[GPU] GP0', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
+debugGpuCommandCount++;
+}
+if (gpu.status & 0x10000000) {
+dmaBuffer[dmaIndex++] = data;
+if (dmaIndex === 1) {
+gpu.packetSize = packetSizes[data >>> 24];
+}
+if (dmaIndex === gpu.packetSize) {
+var packetId = dmaBuffer[0] >>> 24;
+nextPrimitive();
+handlers[packetId].call(gpu, dmaBuffer);
+dmaIndex = 0;
+}
+}
+else {
+gpu.img.buffer[gpu.img.index++] = (data >>> 0) & 0xffff;
+if (--gpu.transferTotal <= 0) { gpu.imgTransferComplete(gpu.img); return; }
+gpu.img.buffer[gpu.img.index++] = (data >>> 16) & 0xffff;
+if (--gpu.transferTotal <= 0) { gpu.imgTransferComplete(gpu.img); return; }
+}
+},
+wr32r1814: data => {
+if (debugGame && debugGpuCommandCount < 128) {
+console.debug('[GPU] GP1', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
+debugGpuCommandCount++;
+}
+switch (data >>> 24) {
+case 0x00: gpu.status = 0x14820000;
+dmaIndex = 0;
+/*
+GP1(01h)      ;clear fifo
+GP1(02h)      ;ack irq (0)
+GP1(03h)      ;display off (1)
+GP1(04h)      ;dma off (0)
+GP1(05h)      ;display address (0)
+GP1(06h)      ;display x1,x2 (x1=200h, x2=200h+256*10)
+GP1(07h)      ;display y1,y2 (y1=010h, y2=010h+240)
+GP1(08h)      ;display mode 320x200 NTSC (0)
+GP0(E1h..E6h) ;rendering attributes (0)
+*/
+gpu.dispL = 512;
+gpu.dispR = 512 + 2560;
+gpu.dispW = 320;
+gpu.dispT = 16;
+gpu.dispB = 256;
+gpu.dispX = 0;
+gpu.dispY = 0;
+gpu.pcktE1([0]);
+gpu.pcktE2([0]);
+gpu.pcktE3([0]);
+gpu.pcktE4([0]);
+gpu.pcktE5([0]);
+gpu.pcktE6([0]);
+renderer.updateDrawArea?.call(renderer);
+break;
+case 0x01: gpu.status |= 0x70000000;
+dmaIndex = 0;
+break;
+case 0x02: break;
+case 0x03: gpu.status &= 0xFF7FFFFF;
+gpu.status |= ((data & 0x01) << 0x17);
+break;
+case 0x04: gpu.status &= 0x9FFFFFFF;
+gpu.status |= ((data & 0x03) << 0x1D);
+break;
+case 0x05: gpu.dispX = (data >> 0) & 0x3FF;
+gpu.dispY = (data >> 10) & 0x1FF;
+break;
+case 0x06: gpu.dispL = (data >> 0) & 0xFFF;
+gpu.dispR = (data >> 12) & 0xFFF;
+var dispW = gpu.dispR - gpu.dispL;
+var maxwidth = gpu.maxwidths[(gpu.status >> 16) & 7];
+var width = dispW / gpu.widths[(gpu.status >> 16) & 7];
+gpu.dispW = Math.min(maxwidth, (width + 2) & ~3);
+break;
+case 0x07: gpu.dispT = (data >> 0) & 0x3FF;
+gpu.dispB = (data >> 10) & 0x3FF;
+if (gpu.dispB < gpu.dispT) gpu.dispB += 288;
+break;
+case 0x08:
+gpu.status &= 0xFF80FFFF;
+gpu.status |= ((data & 0x3F) << 0x11);
+gpu.status |= ((data & 0x40) ? 0x010000 : 0x000000);
+break;
+case 0x10:
+gpu.result = gpu.info[data & 0xf];
+break;
+case 0x40: break; // ???
+default: console.warn('gpu.cmnd' + hex(data >>> 24, 2));
+}
+// gpu.updateTexturePage();
+},
+invalidPacketHandler: data => {
+// abort('gpu.' + gpu.getPacketHandlerName(data));
+},
+updateTexturePage: function (bitfield) {
+if (bitfield !== undefined) gpu.status = (gpu.status & ~0x9FF) | (bitfield & 0x9FF);
+gpu.tx = ((gpu.status >>> 0) & 15) << 6;
+gpu.ty = ((gpu.status >>> 4) & 1) << 8;
+gpu.tp = ((gpu.status >>> 7) & 3);
+switch (gpu.tp) {
+case 0: gpu.tx <<= 2; break;
+case 1: gpu.tx <<= 1; break;
+case 2: gpu.tx <<= 0; break;
+case 3: gpu.tx <<= 0; break;
+}
+},
+pckt00: data => {
+// intentionally left blank
+},
+// Clear Cache
+pckt01: data => {
+gpu.status = (gpu.status | 0x10000000) & ~0x08000000;
+},
+// Framebuffer Rectangle draw
+pckt02: data => {
+renderer.fillRectangle(data);
+},
+pckt03: data => {
+// intentionally left blank
+},
+pckt04: data => {
+// intentionally left blank
+},
+pckt05: data => {
+// intentionally left blank
+},
+pckt08: data => {
+// intentionally left blank
+},
+pckt09: data => {
+// intentionally left blank
+},
+pckt0D: data => {
+// intentionally left blank
+},
+// Monochrome 3 point polygon
+pckt20: data => {
+drawTriangle(data, 0, 1, 0, 2, 0, 3);
+},
+// Textured 3 point polygon
+pckt24: data => {
+gpu.updateTexturePage(data[4] >>> 16);
+renderTexture(data, () => {
+drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+});
+},
+// Monochrome 4 point polygon
+pckt28: data => {
+drawTriangle(data, 0, 1, 0, 2, 0, 3);
+drawTriangle(data, 0, 2, 0, 3, 0, 4);
+},
+// Textured 4 point polygon
+pckt2C: data => {
+gpu.updateTexturePage(data[4] >>> 16);
+renderTexture(data, () => {
+drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
+drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
+});
+},
+// Gradated 3 point polygon
+pckt30: data => {
+drawTriangle(data, 0, 1, 2, 3, 4, 5);
+},
+// Gradated textured 3 point polygon
+pckt34: data => {
+gpu.updateTexturePage(data[5] >>> 16);
+renderTexture(data, () => {
+drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+});
+},
+// Gradated 4 point polygon
+pckt38: data => {
+drawTriangle(data, 0, 1, 2, 3, 4, 5);
+drawTriangle(data, 2, 3, 4, 5, 6, 7);
+},
+// Gradated textured 4 point polygon
+pckt3C: data => {
+gpu.updateTexturePage(data[5] >>> 16);
+renderTexture(data, () => {
+drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
+drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
+});
+},
+// Monochrome line
+pckt40: data => {
+drawLine(data, 0, 1, 0, 2);
+},
+// Monochrome polyline
+pckt48: function (data, size) {
+for (var i = 2; i < size; i += 1) {
+drawLine(data, 0, i - 1, 0, i);
+}
+},
+// Gradated line
+pckt50: data => {
+drawLine(data, 0, 1, 2, 3);
+},
+// Gradated polyline
+pckt58: function (data, size) {
+for (var i = 3; i < size; i += 2) {
+drawLine(data, i - 3, i - 2, i - 1, i);
+}
+},
+// Rectangle
+pckt60: data => {
+drawRectangle([data[0], data[1], data[2]], 0, 0, 0 >>> 0);
+},
+// Sprite
+pckt64: data => {
+const tx = (data[2] >>> 0) & 255;
+const ty = (data[2] >>> 8) & 255;
+renderTexture(data, () => {
+drawRectangle([data[0], data[1], data[3]], tx, ty, data[2] >>> 16);
+});
+},
+// Dot
+pckt68: data => {
+drawRectangle([data[0], data[1], 0x00010001], 0, 0, 0 >>> 0);
+},
+// 8*8 rectangle
+pckt70: data => {
+drawRectangle([data[0], data[1], 0x00080008], 0, 0, 0 >>> 0);
+},
+// 8*8 sprite
+pckt74: data => {
+const tx = (data[2] >>> 0) & 255;
+const ty = (data[2] >>> 8) & 255;
+renderTexture(data, () => {
+drawRectangle([data[0], data[1], 0x00080008], tx, ty, data[2] >>> 16);
+});
+},
+// 16*16 rectangle
+pckt78: data => {
+drawRectangle([data[0], data[1], 0x00100010], 0, 0, 0 >>> 0);
+},
+// 16*16 sprite
+pckt7C: data => {
+const tx = (data[2] >>> 0) & 255;
+const ty = (data[2] >>> 8) & 255;
+renderTexture(data, () => {
+drawRectangle([data[0], data[1], 0x00100010], tx, ty, data[2] >>> 16);
+});
+},
+// Move image in framebuffer
+pckt80: data => {
+if (data[1] !== data[2]) {
+var sx = (data[1] >> 0);
+var sy = (data[1] >> 16);
+var dx = (data[2] >> 0);
+var dy = (data[2] >> 16);
+var w = (data[3] >> 0);
+var h = (data[3] >> 16);
+w = ((w - 1) & 0x3ff) + 1;
+h = ((h - 1) & 0x1ff) + 1;
+dx = (dx & 0x3ff);
+dy = (dy & 0x1ff);
+sx = (sx & 0x3ff);
+sy = (sy & 0x1ff);
+if (w * h) renderer.moveImage(sx, sy, dx, dy, w, h);
+}
+},
+// Send image to frame buffer
+pcktA0: data => {
+gpu.status &= ~0x10000000;
+var x = ((data[1] << 16) >>> 16);
+var y = ((data[1] << 0) >>> 16);
+var w = ((data[2] << 16) >>> 16);
+var h = ((data[2] << 0) >>> 16);
+gpu.img.w = ((w - 1) & 0x3ff) + 1;
+gpu.img.h = ((h - 1) & 0x1ff) + 1;
+gpu.img.x = (x & 0x3ff);
+gpu.img.y = (y & 0x1ff);
+gpu.img.index = 0;
+gpu.transferTotal = ((gpu.img.w * gpu.img.h) + 1) & ~1;
+gpu.img.pixelCount = gpu.transferTotal;
+},
+// Copy image from frame buffer
+pcktC0: data => {
+gpu.status |= 0x08000000;
+var x = ((data[1] << 16) >>> 16);
+var y = ((data[1] << 0) >>> 16);
+var w = ((data[2] << 16) >>> 16);
+var h = ((data[2] << 0) >>> 16);
+gpu.img.w = ((w - 1) & 0x3ff) + 1;
+gpu.img.h = ((h - 1) & 0x1ff) + 1;
+gpu.img.x = (x & 0x3ff);
+gpu.img.y = (y & 0x1ff);
+gpu.img.index = 0;
+gpu.transferTotal = ((gpu.img.w * gpu.img.h) + 1) & ~1;
+gpu.img.pixelCount = gpu.transferTotal;
+renderer.loadImage(gpu.img.x, gpu.img.y, gpu.img.w, gpu.img.h, gpu.img.buffer);
+},
+// Draw mode setting
+pcktE1: data => {
+gpu.status = (gpu.status & 0xfffff800) | (data[0] & 0x7ff);
+gpu.txflip = (data[0] >>> 12) & 1;
+gpu.tyflip = (data[0] >>> 13) & 1;
+gpu.updateTexturePage();
+},
+// Texture window setting
+pcktE2: data => {
+gpu.info[2] = data[0] & 0x000fffff;
+var maskx = ((data[0] >> 0) & 0x1f) << 3;
+var masky = ((data[0] >> 5) & 0x1f) << 3;
+var offsx = ((data[0] >> 10) & 0x1f) << 3;
+var offsy = ((data[0] >> 15) & 0x1f) << 3;
+// Texcoord = (Texcoord AND (NOT (Mask*8))) OR ((Offset AND Mask)*8)
+const twin = (maskx << 0) + (masky << 8) + (offsx << 16) + (offsy << 24);
+gpu.twin = twin;
+},
+// Set drawing area top left
+pcktE3: data => {
+gpu.info[3] = data[0] & 0x000fffff;
+gpu.drawAreaX1 = (data[0] << 22) >>> 22;
+gpu.drawAreaY1 = (data[0] << 12) >>> 22;
+renderer.setDrawAreaTL(gpu.drawAreaX1, gpu.drawAreaY1);
+},
+// Set drawing area bottom right
+pcktE4: data => {
+gpu.info[4] = data[0] & 0x000fffff;
+gpu.drawAreaX2 = (data[0] << 22) >>> 22;
+gpu.drawAreaY2 = (data[0] << 12) >>> 22;
+renderer.setDrawAreaBR(gpu.drawAreaX2, gpu.drawAreaY2);
+},
+// Drawing offset
+pcktE5: (data) => {
+gpu.info[5] = data[0] & 0x003fffff;
+const drawOffsetX = (data[0] << 21) >> 21;
+const drawOffsetY = (data[0] << 11) >> 22;
+setDrawAreaOF(drawOffsetX, drawOffsetY);
+},
+// Mask setting
+pcktE6: data => {
+gpu.status &= 0xffffe7ff;
+gpu.status |= ((data[0] & 3) << 11);
+},
+imgTransferComplete: function (img) {
+renderer.storeImage(gpu.img);
+gpu.status |= 0x10000000;
+},
+dmaTransferMode0200: function (addr, blck) {
+if (!(addr & 0x007fffff)) return 0x10;
+var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
+// clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
+gpu.transferTotal -= transferSize;
+const img = gpu.img;
+while (--transferSize >= 0) {
+const data = gpu.img.buffer[img.index++];
+map16[(addr & 0x001fffff) >>> 1] = data;
+addr += 2;
+}
+if (gpu.transferTotal <= 0) {
+gpu.status &= ~0x08000000;
+}
+return (blck >> 16) * (blck & 0xFFFF);
+},
+dmaTransferMode0201: function (addr, blck) {
+if (!(addr & 0x007fffff)) return 0x10;
+if ((addr & ~3) === 0) {
+return (blck >> 16) * (blck & 0xFFFF);
+}
+var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
+gpu.transferTotal -= transferSize;
+const img = gpu.img;
+while (--transferSize >= 0) {
+const data = map16[(addr & 0x001fffff) >>> 1];
+img.buffer[img.index++] = data;
+addr += 2;
+}
+if (gpu.transferTotal <= 0) {
+gpu.imgTransferComplete(gpu.img);
+gpu.updated = true;
+}
+return (blck >> 16) * (blck & 0xFFFF);
+},
+dmaTransferMode0401: function (addr, blck) {
+if (!(addr & 0x007fffff)) return 0x10;
+if (dmaIndex !== 0) abort('not implemented')
+if ((addr & ~3) === 0) {
+return (blck >> 16) * (blck & 0xFFFF);
+}
+const seen = new Set();
+const data = dmaBuffer;
+let words = 0;
+for (; ;) {
+addr = addr & 0x001fffff;
+// seen.add(addr);
+let header = ram.getInt32(addr, true);
+let nitem = header >>> 24;
+addr = addr + 4; ++words;
+while (nitem > 0) {
+if (seen.has(addr)) return words;
+seen.add(addr);
+const packetWord = ram.getInt32(addr, true) >>> 0;
+const packetId = packetWord >>> 24;
+if (packetSizes[packetId] === 0) {
+if (missing.has(packetId)) return words;
+missing.add(packetId);
+console.warn('invalid packetId:', hex(packetId, 2), hex(header), hex(packetWord));
+return words;
+}
+else if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
+let i = 0;
+for (; i < 4096; ++i) {
+const value = ram.getInt32(addr, true);
+addr += 4; --nitem; ++words;
+if (value === 0x55555555) break;
+if (value === 0x50005000) break;
+data[i] = value;
+}
+if (nitem < 0) return words;
+nextPrimitive();
+handlers[packetId].call(gpu, data, i);
+gpu.updated = true;
+}
+else {
+for (var i = 0; i < packetSizes[packetId]; ++i) {
+data[i] = ram.getInt32(addr, true);
+addr += 4; --nitem;
+++words;
+}
+if (nitem < 0) return words;
+nextPrimitive();
+handlers[packetId].call(gpu, data, 0);
+gpu.updated = true;
+}
+}
+if (header & 0x00800000) { break; } //end dma transfer
+// if (!nnext || (nnext == 0x001fffff)) break;
+addr = header & 0x001fffff;
+}
+return words;
+},
+dmaLinkedListMode0002: function (addr, blck) {
+if (!addr) return;
+if ((addr & ~3) === 0) {
+//return (blck >> 16) * (blck & 0xFFFF);
+throw 43;
+}
+if (blck >= 0x10000) abort('unexpected blck size');
+if (blck === 0) blck = 0x10000;
+addr = addr & 0x001fffff;
+let transferSize = blck;
+while (--blck >= 1) {
+const next = (addr - 4) & 0x001fffff;
+ram.setInt32(addr, next, true);
+addr = next;
+}
+ram.setInt32(addr, 0x00ffffff, true);
+// clearCodeCache(addr, transferSize << 2); // optimistice assumption (performance reasons)
+return transferSize;
+},
+}
+gpu.pckt21 = gpu.pckt20;
+gpu.pckt22 = gpu.pckt20;
+gpu.pckt23 = gpu.pckt20;
+gpu.pckt25 = gpu.pckt24;
+gpu.pckt26 = gpu.pckt24;
+gpu.pckt27 = gpu.pckt24;
+gpu.pckt29 = gpu.pckt28;
+gpu.pckt2A = gpu.pckt28;
+gpu.pckt2B = gpu.pckt28;
+gpu.pckt2D = gpu.pckt2C;
+gpu.pckt2E = gpu.pckt2C;
+gpu.pckt2F = gpu.pckt2C;
+gpu.pckt31 = gpu.pckt30;
+gpu.pckt32 = gpu.pckt30;
+gpu.pckt33 = gpu.pckt30;
+gpu.pckt35 = gpu.pckt34;
+gpu.pckt36 = gpu.pckt34;
+gpu.pckt37 = gpu.pckt34;
+gpu.pckt39 = gpu.pckt38;
+gpu.pckt3A = gpu.pckt38;
+gpu.pckt3B = gpu.pckt38;
+gpu.pckt3D = gpu.pckt3C;
+gpu.pckt3E = gpu.pckt3C;
+gpu.pckt3F = gpu.pckt3C;
+gpu.pckt41 = gpu.pckt40;
+gpu.pckt42 = gpu.pckt40;
+gpu.pckt43 = gpu.pckt40;
+gpu.pckt44 = gpu.pckt40;
+gpu.pckt45 = gpu.pckt40;
+gpu.pckt46 = gpu.pckt40;
+gpu.pckt47 = gpu.pckt40;
+gpu.pckt49 = gpu.pckt48;
+gpu.pckt4A = gpu.pckt48;
+gpu.pckt4B = gpu.pckt48;
+gpu.pckt4C = gpu.pckt48;
+gpu.pckt4D = gpu.pckt48;
+gpu.pckt4E = gpu.pckt48;
+gpu.pckt4F = gpu.pckt48;
+gpu.pckt51 = gpu.pckt50;
+gpu.pckt52 = gpu.pckt50;
+gpu.pckt53 = gpu.pckt50;
+gpu.pckt54 = gpu.pckt50;
+gpu.pckt55 = gpu.pckt50;
+gpu.pckt56 = gpu.pckt50;
+gpu.pckt57 = gpu.pckt50;
+gpu.pckt59 = gpu.pckt58;
+gpu.pckt5A = gpu.pckt58;
+gpu.pckt5B = gpu.pckt58;
+gpu.pckt5C = gpu.pckt58;
+gpu.pckt5D = gpu.pckt58;
+gpu.pckt5E = gpu.pckt58;
+gpu.pckt5F = gpu.pckt58;
+gpu.pckt61 = gpu.pckt60;
+gpu.pckt62 = gpu.pckt60;
+gpu.pckt63 = gpu.pckt60;
+gpu.pckt65 = gpu.pckt64;
+gpu.pckt66 = gpu.pckt64;
+gpu.pckt67 = gpu.pckt64;
+gpu.pckt69 = gpu.pckt68;
+gpu.pckt6A = gpu.pckt68;
+gpu.pckt6B = gpu.pckt68;
+gpu.pckt71 = gpu.pckt70;
+gpu.pckt72 = gpu.pckt70;
+gpu.pckt73 = gpu.pckt70;
+gpu.pckt75 = gpu.pckt74;
+gpu.pckt76 = gpu.pckt74;
+gpu.pckt77 = gpu.pckt74;
+gpu.pckt79 = gpu.pckt78;
+gpu.pckt7A = gpu.pckt78;
+gpu.pckt7B = gpu.pckt78;
+gpu.pckt7D = gpu.pckt7C;
+gpu.pckt7E = gpu.pckt7C;
+gpu.pckt7F = gpu.pckt7C;
+for (let i = 0; i < 256; ++i) {
+var packetHandlerName = 'pckt' + hex(i, 2).toUpperCase();
+handlers[i] = gpu[packetHandlerName] || gpu.invalidPacketHandler;
+}
+for (let i = 0x81; i <= 0x9f; ++i) {
+handlers[i] = gpu.pckt80;
+}
+for (let i = 0xA1; i <= 0xbf; ++i) {
+handlers[i] = gpu.pcktA0;
+}
+for (let i = 0xC1; i <= 0xdf; ++i) {
+handlers[i] = gpu.pcktC0;
+}
+gpu.info[7] = 2;
+gpu.info[8] = 0;
+return { gpu };
+})
+mdlr('enge:psx:gte', m => {
+let lm;
+let sf;
+let isf;
+let zsf3 = 0.0;
+let zsf4 = 0.0;
+let lzcr = 0;
+const v0 = new Int32Array(4);
+const v1 = new Int32Array(4);
+const v2 = new Int32Array(4);
+const ll = new Int32Array(9);
+const lc = new Int32Array(9);
+const rt = new Int32Array(9);
+const zr = new Int32Array(9);
+const bk = new Int32Array(3);
+const fc = new Int32Array(3);
+const tr = new Int32Array(3);
+const rgb = new Int32Array(4);
+const ir = new Float64Array(4);
+const mac = new Float64Array(4);
+const regs = new Int32Array(64);
+const flag = new Int32Array(32);
+const sx = new Int32Array(3);
+const sy = new Int32Array(3);
+const sz = new Int32Array(4);
+const $mat = [rt, ll, lc, zr];
+const $vec = [v0, v1, v2, ir];
+const $add = [tr, bk, fc, zr];
+const $cycles = new Map([
+[0x01, 15],
+[0x06, 8],
+[0x0c, 6],
+[0x10, 8],
+[0x11, 8],
+[0x12, 8],
+[0x13, 19],
+[0x14, 13],
+[0x16, 44],
+[0x1b, 17],
+[0x1c, 11],
+[0x1e, 14],
+[0x20, 30],
+// [0x28, 5],
+[0x29, 8],
+[0x2a, 17],
+// [0x2d, 5],
+[0x2e, 6],
+[0x30, 23],
+// [0x3d, 5],
+// [0x3e, 5],
+[0x3f, 39],
+]);
+const lim = (value, lowerBound, lowerBit, upperBound, upperBit) => {
+if (value < lowerBound) { regs[0x3f] |= flag[lowerBit]; return lowerBound; }
+if (value > upperBound) { regs[0x3f] |= flag[upperBit]; return upperBound; }
+return value;
+};
+const countLeadingZeros = (value) => {
+if (value & 0x80000000) {
+value ^= 0xFFFFFFFF;
+}
+if (value === 0) {
+lzcr = 32;
+}
+else {
+for (var idx = 31; (value & (1 << idx)) === 0 && idx >= 0; --idx);
+lzcr = 31 - idx;
+}
+};
+const limit = (bit) => {
+const lm = bit ? 0.0 : -32768.0;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+ir[1] = lim(mac[1], lm, 24, 32767.0, 24);
+ir[2] = lim(mac[2], lm, 23, 32767.0, 23);
+ir[3] = lim(mac[3], lm, 22, 32767.0, 22);
+};
+const overflow = () => {
+if (mac[0] > (0x7fffffff >> 0)) regs[0x3f] |= flag[16];
+if (mac[0] < (0x80000000 >> 0)) regs[0x3f] |= flag[15];
+}
+const depthCue = () => {
+// [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
+ir[1] = ((fc[0] * 4096.0) - mac[1]) / sf;
+ir[2] = ((fc[1] * 4096.0) - mac[2]) / sf;
+ir[3] = ((fc[2] * 4096.0) - mac[3]) / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+ir[1] = lim(ir[1], -32768.0, 24, 32767.0, 24);
+ir[2] = lim(ir[2], -32768.0, 23, 32767.0, 23);
+ir[3] = lim(ir[3], -32768.0, 22, 32767.0, 22);
+};
+const interpolate = () => {
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+mac[1] = (mac[1] + (ir[1] * ir[0])) / sf;
+mac[2] = (mac[2] + (ir[2] * ir[0])) / sf;
+mac[3] = (mac[3] + (ir[3] * ir[0])) / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+};
+const transform = (add, mat, vec) => {
+// [MAC1,MAC2,MAC3] = (Tx*1000h + Mx*Vx) SAR (sf*12)
+mac[1] = ((add[0] * 4096.0) + (mat[0] * vec[1]) + (mat[1] * vec[2]) + (mat[2] * vec[3])) / sf;
+mac[2] = ((add[1] * 4096.0) + (mat[3] * vec[1]) + (mat[4] * vec[2]) + (mat[5] * vec[3])) / sf;
+mac[3] = ((add[2] * 4096.0) + (mat[6] * vec[1]) + (mat[7] * vec[2]) + (mat[8] * vec[3])) / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+};
+const updateColorFifo = () => {
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+const c = rgb[3] >>> 24;
+const r = lim((mac[1] / 16.0), 0.0, 21, 255.0, 21);
+const g = lim((mac[2] / 16.0), 0.0, 20, 255.0, 20);
+const b = lim((mac[3] / 16.0), 0.0, 19, 255.0, 19);
+rgb[0] = rgb[1];
+rgb[1] = rgb[2];
+rgb[2] = (c << 24) | (b << 16) | (g << 8) | (r << 0);
+};
+/// COMMANDS
+const avsz3 = () => {
+// MAC0 = ZSF3*(SZ1+SZ2+SZ3)
+mac[0] = zsf3 * (sz[1] + sz[2] + sz[3]);
+overflow();
+// OTZ  =  MAC0/1000h
+regs[0x07] = lim(mac[0] / 4096.0, 0.0, 18, 65535.0, 18);
+};
+const avsz4 = () => {
+// MAC0 =  ZSF4*(SZ0+SZ1+SZ2+SZ3)
+mac[0] = zsf4 * (sz[0] + sz[1] + sz[2] + sz[3]);
+overflow();
+// OTZ  =  MAC0/1000h
+regs[0x07] = lim(mac[0] / 4096.0, 0.0, 18, 65535.0, 18);
+};
+const cc = () => { // todo: validate
+// [MAC1,MAC2,MAC3] = (BK*1000h + LCM*IR) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(bk, lc, ir);
+// [MAC1,MAC2,MAC3] = [R*IR1,G*IR2,B*IR3] SHL 4
+mac[1] = (((rgb[3] >> 0) & 0xff) * ir[1]) * 16.0;
+mac[2] = (((rgb[3] >> 8) & 0xff) * ir[2]) * 16.0;
+mac[3] = (((rgb[3] >> 16) & 0xff) * ir[3]) * 16.0;
+// [MAC1,MAC2,MAC3] = [MAC1,MAC2,MAC3] SAR (sf*12)
+mac[1] = mac[1] / sf;
+mac[2] = mac[2] / sf;
+mac[3] = mac[3] / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const cdp = () => { // todo: validate
+// [MAC1,MAC2,MAC3] = (BK*1000h + LCM*IR) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(bk, lc, ir);
+// [MAC1,MAC2,MAC3] = [R*IR1,G*IR2,B*IR3] SHL 4
+mac[1] = (((rgb[3] >> 0) & 0xff) * ir[1]) * 16.0;
+mac[2] = (((rgb[3] >> 8) & 0xff) * ir[2]) * 16.0;
+mac[3] = (((rgb[3] >> 16) & 0xff) * ir[3]) * 16.0;
+// [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+depthCue();
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+interpolate();
+// [MAC1,MAC2,MAC3] = [MAC1,MAC2,MAC3] SAR (sf*12)
+mac[1] = mac[1] / sf;
+mac[2] = mac[2] / sf;
+mac[3] = mac[3] / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const dcpl = () => {
+// [MAC1,MAC2,MAC3] = [R*IR1,G*IR2,B*IR3] SHL 4
+mac[1] = (((rgb[3] >> 0) & 0xff) * ir[1]) * 16.0;
+mac[2] = (((rgb[3] >> 8) & 0xff) * ir[2]) * 16.0;
+mac[3] = (((rgb[3] >> 16) & 0xff) * ir[3]) * 16.0;
+// [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+depthCue();
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+interpolate();
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const dpcs = (rgb) => {
+// [MAC1,MAC2,MAC3] = [R,G,B] SHL 16
+mac[1] = ((rgb >> 0) & 0xff) * 65536.0;
+mac[2] = ((rgb >> 8) & 0xff) * 65536.0;
+mac[3] = ((rgb >> 16) & 0xff) * 65536.0;
+// [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+depthCue();
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+interpolate();
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const gpf = () => {
+// [MAC1,MAC2,MAC3] = [0,0,0]
+mac[1] = 0.0;
+mac[2] = 0.0;
+mac[3] = 0.0;
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+interpolate();
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const gpl = () => {
+// [MAC1,MAC2,MAC3] = [MAC1,MAC2,MAC3] SHL (sf*12)
+mac[1] = mac[1] * sf;
+mac[2] = mac[2] * sf;
+mac[3] = mac[3] * sf;
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+interpolate();
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const intpl = () => {
+// [MAC1,MAC2,MAC3] = [IR1,IR2,IR3] SHL 12
+mac[1] = ir[1] * 4096.0;
+mac[2] = ir[2] * 4096.0;
+mac[3] = ir[3] * 4096.0;
+// [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+depthCue();
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+interpolate();
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const mvmva = (commandId) => {
+const mat = $mat[(commandId >> 17) & 3];
+const vec = $vec[(commandId >> 15) & 3];
+const add = $add[(commandId >> 13) & 3];
+transform(add, mat, vec);
+};
+const nccs = (vec) => {
+// [MAC1,MAC2,MAC3] = (LLM*V0) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(zr, ll, vec);
+// [MAC1,MAC2,MAC3] = (BK*1000h + LCM*IR) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(bk, lc, ir);
+// [MAC1,MAC2,MAC3] = [R*IR1,G*IR2,B*IR3] SHL 4
+mac[1] = (((rgb[3] >> 0) & 0xff) * ir[1]) * 16.0;
+mac[2] = (((rgb[3] >> 8) & 0xff) * ir[2]) * 16.0;
+mac[3] = (((rgb[3] >> 16) & 0xff) * ir[3]) * 16.0;
+// [MAC1,MAC2,MAC3] = [MAC1,MAC2,MAC3] SAR (sf*12)
+mac[1] = mac[1] / sf;
+mac[2] = mac[2] / sf;
+mac[3] = mac[3] / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const ncds = (vec) => {
+// [MAC1,MAC2,MAC3] = (LLM*V0) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(zr, ll, vec);
+// [MAC1,MAC2,MAC3] = (BK*1000h + LCM*IR) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(bk, lc, ir);
+// [MAC1,MAC2,MAC3] = [R*IR1,G*IR2,B*IR3] SHL 4
+mac[1] = (((rgb[3] >> 0) & 0xff) * ir[1]) * 16.0;
+mac[2] = (((rgb[3] >> 8) & 0xff) * ir[2]) * 16.0;
+mac[3] = (((rgb[3] >> 16) & 0xff) * ir[3]) * 16.0;
+// [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+depthCue();
+// [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+interpolate();
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const nclip = () => {
+// MAC0 = SX0*SY1 + SX1*SY2 + SX2*SY0 - SX0*SY2 - SX1*SY0 - SX2*SY1
+mac[0] = sx[0] * (sy[1] - sy[2]) + sx[1] * (sy[2] - sy[0]) + sx[2] * (sy[0] - sy[1]);
+overflow();
+};
+const ncs = (vec) => {
+// [MAC1,MAC2,MAC3] = (LLM*V0) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(zr, ll, vec);
+// [MAC1,MAC2,MAC3] = (BK*1000h + LCM*IR) SAR (sf*12)
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+transform(bk, lc, ir);
+// Color FIFO = [MAC1/16,MAC2/16,MAC3/16,CODE]
+updateColorFifo();
+};
+const op = () => {
+// [MAC1,MAC2,MAC3] = [IR3*D2-IR2*D3, IR1*D3-IR3*D1, IR2*D1-IR1*D2] SAR (sf*12)
+mac[1] = ((ir[3] * rt[4]) - (ir[2] * rt[8])) / sf;
+mac[2] = ((ir[1] * rt[8]) - (ir[3] * rt[0])) / sf;
+mac[3] = ((ir[2] * rt[0]) - (ir[1] * rt[4])) / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+};
+const MAXRTPS = 8796093022207;
+const MINRTPS = -8796093022208;
+const rtps = (vec) => {
+const h = regs[0x3a] & 0xffff;
+const ofx = regs[0x38];
+const ofy = regs[0x39];
+const dqa = regs[0x3b];
+const dqb = regs[0x3c];
+// [MAC1,MAC2,MAC3] = (TR*1000h + RT*Vx) SAR (sf*12)
+mac[1] = ((tr[0] * 4096.0) + (rt[0] * vec[1]) + (rt[1] * vec[2]) + (rt[2] * vec[3])) / sf;
+if (mac[1] > MAXRTPS) regs[0x3f] |= flag[30];
+if (mac[1] < MINRTPS) regs[0x3f] |= flag[27];
+mac[2] = ((tr[1] * 4096.0) + (rt[3] * vec[1]) + (rt[4] * vec[2]) + (rt[5] * vec[3])) / sf;
+if (mac[2] > MAXRTPS) regs[0x3f] |= flag[29];
+if (mac[2] < MINRTPS) regs[0x3f] |= flag[26];
+mac[3] = ((tr[2] * 4096.0) + (rt[6] * vec[1]) + (rt[7] * vec[2]) + (rt[8] * vec[3])) / sf;
+if (mac[3] > MAXRTPS) regs[0x3f] |= flag[28];
+if (mac[3] < MINRTPS) regs[0x3f] |= flag[25];
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+sx[0] = sx[1];
+sx[1] = sx[2];
+sy[0] = sy[1];
+sy[1] = sy[2];
+sz[0] = sz[1];
+sz[1] = sz[2];
+sz[2] = sz[3];
+let zs3 = mac[3] / isf;
+sz[3] = lim(zs3, 0.0, 18, 65535.0, 18);
+let hsz3 = 131072.0;
+hsz3 = ((h * 131072.0 / sz[3]) + 1.0) / 2.0;
+if (hsz3 > 131071.0) {
+regs[0x3f] |= flag[17];
+hsz3 = 131071.0;
+}
+mac[0] = (hsz3 * ir[1]) + ofx; sx[2] = mac[0] / 65536.0;
+overflow();
+mac[0] = (hsz3 * ir[2]) + ofy; sy[2] = mac[0] / 65536.0;
+overflow();
+mac[0] = (hsz3 * dqa) + dqb; ir[0] = mac[0] / 4096.0;
+overflow();
+sx[2] = lim(sx[2], -1024.0, 14, 1023.0, 14);
+sy[2] = lim(sy[2], -1024.0, 13, 1023.0, 13);
+ir[0] = lim(ir[0], 0.0, 12, 4096.0, 12);
+};
+const sqr = () => {
+//[MAC1,MAC2,MAC3] = [IR1*IR1,IR2*IR2,IR3*IR3] SHR (sf*12)
+mac[1] = (ir[1] * ir[1]) / sf;
+mac[2] = (ir[2] * ir[2]) / sf;
+mac[3] = (ir[3] * ir[3]) / sf;
+// [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
+limit(lm);
+};
+const s16lo = data => (data << 16) >> 16;
+const s16hi = data => (data << 0) >> 16;
+const s32 = data => (data << 0) >> 0;
+const u16lo = data => (data << 16) >>> 16;
+const gte = {
+get: (regId) => {
+switch (regId) {
+case 0x07: return u16lo(regs[regId]);
+case 0x08: return s16lo(ir[0]);
+case 0x09: return s16lo(ir[1]);
+case 0x0a: return s16lo(ir[2]);
+case 0x0b: return s16lo(ir[3]);
+case 0x0c: return (sx[0] & 0xffff) | (sy[0] << 16);
+case 0x0d: return (sx[1] & 0xffff) | (sy[1] << 16);
+case 0x0e: return (sx[2] & 0xffff) | (sy[2] << 16);
+case 0x0f: return (sx[2] & 0xffff) | (sy[2] << 16);
+case 0x10: return u16lo(sz[0]);
+case 0x11: return u16lo(sz[1]);
+case 0x12: return u16lo(sz[2]);
+case 0x13: return u16lo(sz[3]);
+case 0x14: return rgb[0];
+case 0x15: return rgb[1];
+case 0x16: return rgb[2];
+case 0x18: return mac[0];
+case 0x19: return mac[1];
+case 0x1a: return mac[2];
+case 0x1b: return mac[3];
+case 0x1d: let value = 0;
+value |= ((ir[1] >> 7) << 0);
+value |= ((ir[2] >> 7) << 5);
+value |= ((ir[3] >> 7) << 10);
+return value;
+case 0x1f: return lzcr;
+case 0x3a: return s16lo(regs[regId]);
+default: return regs[regId];
+}
+},
+set: (regId, data) => {
+regs[regId] = data;
+switch (regId) {
+case 0x00: v0[1] = s16lo(data); v0[2] = s16hi(data); break;
+case 0x01: v0[3] = s16lo(data); break;
+case 0x02: v1[1] = s16lo(data); v1[2] = s16hi(data); break;
+case 0x03: v1[3] = s16lo(data); break;
+case 0x04: v2[1] = s16lo(data); v2[2] = s16hi(data); break;
+case 0x05: v2[3] = s16lo(data); break;
+case 0x06: rgb[3] = data; break;
+case 0x07: break;
+case 0x08: ir[0] = s16lo(data); break;
+case 0x09: ir[1] = s16lo(data); break;
+case 0x0a: ir[2] = s16lo(data); break;
+case 0x0b: ir[3] = s16lo(data); break;
+case 0x0c: sx[0] = s16lo(data); sy[0] = s16hi(data); break;
+case 0x0d: sx[1] = s16lo(data); sy[1] = s16hi(data); break;
+case 0x0e: sx[2] = s16lo(data); sy[2] = s16hi(data); break;
+case 0x0f: sx[0] = sx[1]; sy[0] = sy[1];
+sx[1] = sx[2]; sy[1] = sy[2];
+sx[2] = s16lo(data); sy[2] = s16hi(data);
+break;
+case 0x10: sz[0] = u16lo(data); break;
+case 0x11: sz[1] = u16lo(data); break;
+case 0x12: sz[2] = u16lo(data); break;
+case 0x13: sz[3] = u16lo(data); break;
+case 0x14: rgb[0] = data; break;
+case 0x15: rgb[1] = data; break;
+case 0x16: rgb[2] = data; break;
+case 0x17: break;
+case 0x18: mac[0] = s32(data); break;
+case 0x19: mac[1] = s32(data); break;
+case 0x1a: mac[2] = s32(data); break;
+case 0x1b: mac[3] = s32(data); break;
+case 0x1c: ir[1] = (data & 0x001f) << 7;
+ir[2] = (data & 0x03e0) << 2;
+ir[3] = (data & 0x7c00) >> 3;
+break;
+case 0x1d: break; // readonly
+case 0x1e: countLeadingZeros(data); break;
+case 0x1f: break; // readonly
+case 0x20: rt[0] = s16lo(data); rt[1] = s16hi(data); break;
+case 0x21: rt[2] = s16lo(data); rt[3] = s16hi(data); break;
+case 0x22: rt[4] = s16lo(data); rt[5] = s16hi(data); break;
+case 0x23: rt[6] = s16lo(data); rt[7] = s16hi(data); break;
+case 0x24: regs[regId] = rt[8] = s16lo(data); break;
+case 0x25: tr[0] = s32(data); break;
+case 0x26: tr[1] = s32(data); break;
+case 0x27: tr[2] = s32(data); break;
+case 0x28: ll[0] = s16lo(data); ll[1] = s16hi(data); break;
+case 0x29: ll[2] = s16lo(data); ll[3] = s16hi(data); break;
+case 0x2a: ll[4] = s16lo(data); ll[5] = s16hi(data); break;
+case 0x2b: ll[6] = s16lo(data); ll[7] = s16hi(data); break;
+case 0x2c: regs[regId] = ll[8] = s16lo(data); break;
+case 0x2d: bk[0] = s32(data); break;
+case 0x2e: bk[1] = s32(data); break;
+case 0x2f: bk[2] = s32(data); break;
+case 0x30: lc[0] = s16lo(data); lc[1] = s16hi(data); break;
+case 0x31: lc[2] = s16lo(data); lc[3] = s16hi(data); break;
+case 0x32: lc[4] = s16lo(data); lc[5] = s16hi(data); break;
+case 0x33: lc[6] = s16lo(data); lc[7] = s16hi(data); break;
+case 0x34: regs[regId] = lc[8] = s16lo(data); break;
+case 0x35: fc[0] = s32(data); break;
+case 0x36: fc[1] = s32(data); break;
+case 0x37: fc[2] = s32(data); break;
+case 0x38: regs[regId] = s32(data); break;
+case 0x39: regs[regId] = s32(data); break;
+case 0x3a: regs[regId] = u16lo(data); break;
+case 0x3b: regs[regId] = s16lo(data); break;
+case 0x3c: regs[regId] = s32(data); break;
+case 0x3d: regs[regId] = zsf3 = s16lo(data); break;
+case 0x3e: regs[regId] = zsf4 = s16lo(data); break;
+case 0x3f: regs[regId] = data & 0x7ffff000;
+if (regs[regId] & 0x7f87e000) {
+regs[regId] |= 0x80000000;
+}
+break;
+default: abort(hex(regId, 2));
+}
+},
+command: (commandId) => {
+sf = (commandId >> 19) & 1 ? 4096.0 : 1.0;
+isf = (commandId >> 19) & 1 ? 1.0 : 4096.0;
+lm = (commandId >> 10) & 1;
+regs[0x3f] = 0;
+$command.get(commandId & 0x3f)(commandId);
+},
+cycles: (commandId) => $cycles.get(commandId & 0x3f) || 5
+};
+const f1 = f => { f(v0) };
+const f3 = f => { f(v0); f(v1); f(v2) };
+const $command = new Map([
+[0x01, _ => f1(rtps)],
+[0x06, _ => nclip()],
+[0x0c, _ => op()],
+[0x10, _ => dpcs(rgb[3])],
+[0x11, _ => intpl()],
+[0x12, _ => mvmva(_)],
+[0x13, _ => f1(ncds)],
+[0x14, _ => cdp()],
+[0x16, _ => f3(ncds)],
+[0x1b, _ => f1(nccs)],
+[0x1c, _ => cc()],
+[0x1e, _ => f1(ncs)],
+[0x20, _ => f3(ncs)],
+[0x28, _ => sqr()],
+[0x29, _ => dcpl()],
+[0x2a, _ => {dpcs(rgb[0]); dpcs(rgb[0]); dpcs(rgb[0])}],
+[0x2d, _ => avsz3()],
+[0x2e, _ => avsz4()],
+[0x30, _ => f3(rtps)],
+[0x3d, _ => gpf()],
+[0x3e, _ => gpl()],
+[0x3f, _ => f3(nccs)],
+]);
+// flag bits
+for (let i = 0; i <= 31; ++i) {
+flag[i] = (1 << i);
+}
+for (let i = 23; i <= 30; ++i) {
+flag[i] |= 0x80000000;
+}
+for (let i = 13; i <= 18; ++i) {
+flag[i] |= 0x80000000;
+}
+return { gte };
+})
+mdlr('enge:psx:mmu', m => {
+const irqDebug = new URLSearchParams(window.location.search).has('debug-cd');
+const irqLog = (...args) => {
+if (irqDebug) console.debug('[IRQ]', ...args);
+};
+const { dma } = m.require('enge:psx:dma');
+const { rtc } = m.require('enge:psx:rtc');
+window.dma = dma; // todo: fix this dependency of mdec
+const map = new Int32Array(0x02000000 >> 2);
+const map8 = new Int8Array(map.buffer);
+const map16 = new Int16Array(map.buffer);
+const ram = new DataView(map.buffer, 0, 2 * 1024 * 1024);
+const rom = new DataView(map.buffer, 0x01c00000, 512 * 1024);
+const hwRead8 = (addr) => {
+const reg = addr & 0x3fff;
+psx.clock += 3;
+switch (true) {
+case reg >= 0x1080 && reg < 0x1100:
+return dma.rd08(reg);
+case reg >= 0x1100 && reg < 0x1130:
+return rtc.rd32(reg);
+case reg >= 0x1C00 && reg < 0x2000:
+return !(reg & 1) && spu.getInt16(reg);
+}
+switch (addr & 0x3fff) {
+case 0x2080: return 0x50; // PCSX-Redux expansion ID: 'P'
+case 0x2081: return 0x43; // 'C'
+case 0x2082: return 0x53; // 'S'
+case 0x2083: return 0x58; // 'X'
+case 0x1040: return joy.rd08r1040();
+case 0x1044: return (joy.rd16r1044() << 24) >> 24;
+case 0x1054: return 0 >> 0;
+case 0x1060: return map8[addr >>> 0] >> 0;
+case 0x1070: return (cpu.istat << 24) >> 24;
+case 0x1800: return cdr.rd08r1800();
+case 0x1801: return cdr.rd08r1801();
+case 0x1802: return cdr.rd08r1802();
+case 0x1803: return cdr.rd08r1803();
+case 0x1814: return gpu.rd32r1814();
+case 0x1824: return mdc.rd32r1824();
+default:
+if (addr < 0x01801000) {
+psx.clock -= 3;
+return map8[addr >>> 0];
+}
+if (addr >= 0x01802000) {
+psx.clock += 10;
+return map8[addr >>> 0];
+}
+break;
+}
+}
+const memRead8 = (base) => {
+if (base < 0x00800000) {
+psx.clock += 2;
+return ram.getInt8(base & 0x001fffff);
+}
+if ((base >= 0x01800000) && (base < 0x01803000)) {
+return (hwRead8(base) << 24) >> 24;
+}
+if (base >= 0x01A00000 && base < 0x01A80000) {
+psx.clock += 5;
+return map8[base >>> 0] >> 0;
+}
+if (base >= 0x01C00000 && base < 0x01C80000) {
+psx.clock += 8;
+return map8[base >>> 0] >> 0;
+}
+if (base >= 0x01000000 && base < 0x01080000) {
+psx.clock += 6;
+return map8[base >>> 0] >> 0;
+}
+if (base === 0x01fe0130) {
+return map8[base >>> 0] >> 0;
+}
+abort(hex(base, 8));
+}
+const hwRead16 = (addr) => {
+const reg = addr & 0x3fff;
+psx.clock += 3;
+switch (true) {
+case reg >= 0x1080 && reg < 0x1100:
+return dma.rd16(reg);
+case reg >= 0x1100 && reg < 0x1130:
+return rtc.rd32(reg);
+case reg >= 0x1C00 && reg < 0x2000:
+return spu.getInt16(reg);
+}
+switch (addr & 0x3fff) {
+case 0x1014: return map16[addr >>> 1];
+case 0x1044: return joy.rd16r1044();
+case 0x104a: return joy.rd16r104a();
+case 0x104e: return joy.rd16r104e();
+case 0x1054: return 0x00;
+case 0x105a: return 0;
+case 0x105e: return 0;
+case 0x1060: return map16[addr >>> 1] >> 0;
+case 0x1070: return cpu.istat;
+case 0x1074: return cpu.imask;
+case 0x1130: return 0;
+case 0x1800: return cdr.rd08r1800();
+case 0x1814: return gpu.rd32r1814();
+case 0x1824: return mdc.rd32r1824();
+default:
+if (addr < 0x01801000) {
+psx.clock -= 3;
+return map16[addr >>> 1];
+}
+if (addr >= 0x01802000) {
+psx.clock += 24;
+return map16[addr >>> 1];
+}
+break;
+}
+}
+const memRead16 = (base) => {
+if (base < 0x00800000) {
+psx.clock += 3;
+return ram.getInt16(base & 0x001fffff, true);
+// return map16[(base & 0x001fffff) >>> 1];
+}
+if ((base >= 0x01800000) && (base < 0x01803000)) {
+return (hwRead16(base) << 16) >> 16;
+}
+if (base >= 0x01A00000 && base < 0x01A80000) {
+psx.clock += 5;
+return map16[base >>> 1] >> 0;
+}
+if (base >= 0x01C00000 && base < 0x01C80000) {
+psx.clock += 12;
+return map16[base >>> 1];
+}
+if (base >= 0x01000000 && base < 0x01080000) {
+psx.clock += 12;
+return map16[base >>> 1];
+}
+if (base === 0x01fe0130) {
+return map16[base >>> 1] >> 0;
+}
+abort(hex(base, 8));
+}
+const hwRead32 = (addr) => {
+const reg = addr & 0x3fff;
+psx.clock += 3;
+switch (true) {
+case reg >= 0x1080 && reg < 0x1100:
+return dma.rd32(reg);
+case reg >= 0x1100 && reg < 0x1130:
+return rtc.rd32(reg);
+// case reg >= 0x1C00 && reg < 0x2000:
+//   spu.setInt16(reg, data >>> 0);
+//   return;
+}
+switch (addr & 0x3fff) {
+case 0x1014: return map[addr >>> 2] >> 0;
+case 0x1020: return map[addr >>> 2] >> 0;
+case 0x101c: return 0x00070777; // EXP2_DELAY_SIZE / DEV8 delay
+case 0x2080: return 0x58534350; // PCSX-Redux expansion ID: 'PCSX'
+case 0x1044: return joy.rd16r1044() >> 0;
+case 0x1054: return 0x00;
+case 0x1060: return map[addr >>> 2] >> 0;
+case 0x1070: return cpu.istat >> 0;
+case 0x1074: return cpu.imask >> 0;
+case 0x1800: return cdr.rd08r1800();
+case 0x1810: return gpu.rd32r1810() >> 0;
+case 0x1814: return gpu.rd32r1814() >> 0;
+case 0x1820: return mdc.rd32r1820() >> 0;
+case 0x1824: return mdc.rd32r1824() >> 0;
+default:
+if (addr < 0x01801000) {
+psx.clock -= 3;
+return map[addr >>> 2] >> 0;
+}
+if (addr >= 0x01802000) {
+psx.clock += 56;
+return map[addr >>> 2] >> 0;
+}
+if ((addr >= 0x01801C00) && (addr < 0x01802000)) {
+return (spu.getInt16(addr & 0x3fff) & 0xffff) | (spu.getInt16((addr + 2) & 0x3fff) << 16);
+}
+break;
+}
+abort(hex(addr, 8));
+}
+const memRead32 = (base) => {
+if (base < 0x00800000) {
+psx.clock += 5;
+return ram.getInt32(base & 0x001fffff, true);
+// return map[(base & 0x001fffff) >>> 2] >> 0;
+}
+if ((base >= 0x01800000) && (base < 0x01803000)) {
+return hwRead32(base) >> 0;
+}
+if (base >= 0x01A00000 && base < 0x01A80000) {
+psx.clock += 9;
+return map[base >>> 2] >> 0;
+}
+if (base >= 0x01C00000 && base < 0x01C80000) {
+psx.clock += 24;
+return map[base >>> 2] >> 0;
+}
+if (base === 0x01fe0130) {
+return map[base >>> 2] >> 0;
+}
+if (base >= 0x01000000 && base < 0x01080000) {
+psx.clock += 24;
+return map[base >>> 2];
+}
+abort(hex(base, 8));
+}
+const hwWrite8 = (addr, data) => {
+const reg = addr & 0x3fff;
+switch (true) {
+case reg >= 0x1080 && reg < 0x1100:
+dma.wr08(reg, data);
+return;
+}
+switch (addr & 0x3fff) {
+case 0x1040: return joy.wr08r1040(data);
+case 0x1800: return cdr.wr08r1800(data);
+case 0x1801: return cdr.wr08r1801(data);
+case 0x1802: return cdr.wr08r1802(data);
+case 0x1803: return cdr.wr08r1803(data);
+}
+abort(hex(addr, 8));
+}
+const memWrite8 = (base, data) => {
+if (base < 0x00800000) {
+const addr = base & 0x001fffff;
+map8[(addr | cpu.forceWriteBits) >>> 0] = data;
+fastCache[addr] = 0;
+return;
+}
+if ((base >= 0x01800000) && (base < 0x01802000)) {
+map8[base >>> 0] = data;
+if (base >= 0x01801000) hwWrite8(base, data);
+return;
+}
+if ((base >= 0x01802000) && (base < 0x01803000)) {
+// PCSX-Redux expansion/debug registers. OpenBIOS writes diagnostic
+// output here; keep the access harmless for normal emulation.
+map8[base >>> 0] = data;
+return;
+}
+if (base === 0x1802041) {
+map8[base >>> 0] = data;
+return;
+}
+abort(hex(base, 8));
+}
+const hwWrite16 = (addr, data) => {
+const reg = addr & 0x3fff;
+switch (true) {
+case reg >= 0x1080 && reg < 0x1100:
+dma.wr16(reg, data);
+return;
+case reg >= 0x1100 && reg < 0x1130:
+rtc.wr32(reg, data);
+return;
+case reg >= 0x1C00 && reg < 0x2000:
+spu.setInt16(reg, data >>> 0);
+return;
+}
+switch (addr & 0x3fff) {
+case 0x1014: return map16[addr >>> 1] = data;
+case 0x1048: return joy.wr16r1048(data);
+case 0x104a: return joy.wr16r104a(data);
+case 0x104e: return joy.wr16r104e(data);
+case 0x1058: return;
+case 0x105a: return;
+case 0x105e: return;
+case 0x1070:
+cpu.istat &= ((data & 0xffff) & cpu.imask);
+irqLog('I_STAT acknowledge16', `0x${(data & 0xffff).toString(16)}`, `istat=0x${(cpu.istat >>> 0).toString(16)}`);
+return;
+case 0x1074:
+cpu.imask = data;
+irqLog('I_MASK write16', `0x${(data >>> 0).toString(16)}`);
+return;
+}
+abort(hex(addr, 8));
+}
+const memWrite16 = (base, data) => {
+if (base < 0x00800000) {
+const addr = base & 0x001fffff;
+map16[(addr | cpu.forceWriteBits) >>> 1] = data;
+fastCache[addr] = 0;
+return;
+}
+if ((base >= 0x01800000) && (base < 0x01802000)) {
+map16[base >>> 1] = data;
+if (base >= 0x01801000) hwWrite16(base, data);
+return;
+}
+if ((base >= 0x01802000) && (base < 0x01803000)) {
+map16[base >>> 1] = data;
+return;
+}
+abort(hex(base, 8));
+}
+const hwWrite32 = (addr, data) => {
+const reg = addr & 0x3fff;
+switch (true) {
+case reg >= 0x1080 && reg < 0x1100:
+dma.wr32(reg, data);
+return;
+case reg >= 0x1100 && reg < 0x1130:
+rtc.wr32(reg, data);
+return;
+case reg >= 0x1C00 && reg < 0x2000:
+spu.setInt16(reg + 0, data >>> 0);
+spu.setInt16(reg + 2, data >>> 16);
+return;
+}
+switch (reg) {
+case 0x1000: return;
+case 0x1004: return;
+case 0x1008: return;
+case 0x100c: return;
+case 0x1010: return;
+case 0x1014: return;
+case 0x1018: return;
+case 0x101c: return;
+case 0x1020: return;
+case 0x1060: return;
+case 0x1070:
+cpu.istat &= (data & cpu.imask);
+irqLog('I_STAT acknowledge32', `0x${(data >>> 0).toString(16)}`, `istat=0x${(cpu.istat >>> 0).toString(16)}`);
+return;
+case 0x1074:
+cpu.imask = data >>> 0;
+irqLog('I_MASK write32', `0x${(data >>> 0).toString(16)}`);
+return;
+case 0x1810: gpu.wr32r1810(data); return;
+case 0x1814: gpu.wr32r1814(data); return;
+case 0x1820: mdc.wr32r1820(data); return;
+case 0x1824: mdc.wr32r1824(data); return;
+}
+abort(hex(addr, 8));
+}
+const memWrite32 = (base, data) => {
+if (base < 0x00800000) {
+const addr = base & 0x001fffff;
+map[(addr | cpu.forceWriteBits) >>> 2] = data;
+fastCache[addr] = 0;
+return;
+}
+if ((base >= 0x01800000) && (base < 0x01802000)) {
+map[base >>> 2] = data;
+if (base >= 0x01801000) hwWrite32(base, data);
+return;
+}
+if ((base >= 0x01802000) && (base < 0x01803000)) {
+map[base >>> 2] = data;
+return;
+}
+if (base === 0x01fe0130) {
+map[base >>> 2] = data;
+return;
+}
+abort(hex(base, 8));
+}
+return {
+map, map8, map16, ram, rom, memRead8, memRead16, memRead32, memWrite8, memWrite16, memWrite32
+}
+})
+mdlr('enge:psx:rec', m => {
+const getOF = (opcode) => {
+const offset = ((opcode << 16) >> 16);
+return `(${offset} + ${getRS()}) & 0x01ffffff`;
+};
+const getRS = () => {
+return state.reg(state.rs);
+};
+const getRT = () => {
+return state.reg(state.rt);
+}
+const setReg = (nr, value) => {
+return (nr ? state.reg(nr) + ' = ' : '') + `${value};`;
+};
+const createFunction = (pc, code, jumps) => {
+const lines = [
+"  return function $" + hex(pc).toUpperCase() + "(psx) { ++calls;\n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
+];
+lines.unshift('');
+const points = [...new Set(jumps?.filter(a => a) || [])];
+points.forEach(addr => {
+lines.unshift(`  const _${hex(addr)} = getCacheEntry(0x${hex(addr)});`);
+});
+lines.unshift(`'use strict;'`);
+var generator = new Function(lines.join('\n'));
+return generator();
+}
+const rec = {
+'02': (rec, opc) => {
+rec.stop = true;
+rec.jump = true;
+rec.skipNext = true;
+rec.branchTarget = (opc & 0x007FFFFF) << 2;
+const code = setReg(0, `target = _${hex(rec.branchTarget)}`);
+return code;
+},
+'03': (rec, opc) => {
+rec.stop = true;
+rec.jump = true;
+rec.branchTarget = (opc & 0x007FFFFF) << 2;
+const code = setReg(0, `target = _${hex(rec.branchTarget)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+return code;
+},
+'04': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} === ${getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+return code;
+},
+'05': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} !== ${getRT()}) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+return code;
+},
+'06': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} <= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+return code;
+},
+'07': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} > 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+return code;
+},
+'08': (rec, opc) => {
+const code = setReg(rec.rt, ((opc << 16) >> 16) + ' + ' + getRS());
+return code;
+},
+'09': (rec, opc) => {
+const code = setReg(rec.rt, ((opc << 16) >> 16) + ' + ' + getRS());
+return code;
+},
+'0A': (rec, opc) => {
+const code = setReg(rec.rt, '(' + getRS() + ' < ' + ((opc << 16) >> 16) + ') ? 1 : 0');
+return code;
+},
+'0B': (rec, opc) => {
+const code = setReg(rec.rt, '((' + getRS() + ' >>> 0) < (' + ((opc << 16) >> 16) + ' >>> 0)) ? 1 : 0');
+return code;
+},
+'0C': (rec, opc) => {
+const code = setReg(rec.rt, getRS() + ' & 0x' + hex(opc, 4));
+return code;
+},
+'0D': (rec, opc) => {
+const code = setReg(rec.rt, getRS() + ' | 0x' + hex(opc, 4));
+return code;
+},
+'0E': (rec, opc) => {
+const code = setReg(rec.rt, getRS() + ' ^ 0x' + hex(opc, 4));
+return code;
+},
+'0F': (rec, opc) => {
+const code = setReg(rec.rt, '0x' + hex((opc & 0xffff) << 16), true);
+return code;
+},
+'20': (rec, opc) => {
+const code = setReg(rec.rt, '(memRead8(' + getOF(opc) + ') << 24) >> 24');
+return code;
+},
+'21': (rec, opc) => {
+const code = setReg(rec.rt, '(memRead16 (' + getOF(opc) + ') << 16) >> 16');
+return code;
+},
+'22': (rec, opc) => {
+const code = setReg(0, 'cpu.lwl(' + rec.rt + ', ' + getOF(opc) + ')');
+return code;
+},
+'23': (rec, opc) => {
+const code = setReg(rec.rt, 'memRead32(' + getOF(opc) + ')');
+return code;
+},
+'24': (rec, opc) => {
+const code = setReg(rec.rt, 'memRead8(' + getOF(opc) + ') & 0xff');
+return code;
+},
+'25': (rec, opc) => {
+const code = setReg(rec.rt, 'memRead16(' + getOF(opc) + ') & 0xffff');
+return code;
+},
+'26': (rec, opc) => {
+const code = setReg(0, 'cpu.lwr(' + rec.rt + ', ' + getOF(opc) + ')');
+return code;
+},
+'28': (rec, opc) => {
+const code = setReg(0, 'memWrite8(' + getOF(opc) + ', ' + getRT() + ')');
+return code;
+},
+'29': (rec, opc) => {
+const code = setReg(0, 'memWrite16(' + getOF(opc) + ', ' + getRT() + ')');
+return code;
+},
+'2A': (rec, opc) => {
+const code = setReg(0, 'cpu.swl(' + rec.rt + ', ' + getOF(opc) + ')');
+return code;
+},
+'2B': (rec, opc) => {
+const code = setReg(0, `memWrite32(${getOF(opc)}, ${getRT()})`);
+return code;
+},
+'2E': (rec, opc) => {
+const code = setReg(0, 'cpu.swr(' + rec.rt + ', ' + getOF(opc) + ')');
+return code;
+},
+'32': (rec, opc) => {
+const code = setReg(0, 'gte.set(' + rec.rt + ', memRead32(' + getOF(opc) + '))');
+return code;
+},
+'3A': (rec, opc) => {
+const code = setReg(0, 'memWrite32(' + getOF(opc) + ', gte.get(' + rec.rt + '))');
+return code;
+},
+'40': (rec, opc) => {
+if (opc === 0) return ''; // nop
+const code = setReg(rec.rd, getRT() + ' << ' + ((opc >> 6) & 0x1f));
+return code;
+},
+'42': (rec, opc) => {
+const code = setReg(rec.rd, getRT() + ' >>> ' + ((opc >> 6) & 0x1f));
+return code;
+},
+'43': (rec, opc) => {
+const code = setReg(rec.rd, getRT() + ' >> ' + ((opc >> 6) & 0x1f));
+return code;
+},
+'44': (rec, opc) => {
+const code = setReg(rec.rd, getRT() + ' << (' + getRS() + ' & 0x1f)');
+return code;
+},
+'46': (rec, opc) => {
+const code = setReg(rec.rd, getRT() + ' >>> (' + getRS() + ' & 0x1f)');
+return code;
+},
+'47': (rec, opc) => {
+const code = setReg(rec.rd, getRT() + ' >> (' + getRS() + ' & 0x1f)');
+return code;
+},
+'48': (rec, opc) => {
+rec.stop = true;
+rec.jump = true;
+rec.skipNext = true;
+const code = setReg(0, 'target = getCacheEntry(' + getRS() + ')');
+return code;
+},
+'49': (rec, opc) => {
+rec.stop = true;
+rec.jump = true;
+const code = setReg(rec.rd, '0x' + hex(rec.pc + 8) + ';\ntarget = getCacheEntry(' + getRS() + ')');
+return code;
+},
+'4C': (rec, opc) => {
+rec.stop = true;
+rec.syscall = true;
+const code = setReg(0, 'target = cpuException(8 << 2, 0x' + hex(rec.pc) + ')');
+return code;
+},
+'4D': (rec, opc) => {
+return '//break';
+},
+'50': (rec, opc) => {
+const code = setReg(rec.rd, 'cpu.hi');
+return code;
+},
+'51': (rec, opc) => {
+const code = setReg(0, 'cpu.hi = ' + getRS());
+return code;
+},
+'52': (rec, opc) => {
+const code = setReg(rec.rd, 'cpu.lo');
+return code;
+},
+'53': (rec, opc) => {
+const code = setReg(0, 'cpu.lo = ' + getRS());
+return code;
+},
+'58': (rec, opc) => {
+const code = setReg(0, 'cpu.mult(' + getRS() + ', ' + getRT() + ')');
+rec.cycles += 8;
+return code;
+},
+'59': (rec, opc) => {
+const code = setReg(0, 'cpu.multu(' + getRS() + ', ' + getRT() + ')');
+rec.cycles += 8;
+return code;
+},
+'5A': (rec, opc) => {
+const code = setReg(0, 'cpu.div(' + getRS() + ', ' + getRT() + ')');
+rec.cycles += 35;
+return code;
+},
+'5B': (rec, opc) => {
+const code = setReg(0, 'cpu.divu(' + getRS() + ', ' + getRT() + ')');
+rec.cycles += 35;
+return code;
+},
+'60': (rec, opc) => {
+const code = setReg(rec.rd, getRS() + ' + ' + getRT());
+return code;
+},
+'61': (rec, opc) => {
+const code = setReg(rec.rd, getRS() + ' + ' + getRT());
+return code;
+},
+'62': (rec, opc) => {
+const code = setReg(rec.rd, getRS() + ' - ' + getRT());
+return code;
+},
+'63': (rec, opc) => {
+const code = setReg(rec.rd, getRS() + ' - ' + getRT());
+return code;
+},
+'64': (rec, opc) => {
+const code = setReg(rec.rd, getRS() + ' & ' + getRT());
+return code;
+},
+'65': (rec, opc) => {
+const code = setReg(rec.rd, getRS() + ' | ' + getRT());
+return code;
+},
+'66': (rec, opc) => {
+const code = setReg(rec.rd, getRS() + ' ^ ' + getRT());
+return code;
+},
+'67': (rec, opc) => {
+const code = setReg(rec.rd, '~(' + getRS() + ' | ' + getRT() + ')');
+return code;
+},
+'6A': (rec, opc) => {
+const code = setReg(rec.rd, '(' + getRS() + ' < ' + getRT() + ') ? 1 : 0');
+return code;
+},
+'6B': (rec, opc) => {
+const code = setReg(rec.rd, '((' + getRS() + ' >>> 0) < (' + getRT() + ' >>> 0)) ? 1 : 0');
+return code;
+},
+'80': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+return code;
+},
+'81': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)}`);
+return code;
+},
+'90': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+return code;
+},
+'91': (rec, opc) => {
+rec.stop = true;
+rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
+const code = setReg(0, `target = (${getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+return code;
+},
+'A0': (rec, opc) => {
+const code = setReg(rec.rt, 'cpu.getCtrl(' + rec.rd + ')');
+return code;
+},
+'A4': (rec, opc) => {
+const code = setReg(0, 'cpu.setCtrl(' + rec.rd + ', ' + getRT() + ')');
+return code;
+},
+'B0': (rec, opc) => { // simplicity
+const code = setReg(0, 'cpu.rfe()');
+return code;
+},
+'C0': (rec, opc) => {
+const code = setReg(rec.rt, 'gte.get(' + rec.rd + ')');
+return code;
+},
+'C2': (rec, opc) => {
+const code = setReg(rec.rt, 'gte.get(' + (32 + rec.rd) + ')');
+return code;
+},
+'C4': (rec, opc) => {
+const code = setReg(0, 'gte.set(' + rec.rd + ', ' + getRT() + ')');
+return code;
+},
+'C6': (rec, opc) => {
+const code = setReg(0, 'gte.set(' + (32 + rec.rd) + ', ' + getRT() + ')');
+return code;
+},
+'D0': (rec, opc) => {
+rec.cycles += gte.cycles(opc & 0x1ffffff);
+const code = setReg(0, 'gte.command(0x' + hex(opc & 0x1ffffff) + ')');
+return code;
+},
+'invalid': (rec, opc) => {
+abort('invalid instruction');
+}
+}
+rec.D1 = rec.D0;
+rec.D2 = rec.D0;
+rec.D3 = rec.D0;
+rec.D4 = rec.D0;
+rec.D5 = rec.D0;
+rec.D6 = rec.D0;
+rec.D7 = rec.D0;
+rec.D8 = rec.D0;
+rec.D9 = rec.D0;
+rec.DA = rec.D0;
+rec.DB = rec.D0;
+rec.DC = rec.D0;
+rec.DD = rec.D0;
+rec.DE = rec.D0;
+rec.DF = rec.D0;
+const recmap = new Array(256);
+for (let i = 0; i < 256; ++i) {
+recmap[i] = rec[`${hex(i, 2).toUpperCase()}`] || rec.invalid;
+}
+function compileInstruction(state, lines) {
+const iwordIndex = getCacheIndex(state.pc);
+const opcode = map[iwordIndex >> 2];
+let opc = 0;
+switch ((opcode >>> 26) & 0x3f) {
+default: opc = 0x00 + ((opcode >>> 26) & 0x3f); break;
+case 0x00: opc = 0x40 + ((opcode >>> 0) & 0x3f); break;
+case 0x01: opc = 0x80 + ((opcode >>> 16) & 0x1f); break;
+case 0x10: opc = 0xA0 + ((opcode >>> 21) & 0x1f); break;
+case 0x12: opc = 0xC0 + ((opcode >>> 21) & 0x1f); break;
+}
+state.rd = (opcode >>> 11) & 0x1F;
+state.rs = (opcode >>> 21) & 0x1F;
+state.rt = (opcode >>> 16) & 0x1F;
+lines.push(recmap[opc](state, opcode));
+}
+const state = {
+'pc': 0,
+'rt': 0,
+'rs': 0,
+'rd': 0,
+'stop': false,
+'break': false,
+'syscall': false,
+'cause': false,
+'sr': false,
+'cycles': 0,
+'skipNext': false,
+entry: null,
+branchTarget: 0,
+jump: false,
+entryPC: 0,
+reg: (r) => {
+return r ? 'gpr[' + r + ']' : '0';
+},
+clear: function () {
+state.branchTarget = 0;
+state.jump = false;
+state.stop = false;
+state.break = false;
+state.syscall = false;
+state.cause = false;
+state.sr = false;
+state.cycles = 0;
+state.skipNext = false;
+}
+};
+const compileBlockLines = (entry) => {
+const pc = entry.pc >>> 0;
+state.clear();
+state.pc = pc;
+state.entryPC = pc;
+state.entry = entry;
+const lines = [];
+// todo: limit the amount of cycles per block
+while (!state.stop && state.cycles < 2048) {
+compileInstruction(state, lines, false);
+state.cycles += 1;
+state.pc += 4;
+}
+if (!state.stop && state.cycles >= 64) {
+state.branchTarget = (state.pc >>> 0) & 0x01ffffff;
+state.skipNext = true;
+state.jump = true;
+const code = setReg(0, `target = _${hex(state.branchTarget)}`);
+lines.push(code);
+// console.log('abort', lines);
+// debugger;
+}
+if (state.stop && (!state.break && !state.syscall && !state.sr)) {
+compileInstruction(state, lines, true);
+state.cycles += 1;
+state.pc += 4;
+}
+if (pc === 0xa0 || pc === 0xb0 || pc === 0xc0) {
+lines.unshift(`trace(${pc}, gpr[9]);`);
+}
+lines.push('psx.clock += ' + state.cycles + ';');
+return lines;
+}
+const compileBlock = (entry) => {
+const pc = entry.pc >>> 0;
+let lines = compileBlockLines(entry).join('\n').split('\n');
+// entry.jump = getCacheEntry(state.branchTarget);
+// entry.next = state.skipNext ? null : getCacheEntry(state.pc);
+let jumps = [
+state.branchTarget >>> 0,
+state.skipNext ? 0 : state.pc >>> 0,
+// pc
+].filter(a => a !== null || a !== undefined);
+lines.push(' ');
+lines.push('return target;');
+// lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
+lines.unshift(`const gpr = cpu.gpr; let target;\n`);
+if (pc < 0x00200000) {
+lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(this); }`);
+fastCache[pc] = 1;
+}
+return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
+}
+const cached = new Map();
+const fastCache = new Uint8Array(0x00200000);
+fastCache.fill(0);
+function getCacheIndex(pc) {
+let ipc = pc & 0x01ffffff;
+if (ipc < 0x800000) ipc &= 0x1fffff;
+return ipc;
+}
+let clears = 0;
+function clearCodeCache(addr, size) {
+const ibase = getCacheIndex(addr);
+if (ibase < 0x00200000) {
+fastCache.fill(0, ibase, ibase + size);
+}
+// The BIOS is mapped above the fast-cache range.  Its translated blocks
+// live in the Map cache, so replacing a BIOS must evict those entries too.
+for (const pc of cached.keys()) {
+if (pc >= ibase && pc < ibase + size) cached.delete(pc);
+}
+++clears;
+}
+function lazyCompile() {
+this.code = compileBlock(this);
+return this;
+}
+function getCacheEntry(pc) {
+const lutIndex = getCacheIndex(pc);
+let entry = cached.get(lutIndex);
+if (!entry) {
+cached.set(lutIndex, entry = CacheEntryFactory.createCacheEntry(lutIndex));
+entry.code = lazyCompile;
+}
+return entry;
+}
+const CacheEntryFactory = {
+createCacheEntry: pc => ({
+pc: pc >>> 0,
+code: null,
+// jump: null,
+// next: null,
+})
+};
+const cyclesPerTrace = 33868800;
+const local = window.location.href.indexOf('file://') === 0;
+let prevCounter = 0;
+let prevFpsCounter = 0;
+let prevFpsRenderCounter = 0;
+psx.addEvent(0, self => {
+const renderCounter = renderer.fpsRenderCounter - prevFpsRenderCounter;
+prevFpsRenderCounter = renderer.fpsRenderCounter;
+if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} ${context.counter - prevCounter}/${renderer.fpsCounter - prevFpsCounter}/${renderCounter}`);
+psx.setEvent(self, cyclesPerTrace);
+prevCounter = context.counter;
+prevFpsCounter = renderer.fpsCounter;
+clears = 0;
+calls = 0;
+});
+window.calls = 0;
+window.vector = null;
+window.fastCache = fastCache;
+window.cached = cached;
+window.invalidateCache = entry => {
+entry.code = lazyCompile;
+return entry;
+}
+window.resetCacheEntry = entry => {
+entry.code = lazyCompile;
+return entry;
+}
+return {
+getCacheEntry,
+clearCodeCache,
+}
+})
+mdlr('enge:psx:spu', m => {
+const reverb = m.require('enge:psx:spu-reverb');
+const frameCount = (1.0 * 44100) >> 1;
+const memory = new Uint8Array(512 * 1024);
+const voices = new Array(24);
+const view = new DataView(memory.buffer);
+const regs = new Map;
+const init = () => {
+const context = new AudioContext();
+const gainNode = context.createGain();
+const buffer = context.createBuffer(2, frameCount, context.sampleRate);
+const source = context.createBufferSource();
+left = buffer.getChannelData(0);
+left.fill(0);
+right = buffer.getChannelData(1);
+right.fill(0)
+source.playbackRate.value = 44100 / context.sampleRate;
+source.buffer = buffer;
+source.loop = true;
+source.connect(gainNode);
+gainNode.connect(context.destination);
+source.start();
+spu.setVolume = (volume) => gainNode.gain.setValueAtTime(volume, context.currentTime);
+spu.setVolume(0.75);
+}
+psx.addEvent(0, (self) => {
+psx.updateEvent(self, 768); // 1 sample
+if (!left || !right) return;
+SPUSTAT &= ~(0x003F);
+SPUSTAT |= (SPUSTATm & 0x003F);
+++totalSamples;
+let l = 0, r = 0;
+const captureIndex = (totalSamples % 0x200) << 1;
+spu.checkIrq();
+let audio = [0.0, 0.0];
+let reverbLeft = 0.0, reverbRight = 0.0;
+for (let voice of voices) {
+if (!voice.advance(memory, audio)) continue;
+l += audio[0];
+r += audio[1];
+if (voice.reverb) {
+reverbLeft += audio[0];
+reverbRight += audio[1];
+}
+if (voice.capture) {
+// todo: verify cacpture left or right channel
+const mono = (audio[0] * 0x8000) >> 0;
+view.setInt16(voice.capture + captureIndex, mono, true);
+}
+}
+var cdxa = [0.0, 0.0];
+cdr.nextpcm(cdxa);
+let cdSampleL = (cdxa[0] * cdVolumeLeft);
+let cdSampleR = (cdxa[1] * cdVolumeRight);
+{
+const mono = (cdSampleL * 0x8000) >>> 0;
+view.setInt16(0x0000 + captureIndex, mono, true);
+}
+{
+const mono = (cdSampleR * 0x8000) >>> 0;
+view.setInt16(0x0400 + captureIndex, mono, true);
+}
+l += cdSampleL;
+r += cdSampleR;
+if (SPUCNT & 0x04) {
+reverbLeft += cdSampleL;
+reverbRight += cdSampleR;
+}
+if (SPUCNT & 0x80) {
+const [rl, rr] = reverb.advance(totalSamples, reverbLeft, reverbRight, view);
+l += rl;
+r += rr;
+}
+l = (l * mainVolumeLeft);
+r = (r * mainVolumeRight);
+left[writeIndex] = l;//Math.max(Math.min(l, 1.0), -1.0);
+right[writeIndex] = r;//Math.max(Math.min(r, 1.0), -1.0);
+writeIndex = (writeIndex + 1) % frameCount;
+if (captureIndex === 0x000) {
+SPUSTAT &= ~0x0800;
+}
+if (captureIndex === 0x200) {
+SPUSTAT |= 0x0800;
+}
+});
+let left = null;
+let right = null;
+let ramOffset = 0;
+let irqOffset = 0;
+let writeIndex = (44100 * 0.125) >> 0;
+let totalSamples = 0;
+let SPUCNT = 0x0000;
+let SPUSTAT = 0x0000;
+let SPUSTATm = 0x0000;
+let mainVolumeLeft = 0.0;
+let mainVolumeRight = 0.0;
+let cdVolumeLeft = 0.0;
+let cdVolumeRight = 0.0;
+let extVolumeLeft = 0.0;
+let extVolumeRight = 0.0;
+let spu = {
+ENDX: 0x00ffffff,
+silence: () => {
+if (left && right) {
+for (var i = 0; i < frameCount; ++i) {
+left[i] = right[i] = 0.0;
+}
+}
+},
+getVolume: data => {
+return Math.abs((data << 17) >> 16) / 0x8000;
+},
+getInt16: addr => {
+switch (addr) {
+case 0x1daa: return SPUCNT;
+case 0x1dae: return (SPUSTAT & ~0x3f) | (SPUCNT & 0x3f);
+case 0x1d9c: return spu.ENDX;
+default:
+if ((addr >= 0x1c00) && (addr < 0x1d80)) {
+const id = (addr - 0x1c00) >> 4;
+return voices[id].rd16(addr & 0xf);
+}
+if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
+return reverb.rd16(addr);
+}
+return regs.get(addr);
+}
+},
+setInt16: (addr, data) => {
+data &= 0xffff;
+regs.set(addr, data);
+switch (addr) {
+case 0x1d80:
+mainVolumeLeft = spu.getVolume(data);
+break;
+case 0x1d82:
+mainVolumeRight = spu.getVolume(data);
+break;
+case 0x1d84:
+reverb.wr16(addr, data);
+break;
+case 0x1d86:
+reverb.wr16(addr, data);
+break;
+case 0x1d88: for (let i = 0; i < 16; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[i].keyOn()
+spu.ENDX &= ~(1 << i);
+}
+break
+case 0x1d8a: for (let i = 0; i < 8; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[16 + i].keyOn()
+spu.ENDX &= ~(1 << (16 + i));
+}
+break
+case 0x1d8c: for (let i = 0; i < 16; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[i].keyOff()
+}
+break
+case 0x1d8e: for (let i = 0; i < 8; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[16 + i].keyOff()
+}
+break
+case 0x1d90: for (let i = 0; i < 16; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[i].modOn()
+}
+break
+case 0x1d92: for (let i = 0; i < 8; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[16 + i].modOn()
+}
+break
+case 0x1d94: for (let i = 0; i < 16; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[i].noiseOn()
+}
+break
+case 0x1d96: for (let i = 0; i < 8; ++i) {
+if ((data & (1 << i)) === 0) continue;
+voices[16 + i].noiseOn()
+}
+break
+case 0x1d98: for (let i = 0; i < 16; ++i) {
+// if ((data & (1 << i)) === 0) continue;
+voices[i].echoOn(data & (1 << i))
+}
+break
+case 0x1d9a: for (let i = 0; i < 8; ++i) {
+// if ((data & (1 << i)) === 0) continue;
+voices[16 + i].echoOn(data & (1 << i))
+}
+break
+case 0x1d9c:  // readonly Voice 0..15 on/off
+break
+case 0x1d9e:  // readonly Voice 16..23 on/off
+break
+case 0x1da0:  // ??? Legend of Dragoon
+break
+case 0x1da2:
+reverb.wr16(addr, data);
+break
+case 0x1da4: irqOffset = data << 3;
+break
+case 0x1da6: ramOffset = data << 3;
+break
+case 0x1da8:
+ramOffset = ramOffset % memory.byteLength;
+view.setInt16(ramOffset, data, true);
+ramOffset += 2;
+spu.checkIrq();
+break
+case 0x1dac: break
+case 0x1daa:
+if (!(SPUCNT & 0x80) && (data & 0x80)) {
+console.log('reverb', 'on');
+}
+if ((SPUCNT & 0x80) && !(data & 0x80)) {
+console.log('reverb', 'off');
+}
+SPUCNT = data;
+if ((!left || !right) && SPUCNT & 0x8000) {
+init();
+}
+if (SPUCNT & (1 << 6)) {
+SPUSTAT &= ~(0x0040);
+}
+// todo: delayed application of bits 0-5
+SPUSTATm = (SPUCNT & 0x003F);
+break
+case 0x1dae:  // SPUSTAT (read-only)
+break
+case 0x1db0:
+cdVolumeLeft = ((data << 16) >> 16) / 0x8000;
+break
+case 0x1db2:
+cdVolumeRight = ((data << 16) >> 16) / 0x8000;
+break
+case 0x1db4:
+extVolumeLeft = ((data << 16) >> 16) / 0x8000;
+break
+case 0x1db6:
+extVolumeRight = ((data << 16) >> 16) / 0x8000;
+break
+case 0x1db8:  // ??? Legend of Dragoon
+break
+case 0x1dba:  // ??? Legend of Dragoon
+break
+case 0x1dbc:  // ??? Legend of Dragoon
+break
+case 0x1dbe:  // ??? Legend of Dragoon
+break
+default:
+if ((addr >= 0x1c00) && (addr < 0x1d80)) {
+const id = (addr - 0x1c00) >>> 4;
+const voice = voices[id];
+voice.wr16(addr & 15, data);
+break;
+}
+if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
+reverb.wr16(addr, data);
+break;
+}
+console.log('spu.setInt16:', hex(addr, 4), hex(data));
+// abort(hex(addr, 4));
+}
+},
+dmaTransferMode0200: (addr, blck) => {
+if (!(addr & 0x007fffff)) return 0x10;
+let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
+// clearCodeCache(addr, transferSize); // optimistice assumption (performance reasons)
+while (transferSize > 0) {
+ramOffset = ramOffset % memory.byteLength;
+const data = view.getInt16(ramOffset, true);
+map16[(addr & 0x001fffff) >>> 1] = data;
+ramOffset += 2;
+transferSize -= 2;
+addr += 2;
+}
+return (blck >> 16) * (blck & 0xFFFF);
+},
+dmaTransferMode0201: (addr, blck) => {
+if (!(addr & 0x007fffff)) return 0x10;
+let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
+while (transferSize > 0) {
+ramOffset = ramOffset % memory.byteLength;
+const data = map16[(addr & 0x001fffff) >>> 1];
+view.setInt16(ramOffset, data, true);
+spu.checkIrq();
+ramOffset += 2;
+transferSize -= 2;
+addr += 2;
+}
+return (blck >> 16) * (blck & 0xFFFF);
+},
+checkIrq: voice => {
+if ((SPUCNT & 0x8040) !== 0x8040) return;
+const captureIndex = (totalSamples % 0x200) << 1;
+let irq = false;
+if (voice !== undefined) {
+irq = voice.checkIrq(irqOffset);
+}
+else {
+if (ramOffset === irqOffset) {
+irq = true;
+}
+if (captureIndex === irqOffset) {
+irq = true;
+}
+}
+if (irq) {
+cpu.istat |= 0x200;
+SPUSTAT |= 0x0040;
+}
+}
+}
+//- init
+for (let i = 0; i < 24; ++i) {
+// mdlr does not cache compiled modules, so this works perfectly
+const { voice } = m.require('enge:psx:spu-voice');
+voices[i] = voice.setId(i);
+}
+//- lookup tables
+const xa2flt = new Float32Array(16 * 2);
+xa2flt.fill(0.0);
+xa2flt[2] = 60 / 64; xa2flt[3] = 0 / 64; //- [K0:+0.953125][K1:+0.000000]
+xa2flt[4] = 115 / 64; xa2flt[5] = -52 / 64; //- [K0:+1.796875][K1:-0.812500]
+xa2flt[6] = 98 / 64; xa2flt[7] = -55 / 64; //- [K0:+1.531250][K1:-0.859375]
+xa2flt[8] = 122 / 64; xa2flt[9] = -60 / 64; //- [K0:+1.906250][K1:-0.937500]
+const xa2pcm = new Float32Array(16 * 256 * 2);
+const factor = 32768.0;
+for (let shift = 0; shift < 16; ++shift) {
+for (let index = 0; index < 256; ++index) {
+const offset = ((shift << 8) + index) << 1;
+var sample = (index & 0xF0) << 8;
+if (sample & 0x8000) { sample |= 0xFFFF0000 };
+xa2pcm[offset + 1] = (sample >> shift) / factor;
+var sample = (index & 0x0F) << 12;
+if (sample & 0x8000) { sample |= 0xFFFF0000 };
+xa2pcm[offset + 0] = (sample >> shift) / factor;
+}
+}
+return { spu, xa2flt, xa2pcm };
+})
+mdlr('enge:psx:index', m => {
+let running = false;
+let canvas = undefined;
+const cpuDebug = new URLSearchParams(window.location.search).has('debug-cd') ||
+new URLSearchParams(window.location.search).has('debug-game');
+let lastCpuDebugTime = 0;
+const PSX_SPEED = 44100 * 768; // 33868800 cyles
+const abort = (...args) => {
+const message = [...args].join(' ');
+canvas.style.borderColor = 'red';
+running = false;
+spu.silence();
+console.error(message);
+alert(`eNGE stopped: ${message}`);
+throw new Error(message);
+}
+let endAnimationFrame = false;
+let hasFocus = true;
+document.addEventListener("visibilitychange", () => {
+if (document.visibilityState === 'visible') {
+hasFocus = true;
+} else {
+hasFocus = false;
+spu.silence();
+}
+});
+const context = {
+timeStamp: 0,
+realtime: 0,
+emutime: 0,
+counter: 0
+};
+// function isTouchEnabled() {
+//   return ('ontouchstart' in window) ||
+//     (navigator.maxTouchPoints > 0) ||
+//     (navigator.msMaxTouchPoints > 0);
+// }
+const frameEvent = psx.addEvent(0, (self) => {
+endAnimationFrame = true;
+psx.unsetEvent(self);
+});
+const mainLoop = (stamp) => {
+const delta = stamp - context.timeStamp;
+context.timeStamp = stamp;
+if (!running || !hasFocus || delta > 250) return;
+context.realtime += delta;
+const diffTime = context.realtime - context.emutime;
+const totalCycles = diffTime * (PSX_SPEED / 1000);
+endAnimationFrame = false;
+psx.setEvent(frameEvent, +totalCycles);
+let entry = getCacheEntry(cpu.pc);
+if (!entry) return abort();
+handleGamePads();
+const $ = psx;
+while (!endAnimationFrame) {
+entry = entry.code($);
+if ($.clock >= $.eventClock) {
+entry = $.handleEvents(entry);
+}
+}
+cpu.pc = entry.pc;
+if (cpuDebug && stamp - lastCpuDebugTime >= 1000) {
+lastCpuDebugTime = stamp;
+console.debug('[CPU]', JSON.stringify({
+pc: `0x${(cpu.pc >>> 0).toString(16).padStart(8, '0')}`,
+ra: `0x${(cpu.gpr[31] >>> 0).toString(16).padStart(8, '0')}`,
+a0: `0x${(cpu.gpr[4] >>> 0).toString(16).padStart(8, '0')}`,
+v0: `0x${(cpu.gpr[2] >>> 0).toString(16).padStart(8, '0')}`,
+sr: `0x${(cpu.sr >>> 0).toString(16)}`,
+cause: `0x${(cpu.cause >>> 0).toString(16).padStart(8, '0')}`,
+epc: `0x${(cpu.epc >>> 0).toString(16).padStart(8, '0')}`,
+istat: `0x${(cpu.istat >>> 0).toString(16)}`,
+imask: `0x${(cpu.imask >>> 0).toString(16)}`
+}));
+}
+context.emutime = psx.clock / (PSX_SPEED / 1000);
+++context.counter;
+}
+const emulate = (stamp) => {
+mainLoop(stamp);
+requestAnimationFrame(emulate);
+}
+const bios = () => {
+running = false;
+let entry = getCacheEntry(0xbfc00000);
+const $ = psx;
+while (entry.pc !== 0x00030000) {
+entry = entry.code($);
+if ($.clock >= $.eventClock) {
+entry = $.handleEvents(entry);
+}
+}
+context.realtime = context.emutime = psx.clock / (PSX_SPEED / 1000);
+vector = getCacheEntry(0x80);
+cpu.pc = entry.pc;
+}
+const openFile = (file) => {
+var reader = new FileReader();
+reader.onload = (event) => {
+loadFileData(event.target.result, file.name)
+};
+reader.readAsArrayBuffer(file);
+}
+const cueTimeToSector = value => {
+const parts = value.split(':').map(Number);
+if (parts.length !== 3 || parts.some(Number.isNaN)) {
+throw new Error(`Invalid CUE index time: ${value}`);
+}
+return parts[0] * 60 * 75 + parts[1] * 75 + parts[2];
+};
+const parseCue = (text, cueURL) => {
+const files = [];
+let currentFile;
+let currentTrack;
+const parsedTracks = [];
+for (const rawLine of text.split(/\r?\n/)) {
+const line = rawLine.trim();
+let match = line.match(/^FILE\s+"([^"]+)"\s+(?:BINARY|MOTOROLA)$/i);
+if (match) {
+currentFile = { name: match[1], url: new URL(match[1], cueURL).href, index: files.length };
+files.push(currentFile);
+continue;
+}
+match = line.match(/^TRACK\s+(\d+)\s+(\S+)/i);
+if (match) {
+currentTrack = {
+id: Number(match[1]),
+begin: 0,
+type: match[2].toUpperCase(),
+fileIndex: currentFile?.index ?? 0,
+fileBegin: 0
+};
+parsedTracks.push(currentTrack);
+continue;
+}
+match = line.match(/^INDEX\s+01\s+(\d+:\d+:\d+)/i);
+if (match && currentTrack) {
+currentTrack.fileBegin = cueTimeToSector(match[1]);
+}
+}
+if (!files.length || !parsedTracks.length) {
+throw new Error('CUE sheet has no supported FILE/TRACK/INDEX entries');
+}
+return { files, tracks: parsedTracks };
+};
+const loadCueFromURL = async cueURL => {
+const response = await fetch(cueURL);
+if (!response.ok) throw new Error(`CUE request returned HTTP ${response.status}`);
+const cue = parseCue(await response.text(), cueURL);
+const image = await cdr.setCdImageURLs(cue.files.map(file => file.url));
+const fileBases = [];
+let base = 0;
+for (const file of image.files) {
+fileBases.push(base);
+base += file.size / 2352;
+}
+const tracks = cue.tracks.map((track, index) => {
+const begin = fileBases[track.fileIndex] + track.fileBegin;
+const next = cue.tracks[index + 1];
+const sameFile = next && next.fileIndex === track.fileIndex;
+const end = sameFile
+? fileBases[next.fileIndex] + next.fileBegin
+: fileBases[track.fileIndex] + image.files[track.fileIndex].size / 2352;
+return {
+id: track.id,
+begin,
+end,
+fileIndex: track.fileIndex,
+fileBegin: track.fileBegin,
+...(track.type === 'AUDIO' ? { audio: true } : { data: true })
+};
+});
+cdr.setTOC([
+{ id: 0, begin: 0, end: image.sectors },
+...tracks
+]);
+};
+const loadCueFromFiles = async (cueFile, selectedFiles) => {
+const cue = parseCue(await cueFile.text(), 'http://local-disc.invalid/');
+const filesByName = new Map(selectedFiles.map(file => [file.name.toLowerCase(), file]));
+const dataBuffers = [];
+for (const cueFileEntry of cue.files) {
+const name = cueFileEntry.name.replace(/\\/g, '/').split('/').pop().toLowerCase();
+const selectedFile = filesByName.get(name);
+if (!selectedFile) throw new Error(`CUE references missing BIN file: ${cueFileEntry.name}`);
+dataBuffers.push(await selectedFile.arrayBuffer());
+}
+const image = cdr.setCdImages(dataBuffers);
+const fileBases = [];
+let base = 0;
+for (const file of image.files) {
+fileBases.push(base);
+base += file.byteLength / 2352;
+}
+const tracks = cue.tracks.map((track, index) => {
+const begin = fileBases[track.fileIndex] + track.fileBegin;
+const next = cue.tracks[index + 1];
+const sameFile = next && next.fileIndex === track.fileIndex;
+const end = sameFile
+? fileBases[next.fileIndex] + next.fileBegin
+: fileBases[track.fileIndex] + image.files[track.fileIndex].byteLength / 2352;
+return {
+id: track.id,
+begin,
+end,
+fileIndex: track.fileIndex,
+fileBegin: track.fileBegin,
+...(track.type === 'AUDIO' ? { audio: true } : { data: true })
+};
+});
+cdr.setTOC([
+{ id: 0, begin: 0, end: image.sectors },
+...tracks
+]);
+loadedGameId = `local:${cueFile.name}:${selectedFiles.length}`;
+bootBiosIfReady();
+running = true;
+scheduleStateReady();
+};
+const loadFileFromURL = async (url) => {
+running = false;
+try {
+if (/\.cue(?:$|[?#])/i.test(url)) {
+await loadCueFromURL(url);
+}
+else {
+const image = await cdr.setCdImageURL(url);
+cdr.setTOC([
+{ id: 0, begin: 0, end: image.sectors },
+{ id: 1, begin: 0, end: image.sectors, data: true }
+]);
+}
+loadedGameId = new URL(url, document.baseURI).href;
+bootBiosIfReady();
+running = true;
+scheduleStateReady();
+}
+catch (error) {
+abort('Unable to load CD image:', error.message);
+}
+}
+const loadBiosFromURL = async url => {
+const response = await fetch(url);
+if (!response.ok) throw new Error(`BIOS request returned HTTP ${response.status}`);
+loadFileData(await response.arrayBuffer(), new URL(url, document.baseURI).href);
+};
+const stateStorageKey = 'enge-psx-save-state-v1';
+const stateBuild = 'enge-save-state-v3-renderer-v1';
+const stateStartupDelay = 15000;
+const emulatorVariant = [...document.scripts].some(script => script.src.includes('index-webgl2'))
+? 'webgl2'
+: 'webgl';
+let loadedBiosId = 'unloaded';
+let loadedGameId = 'unloaded';
+let biosBooted = false;
+const bootBiosIfReady = () => {
+if (biosBooted || loadedBiosId === 'unloaded' || loadedGameId === 'unloaded') return;
+bios();
+biosBooted = true;
+running = true;
+};
+let stateReady = false;
+let stateReadyTimer;
+let stateCountdownTimer;
+let stateReadyAt = 0;
+const updateStateStatus = text => {
+const status = document.getElementById('state-status');
+if (status) status.textContent = text;
+};
+const updateStateControls = () => {
+for (const id of ['save-state', 'load-state', 'download-state', 'upload-state', 'cloud-save-state', 'cloud-load-state']) {
+const button = document.getElementById(id);
+if (button) button.disabled = !stateReady;
+}
+};
+const scheduleStateReady = () => {
+stateReady = false;
+clearTimeout(stateReadyTimer);
+clearInterval(stateCountdownTimer);
+stateReadyAt = Date.now() + stateStartupDelay;
+const updateCountdown = () => {
+const seconds = Math.max(1, Math.ceil((stateReadyAt - Date.now()) / 1000));
+updateStateStatus(`State controls unlock in ${seconds} second${seconds === 1 ? '' : 's'}`);
+};
+updateCountdown();
+stateCountdownTimer = setInterval(updateCountdown, 250);
+updateStateControls();
+stateReadyTimer = setTimeout(() => {
+stateReady = true;
+clearInterval(stateCountdownTimer);
+updateStateStatus('State controls ready');
+updateStateControls();
+}, stateStartupDelay);
+};
+const bufferIdentity = arrayBuffer => {
+const bytes = new Uint8Array(arrayBuffer);
+let hash = 2166136261;
+for (const byte of bytes) {
+hash ^= byte;
+hash = Math.imul(hash, 16777619);
+}
+return `${bytes.byteLength}:${hash >>> 0}`;
+};
+const currentStateCompatibility = () => ({
+build: stateBuild,
+variant: emulatorVariant,
+bios: loadedBiosId,
+game: loadedGameId
+});
+const bytesToBase64 = bytes => {
+let binary = '';
+for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+}
+return btoa(binary);
+};
+const base64ToBytes = value => {
+const binary = atob(value);
+const bytes = new Uint8Array(binary.length);
+for (let i = 0; i < binary.length; ++i) bytes[i] = binary.charCodeAt(i);
+return bytes;
+};
+const snapshotValue = (value, seen = new WeakSet()) => {
+if (value === null || typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+return value;
+}
+if (typeof value === 'function' || value === undefined) return undefined;
+if (ArrayBuffer.isView(value)) {
+return {
+type: value.constructor.name,
+data: bytesToBase64(new Uint8Array(value.buffer, value.byteOffset, value.byteLength))
+};
+}
+if (seen.has(value)) return undefined;
+seen.add(value);
+if (Array.isArray(value)) return value.map(item => snapshotValue(item, seen));
+const result = {};
+for (const [key, item] of Object.entries(value)) {
+const snapshot = snapshotValue(item, seen);
+if (snapshot !== undefined) result[key] = snapshot;
+}
+return result;
+};
+const restoreValue = (target, snapshot) => {
+if (!target || !snapshot) return;
+if (ArrayBuffer.isView(target) && snapshot.type) {
+const bytes = base64ToBytes(snapshot.data);
+new Uint8Array(target.buffer, target.byteOffset, target.byteLength).set(bytes.subarray(0, target.byteLength));
+return;
+}
+if (Array.isArray(target) && Array.isArray(snapshot)) {
+snapshot.forEach((value, index) => restoreValue(target[index], value));
+return;
+}
+for (const [key, value] of Object.entries(snapshot)) {
+if (!(key in target) || typeof target[key] === 'function') continue;
+if (value && value.type && ArrayBuffer.isView(target[key])) {
+restoreValue(target[key], value);
+}
+else if (value && typeof value === 'object' && target[key] && typeof target[key] === 'object') {
+restoreValue(target[key], value);
+}
+else if (typeof value !== 'object') {
+target[key] = value;
+}
+}
+};
+const restoreSnapshot = snapshot => {
+if (snapshot === null || typeof snapshot !== 'object') return snapshot;
+if (snapshot.type && snapshot.data) {
+const bytes = base64ToBytes(snapshot.data);
+const Type = globalThis[snapshot.type];
+return Type ? new Type(bytes.buffer) : bytes;
+}
+if (Array.isArray(snapshot)) return snapshot.map(restoreSnapshot);
+return Object.fromEntries(Object.entries(snapshot).map(([key, value]) => [key, restoreSnapshot(value)]));
+};
+const saveState = () => {
+const wasRunning = running;
+running = false;
+spu.silence();
+try {
+const gpuState = snapshotValue(gpu);
+delete gpuState.img?.buffer;
+const state = {
+version: 3,
+compatibility: currentStateCompatibility(),
+ram: bytesToBase64(new Uint8Array(map.buffer, 0, 2 * 1024 * 1024)),
+cpu: snapshotValue(cpu),
+gpu: gpuState,
+rendererVram: renderer.getVramState ? snapshotValue(renderer.getVramState()) : undefined,
+psx: snapshotValue(psx),
+scheduler: psx.getState(),
+cdr: snapshotValue(cdr.getState()),
+context: snapshotValue(context)
+};
+localStorage.setItem(stateStorageKey, JSON.stringify(state));
+return true;
+}
+finally {
+running = wasRunning;
+}
+};
+const loadState = (encoded = localStorage.getItem(stateStorageKey)) => {
+if (!stateReady) {
+throw new Error('The game is still booting; wait for the Sony and PlayStation screens to finish before loading a state');
+}
+if (loadedBiosId === 'unloaded' || loadedGameId === 'unloaded') {
+throw new Error('PlayStation is not ready yet; wait for the BIOS and game to finish loading before loading a state');
+}
+if (!encoded) return false;
+const state = JSON.parse(encoded);
+if (state.version !== 3) throw new Error('Save state was created by an incompatible emulator build');
+const expected = currentStateCompatibility();
+const actual = state.compatibility || {};
+for (const key of Object.keys(expected)) {
+if (actual[key] !== expected[key]) {
+throw new Error(`Save state mismatch: ${key} does not match the currently loaded emulator`);
+}
+}
+const wasRunning = running;
+running = false;
+spu.silence();
+try {
+new Uint8Array(map.buffer, 0, 2 * 1024 * 1024).set(base64ToBytes(state.ram));
+restoreValue(cpu, state.cpu);
+restoreValue(gpu, state.gpu);
+if (state.rendererVram && renderer.setVramState) {
+renderer.setVramState(restoreSnapshot(state.rendererVram));
+}
+restoreValue(psx, state.psx);
+cdr.setState(state.cdr && restoreSnapshot(state.cdr));
+psx.setState(state.scheduler);
+restoreValue(context, state.context);
+clearCodeCache(0, 2 * 1024 * 1024);
+context.timeStamp = performance.now();
+return true;
+}
+finally {
+running = wasRunning;
+}
+};
+const updateStateButton = (button, text) => {
+if (!button) return;
+const original = button.textContent;
+button.textContent = text;
+setTimeout(() => { button.textContent = original; }, 1200);
+};
+const downloadFile = (data, filename, type) => {
+const blob = new Blob([data], { type });
+const link = document.createElement('a');
+link.href = URL.createObjectURL(blob);
+link.download = filename;
+link.click();
+setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+};
+const loadFileData = (arrayBuffer, sourceId = '') => {
+const view = new DataView(arrayBuffer);
+if (view.getUint16(0, true) === 0x5350) { // PS
+cpu.pc = view.getInt32(0x10, true);
+cpu.gpr[28] = view.getInt32(0x14, true);
+cpu.gpr[29] = view.getInt32(0x30, true) || 0x801ffff0;
+cpu.gpr[30] = view.getInt32(0x30, true) || 0x801ffff0;
+cpu.gpr[31] = cpu.pc;
+var textSegmentOffset = view.getInt32(0x18, true);
+var fileContentLength = view.getInt32(0x1C, true);
+for (var i = 0; i < fileContentLength; ++i) {
+if (0x800 + i >= arrayBuffer.byteLength) continue;
+ram.setInt8(textSegmentOffset++ & 0x001fffff, view.getInt8(0x800 + i, true), true);
+}
+clearCodeCache(view.getInt32(0x18, true), arrayBuffer.byteLength);
+running = true;
+}
+else if (view.getUint32(0, true) === 0x0000434d) { // MEMCARD
+var copy = new Uint8Array(arrayBuffer);
+let card = joy.devices ? joy.devices[0].data : joy.cardOneMemory;
+for (var i = 0; i < copy.length; ++i) {
+card[i] = copy[i];
+}
+}
+else if (arrayBuffer.byteLength === 524288) {
+biosBooted = false;
+loadedBiosId = bufferIdentity(arrayBuffer);
+writeStorageStream('bios', arrayBuffer);
+clearCodeCache(0x01c00000, 0x00080000);
+for (var i = 0; i < 0x00080000; i += 4) {
+const data = view.getInt32(i, true);
+rom.setInt32(i, data, true);
+}
+// Sony BIOS traditionally starts as soon as it is loaded. OpenBIOS
+// needs the disc present before starting, so defer only that BIOS.
+const biosText = new TextDecoder().decode(new Uint8Array(arrayBuffer));
+const isOpenBios = /openbios|pcsx-redux/i.test(biosText);
+if (isOpenBios) {
+bootBiosIfReady();
+}
+else {
+bios();
+biosBooted = true;
+running = true;
+}
+let header = document.querySelector('span.nobios');
+if (header) {
+header.classList.remove('nobios');
+}
+}
+else if (true || view.getUint32(0, true) === (0xffffff00 >>> 0)) { // ISO
+// auto build TOC (attempt to not need .cue files)
+let lastLoc = (arrayBuffer.byteLength / 4) / (2352 / 4);
+let tracks = [];
+tracks.push({ id: 0, begin: 0, end: lastLoc });
+const sectorLength = 2352;
+const isDataSector = (startLoc) => {
+let mask1 = view.getInt32(startLoc * sectorLength + 0, true) >>> 0;
+let mask2 = view.getInt32(startLoc * sectorLength + 4, true) >>> 0;
+let mask3 = view.getInt32(startLoc * sectorLength + 8, true) >>> 0;
+return (mask1 === 0xffffff00 && mask2 === 0xffffffff && mask3 === 0x00ffffff) || (!mask1 && !mask2 && !mask3);
+}
+const isEmptySector = (startLoc) => {
+let mask = 0;
+for (let i = 0; i < sectorLength; i += 4) {
+mask |= view.getInt32(startLoc * sectorLength + i, true);
+}
+return (mask >>> 0) === (0x00000000 >>> 0);
+}
+let begin, end, lead;
+let i = 0;
+begin = i;
+while ((i < lastLoc) && isDataSector(i)) ++i;
+end = i;
+while ((i < lastLoc) && isEmptySector(i)) ++i;
+tracks.push({ id: 1, begin, end, data: true });
+let id = 2;
+if (i < lastLoc) {
+begin = i;
+while (i < lastLoc) {
+while ((i < lastLoc) && !isEmptySector(i)) ++i;
+end = i;
+while ((i < lastLoc) && isEmptySector(i)) ++i;
+lead = i;
+if ((lead - end) < 75) continue;
+tracks.push({ id, begin, end, audio: true });
+begin = i;
+id++;
+}
+if (begin < lastLoc) {
+end = lead = lastLoc
+tracks.push({ id, begin, end, audio: true });
+}
+}
+cdr.setCdImage(view);
+cdr.setTOC(tracks);
+loadedGameId = sourceId ? `local:${sourceId}:${arrayBuffer.byteLength}` : `local-image:${arrayBuffer.byteLength}`;
+bootBiosIfReady();
+running = true;
+scheduleStateReady();
+}
+else {
+abort();
+}
+}
+const handleFileSelect = async (evt) => {
+evt.stopPropagation();
+evt.preventDefault();
+const fileList = evt.dataTransfer ? evt.dataTransfer.files : evt.target.files;
+const selectedFiles = [...fileList];
+const biosFile = selectedFiles.find(file => file.size === 0x80000);
+if (biosFile) {
+loadFileData(await biosFile.arrayBuffer(), biosFile.name);
+}
+const cueFile = selectedFiles.find(file => /\.cue$/i.test(file.name));
+if (cueFile) {
+try {
+await loadCueFromFiles(cueFile, selectedFiles);
+} catch (error) {
+abort('Unable to load local CUE:', error.message);
+}
+return;
+}
+for (const file of selectedFiles) {
+openFile(file);
+}
+}
+const handleDragOver = (evt) => {
+evt.stopPropagation();
+evt.preventDefault();
+}
+const init = () => {
+canvas = document.getElementById('display');
+document.addEventListener('dragover', handleDragOver, false);
+document.addEventListener('drop', handleFileSelect, false);
+const fileElem = document.getElementById('file');
+fileElem?.addEventListener('change', handleFileSelect, false);
+const loadBiosButton = document.getElementById('load-bios');
+loadBiosButton?.addEventListener('click', async () => {
+loadBiosButton.disabled = true;
+loadBiosButton.textContent = 'Loading...';
+try {
+await loadBiosFromURL(loadBiosButton.dataset.url);
+loadBiosButton.textContent = 'BIOS Loaded';
+}
+catch (error) {
+const message = `Unable to load BIOS: ${error.message}`;
+console.error(message, error);
+alert(message);
+loadBiosButton.disabled = false;
+loadBiosButton.textContent = 'Load BIOS';
+}
+});
+const loadOpenBiosButton = document.getElementById('load-openbios');
+loadOpenBiosButton?.addEventListener('click', async () => {
+loadOpenBiosButton.disabled = true;
+loadOpenBiosButton.textContent = 'Loading...';
+try {
+await loadBiosFromURL(loadOpenBiosButton.dataset.url);
+loadOpenBiosButton.textContent = 'OpenBIOS Loaded';
+}
+catch (error) {
+const message = `Unable to load OpenBIOS: ${error.message}`;
+console.error(message, error);
+alert(message);
+loadOpenBiosButton.disabled = false;
+loadOpenBiosButton.textContent = 'Load OpenBIOS';
+}
+});
+const loadGameButton = document.getElementById('load-game');
+const loadGameFromButton = async (button, url, loadedText = 'Game Loaded') => {
+const originalText = button.textContent;
+button.disabled = true;
+button.textContent = 'Loading...';
+try {
+await loadFileFromURL(url);
+button.textContent = loadedText;
+}
+catch (error) {
+const message = `Unable to load game: ${error.message}`;
+console.error(message, error);
+alert(message);
+button.disabled = false;
+button.textContent = originalText;
+}
+};
+loadGameButton?.addEventListener('click', () => loadGameFromButton(loadGameButton, loadGameButton.dataset.url));
+const cloudBase = window.location.origin;
+const gameListBase = window.location.origin;
+const gamesCsvUrl = `${gameListBase}/games.csv`;
+const biosCsvUrl = `${window.location.origin}/bios.csv`;
+const parseCsv = text => {
+const rows = [];
+let row = [];
+let field = '';
+let quoted = false;
+for (let index = 0; index < text.length; index += 1) {
+const character = text[index];
+if (character === '"') {
+if (quoted && text[index + 1] === '"') {
+field += '"';
+index += 1;
+} else {
+quoted = !quoted;
+}
+} else if (character === ',' && !quoted) {
+row.push(field);
+field = '';
+} else if ((character === '\n' || character === '\r') && !quoted) {
+if (character === '\r' && text[index + 1] === '\n') index += 1;
+row.push(field);
+if (row.some(value => value.trim())) rows.push(row);
+row = [];
+field = '';
+} else {
+field += character;
+}
+}
+if (field || row.length) {
+row.push(field);
+if (row.some(value => value.trim())) rows.push(row);
+}
+if (!rows.length) return [];
+const headers = rows.shift().map(value => value.trim().toLowerCase());
+const nameIndex = headers.indexOf('name');
+const urlIndex = headers.indexOf('url');
+if (nameIndex < 0 || urlIndex < 0) throw new Error('games.csv must have name and url columns');
+return rows.map(values => ({
+name: (values[nameIndex] || '').trim(),
+url: (values[urlIndex] || '').trim(),
+})).filter(game => game.name && game.url);
+};
+const loadBiosCatalog = async () => {
+const biosList = document.getElementById('bios-list');
+const biosListStatus = document.getElementById('bios-list-status');
+if (!biosList || biosList.dataset.loaded === 'true') return;
+biosListStatus && (biosListStatus.textContent = 'Loading BIOS files...');
+try {
+const response = await fetch(biosCsvUrl, { cache: 'no-store' });
+if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+const bios = parseCsv(await response.text());
+biosList.replaceChildren();
+for (const biosFile of bios) {
+const button = document.createElement('button');
+button.type = 'button';
+button.textContent = `Load ${biosFile.name}`;
+button.addEventListener('click', async () => {
+button.disabled = true;
+button.textContent = 'Loading...';
+try {
+await loadBiosFromURL(new URL(biosFile.url, `${window.location.origin}/`).href);
+button.textContent = `${biosFile.name} Loaded`;
+} catch (error) {
+console.error(`Unable to load ${biosFile.name}:`, error);
+alert(`Unable to load ${biosFile.name}: ${error.message}`);
+button.disabled = false;
+button.textContent = `Load ${biosFile.name}`;
+}
+});
+const item = document.createElement('div');
+item.append(button);
+biosList.append(item);
+}
+biosList.dataset.loaded = 'true';
+if (biosListStatus) {
+biosListStatus.textContent = '';
+biosListStatus.hidden = true;
+}
+} catch (error) {
+console.error('Unable to load bios.csv:', error);
+if (biosListStatus) {
+biosListStatus.hidden = false;
+biosListStatus.textContent = `Unable to load BIOS list: ${error.message}`;
+}
+}
+};
+const loadGameCatalog = async () => {
+const gameList = document.getElementById('game-list');
+const gameListStatus = document.getElementById('game-list-status');
+if (!gameList || gameList.dataset.loaded === 'true') return;
+gameListStatus && (gameListStatus.textContent = 'Loading games...');
+try {
+const response = await fetch(gamesCsvUrl, { cache: 'no-store' });
+if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+const games = parseCsv(await response.text());
+gameList.replaceChildren();
+for (const game of games) {
+const button = document.createElement('button');
+button.type = 'button';
+button.textContent = game.name;
+button.addEventListener('click', () => loadGameFromButton(button, new URL(game.url, `${gameListBase}/`).href, 'Game Loaded'));
+const item = document.createElement('div');
+item.append(button);
+gameList.append(item);
+}
+gameList.dataset.loaded = 'true';
+if (gameListStatus) {
+gameListStatus.textContent = '';
+gameListStatus.hidden = true;
+}
+} catch (error) {
+console.error('Unable to load games.csv:', error);
+if (gameListStatus) {
+gameListStatus.hidden = false;
+gameListStatus.textContent = `Unable to load games: ${error.message}`;
+}
+}
+};
+const cloudRequest = (path, options = {}) => fetch(`${cloudBase}${path}`, {
+cache: 'no-store',
+...options,
+}).then(async response => {
+if (!response.ok) {
+let message = response.statusText;
+try { message = (await response.text()) || message; } catch (_) { }
+throw new Error(`${response.status} ${message}`);
+}
+return response;
+});
+const cloudSaveStateButton = document.getElementById('cloud-save-state');
+cloudSaveStateButton?.addEventListener('click', async () => {
+try {
+if (!saveState()) throw new Error('Save state is unavailable');
+await cloudRequest('/api/state', {
+method: 'PUT',
+headers: { 'Content-Type': 'application/json' },
+body: localStorage.getItem(stateStorageKey),
+});
+updateStateButton(cloudSaveStateButton, 'Cloud Saved');
+}
+catch (error) {
+console.error('Unable to save state to cloud:', error);
+updateStateButton(cloudSaveStateButton, 'Cloud Save Failed');
+alert(`Unable to save state to cloud: ${error.message}`);
+}
+});
+const cloudLoadStateButton = document.getElementById('cloud-load-state');
+cloudLoadStateButton?.addEventListener('click', async () => {
+try {
+const encoded = await (await cloudRequest('/api/state')).text();
+loadState(encoded);
+localStorage.setItem(stateStorageKey, encoded);
+updateStateButton(cloudLoadStateButton, 'Cloud State Loaded');
+}
+catch (error) {
+console.error('Unable to load state from cloud:', error);
+updateStateButton(cloudLoadStateButton, 'Cloud Load Failed');
+alert(`Unable to load state from cloud: ${error.message}`);
+}
+});
+const cloudSaveMemoryCardButton = document.getElementById('cloud-save-memorycard');
+cloudSaveMemoryCardButton?.addEventListener('click', async () => {
+try {
+const card = joy.devices[0].getMemoryCard?.();
+if (!card) throw new Error('Memory card is unavailable');
+await cloudRequest('/api/memorycard', {
+method: 'PUT',
+headers: { 'Content-Type': 'application/octet-stream' },
+body: card,
+});
+updateStateButton(cloudSaveMemoryCardButton, 'Cloud Saved');
+}
+catch (error) {
+console.error('Unable to save memory card to cloud:', error);
+updateStateButton(cloudSaveMemoryCardButton, 'Cloud Save Failed');
+alert(`Unable to save memory card to cloud: ${error.message}`);
+}
+});
+const cloudLoadMemoryCardButton = document.getElementById('cloud-load-memorycard');
+cloudLoadMemoryCardButton?.addEventListener('click', async () => {
+try {
+const buffer = await (await cloudRequest('/api/memorycard')).arrayBuffer();
+if (buffer.byteLength !== 128 * 1024) throw new Error('Cloud memory card must be exactly 128 KB');
+joy.devices[0].setMemoryCard(new Uint8Array(buffer));
+writeStorageStream('card1', buffer);
+updateStateButton(cloudLoadMemoryCardButton, 'Cloud Card Loaded');
+}
+catch (error) {
+console.error('Unable to load memory card from cloud:', error);
+updateStateButton(cloudLoadMemoryCardButton, 'Cloud Load Failed');
+alert(`Unable to load memory card from cloud: ${error.message}`);
+}
+});
+const saveStateButton = document.getElementById('save-state');
+saveStateButton?.addEventListener('click', () => {
+try {
+updateStateButton(saveStateButton, saveState() ? 'State Saved' : 'Save Failed');
+}
+catch (error) {
+console.error('Unable to save state:', error);
+updateStateButton(saveStateButton, 'Save Failed');
+}
+});
+const loadStateButton = document.getElementById('load-state');
+loadStateButton?.addEventListener('click', () => {
+try {
+updateStateButton(loadStateButton, loadState() ? 'State Loaded' : 'No State');
+}
+catch (error) {
+console.error('Unable to load state:', error);
+const reason = error.message || 'Unknown error';
+const shortReason = reason.startsWith('Save state mismatch:')
+? 'State Mismatch'
+: reason.includes('incompatible emulator build')
+? 'Incompatible Build'
+: 'Load Failed';
+updateStateButton(loadStateButton, shortReason);
+alert(`Unable to load save state: ${reason}`);
+}
+});
+const downloadStateButton = document.getElementById('download-state');
+downloadStateButton?.addEventListener('click', () => {
+try {
+if (!saveState()) {
+updateStateButton(downloadStateButton, 'Save Failed');
+return;
+}
+downloadFile(localStorage.getItem(stateStorageKey), 'enge-save-state.json', 'application/json');
+updateStateButton(downloadStateButton, 'Downloaded');
+}
+catch (error) {
+console.error('Unable to download state:', error);
+updateStateButton(downloadStateButton, 'Download Failed');
+}
+});
+const downloadMemoryCardButton = document.getElementById('download-memorycard');
+downloadMemoryCardButton?.addEventListener('click', () => {
+try {
+const card = joy.devices[0].getMemoryCard?.();
+if (!card) throw new Error('Memory card is unavailable');
+downloadFile(card, 'enge-memory-card-1.mcr', 'application/octet-stream');
+updateStateButton(downloadMemoryCardButton, 'Downloaded');
+}
+catch (error) {
+console.error('Unable to download memory card:', error);
+updateStateButton(downloadMemoryCardButton, 'Download Failed');
+}
+});
+const uploadStateButton = document.getElementById('upload-state');
+const uploadStateInput = document.getElementById('upload-state-file');
+uploadStateButton?.addEventListener('click', () => uploadStateInput?.click());
+uploadStateInput?.addEventListener('change', () => {
+const file = uploadStateInput.files?.[0];
+if (!file) return;
+file.text().then(encoded => {
+loadState(encoded);
+localStorage.setItem(stateStorageKey, encoded);
+updateStateButton(uploadStateButton, 'State Loaded');
+}).catch(error => {
+console.error('Unable to upload state:', error);
+updateStateButton(uploadStateButton, error.message.includes('mismatch') ? 'State Mismatch' : 'Load Failed');
+alert(`Unable to upload save state: ${error.message}`);
+}).finally(() => { uploadStateInput.value = ''; });
+});
+const uploadMemoryCardButton = document.getElementById('upload-memorycard');
+const uploadMemoryCardInput = document.getElementById('upload-memorycard-file');
+uploadMemoryCardButton?.addEventListener('click', () => uploadMemoryCardInput?.click());
+uploadMemoryCardInput?.addEventListener('change', () => {
+const file = uploadMemoryCardInput.files?.[0];
+if (!file) return;
+file.arrayBuffer().then(buffer => {
+if (buffer.byteLength !== 128 * 1024) throw new Error('Memory card must be exactly 128 KB');
+joy.devices[0].setMemoryCard(new Uint8Array(buffer));
+writeStorageStream('card1', buffer);
+updateStateButton(uploadMemoryCardButton, 'Card Loaded');
+}).catch(error => {
+console.error('Unable to upload memory card:', error);
+updateStateButton(uploadMemoryCardButton, 'Load Failed');
+alert(`Unable to upload memory card: ${error.message}`);
+}).finally(() => { uploadMemoryCardInput.value = ''; });
+});
+const menuButton = document.getElementById('menu-button');
+const controlMenu = document.getElementById('control-menu');
+const closeMenuButton = document.getElementById('close-menu');
+const closeMenu = () => {
+if (!controlMenu) return;
+controlMenu.classList.remove('open');
+controlMenu.hidden = true;
+menuButton?.setAttribute('aria-expanded', 'false');
+};
+menuButton?.addEventListener('click', () => {
+if (!controlMenu) return;
+controlMenu.hidden = false;
+controlMenu.classList.add('open');
+menuButton.setAttribute('aria-expanded', 'true');
+});
+document.getElementById('reload-window')?.addEventListener('click', () => window.location.reload());
+const cloudButton = document.getElementById('cloud-button');
+const networkMenu = document.getElementById('network-menu');
+const closeNetworkMenuButton = document.getElementById('close-network-menu');
+const closeNetworkMenu = () => {
+if (!networkMenu) return;
+networkMenu.classList.remove('open');
+networkMenu.hidden = true;
+cloudButton?.setAttribute('aria-expanded', 'false');
+};
+cloudButton?.addEventListener('click', () => {
+if (!networkMenu) return;
+networkMenu.hidden = false;
+networkMenu.classList.add('open');
+cloudButton.setAttribute('aria-expanded', 'true');
+void loadBiosCatalog();
+void loadGameCatalog();
+});
+const overlayToggle = document.getElementById('overlay-toggle');
+overlayToggle?.addEventListener('click', () => {
+const hidden = document.body.classList.toggle('touch-overlay-hidden');
+overlayToggle.setAttribute('aria-pressed', String(hidden));
+overlayToggle.setAttribute('aria-label', hidden ? 'Show touch controls' : 'Hide touch controls');
+overlayToggle.title = hidden ? 'Show touch controls' : 'Hide touch controls';
+});
+closeMenuButton?.addEventListener('click', closeMenu);
+controlMenu?.addEventListener('click', event => {
+if (event.target === controlMenu) closeMenu();
+});
+closeNetworkMenuButton?.addEventListener('click', closeNetworkMenu);
+networkMenu?.addEventListener('click', event => {
+if (event.target === networkMenu) closeNetworkMenu();
+});
+const fullscreenButton = document.getElementById('fullscreen');
+const updateFullscreenLabel = () => {
+const nativeFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+const pseudoFullscreen = document.documentElement.classList.contains('enge-pseudo-fullscreen');
+const fullscreenActive = nativeFullscreen || pseudoFullscreen;
+fullscreenButton.textContent = fullscreenActive
+? 'Exit Fullscreen'
+: 'Fullscreen';
+fullscreenButton.setAttribute('aria-label', fullscreenActive ? 'Exit fullscreen' : 'Fullscreen');
+fullscreenButton.title = fullscreenActive ? 'Exit fullscreen' : 'Fullscreen';
+};
+fullscreenButton?.addEventListener('click', async () => {
+try {
+const nativeFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+const pseudoFullscreen = document.documentElement.classList.contains('enge-pseudo-fullscreen');
+if (nativeFullscreen) {
+const exit = document.exitFullscreen || document.webkitExitFullscreen;
+if (exit) await exit.call(document);
+}
+else if (pseudoFullscreen) {
+document.documentElement.classList.remove('enge-pseudo-fullscreen');
+}
+else {
+const request = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+if (request) {
+try {
+await request.call(document.documentElement);
+}
+catch (error) {
+document.documentElement.classList.add('enge-pseudo-fullscreen');
+}
+}
+else {
+document.documentElement.classList.add('enge-pseudo-fullscreen');
+}
+}
+updateFullscreenLabel();
+}
+catch (error) {
+console.error('Fullscreen request failed:', error);
+document.documentElement.classList.add('enge-pseudo-fullscreen');
+updateFullscreenLabel();
+}
+});
+document.addEventListener('fullscreenchange', updateFullscreenLabel);
+document.addEventListener('webkitfullscreenchange', updateFullscreenLabel);
+settings.updateQuality();
+const qualityElem = document.getElementById('quality');
+qualityElem?.addEventListener('click', event => {
+settings.updateQuality(true);
+event.preventDefault();
+});
+emulate(performance.now());
+canvas.addEventListener("dblclick", () => {
+running = !running;
+if (!running) {
+spu.silence();
+}
+});
+canvas.addEventListener("touchstart", () => {
+running = !running;
+if (!running) {
+spu.silence();
+}
+});
+window.addEventListener("keydown", e => {
+if (e.key === 'F12') return; // allow developer tools
+if (e.key === 'F11') return; // allow full screen
+if (e.key === 'F5') return; // allow page refresh
+}, false);
+window.addEventListener("keyup", e => {
+if (e.key === '1' && e.ctrlKey) renderer.setMode('disp');
+if (e.key === '2' && e.ctrlKey) renderer.setMode('draw');
+if (e.key === '3' && e.ctrlKey) renderer.setMode('clut8');
+if (e.key === '4' && e.ctrlKey) renderer.setMode('clut4');
+if (e.key === '0' && e.ctrlKey) renderer.setMode('page2');
+if (e.key === 'F12') return; // allow developer tools
+if (e.key === 'F11') return; // allow full screen
+if (e.key === 'F5') return; // allow page refresh
+}, false);
+readStorageStream('bios', data => {
+if (data) {
+loadedBiosId = bufferIdentity(data.buffer);
+let data32 = new Uint32Array(data.buffer);
+for (var i = 0; i < 0x80000; i += 4) {
+map[(0x01c00000 + i) >>> 2] = data32[i >>> 2];
+}
+let header = document.querySelector('span.nobios');
+if (header) {
+header.classList.remove('nobios');
+}
+bootBiosIfReady();
+}
+});
+readStorageStream('card1', data => {
+if (data) {
+joy.devices[0].setMemoryCard(data);
+}
+});
+readStorageStream('card2', data => {
+if (data) {
+joy.devices[1].setMemoryCard(data);
+}
+});
+// BIOS loading is explicit now. This avoids silently replacing a BIOS
+// selected by the user with the bundled OpenBIOS file.
+// loadBiosFromURL('openbios.bin').catch(error => {
+//   console.error('Unable to auto-load local OpenBIOS:', error);
+// });
+}
+return { init, PSX_SPEED, abort, context, loadFileFromURL, loadCueFromURL, loadBiosFromURL };
+})
+mdlr('enge:psx:serial-device', m => {
+const { encode } = m.require('base64');
+const memory = new Uint8Array(128 * 1024);
+const setResponseBlock = (before, after) => {
+response.push(...before);
+for (let i = 0; i < 128; ++i) {
+response.push(-1);
+}
+response.push(...after);
+}
+let id = 0;
+let mode = 0;
+let response = [];
+let received = [];
+let checkSum = 0;
+let addr = 0;
+return {
+lo: 0xff,
+hi: 0xff,
+setId: function (deviceId) {
+id = deviceId;
+return this;
+},
+setMemoryCard: buffer => {
+for (let i = 0; i < buffer.length; ++i) {
+memory[i] = buffer[i];
+}
+},
+// UI-only snapshot accessor for save/download/upload features. It does not
+// alter the serial memory-card protocol or card initialization behavior.
+getMemoryCard: () => new Uint8Array(memory),
+init: () => {
+mode = 0x00;
+response = [];
+received = [];
+},
+buildMemCardResponse: byte => {
+mode = byte;
+switch (byte) {
+case 0x52:
+setResponseBlock([0x00, 0x5a, 0x5d, 0x00, -1, 0x5c, -1, -1, -1], [-1, 0x47]);
+break;
+case 0x57:
+setResponseBlock([0x00, 0x5a, 0x5d, -1, -1], [-1, 0x5c, 0x5d, 0x47]);
+break;
+default:
+response.push(0xff);
+break;
+}
+},
+buildControllerResponse: function (byte) {
+mode = byte;
+switch (byte) {
+case 0x42:
+response.push(0x41, 0x5a, this.lo, this.hi/*, 0x00, 0x00, 0x00, 0x00*/);
+break;
+case 0x43:  // todo: Exit/Enter configuration
+response.push(0xff);
+break;
+default:
+return abort(hex(byte, 2));
+}
+},
+sendReceiveByte:  byte => {
+if (response.length <= 0) console.log(`#${id}: reading unexpected in mode $${hex(mode, 2)}`);
+let data = response.shift() || 0;
+if (mode === 0x52) {
+if (data === -1) {
+const dataIndex = received.length;
+switch (true) {
+case (dataIndex === 4):
+data = received[3];
+break;
+case (dataIndex === 6):
+data = 0x5d;
+break;
+case (dataIndex === 7):
+data = received[3];
+checkSum = data;
+break;
+case (dataIndex === 8):
+addr = (received[3] << 8) | received[4];
+data = received[4];
+checkSum ^= data;
+break;
+case (dataIndex >= 9 && dataIndex < 137):
+const offset = (addr * 128) + dataIndex - 9;
+data = memory[offset];
+checkSum ^= data;
+break;
+case (dataIndex === 137):
+data = checkSum & 0xff;
+break;
+}
+}
+}
+if (mode === 0x57) {
+if (data === -1) {
+const dataIndex = received.length;
+switch (true) {
+case (dataIndex === 3):
+data = received[3];
+checkSum = data;
+break;
+case (dataIndex === 4):
+data = received[3];
+checkSum ^= data;
+addr = (data << 8) | byte;
+break;
+case (dataIndex >= 5 && dataIndex < 133):
+const offset = (addr * 128) + dataIndex - 5;
+data = memory[offset - 1];
+memory[offset] = byte;
+checkSum ^= byte;
+break;
+case (dataIndex === 133):
+// todo: check checkSum
+data = memory[132];
+localStorage.setItem(`card${id + 1}`, encode(memory));
+break;
+}
+}
+}
+received.push(byte);
+return data & 0xff;
+},
+hasMore: () => response.length > 0
+}
+})
+mdlr('enge:psx:dma', m => {
+const dmaDebug = new URLSearchParams(window.location.search).has('debug-cd');
+const dmaLog = (...args) => {
+if (dmaDebug) console.debug('[DMA]', ...args);
+};
+let dpcr;
+let dicr;
+let r1080, r1084, r1088, r1080n;
+let r1090, r1094, r1098, r1090n;
+let r10a0, r10a4, r10a8, r10a0n;
+let r10b0, r10b4, r10b8, r10b0n;
+let r10c0, r10c4, r10c8, r10c0n;
+let r10e0, r10e4, r10e8, r10e0n;
+const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
+const completeIrq = channel => {
+const enable = 1 << (16 + channel);
+const flag = (1 << 31) | (enable << 8);
+if (dicr & enable) {
+cpu.istat |= 0x0008;
+dicr |= flag;
+}
+}
+const rd32r10f4 = () => {
+// faulty needs more
+//IF b15=1 OR (b23=1 AND (b16-22 AND b24-30)>0) THEN b31=1 ELSE b31=0
+return dicr & 0x7fffffff;
+}
+const wr08r10f6 = data => {
+data = (data << 16) | (dicr & 0xffff);
+dicr = (dicr & (~((data & 0x7f000000) | 0x00ffffff))) | (data & 0x00ffffff);
+};
+const wr32r10f4 = data => {
+dicr = (dicr & (~((data & 0x7f000000) | 0x00ffffff))) | (data & 0x00ffffff);
+};
+const wr32r1088 = ctrl => {
+r1088 = ctrl;
+if (dpcr & 0x00000008) {
+let transferSize = 10;
+switch (ctrl) {
+case 0x00000000: break;
+case 0x01000201: transferSize = mdc.dmaTransferMode0201(r1080, r1084);
+r1080n = r1080 + (transferSize << 2);
+break;
+default: abort(hex(ctrl));
+}
+setEvent(eventDMA0, ((transferSize * 0x110) / 0x100) >>> 0);
+}
+else {
+r1088 &= 0xfeffffff;
+}
+};
+const wr32r1098 = ctrl => {
+r1098 = ctrl;
+if (dpcr & 0x00000080) {
+let transferSize = 10;
+switch (ctrl) {
+case 0x00000000: break;
+case 0x01000200: transferSize = mdc.dmaTransferMode0200(r1090, r1094);
+r1090n = r1090 + (transferSize << 2);
+break;
+default: abort(hex(ctrl));
+}
+}
+else {
+r1098 &= 0xfeffffff;
+}
+};
+const wr32r10a8 = ctrl => {
+r10a8 = ctrl;
+if (dpcr & 0x00000800) {
+let transferSize = 10;
+switch (ctrl) {
+case 0x00000000: break;
+case 0x00000001: break;
+case 0x00000401: break;
+case 0x00000201: break;
+case 0x01000200: transferSize = gpu.dmaTransferMode0200(r10a0, r10a4) || 10;
+r10a0n = r10a0 + (transferSize << 2);
+break;
+case 0x01000201: transferSize = gpu.dmaTransferMode0201(r10a0, r10a4) || 10;
+r10a0n = r10a0 + (transferSize << 2);
+break;
+case 0x01000401: transferSize = gpu.dmaTransferMode0401(r10a0, r10a4) || 10;
+r10a0n = 0x00ffffff;
+break;
+default: abort(hex(ctrl));
+}
+setEvent(eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
+}
+else {
+r10a8 &= 0xfeffffff;
+}
+};
+const wr32r10b8 = ctrl => {
+r10b8 = ctrl;
+if (dpcr & 0x00008000) {
+let transferSize = 10;
+dmaLog('channel 3 start', {
+ctrl: `0x${(ctrl >>> 0).toString(16)}`,
+addr: `0x${(r10b0 >>> 0).toString(16)}`,
+block: `0x${(r10b4 >>> 0).toString(16)}`,
+dicr: `0x${(dicr >>> 0).toString(16)}`
+});
+switch (ctrl) {
+case 0x00000000: break;
+case 0x11000000: transferSize = cdr.dmaTransferMode0000(r10b0, r10b4);
+r10b0n = r10b0 + (transferSize << 2);
+break;
+case 0x11400100: transferSize = cdr.dmaTransferMode0000(r10b0, r10b4);
+r10b0n = r10b0 + (transferSize << 2);
+break;
+default: abort(hex(ctrl));
+}
+setEvent(eventDMA3, ((transferSize * (cdr.mode & 0x80) ? 0x1400 : 0x2800) / 0x100) >>> 0);
+}
+else {
+r10b8 &= 0xfeffffff;
+}
+};
+const wr32r10c8 = ctrl => {
+r10c8 = ctrl;
+if (dpcr & 0x00080000) {
+let transferSize = 10;
+switch (ctrl) {
+case 0x00000201: break;
+case 0x01000000:
+case 0x01000200: transferSize = spu.dmaTransferMode0200(r10c0, r10c4);
+r10c0n = r10c0 + (transferSize << 2);
+break;
+case 0x01000001:
+case 0x01000201: transferSize = spu.dmaTransferMode0201(r10c0, r10c4);
+r10c0n = r10c0 + (transferSize << 2);
+break;
+default: abort(hex(ctrl));
+}
+setEvent(eventDMA4, ((transferSize * 0x420) / 0x100) >>> 0);
+}
+else {
+r10c8 &= 0xfeffffff;
+}
+};
+const wr32r10e8 = ctrl => {
+r10e8 = (ctrl & 0x50000002) | 0x2;
+if (dpcr & 0x08000000) {
+let transferSize = 10;
+switch (r10e8) {
+case 0x00000002: r10e0n = r10e0 = map[(r10e0 & 0x01ffffff) >> 2];
+break;
+case 0x10000002:
+case 0x50000002: transferSize = gpu.dmaLinkedListMode0002(r10e0, r10e4);
+r10e0n = 0x00ffffff; // todo: update with actual value
+break;
+default: abort(hex(ctrl) + ' ' + hex(r10e8));
+}
+setEvent(eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
+}
+else {
+r10e8 &= 0xfeffffff;
+}
+};
+const dma = {
+// called mby mdec
+completeDMA1: (self, clock) => {
+completeIrq(1);
+r1098 &= 0xfeffffff;
+r1090 = r1090n;
+unsetEvent(self);
+},
+rd08: addr => {
+switch (addr & 0x3fff) {
+case 0x10f6: return (dicr >> 16) & 0xff;
+default: return dma.rd32(addr);
+}
+},
+rd16: addr => dma.rd32(addr),
+rd32: addr => $rd32.get(addr & 0x3fff)(),
+wr08: (addr, data) => {
+switch (addr & 0x3fff) {
+case 0x10f6: wr08r10f6(data); break;
+default: return dma.wr32(addr, data);
+}
+},
+wr16: (addr, data) => dma.wr32(addr, data),
+wr32: (addr, data) => $wr32.get(addr & 0x3fff)(data),
+};
+const $rd32 = new Map([
+[0x1080, _ => r1080 >> 0],
+[0x1088, _ => r1088 >> 0],
+[0x1090, _ => r1090 >> 0],
+[0x1098, _ => r1098 >> 0],
+[0x10a0, _ => r10a0 >> 0],
+[0x10a8, _ => r10a8 >> 0],
+[0x10b0, _ => r10b0 >> 0],
+[0x10b8, _ => r10b8 >> 0],
+[0x10c0, _ => r10c0 >> 0],
+[0x10c8, _ => r10c8 >> 0],
+[0x10e0, _ => r10e0 >> 0],
+[0x10e8, _ => r10e8 >> 0],
+[0x10f0, _ => dpcr >> 0],
+[0x10f4, _ => rd32r10f4() >> 0],
+]);
+const $wr32 = new Map([
+[0x1080, _ => r1080 = _ >>> 0],
+[0x1084, _ => r1084 = _ >>> 0],
+[0x1088, _ => wr32r1088(_)],
+[0x1090, _ => r1090 = _ >>> 0],
+[0x1094, _ => r1094 = _ >>> 0],
+[0x1098, _ => wr32r1098(_)],
+[0x10a0, _ => r10a0 = _ >>> 0],
+[0x10a4, _ => r10a4 = _ >>> 0],
+[0x10a8, _ => wr32r10a8(_)],
+[0x10b0, _ => r10b0 = _ >>> 0],
+[0x10b4, _ => r10b4 = _ >>> 0],
+[0x10b8, _ => wr32r10b8(_)],
+[0x10c0, _ => r10c0 = _ >>> 0],
+[0x10c4, _ => r10c4 = _ >>> 0],
+[0x10c8, _ => wr32r10c8(_)],
+[0x10e0, _ => r10e0 = _ >>> 0],
+[0x10e4, _ => r10e4 = _ >>> 0],
+[0x10e8, _ => wr32r10e8(_)],
+[0x10f0, _ => dpcr = _ >>> 0],
+[0x10f4, _ => wr32r10f4(_)],
+]);
+const eventDMA0 = addEvent(0, (self) => {
+completeIrq(0);
+r1088 &= 0xfeffffff;
+r1080 = r1080n;
+unsetEvent(self);
+});
+const eventDMA2 = addEvent(0, (self) => {
+completeIrq(2);
+r10a8 &= 0xfeffffff;
+r10a0 = r10a0n;
+unsetEvent(self);
+});
+const eventDMA3 = addEvent(0, (self) => {
+completeIrq(3);
+dmaLog('channel 3 complete', {
+addr: `0x${(r10b0n >>> 0).toString(16)}`,
+control: `0x${(r10b8 >>> 0).toString(16)}`,
+dicr: `0x${(dicr >>> 0).toString(16)}`,
+istat: `0x${(cpu.istat >>> 0).toString(16)}`,
+imask: `0x${(cpu.imask >>> 0).toString(16)}`,
+sr: `0x${(cpu.sr >>> 0).toString(16)}`
+});
+r10b8 &= 0xfeffffff;
+r10b0 = r10b0n;
+unsetEvent(self);
+});
+const eventDMA4 = addEvent(0, (self) => {
+completeIrq(4);
+r10c8 &= 0xfeffffff;
+r10c0 = r10c0n;
+unsetEvent(self);
+});
+const eventDMA6 = addEvent(0, (self) => {
+completeIrq(6);
+r10e8 &= 0xfeffffff;
+r10e0 = r10e0n;
+unsetEvent(self);
+});
+return { dma };
+})
+mdlr('enge:psx:rtc', m => {
+const r11x0 = new Float64Array(4);
+const r11x4 = new Uint32Array(4);
+const r11x8 = new Uint32Array(4);
+const limitReached = (id, increment, counter) => {
+const limitBit = (r11x4[id] & 0x008) ? 11 : 12;
+switch (limitBit) {
+case 11: var limit = +(r11x8[id] + 1.0);
+break;
+case 12: var limit = +(+0xffff + 1.0);
+break;
+}
+let value = r11x0[id] + increment;
+if (value >= limit) {
+counter?.onLimitReached(counter);
+r11x4[id] |= (1 << limitBit);
+return value %= limit;
+}
+return value;
+}
+const rc0 = {
+freerun: false,
+getValue: () => {
+const f = rc0.freerun;
+let cyclesToPeek = +0;
+switch (r11x4[0] & 0x007) {
+case 0x000: // no irq, clock source, target 0xffff+1
+cyclesToPeek = +(psx.clock - dot.start);
+break;
+case 0x001: // no irq, clock source, target 0xffff+1, pause in hblank
+switch (dot.whereInScanLine()) {
+case -1: cyclesToPeek = +0; break;
+case 0: cyclesToPeek = +(psx.clock - dot.dispHStart); break;
+case 1: cyclesToPeek = +(dot.dispHStop - dot.dispHStart); break;
+}
+break;
+case 0x003: // no irq, clock source, target 0xffff+1, reset counter at hblank
+switch (dot.whereInScanLine()) {
+case -1: cyclesToPeek = +(psx.clock - dot.start); break;
+case 0: cyclesToPeek = +(psx.clock - dot.start); break;
+case 1: cyclesToPeek = +(psx.clock - dot.dispHStop); break;
+}
+break;
+case 0x005: // no irq, clock source, target 0xffff+1, reset counter at hblank, pause outside hblank
+switch (dot.whereInScanLine()) {
+case -1: cyclesToPeek = +(psx.clock - dot.start); break;
+case 0: cyclesToPeek = +(dot.dispHStart - dot.start); break;
+case 1: cyclesToPeek = +(psx.clock - dot.dispHStop); break;
+}
+break;
+case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
+switch (dot.whereInScanLine()) {
+case -1: cyclesToPeek = !f ? +0 : +(psx.clock - dot.start); break;
+case 0: cyclesToPeek = !f ? +0 : +(psx.clock - dot.start); break;
+case 1: cyclesToPeek = !f ? +(psx.clock - dot.dispHStop) : +(psx.clock - dot.start); break;
+}
+break;
+}
+if (r11x4[0] & 0x100) {
+return limitReached(0, +gpu.cyclesToDotClock(cyclesToPeek));
+}
+else {
+return limitReached(0, +cyclesToPeek);
+}
+},
+getTarget: () => {
+return r11x8[0];
+},
+getMode: () => {
+let result = r11x4[0];
+r11x4[0] &= 0xe7ff;
+return result;
+},
+setMode: (bits32) => {
+r11x4[0] = (bits32 & 0x3ff) | (1 << 10);
+let cyclesToSkip = +0;
+switch (bits32 & 0x007) {
+case 0x000: // no irq, clock source, target 0xffff+1
+cyclesToSkip = +(psx.clock - dot.start);
+break;
+case 0x001: // no irq, clock source, target 0xffff+1, pause in hblank
+switch (dot.whereInScanLine()) {
+case -1: cyclesToSkip = +0; break;
+case 0: cyclesToSkip = +(psx.clock - dot.dispHStart); break;
+case 1: cyclesToSkip = +0; break;
+}
+break;
+case 0x003: // no irq, clock source, target 0xffff+1, reset counter at hblank
+case 0x005: // no irq, clock source, target 0xffff+1, reset counter at hblank, pause outside hblank
+switch (dot.whereInScanLine()) {
+case -1: cyclesToSkip = +0; break;
+case 0: cyclesToSkip = +0; break;
+case 1: cyclesToSkip = +(psx.clock - dot.dispHStop); break;
+}
+break;
+case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
+rc0.freerun = false;
+cyclesToSkip = +0;
+break;
+}
+if (r11x4[0] & 0x100) {
+r11x0[0] = +0, limitReached(0, -gpu.cyclesToDotClock(cyclesToSkip));
+}
+else {
+r11x0[0] = +0, limitReached(0, -cyclesToSkip);
+}
+},
+setTarget: (bits32) => {
+if (!bits32) bits32 = 0xffff;
+r11x8[0] = bits32;
+},
+setValue: (bits32) => {
+r11x0[0] = bits32;
+},
+onLimitReached: () => {
+if (r11x4[0] & 0x0030) {
+cpu.istat |= 0x0010;
+}
+},
+onScanLine: () => {
+const f = rc0.freerun;
+let cyclesToAdd = +0;
+switch (r11x4[0] & 0x007) {
+case 0x000: // no irq, clock source, target 0xffff+1
+cyclesToAdd = +(dot.stop - dot.start);
+break;
+case 0x001: // no irq, clock source, target 0xffff+1, pause in hblank
+cyclesToAdd = +(dot.dispHStop - dot.dispHStart);
+break;
+case 0x003: // no irq, clock source, target 0xffff+1, reset counter at hblank
+case 0x005: // no irq, clock source, target 0xffff+1, reset counter at hblank, pause outside hblank
+switch (dot.whereInScanLine()) {
+case -1: cyclesToAdd = +0; break;
+case 0: cyclesToAdd = +0; break;
+case 1: cyclesToAdd = - +(psx.clock - dot.dispHStop); break;
+}
+break;
+case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
+cyclesToAdd = !f ? +(dot.stop - dot.dispHStop) : +(dot.stop - dot.start);
+rc0.freerun = true;
+break;
+}
+if (r11x4[0] & 0x100) {
+r11x0[0] = limitReached(0, gpu.cyclesToDotClock(cyclesToAdd), rc0);
+}
+else {
+r11x0[0] = limitReached(0, cyclesToAdd, rc0);
+}
+}
+}
+const rc1 = {
+freerun: false,
+getValue: () => {
+// const factor = dot.isInVBlank() ? 0.0 : 1.0;
+switch (r11x4[1] & 0x107) {
+case 0x000: // no irq, clock source, target 0xffff+1
+return limitReached(1, +(psx.clock - dot.start));
+case 0x001: // no irq, clock source, target 0xffff+1, pause in vblank
+return limitReached(1, dot.isInVBlank() ? +0 : +psx.eventCycles(dot.event));
+case 0x003: // no irq, clock source, target 0xffff+1, reset counter at vblank
+return limitReached(1, +psx.eventCycles(dot.event));
+case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
+return limitReached(1, dot.isInVBlank() ? +0 : +0);
+case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
+if (!rc1.freerun) return limitReached(1, +0);
+return limitReached(1, +psx.eventCycles(dot.event));
+case 0x100: // no irq, h-blank source, target 0xffff+1
+case 0x101: // no irq, h-blank source, target 0xffff+1, pause in vblank
+case 0x103: // no irq, h-blank source, target 0xffff+1, reset counter at vblank
+case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
+return limitReached(1, +0);
+case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
+if (!rc1.freerun) return limitReached(1, +0);
+return limitReached(1, +0);
+}
+},
+getTarget: () => {
+return r11x8[1];
+},
+getMode: () => {
+let result = r11x4[1];
+r11x4[1] &= 0xe7ff;
+return result;
+},
+setMode: (bits32) => {
+r11x4[1] = ((bits32 & 0x13f) | (1 << 10)) >>> 0;
+// todo: implement synchronisation
+switch (r11x4[1] & 0x107) {
+case 0x000: // no irq, clock source, target 0xffff+1
+case 0x001: // no irq, clock source, target 0xffff+1, pause in vblank
+case 0x003: // no irq, clock source, target 0xffff+1, reset counter at vblank
+case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
+r11x0[1] = - +(psx.clock - dot.start);
+r11x0[1] = limitReached(1, +0);
+break;
+case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
+rc1.freerun = false;
+r11x0[1] = +0;
+break;
+case 0x100: // no irq, h-blank source, target 0xffff+1
+case 0x101: // no irq, h-blank source, target 0xffff+1, pause in vblank
+case 0x103: // no irq, h-blank source, target 0xffff+1, reset counter at vblank
+case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
+r11x0[1] = +0;
+break;
+case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
+rc1.freerun = false;
+r11x0[1] = +0;
+break;
+}
+},
+setTarget: (bits32) => {
+if (!bits32) bits32 = 0xffff;
+r11x8[1] = bits32 >>> 0;
+},
+setValue: (bits32) => {
+r11x0[1] = +bits32;
+},
+onLimitReached: () => {
+if (r11x4[1] & 0x0030) {
+cpu.istat |= 0x0020;
+}
+},
+onScanLine: (isVBlankStart) => {
+const cyclesPerScanLine = +(dot.stop - dot.start);
+switch (r11x4[1] & 0x107) {
+case 0x000: // no irq, clock source, target 0xffff+1
+r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
+break;
+case 0x001: // no irq, clock source, target 0xffff+1, pause in vblank
+r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : cyclesPerScanLine, rc1);
+break;
+case 0x003: // no irq, clock source, target 0xffff+1, reset counter at vblank
+r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
+if (isVBlankStart) r11x0[1] = 0;
+break;
+case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
+r11x0[1] = limitReached(1, dot.isInVBlank() ? cyclesPerScanLine : +0, rc1);
+if (dot.isInVBlank()) r11x0[1] = 0;
+break;
+case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
+if (rc1.freerun) {
+r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
+}
+else {
+r11x0[1] = limitReached(1, +0, rc1);
+if (isVBlankStart) {
+rc1.freerun = true;
+}
+}
+break;
+case 0x100: // no irq, h-blank source, target 0xffff+1
+r11x0[1] = limitReached(1, +1, rc1);
+break;
+case 0x101: // no irq, h-blank source, target 0xffff+1, pause in vblank
+r11x0[1] = limitReached(1, dot.isInVBlank() ? + 0 : +1, rc1);
+break;
+case 0x103: // no irq, h-blank source, target 0xffff+1, reset counter at vblank
+r11x0[1] = limitReached(1, +1, rc1);
+if (isVBlankStart) r11x0[1] = 0;
+break;
+case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
+r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : +1, rc1);
+if (isVBlankStart) r11x0[1] = 0;
+break;
+case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
+if (rc1.freerun) {
+r11x0[1] = limitReached(1, +1, rc1);
+}
+else {
+r11x0[1] = limitReached(1, +0, rc1);
+if (isVBlankStart) {
+rc1.freerun = true;
+}
+}
+break;
+}
+}
+}
+const rc2 = {
+getValue: () => {
+switch (r11x4[2] & 0x207) {
+case 0x000: // no irq, clock source, target 0xffff+1
+case 0x003: // no irq, clock source, target 0xffff+1, free run
+case 0x005: // no irq, clock source, target 0xffff+1, free run
+return limitReached(2, +(psx.clock - dot.start));
+case 0x001: // no irq, clock source, target 0xffff+1, stop counter
+case 0x007: // no irq, clock source, target 0xffff+1, stop counter
+return limitReached(2, +0);
+case 0x008: // no irq, clock source, reset @ target+1
+return limitReached(2, +(psx.clock - dot.start));
+case 0x200: // no irq, clock/8 source, target 0xffff+1
+return limitReached(2, 0.125 * +(psx.clock - dot.start));
+}
+},
+getTarget: () => {
+return r11x8[2];
+},
+getMode: () => {
+let result = r11x4[2];
+r11x4[2] &= 0xe7ff;
+return result;
+},
+setMode: (bits32) => {
+r11x4[2] = (bits32 & 0x3ff) | (1 << 10);
+switch (r11x4[2] & 0x207) {
+case 0x000: // no irq, clock source, reset @ 0xffff+1
+case 0x003: // no irq, clock source, reset @ 0xffff+1, free run
+case 0x005: // no irq, clock source, reset @ 0xffff+1, free run
+r11x0[2] = - +(psx.clock - dot.start);
+r11x0[2] = limitReached(2, +0);
+break;
+case 0x001: // no irq, clock source, reset @ 0xffff+1, stop counter
+case 0x007: // no irq, clock source, reset @ 0xffff+1, stop counter
+r11x0[2] = +0;
+break;
+case 0x008: // no irq, clock source, reset @ target+1
+r11x0[2] = -1.000 * psx.eventCycles(dot.event);
+break;
+case 0x200: // no irq, clock/8 source, reset @ 0xffff+1
+r11x0[2] = -0.125 * psx.eventCycles(dot.event);
+break;
+}
+},
+setTarget: (bits32) => {
+// todo: check setting target after setMode
+if (!bits32) bits32 = 0xffff;
+r11x8[2] = bits32 & 0xffff;
+},
+setValue: (bits32) => {
+r11x0[2] = bits32;
+},
+onLimitReached: () => {
+if (r11x4[2] & 0x0030) {
+cpu.istat |= 0x0040;
+}
+},
+onScanLine: () => {
+switch (r11x4[2] & 0x207) {
+case 0x000: // no irq, clock source, target 0xffff+1
+case 0x003: // no irq, clock source, target 0xffff+1, free run
+case 0x005: // no irq, clock source, target 0xffff+1, free run
+r11x0[2] = limitReached(2, +(dot.stop - dot.start), rc2);
+break;
+case 0x001: // no irq, clock source, target 0xffff+1, stop counter
+case 0x007: // no irq, clock source, target 0xffff+1, stop counter
+r11x0[2] = limitReached(2, +0, rc2);
+break;
+case 0x200: // no irq, clock/8 source, reset @ 0xffff+1
+r11x0[2] = limitReached(2, 0.125 * +(dot.stop - dot.start), rc2);
+break;
+}
+}
+}
+const MAX_SAFE_INTEGER = +Number.MAX_SAFE_INTEGER;
+const dot = {
+event: null,
+remainder: 0.0,
+scanLine: 0,
+vblank: false,
+dispHStart: MAX_SAFE_INTEGER,
+dispHStop: MAX_SAFE_INTEGER,
+start: MAX_SAFE_INTEGER,
+stop: MAX_SAFE_INTEGER,
+upateToLastGpuState: (self) => {
+const videoCycles = ((gpu.status >> 20) & 1) ? 3406.0 : 3413.0;
+const cpuCycles = (videoCycles * 7.0 / 11.0) * (PSX_SPEED / (768 * 44100));
+dot.start = +self.clock;
+dot.stop = +cpuCycles + dot.start;
+dot.dispHStart = dot.start + (+gpu.dispL * 7.0 / 11.0);
+dot.dispHStop = dot.start + (+gpu.dispR * 7.0 / 11.0);
+},
+complete: (self) => {
+dot.upateToLastGpuState(self);
+const linesPerFrame = ((gpu.status >> 20) & 1) ? 314 : 263;
+dot.scanLine = (dot.scanLine + 1) % linesPerFrame;
+dot.vblank = (dot.scanLine < gpu.dispT) || (dot.scanLine >= gpu.dispB);
+rc0.onScanLine();
+rc1.onScanLine(dot.scanLine === gpu.dispB);
+rc2.onScanLine();
+gpu.onScanLine(dot.scanLine);
+let scanlineCycles = dot.stop - dot.start;
+psx.updateEvent(self, +scanlineCycles);
+},
+isInVBlank: () => {
+return dot.vblank;
+},
+whereInScanLine: () => {
+if (psx.clock < dot.dispHStart) {
+return -1 >> 0;
+}
+if (psx.clock < dot.dispHStop) {
+return 0 >> 0;
+}
+return 1 >> 0;
+}
+}
+const rtc = {
+rd32: (reg) => {
+switch (true) {
+case (reg === 0x1100): return rc0.getValue();
+case (reg === 0x1104): return rc0.getMode();
+case (reg === 0x1108): return rc0.getTarget();
+case (reg === 0x1110): return rc1.getValue();
+case (reg === 0x1114): return rc1.getMode();
+case (reg === 0x1118): return rc1.getTarget();
+case (reg === 0x1120): return rc2.getValue();
+case (reg === 0x1124): return rc2.getMode();
+case (reg === 0x1128): return rc2.getTarget();
+}
+},
+wr32: (reg, data) => {
+switch (true) {
+case (reg === 0x1100): return rc0.setValue(data);
+case (reg === 0x1104): return rc0.setMode(data);
+case (reg === 0x1108): return rc0.setTarget(data);
+case (reg === 0x1110): return rc1.setValue(data);
+case (reg === 0x1114): return rc1.setMode(data);
+case (reg === 0x1118): return rc1.setTarget(data);
+case (reg === 0x1120): return rc2.setValue(data);
+case (reg === 0x1124): return rc2.setMode(data);
+case (reg === 0x1128): return rc2.setTarget(data);
+}
+}
+};
+dot.event = psx.addEvent(0, dot.complete.bind(dot));
+r11x0.fill(0);
+r11x4.fill(0);
+r11x8.fill(0xffff);
+return { rtc };
+})
+mdlr('enge:psx:spu-reverb', m => {
+let vLOUT;
+let vROUT;
+let mBASE;
+let dAPF1;
+let dAPF2;
+let vIIR;
+let vCOMB1;
+let vCOMB2;
+let vCOMB3;
+let vCOMB4;
+let vWALL;
+let vAPF1;
+let vAPF2;
+let mLSAME;
+let mRSAME;
+let mLCOMB1;
+let mRCOMB1;
+let mLCOMB2;
+let mRCOMB2;
+let dLSAME;
+let dRSAME;
+let mLDIFF;
+let mRDIFF;
+let mLCOMB3;
+let mRCOMB3;
+let mLCOMB4;
+let mRCOMB4;
+let dLDIFF;
+let dRDIFF;
+let mLAPF1;
+let mRAPF1;
+let mLAPF2;
+let mRAPF2;
+let vLIN;
+let vRIN;
+let memory;
+let bufferAddress;
+let left;
+let right;
+const s16 = d => Math.abs(d << 16) >> 16;
+const u16d8 = d => (d << 16) >>> 13;
+const writeHandlers = new Map([
+[0x1d84, data => vLOUT = s16(data)],
+[0x1d86, data => vROUT = s16(data)],
+[0x1da2, data => bufferAddress = mBASE = u16d8(data)],
+[0x1dc0, data => dAPF1 = u16d8(data)],
+[0x1dc2, data => dAPF2 = u16d8(data)],
+[0x1dc4, data => vIIR = s16(data)],
+[0x1dc6, data => vCOMB1 = s16(data)],
+[0x1dc8, data => vCOMB2 = s16(data)],
+[0x1dca, data => vCOMB3 = s16(data)],
+[0x1dcc, data => vCOMB4 = s16(data)],
+[0x1dce, data => vWALL = s16(data)],
+[0x1dd0, data => vAPF1 = s16(data)],
+[0x1dd2, data => vAPF2 = s16(data)],
+[0x1dd4, data => mLSAME = u16d8(data)],
+[0x1dd6, data => mRSAME = u16d8(data)],
+[0x1dd8, data => mLCOMB1 = u16d8(data)],
+[0x1dda, data => mRCOMB1 = u16d8(data)],
+[0x1ddc, data => mLCOMB2 = u16d8(data)],
+[0x1dde, data => mRCOMB2 = u16d8(data)],
+[0x1de0, data => dLSAME = u16d8(data)],
+[0x1de2, data => dRSAME = u16d8(data)],
+[0x1de4, data => mLDIFF = u16d8(data)],
+[0x1de6, data => mRDIFF = u16d8(data)],
+[0x1de8, data => mLCOMB3 = u16d8(data)],
+[0x1dea, data => mRCOMB3 = u16d8(data)],
+[0x1dec, data => mLCOMB4 = u16d8(data)],
+[0x1dee, data => mRCOMB4 = u16d8(data)],
+[0x1df0, data => dLDIFF = u16d8(data)],
+[0x1df2, data => dRDIFF = u16d8(data)],
+[0x1df4, data => mLAPF1 = u16d8(data)],
+[0x1df6, data => mRAPF1 = u16d8(data)],
+[0x1df8, data => mLAPF2 = u16d8(data)],
+[0x1dfa, data => mRAPF2 = u16d8(data)],
+[0x1dfc, data => vLIN = s16(data)],
+[0x1dfe, data => vRIN = s16(data)],
+]);
+const loc = addr => mBASE + (bufferAddress + addr) % (0x80000 - mBASE);
+const saturate = data => data < -32768 ? -32768 : data > 32767 ? 32767 : data;
+const rd16 = addr => memory.getInt16(loc(addr), true);
+const wr16 = (addr, data) => memory.setInt16(loc(addr), saturate(data), true);
+const norm = data => (data / 0x8000) >> 0;
+const reverbLeft = sample => {
+// ___Input from Mixer(Input volume multiplied with incoming data)_____________
+// Lin = vLIN * LeftInput;from any channels that have Reverb enabled
+const Lin = vLIN * sample;
+// ____Same Side Reflection(left - to - left and right - to - right)___________________
+// [mLSAME] = (Lin + [dLSAME] * vWALL - [mLSAME - 2]) * vIIR + [mLSAME - 2]; L - to - L
+wr16(mLSAME, norm((Lin + norm(rd16(dLSAME) * vWALL) - rd16(mLSAME - 2)) * vIIR) + rd16(mLSAME - 2));
+// ___Different Side Reflection(left - to - right and right - to - left)_______________
+// [mLDIFF] = (Lin + [dRDIFF] * vWALL - [mLDIFF - 2]) * vIIR + [mLDIFF - 2]; R - to - L
+wr16(mLDIFF, norm((Lin + norm(rd16(dRDIFF) * vWALL) - rd16(mLDIFF - 2)) * vIIR) + rd16(mLDIFF - 2));
+// ___Early Echo(Comb Filter, with input from buffer) __________________________
+// Lout = vCOMB1 * [mLCOMB1] + vCOMB2 * [mLCOMB2] + vCOMB3 * [mLCOMB3] + vCOMB4 * [mLCOMB4]
+let Lout = norm(vCOMB1 * rd16(mLCOMB1)) + norm(vCOMB2 * rd16(mLCOMB2)) + norm(vCOMB3 * rd16(mLCOMB3)) + norm(vCOMB4 * rd16(mLCOMB4));
+// ___Late Reverb APF1(All Pass Filter 1, with input from COMB) ________________
+// Lout = Lout - vAPF1 * [mLAPF1 - dAPF1], [mLAPF1] = Lout, Lout = Lout * vAPF1 + [mLAPF1 - dAPF1]
+Lout = Lout - norm(vAPF1 * rd16(mLAPF1 - dAPF1));
+wr16(mLAPF1, Lout);
+Lout = norm(Lout * vAPF1) + rd16(mLAPF1 - dAPF1);
+// ___Late Reverb APF2(All Pass Filter 2, with input from APF1) ________________
+// Lout = Lout - vAPF2 * [mLAPF2 - dAPF2], [mLAPF2] = Lout, Lout = Lout * vAPF2 + [mLAPF2 - dAPF2]
+Lout = Lout - norm(vAPF2 * rd16(mLAPF2 - dAPF2));
+wr16(mLAPF2, Lout);
+Lout = norm(Lout * vAPF2) + rd16(mLAPF2 - dAPF2);
+// ___Output to Mixer(Output volume multiplied with input from APF2) ___________
+// LeftOutput = Lout * vLOUT
+return left = norm(Lout * vLOUT) / 0x8000;
+};
+const reverbRight = sample => {
+// ___Input from Mixer(Input volume multiplied with incoming data)_____________
+// Rin = vRIN * RightInput;from any channels that have Reverb enabled
+const Rin = vRIN * sample;
+// ____Same Side Reflection(left - to - left and right - to - right)___________________
+// [mRSAME] = (Rin + [dRSAME] * vWALL - [mRSAME - 2]) * vIIR + [mRSAME - 2]; R - to - R
+wr16(mRSAME, norm((Rin + norm(rd16(dRSAME) * vWALL) - rd16(mRSAME - 2)) * vIIR) + rd16(mRSAME - 2));
+// ___Different Side Reflection(left - to - right and right - to - left)_______________
+// [mRDIFF] = (Rin + [dLDIFF] * vWALL - [mRDIFF - 2]) * vIIR + [mRDIFF - 2]; L - to - R
+wr16(mRDIFF, norm((Rin + norm(rd16(dLDIFF) * vWALL) - rd16(mRDIFF - 2)) * vIIR) + rd16(mRDIFF - 2));
+// ___Early Echo(Comb Filter, with input from buffer) __________________________
+// Rout = vCOMB1 * [mRCOMB1] + vCOMB2 * [mRCOMB2] + vCOMB3 * [mRCOMB3] + vCOMB4 * [mRCOMB4]
+let Rout = norm(vCOMB1 * rd16(mRCOMB1)) + norm(vCOMB2 * rd16(mRCOMB2)) + norm(vCOMB3 * rd16(mRCOMB3)) + norm(vCOMB4 * rd16(mRCOMB4));
+// ___Late Reverb APF1(All Pass Filter 1, with input from COMB) ________________
+// Rout = Rout - vAPF1 * [mRAPF1 - dAPF1], [mRAPF1] = Rout, Rout = Rout * vAPF1 + [mRAPF1 - dAPF1]
+Rout = Rout - norm(vAPF1 * rd16(mRAPF1 - dAPF1));
+wr16(mRAPF1, Rout);
+Rout = norm(Rout * vAPF1) + rd16(mRAPF1 - dAPF1);
+// ___Late Reverb APF2(All Pass Filter 2, with input from APF1) ________________
+// Rout = Rout - vAPF2 * [mRAPF2 - dAPF2], [mRAPF2] = Rout, Rout = Rout * vAPF2 + [mRAPF2 - dAPF2]
+Rout = Rout - norm(vAPF2 * rd16(mRAPF2 - dAPF2));
+wr16(mRAPF2, Rout);
+Rout = norm(Rout * vAPF2) + rd16(mRAPF2 - dAPF2);
+// ___Output to Mixer(Output volume multiplied with input from APF2) ___________
+// RightOutput = Rout * vROUT
+bufferAddress += 2;
+return right = norm(Rout * vROUT) / 0x8000;
+};
+return {
+advance: (sampleIndex, sampleLeft, sampleRight, ram) => {
+memory = ram;
+return (sampleIndex & 1) ? [left, reverbRight(sampleRight)] : [reverbLeft(sampleLeft), right];
+},
+rd16: (addr) => {
+console.log('rd16', hex(addr, 4));
+},
+wr16: (addr, data) => {
+writeHandlers.get(addr)(data);
+}
+}
+})
+mdlr('enge:psx:spu-voice', m => {
+let BLOCKSIZE = (28 * 0x1000) >>> 0;
+let id = 0;
+let adsrLevel = 0;
+let adsrState = 0;
+let adsrAttackMode = 0;
+let adsrAttackRate = 0;
+let adsrDecayRate = 0;
+let adsrSustainMode = 0;
+let adsrSustainRate = 0;
+let adsrSustainLevel = 0;
+let adsrSustainDirection = 0;
+let adsrReleaseMode = 0;
+let adsrReleaseRate = 0;
+let sweepLeft = [];
+let sweepRight = [];
+let pitchStep = 0;
+let pitchCounter = BLOCKSIZE;
+let repeatAddress = 0;
+let blockAddress = 0;
+let buffer = new Float32Array(28);
+let s0 = 0.0;
+let s1 = 0.0;
+let volumeLeft = 0.0;
+let volumeRight = 0.0;
+let regs = new Uint16Array(16);
+const gauss = [
+-1, -1, -1, -1, -1, -1, -1, -1,
+-1, -1, -1, -1, -1, -1, -1, -1,
+0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001,
+0x0001, 0x0001, 0x0001, 0x0002, 0x0002, 0x0002, 0x0003, 0x0003,
+0x0003, 0x0004, 0x0004, 0x0005, 0x0005, 0x0006, 0x0007, 0x0007,
+0x0008, 0x0009, 0x0009, 0x000A, 0x000B, 0x000C, 0x000D, 0x000E,
+0x000F, 0x0010, 0x0011, 0x0012, 0x0013, 0x0015, 0x0016, 0x0018,
+0x0019, 0x001B, 0x001C, 0x001E, 0x0020, 0x0021, 0x0023, 0x0025,
+0x0027, 0x0029, 0x002C, 0x002E, 0x0030, 0x0033, 0x0035, 0x0038,
+0x003A, 0x003D, 0x0040, 0x0043, 0x0046, 0x0049, 0x004D, 0x0050,
+0x0054, 0x0057, 0x005B, 0x005F, 0x0063, 0x0067, 0x006B, 0x006F,
+0x0074, 0x0078, 0x007D, 0x0082, 0x0087, 0x008C, 0x0091, 0x0096,
+0x009C, 0x00A1, 0x00A7, 0x00AD, 0x00B3, 0x00BA, 0x00C0, 0x00C7,
+0x00CD, 0x00D4, 0x00DB, 0x00E3, 0x00EA, 0x00F2, 0x00FA, 0x0101,
+0x010A, 0x0112, 0x011B, 0x0123, 0x012C, 0x0135, 0x013F, 0x0148,
+0x0152, 0x015C, 0x0166, 0x0171, 0x017B, 0x0186, 0x0191, 0x019C,
+0x01A8, 0x01B4, 0x01C0, 0x01CC, 0x01D9, 0x01E5, 0x01F2, 0x0200,
+0x020D, 0x021B, 0x0229, 0x0237, 0x0246, 0x0255, 0x0264, 0x0273,
+0x0283, 0x0293, 0x02A3, 0x02B4, 0x02C4, 0x02D6, 0x02E7, 0x02F9,
+0x030B, 0x031D, 0x0330, 0x0343, 0x0356, 0x036A, 0x037E, 0x0392,
+0x03A7, 0x03BC, 0x03D1, 0x03E7, 0x03FC, 0x0413, 0x042A, 0x0441,
+0x0458, 0x0470, 0x0488, 0x04A0, 0x04B9, 0x04D2, 0x04EC, 0x0506,
+0x0520, 0x053B, 0x0556, 0x0572, 0x058E, 0x05AA, 0x05C7, 0x05E4,
+0x0601, 0x061F, 0x063E, 0x065C, 0x067C, 0x069B, 0x06BB, 0x06DC,
+0x06FD, 0x071E, 0x0740, 0x0762, 0x0784, 0x07A7, 0x07CB, 0x07EF,
+0x0813, 0x0838, 0x085D, 0x0883, 0x08A9, 0x08D0, 0x08F7, 0x091E,
+0x0946, 0x096F, 0x0998, 0x09C1, 0x09EB, 0x0A16, 0x0A40, 0x0A6C,
+0x0A98, 0x0AC4, 0x0AF1, 0x0B1E, 0x0B4C, 0x0B7A, 0x0BA9, 0x0BD8,
+0x0C07, 0x0C38, 0x0C68, 0x0C99, 0x0CCB, 0x0CFD, 0x0D30, 0x0D63,
+0x0D97, 0x0DCB, 0x0E00, 0x0E35, 0x0E6B, 0x0EA1, 0x0ED7, 0x0F0F,
+0x0F46, 0x0F7F, 0x0FB7, 0x0FF1, 0x102A, 0x1065, 0x109F, 0x10DB,
+0x1116, 0x1153, 0x118F, 0x11CD, 0x120B, 0x1249, 0x1288, 0x12C7,
+0x1307, 0x1347, 0x1388, 0x13C9, 0x140B, 0x144D, 0x1490, 0x14D4,
+0x1517, 0x155C, 0x15A0, 0x15E6, 0x162C, 0x1672, 0x16B9, 0x1700,
+0x1747, 0x1790, 0x17D8, 0x1821, 0x186B, 0x18B5, 0x1900, 0x194B,
+0x1996, 0x19E2, 0x1A2E, 0x1A7B, 0x1AC8, 0x1B16, 0x1B64, 0x1BB3,
+0x1C02, 0x1C51, 0x1CA1, 0x1CF1, 0x1D42, 0x1D93, 0x1DE5, 0x1E37,
+0x1E89, 0x1EDC, 0x1F2F, 0x1F82, 0x1FD6, 0x202A, 0x207F, 0x20D4,
+0x2129, 0x217F, 0x21D5, 0x222C, 0x2282, 0x22DA, 0x2331, 0x2389,
+0x23E1, 0x2439, 0x2492, 0x24EB, 0x2545, 0x259E, 0x25F8, 0x2653,
+0x26AD, 0x2708, 0x2763, 0x27BE, 0x281A, 0x2876, 0x28D2, 0x292E,
+0x298B, 0x29E7, 0x2A44, 0x2AA1, 0x2AFF, 0x2B5C, 0x2BBA, 0x2C18,
+0x2C76, 0x2CD4, 0x2D33, 0x2D91, 0x2DF0, 0x2E4F, 0x2EAE, 0x2F0D,
+0x2F6C, 0x2FCC, 0x302B, 0x308B, 0x30EA, 0x314A, 0x31AA, 0x3209,
+0x3269, 0x32C9, 0x3329, 0x3389, 0x33E9, 0x3449, 0x34A9, 0x3509,
+0x3569, 0x35C9, 0x3629, 0x3689, 0x36E8, 0x3748, 0x37A8, 0x3807,
+0x3867, 0x38C6, 0x3926, 0x3985, 0x39E4, 0x3A43, 0x3AA2, 0x3B00,
+0x3B5F, 0x3BBD, 0x3C1B, 0x3C79, 0x3CD7, 0x3D35, 0x3D92, 0x3DEF,
+0x3E4C, 0x3EA9, 0x3F05, 0x3F62, 0x3FBD, 0x4019, 0x4074, 0x40D0,
+0x412A, 0x4185, 0x41DF, 0x4239, 0x4292, 0x42EB, 0x4344, 0x439C,
+0x43F4, 0x444C, 0x44A3, 0x44FA, 0x4550, 0x45A6, 0x45FC, 0x4651,
+0x46A6, 0x46FA, 0x474E, 0x47A1, 0x47F4, 0x4846, 0x4898, 0x48E9,
+0x493A, 0x498A, 0x49D9, 0x4A29, 0x4A77, 0x4AC5, 0x4B13, 0x4B5F,
+0x4BAC, 0x4BF7, 0x4C42, 0x4C8D, 0x4CD7, 0x4D20, 0x4D68, 0x4DB0,
+0x4DF7, 0x4E3E, 0x4E84, 0x4EC9, 0x4F0E, 0x4F52, 0x4F95, 0x4FD7,
+0x5019, 0x505A, 0x509A, 0x50DA, 0x5118, 0x5156, 0x5194, 0x51D0,
+0x520C, 0x5247, 0x5281, 0x52BA, 0x52F3, 0x532A, 0x5361, 0x5397,
+0x53CC, 0x5401, 0x5434, 0x5467, 0x5499, 0x54CA, 0x54FA, 0x5529,
+0x5558, 0x5585, 0x55B2, 0x55DE, 0x5609, 0x5632, 0x565B, 0x5684,
+0x56AB, 0x56D1, 0x56F6, 0x571B, 0x573E, 0x5761, 0x5782, 0x57A3,
+0x57C3, 0x57E2, 0x57FF, 0x581C, 0x5838, 0x5853, 0x586D, 0x5886,
+0x589E, 0x58B5, 0x58CB, 0x58E0, 0x58F4, 0x5907, 0x5919, 0x592A,
+0x593A, 0x5949, 0x5958, 0x5965, 0x5971, 0x597C, 0x5986, 0x598F,
+0x5997, 0x599E, 0x59A4, 0x59A9, 0x59AD, 0x59B0, 0x59B2, 0x59B3
+];
+const adsrStep = (direction, mode, rate, level = adsrLevel) => {
+const table = direction ? envelopeExponentialDecrease : envelopeExponentialIncrease;
+const offset = mode ? table[level >>> 28] : 0;
+const step = envelopStep[rate + offset];
+return direction ? -step : step;
+}
+const mixADSR = () => {
+switch (adsrState) {
+case 0x0:
+adsrLevel = 0.0;
+case 0x1:
+adsrLevel += adsrStep(0, adsrAttackMode, adsrAttackRate);
+if (adsrLevel >= 0x7FFFFFFF) {
+adsrState = 2;
+}
+break;
+case 0x2:
+adsrLevel += adsrStep(1, 1, adsrDecayRate);
+if (((adsrLevel >>> 27) & 15) <= adsrSustainLevel) {
+adsrState = 3;
+}
+break;
+case 0x3:
+adsrLevel += adsrStep(adsrSustainDirection, adsrSustainMode, adsrSustainRate);
+break;
+case 0x4:
+adsrLevel += adsrStep(1, adsrReleaseMode, adsrReleaseRate);
+if (adsrLevel <= 0) {
+adsrState = 0;
+}
+break;
+}
+if (adsrLevel > 0x7FFFFFFF) {
+adsrLevel = 0x7FFFFFFF;
+}
+if (adsrLevel < 0) {
+adsrLevel = 0;
+}
+return (regs[0x0c] = adsrLevel >>> 16) / 0x8000;
+}
+const startAdsrAttack = () => {
+adsrState = 1;
+adsrLevel = 0;
+}
+const startAdsrRelease = () => {
+adsrState = 4;
+}
+const decodeBlock = (ram) => {
+const shiftFilter = ram[blockAddress + 0];
+const flags = ram[blockAddress + 1];
+const shift = (shiftFilter & 0x0f) >>> 0;
+const filter = (shiftFilter & 0xf0) >>> 3;
+const k0 = xa2flt[filter + 0];
+const k1 = xa2flt[filter + 1];
+let sample = -1;
+for (let offset = 2; offset < 16; ++offset) {
+let data = ram[blockAddress + offset];
+let index = ((shift << 8) + data) << 1;
+let value;
+value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 0];
+s1 = s0; s0 = buffer[++sample] = value;
+value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 1];
+s1 = s0; s0 = buffer[++sample] = value;
+}
+if ((flags & 4) === 4) {
+repeatAddress = blockAddress;
+}
+blockAddress += 16;
+if ((flags & 1) === 1) {
+blockAddress = repeatAddress;
+spu.ENDX |= (1 << id);
+if ((flags & 2) === 0) {
+startAdsrRelease();
+adsrLevel = 0;
+}
+}
+}
+let $s1, $s2, $s3, $s4;
+const voice = {
+reverb: 0,
+capture: 0,
+setId(voiceId) {
+id = voiceId;
+if (voiceId === 1) voice.capture = 0x0800;
+if (voiceId === 3) voice.capture = 0x0c00;
+return voice;
+},
+advance(ram, audio) {
+if (!adsrState) return adsrState; // note: this is an optimisation that behave differently then the hardware does.
+pitchCounter += pitchStep;
+if (pitchCounter >= BLOCKSIZE) {
+pitchCounter -= BLOCKSIZE;
+decodeBlock(ram);
+spu.checkIrq(voice);
+}
+const sample = buffer[pitchCounter >>> 12];
+const adsrVolume = mixADSR();
+$s1 = sample * adsrVolume;
+const i = (pitchCounter >>> 3) & 0xff;
+let out = ((gauss[255 - i] * $s4));
+out = out + ((gauss[511 - i] * $s3));
+out = out + ((gauss[256 + i] * $s2));
+out = out + ((gauss[i] * $s1));
+let s = out / 0x8000;
+// if (out) console.log(out);
+audio[0] = (s * volumeLeft * mixSweep(sweepLeft))
+audio[1] = (s * volumeRight * mixSweep(sweepRight));
+$s4 = $s3;
+$s3 = $s2;
+$s2 = $s1;
+return adsrState;
+},
+checkIrq(offset) {
+return (blockAddress <= offset) && (offset < (blockAddress + 16));
+},
+keyOn() {
+s0 = 0.0;
+s1 = 0.0;
+$s1 = 0, $s2 = 0, $s3 = 0, $s4 = 0;
+pitchCounter = BLOCKSIZE;
+blockAddress = regs[0x6] << 3;
+repeatAddress = regs[0xe] << 3;
+startAdsrAttack();
+},
+echoOn(enabled) {
+// todo: reverb
+voice.reverb = enabled;
+},
+modOn() {
+// todo: pitch modulation
+},
+noiseOn() {
+// todo: noise
+},
+keyOff() {
+startAdsrRelease();
+},
+rd16(addr) {
+return regs[addr & 15];
+},
+wr16(addr, data) {
+regs[addr & 15] = data;
+switch (addr % 16) {
+case 0x0:
+if (data & 0x8000) {
+sweepLeft = getEnvelope(data);
+}
+else {
+sweepLeft = [];
+volumeLeft = spu.getVolume(data);
+}
+break;
+case 0x2:
+if (data & 0x8000) {
+sweepRight = getEnvelope(data);
+}
+else {
+sweepRight = [];
+volumeRight = spu.getVolume(data);
+}
+break;
+case 0x4:
+pitchStep = Math.min(data, 0x4000);
+break;
+// case 0x6:
+//   blockAddress = data << 3;
+//   break;
+case 0x8:
+adsrAttackMode = (data >>> 15) & 1
+adsrAttackRate = ((data >>> 8) & 127);
+adsrDecayRate = ((data >>> 4) & 15) << 3;
+adsrSustainLevel = 1 + (data & 15);
+break;
+case 0xa:
+adsrSustainMode = (data >>> 15) & 1;
+adsrSustainDirection = (data >>> 14) & 1;
+adsrSustainRate = (data >>> 6) & 127;
+adsrReleaseMode = (data >>> 5) & 1;
+adsrReleaseRate = (data & 31) << 2;
+break;
+// case 0xc:
+//   adsrLevel = data << 16;
+//   break;
+case 0xe:
+repeatAddress = data << 3;
+break;
+}
+}
+}
+const envelopStep = [];
+const envelopeExponentialIncrease = [0, 0, 0, 0, 0, 0, 8, 8];
+const envelopeExponentialDecrease = [12, 8, 6, 4, 3, 2, 1, 0];
+const max = (a, b) => a > b ? a : b;
+const getEnvelope = (data) => {
+const mode = (data & (1 << 14)) ? 1 : 0;
+const direction = (data & (1 << 13)) ? 1 : 0;
+const rate = (data >> 0) & 127;
+return [mode, direction, rate, adsrLevel];
+}
+const mixSweep = (sweep) => {
+const { mode, direction, rate, level } = sweep;
+if (mode === undefined) return 1.0;
+sweep[3] += adsrStep(direction, mode, rate, level);
+return (sweep[3] >>> 16) / 0x8000;
+}
+for (let i = 0; i < 140; ++i) {
+const step = i & 3;
+const shift = i >> 2;
+const $cycles = 1 << max(0, shift - 11);
+const $step = (7 - step) << max(0, 11 - shift);
+envelopStep[i] = (($step / $cycles * 0x10000) >>> 0);
+}
+return { voice };
+})
+mdlr('enge:psx:webgl2');

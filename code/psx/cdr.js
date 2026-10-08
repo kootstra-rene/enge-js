@@ -1,7 +1,59 @@
 mdlr('enge:psx:cdr', m => {
 
+  const cdDebug = new URLSearchParams(window.location.search).has('debug-cd') ||
+    window.localStorage.getItem('enge-debug-cdrom') === '1';
+  const cdLog = (...args) => {
+    if (cdDebug) console.debug('[CDR]', ...args.map(value =>
+      typeof value === 'object' ? JSON.stringify(value) : value));
+  };
+
   let sectorData8 = new Int8Array(0);
   let sectorData16 = new Int16Array(0);
+
+  // Remote discs are kept as a small LRU of HTTP range chunks. The current
+  // sector remains in this fixed 2352-byte buffer for the synchronous CDR
+  // register and DMA paths below.
+  const remoteChunkSize = Math.floor((8 * 1024 * 1024) / 2352) * 2352;
+  const remoteMaxChunks = 3;
+  const remoteSectorSize = 2352;
+  const remoteSector = new Uint8Array(remoteSectorSize);
+  let remoteImage;
+  let localImage;
+  let remoteRead;
+  let debugSectorLogCount = 0;
+  let debugDmaLogCount = 0;
+  let debugResponseLogCount = 0;
+
+  const fetchRemoteChunk = (file, fileIndex, chunkIndex) => {
+    const cached = file.chunks.get(chunkIndex);
+    if (cached) return Promise.resolve(cached);
+    if (file.pending.has(chunkIndex)) return file.pending.get(chunkIndex);
+
+    const start = chunkIndex * remoteChunkSize;
+    const end = Math.min(start + remoteChunkSize, file.size);
+    cdLog('HTTP range', { file: fileIndex, chunk: chunkIndex, start, end: end - 1 });
+    const request = fetch(file.url, {
+      headers: { Range: `bytes=${start}-${end - 1}` }
+    }).then(async response => {
+      if (response.status !== 206) {
+        throw new Error(`CD image server returned HTTP ${response.status}; byte ranges are required`);
+      }
+      const data = new Uint8Array(await response.arrayBuffer());
+      cdLog('HTTP range complete', { file: fileIndex, chunk: chunkIndex, bytes: data.byteLength });
+      file.chunks.set(chunkIndex, data);
+      while (remoteImage.chunkCount() > remoteMaxChunks) {
+        const oldestFile = remoteImage.files.find(candidate => candidate.chunks.size);
+        oldestFile?.chunks.delete(oldestFile.chunks.keys().next().value);
+      }
+      return data;
+    });
+    file.pending.set(chunkIndex, request);
+    request.then(
+      () => file.pending.delete(chunkIndex),
+      () => file.pending.delete(chunkIndex),
+    );
+    return request;
+  };
 
   let status = 0x18;
   let statusCode = 0x00;
@@ -68,10 +120,28 @@ mdlr('enge:psx:cdr', m => {
     if (irq & (0x1F & irqEnable)) {
       cpu.istat |= 0x0004;
     }
+    if (cdDebug && (data & 0x1F)) {
+      cdLog('interrupt asserted', {
+        requested: data & 0x1F,
+        irq,
+        irqEnable,
+        istat: cpu.istat >>> 0,
+      });
+    }
   };
 
   const acknowledgeInterrupt = (data) => {
+    const before = irq;
     irq &= ~(data & (0x1F & irqEnable));
+    if (cdDebug && (data & 0x1F)) {
+      cdLog('interrupt acknowledged', {
+        requested: data & 0x1F,
+        before,
+        after: irq,
+        irqEnable,
+        istat: cpu.istat >>> 0,
+      });
+    }
   };
 
   const enqueueEvent = (irq, ...params) => {
@@ -96,6 +166,13 @@ mdlr('enge:psx:cdr', m => {
 
     let currentCommand = ncmdctrl;
     ncmdctrl = 0;
+    cdLog('complete command', `0x${currentCommand.toString(16).padStart(2, '0')}`, {
+      status,
+      statusCode,
+      irq,
+      loc: currLoc,
+      results: results.length
+    });
     switch (currentCommand) {
       case 0x00: break;
       case 0x01:
@@ -327,7 +404,9 @@ mdlr('enge:psx:cdr', m => {
         break;
       case 0x1A0:
         if (sectorData8.length) {
+          // SCEA alternative: 0x53, 0x43, 0x45, 0x41.
           pushResults(0x02, 0x00, 0x20, 0x00, 0x65, 0x4e, 0x47, 0x45); // eNGE
+          cdLog('GetID response', '02 00 20 00 65 4e 47 45 (eNGE)');
           status = (status & ~0x80) | 0x20;
           setIrq(2);
         }
@@ -381,6 +460,9 @@ mdlr('enge:psx:cdr', m => {
           }
         }
         if ((mode & 0x05) == 0x05) {
+          // A remote sector miss pauses this CD event until its range request
+          // completes. The event is retried without advancing currLoc.
+          if (!readSector(currLoc)) return;
           switch (loc % 75) {
             case 0:
             case 20:
@@ -407,16 +489,16 @@ mdlr('enge:psx:cdr', m => {
               setIrq(1);
             } break;
           }
-          readSector(currLoc);
           psx.updateEvent(self, readCycles);
           currLoc++;
           break;
         }
       case 0x06:
-      case 0x1b: pushResults(0x22);
+      case 0x1b:
+        if (!readSector(currLoc)) return;
+        pushResults(0x22);
         status = (status & ~0x80) | 0x60;
         setIrq(1);
-        readSector(currLoc);
         psx.updateEvent(self, readCycles);
         currLoc++;
         break;
@@ -439,6 +521,15 @@ mdlr('enge:psx:cdr', m => {
     results.length = 0;
     status |= 0x80;
     ncmdctrl = data;
+    cdLog('command', `0x${data.toString(16).padStart(2, '0')}`, {
+      params: [...params],
+      status,
+      statusCode,
+      currLoc,
+      seekLoc,
+      hasDisc: sectorData8.length > 0,
+      tracks: tracks.length
+    });
     switch (data) {
       case 0x01:  //- CdlNop
         nevtctrl = 0xc4e1;
@@ -482,13 +573,96 @@ mdlr('enge:psx:cdr', m => {
   };
 
   const readSector = (readLoc) => {
-    if (sectorData8.length <= 0) return;
-
     for (let i = 1; i < tracks.length; ++i) {
       let track = currTrack = tracks[i];
       if ((track.begin < readLoc) && (readLoc < track.end)) break;
     }
-    sectorOffset = (readLoc - 150) * 2352;
+
+    if (remoteImage) {
+      const track = currTrack || tracks[1];
+      const fileIndex = track.fileIndex || 0;
+      const file = remoteImage.files[fileIndex];
+      const fileSector = (track.fileBegin || 0) + (readLoc - 150 - track.begin);
+      const byteOffset = fileSector * remoteSectorSize;
+      const chunkIndex = Math.floor(byteOffset / remoteChunkSize);
+      const chunkOffset = byteOffset - chunkIndex * remoteChunkSize;
+      const chunk = file.chunks.get(chunkIndex);
+
+      if (!chunk || chunkOffset + remoteSectorSize > chunk.length) {
+        if (!remoteRead || remoteRead.fileIndex !== fileIndex || remoteRead.chunkIndex !== chunkIndex) {
+          cdLog('sector cache miss; requesting range', { readLoc, file: fileIndex, chunk: chunkIndex });
+          const request = fetchRemoteChunk(file, fileIndex, chunkIndex);
+          remoteRead = { fileIndex, chunkIndex, request };
+        }
+        remoteRead.request.then(() => setEvent(eventRead, 0)).catch(error => abort(error.message));
+        return false;
+      }
+
+      // Read ahead while the current range is still being consumed. This is
+      // especially important for CDDA tracks, where a cache miss is audible.
+      if (chunkOffset + (remoteSectorSize * 32) >= chunk.length &&
+        (chunkIndex + 1) * remoteChunkSize < file.size) {
+        fetchRemoteChunk(file, fileIndex, chunkIndex + 1).catch(error => {
+          console.warn('CD read-ahead failed:', error.message);
+        });
+      }
+
+      remoteSector.set(chunk.subarray(chunkOffset, chunkOffset + remoteSectorSize));
+      sectorData8 = new Int8Array(remoteSector.buffer);
+      sectorData16 = new Int16Array(remoteSector.buffer);
+      sectorOffset = 0;
+    } else if (localImage) {
+      const track = currTrack || tracks[1];
+      const fileIndex = track?.fileIndex || 0;
+      const file = localImage.files[fileIndex];
+      const fileSector = (track?.fileBegin || 0) + (readLoc - 150 - (track?.begin || 0));
+      const byteOffset = fileSector * remoteSectorSize;
+      if (!file || byteOffset < 0 || byteOffset + remoteSectorSize > file.byteLength) return false;
+      remoteSector.set(file.subarray(byteOffset, byteOffset + remoteSectorSize));
+      sectorData8 = new Int8Array(remoteSector.buffer);
+      sectorData16 = new Int16Array(remoteSector.buffer);
+      sectorOffset = 0;
+    }
+
+    if (sectorData8.length <= 0) return false;
+
+    if (cdDebug && (readLoc < 20 || readLoc % 75 === 0)) {
+      cdLog('sector ready', { readLoc, track: currTrack.id, data: !!currTrack.data, audio: !!currTrack.audio });
+    }
+
+    if (!remoteImage && !localImage) sectorOffset = (readLoc - 150) * 2352;
+
+    if (cdDebug && debugSectorLogCount < 64) {
+      const header = Array.from(sectorData8.slice(sectorOffset + 0x0f, sectorOffset + 0x15), byte =>
+        String.fromCharCode(byte & 0xff)).join('');
+      cdLog('sector ready', {
+        lba: readLoc - 150,
+        readLoc,
+        track: currTrack.id,
+        mode: mode & 0x30,
+        header,
+        bytes: Array.from(sectorData8.slice(sectorOffset, sectorOffset + 16), byte =>
+          (byte & 0xff).toString(16).padStart(2, '0')).join(' ')
+      });
+      debugSectorLogCount++;
+
+      const lba = readLoc - 150;
+      if (lba === 22 && (mode & 0x30) === 0) {
+        const entries = [];
+        for (let offset = 24; offset < 24 + 2048;) {
+          const length = sectorData8[sectorOffset + offset] & 0xff;
+          if (!length) break;
+          const nameLength = sectorData8[sectorOffset + offset + 32] & 0xff;
+          const name = Array.from(sectorData8.slice(
+            sectorOffset + offset + 33,
+            sectorOffset + offset + 33 + nameLength
+          ), byte => String.fromCharCode(byte & 0xff)).join('');
+          entries.push(name);
+          offset += length;
+        }
+        cdLog('root directory entries', entries);
+      }
+    }
 
     let sectorSize = 0;
     switch (mode & 0x30) {
@@ -507,18 +681,18 @@ mdlr('enge:psx:cdr', m => {
 
     if ((mode & 0x48) !== 0) {
       let sectorMode = sectorData8[sectorOffset + 0x0f];
-      if (sectorMode !== 2) return;
+      if (sectorMode !== 2) return true;
 
       if ((mode & 0x48) === 0x48) {
         let file = sectorData8[sectorOffset + 0x10];
-        if (file !== filterFile) return;
+        if (file !== filterFile) return true;
 
         let chan = sectorData8[sectorOffset + 0x11];
-        if (chan !== filterChan) return;
+        if (chan !== filterChan) return true;
       }
 
       let sub = sectorData8[sectorOffset + 0x12];
-      if ((sub & 0x44) !== 0x44) return;
+      if ((sub & 0x44) !== 0x44) return true;
       let nfo = sectorData8[sectorOffset + 0x13];
 
       let ms, sr;
@@ -561,6 +735,7 @@ mdlr('enge:psx:cdr', m => {
       }
       pcmmax = ix;
     }
+    return true;
   };
 
   const decodeMono = () => {
@@ -651,9 +826,32 @@ mdlr('enge:psx:cdr', m => {
     ncmdread = 0;
   };
 
+  const resetForNewImage = () => {
+    stopReading();
+    status = 0x18;
+    statusCode = 0x00;
+    ncmdread = 0;
+    ncmdctrl = 0;
+    sectorOffset = 0;
+    sectorIndex = 0;
+    sectorEnd = 0;
+    playIndex = 0;
+    currLoc = 0;
+    seekLoc = 0;
+    irq = 0;
+    results.length = 0;
+    params.length = 0;
+    currTrack = {};
+    cpu.istat &= ~0x0004;
+  };
+
   return {
     cdr: {
       rd08r1800: () => {
+        if (cdDebug && debugResponseLogCount < 128) {
+          cdLog('status register read', { status, irq, results: results.length });
+          debugResponseLogCount++;
+        }
         return status;
       },
 
@@ -662,7 +860,21 @@ mdlr('enge:psx:cdr', m => {
           if (results.length === 1) {
             status &= ~(0x40 | 0x20);
           }
-          return results.shift();
+          const result = results.shift();
+          if (cdDebug && debugResponseLogCount < 128) {
+            cdLog('result register read', {
+              result,
+              status,
+              irq,
+              remaining: results.length
+            });
+            debugResponseLogCount++;
+          }
+          return result;
+        }
+        if (cdDebug && debugResponseLogCount < 128) {
+          cdLog('result register read while not ready', { status, irq, remaining: results.length });
+          debugResponseLogCount++;
         }
         return 0;
       },
@@ -677,7 +889,12 @@ mdlr('enge:psx:cdr', m => {
       rd08r1803: () => {
         switch (status & 3) {
           case 0: return 0xE0 | irqEnable;
-          case 1: return irq;
+          case 1:
+            if (cdDebug && (irq & 0x1f || debugResponseLogCount < 128)) {
+              cdLog('interrupt register read', { irq, status, results: results.length });
+              if (!irq) debugResponseLogCount++;
+            }
+            return irq;
         };
       },
 
@@ -703,6 +920,7 @@ mdlr('enge:psx:cdr', m => {
           case 1:
             irqEnable = data;
             irq = 0;
+            if (cdDebug) cdLog('interrupt register select/write', { irqEnable, irq });
             break;
           case 2:
             volConfigCdLeft2SpuLeft = getCdVolume(data);
@@ -721,6 +939,9 @@ mdlr('enge:psx:cdr', m => {
             }
             break;
           case 1:
+            if (cdDebug && (data & 0x1f)) {
+              cdLog('interrupt register acknowledge write', { data, irq, irqEnable });
+            }
             if (data & (0x1F & irqEnable)) {
               acknowledgeInterrupt(data);
             }
@@ -778,12 +999,48 @@ mdlr('enge:psx:cdr', m => {
 
         const transferSize = (blck & 0xFFFF) << 2;
 
+        if (cdDebug && debugDmaLogCount < 32) {
+          cdLog('DMA sector transfer', {
+            addr: `0x${(addr >>> 0).toString(16).padStart(8, '0')}`,
+            bytes: transferSize,
+            sectorIndex,
+            sectorEnd
+          });
+          debugDmaLogCount++;
+        }
+
         clearCodeCache(addr, transferSize);
 
         for (let i = 0; i < transferSize; i += 2) {
           map16[(addr & 0x001fffff) >> 1] = sectorData16[(sectorOffset + sectorIndex) >> 1];
           sectorIndex += 2;
           addr += 2;
+        }
+        if (cdDebug && debugDmaLogCount <= 32) {
+          const ramStart = (addr - transferSize) & 0x001fffff;
+          cdLog('DMA payload check', {
+            bytes: Array.from(map8.slice(ramStart, ramStart + 16), byte =>
+              (byte & 0xff).toString(16).padStart(2, '0')).join(' '),
+            text: String.fromCharCode(...Array.from(map8.slice(ramStart, ramStart + 8), byte => byte & 0xff))
+          });
+
+          // DMA starts at the sector payload (sector offset 24), so the
+          // directory begins at RAM offset zero rather than RAM + 24.
+          if (sectorEnd === 2072 && (map8[ramStart] & 0xff) === 0x30) {
+            const entries = [];
+            for (let offset = 0; offset < 2048;) {
+              const length = map8[ramStart + offset] & 0xff;
+              if (!length) break;
+              const nameLength = map8[ramStart + offset + 32] & 0xff;
+              const name = Array.from(map8.slice(
+                ramStart + offset + 33,
+                ramStart + offset + 33 + nameLength
+              ), byte => String.fromCharCode(byte & 0xff)).join('');
+              entries.push(name);
+              offset += length;
+            }
+            cdLog('DMA RAM directory entries', entries);
+          }
         }
         if (sectorIndex >= sectorEnd) {
           status &= ~0x40;
@@ -796,9 +1053,150 @@ mdlr('enge:psx:cdr', m => {
         tracks.splice(0, tracks.length, ...new_tracks);
       },
 
+      getState: () => ({
+        status,
+        statusCode,
+        ncmdread,
+        ncmdctrl,
+        sectorOffset,
+        sectorIndex,
+        sectorEnd,
+        playIndex,
+        irq,
+        irqEnable,
+        mode,
+        mute,
+        currLoc,
+        seekLoc,
+        volCdLeft2SpuLeft,
+        volCdLeft2SpuRight,
+        volCdRight2SpuLeft,
+        volCdRight2SpuRight,
+        volConfigCdLeft2SpuLeft,
+        volConfigCdLeft2SpuRight,
+        volConfigCdRight2SpuLeft,
+        volConfigCdRight2SpuRight,
+        pcmidx,
+        pcmmax,
+        filterFile,
+        filterChan,
+        currTrackIndex: tracks.indexOf(currTrack),
+        results: [...results],
+        params: [...params],
+        sectorData: sectorData8.slice(sectorOffset, sectorOffset + remoteSectorSize),
+        pcm,
+        xa,
+        sl: [...sl],
+        sr: [...sr]
+      }),
+
+      setState: state => {
+        if (!state) return;
+        status = state.status;
+        statusCode = state.statusCode;
+        ncmdread = state.ncmdread;
+        ncmdctrl = state.ncmdctrl;
+        sectorOffset = state.sectorOffset;
+        sectorIndex = state.sectorIndex;
+        sectorEnd = state.sectorEnd;
+        playIndex = state.playIndex;
+        irq = state.irq;
+        irqEnable = state.irqEnable;
+        mode = state.mode;
+        mute = state.mute;
+        currLoc = state.currLoc;
+        seekLoc = state.seekLoc;
+        volCdLeft2SpuLeft = state.volCdLeft2SpuLeft;
+        volCdLeft2SpuRight = state.volCdLeft2SpuRight;
+        volCdRight2SpuLeft = state.volCdRight2SpuLeft;
+        volCdRight2SpuRight = state.volCdRight2SpuRight;
+        volConfigCdLeft2SpuLeft = state.volConfigCdLeft2SpuLeft;
+        volConfigCdLeft2SpuRight = state.volConfigCdLeft2SpuRight;
+        volConfigCdRight2SpuLeft = state.volConfigCdRight2SpuLeft;
+        volConfigCdRight2SpuRight = state.volConfigCdRight2SpuRight;
+        pcmidx = state.pcmidx;
+        pcmmax = state.pcmmax;
+        filterFile = state.filterFile;
+        filterChan = state.filterChan;
+        currTrack = tracks[state.currTrackIndex] || {};
+
+        results.length = 0;
+        results.push(...state.results);
+        params.length = 0;
+        params.push(...state.params);
+        if (state.sectorData) {
+          remoteSector.set(state.sectorData);
+          sectorData8 = new Int8Array(remoteSector.buffer);
+          sectorData16 = new Int16Array(remoteSector.buffer);
+        }
+        pcm.set(state.pcm);
+        xa.set(state.xa);
+        sl[0] = state.sl[0];
+        sl[1] = state.sl[1];
+        sr[0] = state.sr[0];
+        sr[1] = state.sr[1];
+        remoteRead = undefined;
+      },
+
       setCdImage: (data) => {
+        resetForNewImage();
+        remoteImage = undefined;
+        localImage = undefined;
         sectorData16 = new Int16Array(data.buffer);
         sectorData8 = new Int8Array(data.buffer);
+      },
+
+      setCdImages: (dataBuffers) => {
+        resetForNewImage();
+        remoteImage = undefined;
+        const files = dataBuffers.map(buffer => new Uint8Array(buffer));
+        if (!files.length || files.some(file => !file.byteLength || file.byteLength % remoteSectorSize !== 0)) {
+          throw new Error('Local CD images must be raw 2352-byte-sector BIN files');
+        }
+        localImage = {
+          files,
+          sectors: files.reduce((sectors, file) => sectors + file.byteLength / remoteSectorSize, 0)
+        };
+        sectorData8 = new Int8Array(remoteSector.buffer);
+        sectorData16 = new Int16Array(remoteSector.buffer);
+        return { size: files.reduce((size, file) => size + file.byteLength, 0), sectors: localImage.sectors, files };
+      },
+
+      setCdImageURL: async (url) => {
+        return cdr.setCdImageURLs([url]);
+      },
+
+      setCdImageURLs: async (urls) => {
+        // Discover the size with a one-byte range request. A full download is
+        // deliberately rejected because it defeats the bounded-memory path.
+        const files = await Promise.all(urls.map(async url => {
+          const response = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+          if (response.status !== 206) {
+            throw new Error(`CD image server returned HTTP ${response.status}; byte ranges are required`);
+          }
+          const contentRange = response.headers.get('Content-Range');
+          const match = contentRange?.match(/bytes\s+\d+-\d+\/(\d+)/i);
+          const size = match ? Number(match[1]) : 0;
+          if (!size || size % remoteSectorSize !== 0) {
+            throw new Error('CD image size is unavailable or is not a raw 2352-byte-sector image');
+          }
+          return { url, size, chunks: new Map(), pending: new Map() };
+        }));
+        remoteImage = {
+          files,
+          chunkCount: () => files.reduce((count, file) => count + file.chunks.size, 0)
+        };
+        resetForNewImage();
+        // The BIOS checks sectorData8.length to detect whether a disc is
+        // present before issuing its first read. Keep the fixed sector views
+        // visible even though the first sector has not been fetched yet.
+        sectorData8 = new Int8Array(remoteSector.buffer);
+        sectorData16 = new Int16Array(remoteSector.buffer);
+        return {
+          size: files.reduce((size, file) => size + file.size, 0),
+          sectors: files.reduce((sectors, file) => sectors + file.size / remoteSectorSize, 0),
+          files
+        };
       }
     }
   }
