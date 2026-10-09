@@ -5,6 +5,7 @@ mdlr('enge:psx:cpu', m => {
 
   const cpu = {
     gpr,
+    cop,
     'cause': 0,
     'cycles': 0,
     'epc': 0,
