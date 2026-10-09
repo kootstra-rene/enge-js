@@ -18,6 +18,9 @@ Same as with the BIOS drag and drop the .psx-exe file on the emulator page and i
 ## Loading a cdrom
 Same as with the BIOS drag and drop the .bin file on the emulator page and it will automatically start running. Only raw .iso and .bin files are supported currently. The emulator will try to build it's own table of contents a.k.a track information and as such a lot of games have cd audio but it could not work in all cases.
 
+### Loading a large cdrom from a URL
+The URL field on the emulator page loads raw 2352-byte-sector `.bin` images using HTTP byte ranges. Only a small rolling cache is kept in memory, which is useful on devices with limited browser memory. The server hosting the image must support CORS and `Range` requests, returning `206 Partial Content` and a readable `Content-Range` header. For games with CD audio, provide the `.cue` URL instead; referenced `.bin` files and their data/audio track boundaries will be loaded automatically.
+
 ## Improving quality
 Clicking the Qx button, toggle between Q1,Q2,Q4 and Q8 the latter being the highest quality. After doing so the border will get an redisch color indicating that you have to restart the emulator which can be done by reloading the page.
 
@@ -50,4 +53,4 @@ I have started a [compatibility list](./compatability.md). So feel free to updat
 # Release notes
 
 2024-01-31: publish latest state. [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) is running smoothly if your hardware supports it.  
-2024-02-13: SPU envelope refactors and added SPU Reverb for voices and CD-Audio.  
+2024-02-13: SPU envelope refactors and added SPU Reverb for voices and CD-Audio.
