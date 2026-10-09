@@ -140,6 +140,16 @@ mdlr('enge:webgl2', m => {
       gl_bindFramebuffer(FRAMEBUFFER, null);
     }
 
+    getVramState() {
+      const buffer = new Uint16Array(1024 * 512);
+      this.loadImage(0, 0, 1024, 512, buffer);
+      return buffer;
+    }
+
+    setVramState(buffer) {
+      this.storeImage({ x: 0, y: 0, w: 1024, h: 512, pixelCount: 1024 * 512, buffer });
+    }
+
     moveImage(sx, sy, dx, dy, w, h) {
       this.seenRender = true;
       flushVertexBuffer();
@@ -845,7 +855,7 @@ mdlr('enge:webgl2:utils', m => {
   }
 
   /**
-   * 
+   *
    * @returns vertex-buffer
    */
   function createVertexBuffer(reverse = false) {
