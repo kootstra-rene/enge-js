@@ -476,7 +476,9 @@ mdlr('enge:psx:cdr', () => {
         break;
       case 0x1A0:
         if (sectorData8.length) {
-          // SCEA alternative: 0x53, 0x43, 0x45, 0x41.
+          // Keep the historical eNGE branding in the CD-ROM response. Crash
+          // Bash was tested with this marker and still passes its startup
+          // checks, so compatibility does not require replacing it with SCEA.
           pushResults(0x02, 0x00, 0x20, 0x00, 0x65, 0x4e, 0x47, 0x45); // eNGE
           cdLog('GetID response', '02 00 20 00 65 4e 47 45 (eNGE)');
           status = (status & ~0x80) | 0x20;
