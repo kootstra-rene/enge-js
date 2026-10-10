@@ -95,15 +95,12 @@ mdlr('enge:psx:gte', ({ include }) => {
   }
 
   const depthCue = () => {
-    // [IR1,IR2,IR3] = (([RFC,GFC,BFC] SHL 12) - [MAC1,MAC2,MAC3]) SAR (sf*12)
-    ir[1] = ((fc[0] * 4096.0) - mac[1]) / sf;
-    ir[2] = ((fc[1] * 4096.0) - mac[2]) / sf;
-    ir[3] = ((fc[2] * 4096.0) - mac[3]) / sf;
-
-    // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
-    ir[1] = lim(ir[1], -32768.0, 24, 32767.0, 24);
-    ir[2] = lim(ir[2], -32768.0, 23, 32767.0, 23);
-    ir[3] = lim(ir[3], -32768.0, 22, 32767.0, 22);
+    // Clamp the depth-cue delta before interpolate() applies IR0. The lm
+    // flag belongs to the final interpolated IR result, not this intermediate
+    // signed step; this is required by Crash Bash's signed INTPL path.
+    ir[1] = lim(((fc[0] * 4096.0) - mac[1]) / sf, -32768.0, 24, 32767.0, 24);
+    ir[2] = lim(((fc[1] * 4096.0) - mac[2]) / sf, -32768.0, 23, 32767.0, 23);
+    ir[3] = lim(((fc[2] * 4096.0) - mac[3]) / sf, -32768.0, 22, 32767.0, 22);
   };
 
   const interpolate = () => {
