@@ -16,7 +16,11 @@ mdlr('enge:psx:serial', m => {
     data = byte & 0xff;
 
     if (!last) {
-      psx.setEvent(eventIRQ, (baud * 8) >>> 0);
+      // OpenBIOS expects the serial device to advance at the faster cadence
+      // for both pad and memory-card transfers. This changes timing only; the
+      // upstream memory-card commands, response bytes, and checksums remain
+      // unchanged so card behavior can be tested independently.
+      psx.setEvent(eventIRQ, (baud * 4) >>> 0);
     }
   }
 

@@ -2,6 +2,11 @@
 
 mdlr('enge:psx:mmu', m => {
 
+  const irqDebug = new URLSearchParams(window.location.search).has('debug-cd');
+  const irqLog = (...args) => {
+    if (irqDebug) console.debug('[IRQ]', ...args);
+  };
+
   const { dma } = m.require('enge:psx:dma');
   const { rtc } = m.require('enge:psx:rtc');
 
@@ -28,6 +33,10 @@ mdlr('enge:psx:mmu', m => {
     }
 
     switch (addr & 0x3fff) {
+      case 0x2080: return 0x50; // PCSX-Redux expansion ID: 'P'
+      case 0x2081: return 0x43; // 'C'
+      case 0x2082: return 0x53; // 'S'
+      case 0x2083: return 0x58; // 'X'
       case 0x1040: return joy.rd08r1040();
       case 0x1044: return (joy.rd16r1044() << 24) >> 24;
       case 0x1054: return 0 >> 0;
@@ -165,6 +174,8 @@ mdlr('enge:psx:mmu', m => {
     switch (addr & 0x3fff) {
       case 0x1014: return map[addr >>> 2] >> 0;
       case 0x1020: return map[addr >>> 2] >> 0;
+      case 0x101c: return 0x00070777; // EXP2_DELAY_SIZE / DEV8 delay
+      case 0x2080: return 0x58534350; // PCSX-Redux expansion ID: 'PCSX'
       case 0x1044: return joy.rd16r1044() >> 0;
       case 0x1054: return 0x00;
       case 0x1060: return map[addr >>> 2] >> 0;
@@ -251,6 +262,12 @@ mdlr('enge:psx:mmu', m => {
       if (base >= 0x01801000) hwWrite8(base, data);
       return;
     }
+    if ((base >= 0x01802000) && (base < 0x01803000)) {
+      // PCSX-Redux expansion/debug registers. OpenBIOS writes diagnostic
+      // output here; keep the access harmless for normal emulation.
+      map8[base >>> 0] = data;
+      return;
+    }
     if (base === 0x1802041) {
       map8[base >>> 0] = data;
       return;
@@ -281,8 +298,14 @@ mdlr('enge:psx:mmu', m => {
       case 0x1058: return;
       case 0x105a: return;
       case 0x105e: return;
-      case 0x1070: cpu.istat &= ((data & 0xffff) & cpu.imask); return;
-      case 0x1074: cpu.imask = data; return;
+      case 0x1070:
+        cpu.istat &= ((data & 0xffff) & cpu.imask);
+        irqLog('I_STAT acknowledge16', `0x${(data & 0xffff).toString(16)}`, `istat=0x${(cpu.istat >>> 0).toString(16)}`);
+        return;
+      case 0x1074:
+        cpu.imask = data;
+        irqLog('I_MASK write16', `0x${(data >>> 0).toString(16)}`);
+        return;
     }
     abort(hex(addr, 8));
   }
@@ -333,8 +356,14 @@ mdlr('enge:psx:mmu', m => {
       case 0x101c: return;
       case 0x1020: return;
       case 0x1060: return;
-      case 0x1070: cpu.istat &= (data & cpu.imask); return;
-      case 0x1074: cpu.imask = data >>> 0; return;
+      case 0x1070:
+        cpu.istat &= (data & cpu.imask);
+        irqLog('I_STAT acknowledge32', `0x${(data >>> 0).toString(16)}`, `istat=0x${(cpu.istat >>> 0).toString(16)}`);
+        return;
+      case 0x1074:
+        cpu.imask = data >>> 0;
+        irqLog('I_MASK write32', `0x${(data >>> 0).toString(16)}`);
+        return;
       case 0x1810: gpu.wr32r1810(data); return;
       case 0x1814: gpu.wr32r1814(data); return;
       case 0x1820: mdc.wr32r1820(data); return;
@@ -353,6 +382,10 @@ mdlr('enge:psx:mmu', m => {
     if ((base >= 0x01800000) && (base < 0x01802000)) {
       map[base >>> 2] = data;
       if (base >= 0x01801000) hwWrite32(base, data);
+      return;
+    }
+    if ((base >= 0x01802000) && (base < 0x01803000)) {
+      map[base >>> 2] = data;
       return;
     }
     if (base === 0x01fe0130) {

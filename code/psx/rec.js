@@ -560,9 +560,15 @@ mdlr('enge:psx:rec', m => {
   let clears = 0;
   function clearCodeCache(addr, size) {
     const ibase = getCacheIndex(addr);
-    if (ibase >= 0x00200000) return;
+    if (ibase < 0x00200000) {
+      fastCache.fill(0, ibase, ibase + size);
+    }
 
-    fastCache.fill(0, ibase, ibase + size);
+    // The BIOS is mapped above the fast-cache range.  Its translated blocks
+    // live in the Map cache, so replacing a BIOS must evict those entries too.
+    for (const pc of cached.keys()) {
+      if (pc >= ibase && pc < ibase + size) cached.delete(pc);
+    }
     ++clears;
   }
 
