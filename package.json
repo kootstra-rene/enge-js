@@ -1,0 +1,12 @@
+{
+  "name": "enge-js",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "server": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

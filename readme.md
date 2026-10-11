@@ -18,6 +18,17 @@ Same as with the BIOS drag and drop the .psx-exe file on the emulator page and i
 ## Loading a cdrom
 Same as with the BIOS drag and drop the .bin file on the emulator page and it will automatically start running. Only raw .iso and .bin files are supported currently. The emulator will try to build it's own table of contents a.k.a track information and as such a lot of games have cd audio but it could not work in all cases.
 
+## Hosting locally
+
+The included server is written in Node.js and serves the emulator, game files, generated catalogs, save states, and memory cards from one port. It has no npm runtime dependencies and requires Node.js 18 or newer.
+
+```sh
+ln -s /path/to/your/games games
+node server.js
+```
+
+The default URL is `http://<your-lan-ip>:8000/`. The server prints the detected LAN address when it starts. See [SERVER.md](./SERVER.md) for command-line options, catalog generation, range requests, and cloud endpoints.
+
 ## Improving quality
 Clicking the Qx button, toggle between Q1,Q2,Q4 and Q8 the latter being the highest quality. After doing so the border will get an redisch color indicating that you have to restart the emulator which can be done by reloading the page.
 
@@ -50,4 +61,4 @@ I have started a [compatibility list](./compatability.md). So feel free to updat
 # Release notes
 
 2024-01-31: publish latest state. [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) is running smoothly if your hardware supports it.  
-2024-02-13: SPU envelope refactors and added SPU Reverb for voices and CD-Audio.  
+2024-02-13: SPU envelope refactors and added SPU Reverb for voices and CD-Audio.
