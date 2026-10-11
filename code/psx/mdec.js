@@ -5,15 +5,22 @@ mdlr('enge:psx:mdec', ({ include }) => {
     if (mdecDebug) console.debug('[MDEC]', ...args);
   };
 
-  const iq = new Int32Array(128);
+  // quantisation tables (command 2): 0-63 luminance, 64-127 colour, in zigzag order
+  const iq = new Uint8Array(128);
+  const iqY = iq.subarray(0, 64);
+  const iqC = iq.subarray(64, 128);
 
-  const scale = new Uint8Array(3 * 256);
-  const SCALERC256 = (y, x) => {
-    return scale[256 + 128 + y + x];
-  };
-  const SCALERC32 = (y, x) => {
-    return SCALERC256(y,x)>>>3;
-  };
+  // IDCT scale table (command 3), defaults to the table every game uploads
+  const scaleTable = new Int32Array([
+    0x5a82, 0x5a82, 0x5a82, 0x5a82, 0x5a82, 0x5a82, 0x5a82, 0x5a82,
+    0x7d8a, 0x6a6d, 0x471c, 0x18f8, 0xe707, 0xb8e3, 0x9592, 0x8275,
+    0x7641, 0x30fb, 0xcf04, 0x89be, 0x89be, 0xcf04, 0x30fb, 0x7641,
+    0x6a6d, 0xe707, 0x8275, 0xb8e3, 0x471c, 0x7d8a, 0x18f8, 0x9592,
+    0x5a82, 0xa57d, 0xa57d, 0x5a82, 0x5a82, 0xa57d, 0xa57d, 0x5a82,
+    0x471c, 0x8275, 0x18f8, 0x6a6d, 0x9592, 0xe707, 0x7d8a, 0xb8e3,
+    0x30fb, 0x89be, 0x7641, 0xcf04, 0xcf04, 0x7641, 0x89be, 0x30fb,
+    0x18f8, 0xb8e3, 0x6a6d, 0x8275, 0x7d8a, 0x9592, 0x471c, 0xe707,
+  ].map(v => (v << 16) >> 16));
 
   const zscan = [
     0, 1, 8, 16, 9, 2, 3, 10,
@@ -26,232 +33,146 @@ mdlr('enge:psx:mdec', ({ include }) => {
     53, 60, 61, 54, 47, 55, 62, 63
   ];
 
-  const aanscales = [
-    0x4000, 0x58c5, 0x539f, 0x4b42, 0x4000, 0x3249, 0x22a3, 0x11a8,
-    0x58c5, 0x7b21, 0x73fc, 0x6862, 0x58c5, 0x45bf, 0x300b, 0x187e,
-    0x539f, 0x73fc, 0x6d41, 0x6254, 0x539f, 0x41b3, 0x2d41, 0x1712,
-    0x4b42, 0x6862, 0x6254, 0x587e, 0x4b42, 0x3b21, 0x28ba, 0x14c3,
-    0x4000, 0x58c5, 0x539f, 0x4b42, 0x4000, 0x3249, 0x22a3, 0x11a8,
-    0x3249, 0x45bf, 0x41b3, 0x3b21, 0x3249, 0x2782, 0x1b37, 0x0de0,
-    0x22a3, 0x300b, 0x2d41, 0x28ba, 0x22a3, 0x1b37, 0x12bf, 0x098e,
-    0x11a8, 0x187e, 0x1712, 0x14c3, 0x11a8, 0x0de0, 0x098e, 0x04df,
-  ];
-
   const iqtab_init = (addr, size) => {
-    for (let i = 0; i < size; ++i) {
-      const q = map8[((addr + i) & 0x001fffff) >>> 0] & 0xff;
-      iq[i] = (q * aanscales[zscan[i & 63]]) >> 12;
+    for (let i = 0; i < size && i < 128; ++i) {
+      iq[i] = map8[((addr + i) & 0x001fffff) >>> 0] & 0xff;
     }
   };
 
-  const icdt = (blk, o) => {
-    let z10, z11, z12, z13;
-
-    let oo = o;
-    for (let i = 8; i > 0; --i, o += 8) {
-      z10 = (blk[o + 0] + blk[o + 4]) >> 0;
-      z11 = (blk[o + 0] - blk[o + 4]) >> 0;
-      z13 = (blk[o + 2] + blk[o + 6]) >> 0;
-      z12 = (blk[o + 2] - blk[o + 6]) >> 0;
-      z12 = (((z12 * 362) >> 8) - z13) >> 0;
-
-      const tmp0 = (z10 + z13) >> 0;
-      const tmp3 = (z10 - z13) >> 0;
-      const tmp1 = (z11 + z12) >> 0;
-      const tmp2 = (z11 - z12) >> 0;
-
-      z13 = (blk[o + 3] + blk[o + 5]) >> 0;
-      z10 = (blk[o + 3] - blk[o + 5]) >> 0;
-      z11 = (blk[o + 1] + blk[o + 7]) >> 0;
-      z12 = (blk[o + 1] - blk[o + 7]) >> 0;
-      const z5 = ((z12 - z10) * 473) >> 8;
-
-      const tmp7 = (z11 + z13) >> 0;
-      const tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
-      const tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
-      const tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
-
-      blk[o + 0] = (tmp0 + tmp7) >> 5;
-      blk[o + 1] = (tmp1 + tmp6) >> 5;
-      blk[o + 2] = (tmp2 + tmp5) >> 5;
-      blk[o + 3] = (tmp3 - tmp4) >> 5;
-      blk[o + 4] = (tmp3 + tmp4) >> 5;
-      blk[o + 5] = (tmp2 - tmp5) >> 5;
-      blk[o + 6] = (tmp1 - tmp6) >> 5;
-      blk[o + 7] = (tmp0 - tmp7) >> 5;
-    }
-
-    o = oo;
-    for (let i = 8; i > 0; --i, ++o) {
-      z10 = (blk[o + 0] + blk[o + 32]) >> 0;
-      z11 = (blk[o + 0] - blk[o + 32]) >> 0;
-      z13 = (blk[o + 16] + blk[o + 48]) >> 0;
-      z12 = (blk[o + 16] - blk[o + 48]) >> 0;
-      z12 = (((z12 * 362) >> 8) - z13) >> 0;
-
-      const tmp0 = (z10 + z13) >> 0;
-      const tmp3 = (z10 - z13) >> 0;
-      const tmp1 = (z11 + z12) >> 0;
-      const tmp2 = (z11 - z12) >> 0;
-
-      z13 = (blk[o + 24] + blk[o + 40]) >> 0;
-      z10 = (blk[o + 24] - blk[o + 40]) >> 0;
-      z11 = (blk[o + 8] + blk[o + 56]) >> 0;
-      z12 = (blk[o + 8] - blk[o + 56]) >> 0;
-      const z5 = ((z12 - z10) * 473) >> 8;
-
-      const tmp7 = (z11 + z13) >> 0;
-      const tmp6 = ((((z10 * 669) >> 8) + z5) - tmp7) >> 0;
-      const tmp5 = ((((z11 - z13) * 362) >> 8) - tmp6) >> 0;
-      const tmp4 = ((((z12 * 277) >> 8) - z5) + tmp5) >> 0;
-
-      blk[o + 0] = (tmp0 + tmp7) >> 0;
-      blk[o + 8] = (tmp1 + tmp6) >> 0;
-      blk[o + 16] = (tmp2 + tmp5) >> 0;
-      blk[o + 24] = (tmp3 - tmp4) >> 0;
-      blk[o + 32] = (tmp3 + tmp4) >> 0;
-      blk[o + 40] = (tmp2 - tmp5) >> 0;
-      blk[o + 48] = (tmp1 - tmp6) >> 0;
-      blk[o + 56] = (tmp0 - tmp7) >> 0;
+  const scaletab_init = (addr) => {
+    for (let i = 0; i < 64; ++i) {
+      scaleTable[i] = map16[(((addr & 0x001fffff) >>> 1) + i) & 0xfffff];
     }
   };
 
-  const rl2blk = (blk, addr) => {
+  const clamp = (v, lo, hi) => v < lo ? lo : (v > hi ? hi : v);
+
+  // hardware IDCT: two matrix passes with the scale table, result rounded,
+  // wrapped to signed 9 bits and saturated to signed 8 bits. Sums stay below
+  // 2^47 so doubles are exact.
+  // Blocks are mostly zero: all-zero input columns produce all-zero temp
+  // columns, so they are skipped in both passes (result is identical).
+  const idctTemp = new Float64Array(64);
+  const idctCols = new Int32Array(8);
+  const idct = (blk) => {
+    let cols = 0;
+    for (let x = 0; x < 8; ++x) {
+      if (!(blk[x] | blk[8 + x] | blk[16 + x] | blk[24 + x] | blk[32 + x] | blk[40 + x] | blk[48 + x] | blk[56 + x])) continue;
+      idctCols[cols++] = x;
+
+      for (let y = 0; y < 8; ++y) {
+        let sum = 0;
+        for (let u = 0; u < 8; ++u) {
+          sum += blk[u * 8 + x] * scaleTable[u * 8 + y];
+        }
+        idctTemp[x + y * 8] = sum;
+      }
+    }
+
+    for (let x = 0; x < 8; ++x) {
+      for (let y = 0; y < 8; ++y) {
+        let sum = 0;
+        for (let c = 0; c < cols; ++c) {
+          const u = idctCols[c];
+          sum += idctTemp[u + y * 8] * scaleTable[u * 8 + x];
+        }
+        const v = ((Math.floor(sum / 0x100000000) + (Math.floor(sum / 0x80000000) & 1)) << 23) >> 23;
+        blk[x + y * 8] = clamp(v, -128, 127);
+      }
+    }
+  };
+
+  // run-length decode, dequantise and IDCT one 8x8 block, returns the address after it
+  const rl2blk = (blk, addr, qt) => {
     blk.fill(0);
 
     let base = (addr & 0x001fffff) >>> 1;
 
-    for (let i = 0; i < 6; ++i) {
-      const iqoff = i >= 2 ? 0 : 64;
-      const o = 64 * i;
+    let rl;
+    do {
+      rl = map16[(base++) & 0xfffff] & 0xffff;
+    } while (rl === 0xfe00);
 
-      const rl = map16[base++] & 0xffff;
+    // q = 0: coefficients are stored unquantised and in linear order
+    const q = rl >>> 10;
+    let k = 0;
+    blk[0] = clamp(((rl << 22) >> 22) * (q ? qt[0] : 2), -0x400, 0x3ff);
 
-      const q = rl >> 10;
-      const dc = ((rl << 22) >> 22);
-      let k = 0;
-      blk[o] = iq[iqoff] * dc;
+    for (; ;) {
+      rl = map16[(base++) & 0xfffff] & 0xffff;
 
-      for (; ;) {
-        const rl = map16[base++] & 0xffff;
+      k += ((rl >>> 10) + 1);
+      if (k > 63) break;
 
-        k += ((rl >> 10) + 1);
-        if (k <= 63) {
-          const dc = ((rl << 22) >> 22);
-          const val = (iq[iqoff + k] * q * dc) >> 3;
-          blk[o + zscan[k]] = val;
-        }
-        if (k > 63) break;
+      const ac = ((rl << 22) >> 22);
+      if (q) {
+        blk[zscan[k]] = clamp(((ac * qt[k] * q + 4) / 8) | 0, -0x400, 0x3ff);
       }
-
-      icdt(blk, o);
+      else {
+        blk[k] = clamp(ac * 2, -0x400, 0x3ff);
+      }
     }
+
+    idct(blk);
     return base << 1;
   };
 
-  const putquadrgb15 = (addr, blk, o, Cr, Cb) => {
-    const R = ((1433 * Cr)) >> 10;
-    const G = ((-351 * Cb) - (728 * Cr)) >> 10;
-    const B = ((1807 * Cb)) >> 10;
+  // converts one 8x8 luminance block of a macroblock into rgb[] (0x00BBGGRR),
+  // xx/yy select the quadrant of the 16x16 macroblock
+  const yuv2rgb = (rgb, crBlk, cbBlk, yBlk, xx, yy, bias) => {
+    for (let y = 0; y < 8; ++y) {
+      for (let x = 0; x < 8; ++x) {
+        const c = ((x + xx) >> 1) + ((y + yy) >> 1) * 8;
+        const Cr = crBlk[c];
+        const Cb = cbBlk[c];
+        const R = Math.trunc(1.402 * Cr);
+        const G = Math.trunc((-0.3437 * Cb) + (-0.7143 * Cr));
+        const B = Math.trunc(1.772 * Cb);
 
-    const base = (addr & 0x001fffff) >>> 0;
-    const memory = map16;
-
-    let Y, r, g, b, a = mdc.STP;
-
-    Y = blk[o + 0] << 0;
-    r = SCALERC32(Y, R);
-    g = SCALERC32(Y, G);
-    b = SCALERC32(Y, B);
-    memory[(base + 0) >>> 1] = a | (b << 10) | (g << 5) | r;
-
-    Y = blk[o + 1] << 0;
-    r = SCALERC32(Y, R);
-    g = SCALERC32(Y, G);
-    b = SCALERC32(Y, B);
-    memory[(base + 2) >>> 1] = a | (b << 10) | (g << 5) | r;
-
-    Y = blk[o + 8] << 0;
-    r = SCALERC32(Y, R);
-    g = SCALERC32(Y, G);
-    b = SCALERC32(Y, B);
-    memory[(base + 32) >>> 1] = a | (b << 10) | (g << 5) | r;
-
-    Y = blk[o + 9] << 0;
-    r = SCALERC32(Y, R);
-    g = SCALERC32(Y, G);
-    b = SCALERC32(Y, B);
-    memory[(base + 34) >>> 1] = a | (b << 10) | (g << 5) | r;
-  };
-
-  const yuv2rgb15 = (blk, addr) => {
-    let y;
-    let ro = 0;
-    let bo = 64;
-    let yo = 64 * 2;
-
-    for (y = 0; y < 16; y += 2, ro += 8, bo += 8, yo += 16, addr += 64) {
-      if (y == 8) yo += 64;
-
-      putquadrgb15(addr + 0, blk, yo + 0, blk[ro + 0], blk[bo + 0]);
-      putquadrgb15(addr + 4, blk, yo + 2, blk[ro + 1], blk[bo + 1]);
-      putquadrgb15(addr + 8, blk, yo + 4, blk[ro + 2], blk[bo + 2]);
-      putquadrgb15(addr + 12, blk, yo + 6, blk[ro + 3], blk[bo + 3]);
-      putquadrgb15(addr + 16, blk, yo + 64, blk[ro + 4], blk[bo + 4]);
-      putquadrgb15(addr + 20, blk, yo + 66, blk[ro + 5], blk[bo + 5]);
-      putquadrgb15(addr + 24, blk, yo + 68, blk[ro + 6], blk[bo + 6]);
-      putquadrgb15(addr + 28, blk, yo + 70, blk[ro + 7], blk[bo + 7]);
+        const Y = yBlk[x + y * 8];
+        const r = (clamp(Y + R, -128, 127) + bias) & 0xff;
+        const g = (clamp(Y + G, -128, 127) + bias) & 0xff;
+        const b = (clamp(Y + B, -128, 127) + bias) & 0xff;
+        rgb[(x + xx) + (y + yy) * 16] = (b << 16) | (g << 8) | r;
+      }
     }
   };
 
-  const putquadrgb24 = (addr, blk, o, Cr, Cb) => {
-    const R = ((1433 * Cr)) >> 10;
-    const G = ((-351 * Cb) - (728 * Cr)) >> 10;
-    const B = ((1807 * Cb)) >> 10;
-
-    const base = (addr & 0x001fffff) >>> 0;
-    const memory = map8;
-
-    let Y;
-
-    Y = blk[o + 0] << 0;
-    memory[base + 0] = SCALERC256(Y, R);
-    memory[base + 1] = SCALERC256(Y, G);
-    memory[base + 2] = SCALERC256(Y, B);
-
-    Y = blk[o + 1] << 0;
-    memory[base + 3] = SCALERC256(Y, R);
-    memory[base + 4] = SCALERC256(Y, G);
-    memory[base + 5] = SCALERC256(Y, B);
-
-    Y = blk[o + 8] << 0;
-    memory[base + 48] = SCALERC256(Y, R);
-    memory[base + 49] = SCALERC256(Y, G);
-    memory[base + 50] = SCALERC256(Y, B);
-
-    Y = blk[o + 9] << 0;
-    memory[base + 51] = SCALERC256(Y, R);
-    memory[base + 52] = SCALERC256(Y, G);
-    memory[base + 53] = SCALERC256(Y, B);
+  const putrgb15 = (rgb, addr, stp) => {
+    const base = (addr & 0x001fffff) >>> 1;
+    for (let i = 0; i < 256; ++i) {
+      const c = rgb[i];
+      const r = (c >>> 3) & 0x1f;
+      const g = (c >>> 11) & 0x1f;
+      const b = (c >>> 19) & 0x1f;
+      map16[(base + i) & 0xfffff] = stp | (b << 10) | (g << 5) | r;
+    }
   };
 
-  const yuv2rgb24 = (blk, addr) => {
-    let y;
-    let ro = 0;
-    let bo = 64;
-    let yo = 64 * 2;
+  const putrgb24 = (rgb, addr) => {
+    const base = addr & 0x001fffff;
+    for (let i = 0; i < 256; ++i) {
+      const c = rgb[i];
+      map8[(base + i * 3 + 0) & 0x1fffff] = c;
+      map8[(base + i * 3 + 1) & 0x1fffff] = c >>> 8;
+      map8[(base + i * 3 + 2) & 0x1fffff] = c >>> 16;
+    }
+  };
 
-    for (y = 0; y < 16; y += 2, ro += 8, bo += 8, yo += 16, addr += 96) {
-      if (y == 8) yo += 64;
+  const putmono8 = (yBlk, addr, bias) => {
+    const base = addr & 0x001fffff;
+    for (let i = 0; i < 64; ++i) {
+      map8[(base + i) & 0x1fffff] = yBlk[i] + bias;
+    }
+  };
 
-      putquadrgb24(addr + 0, blk, yo + 0, blk[ro + 0], blk[bo + 0]);
-      putquadrgb24(addr + 6, blk, yo + 2, blk[ro + 1], blk[bo + 1]);
-      putquadrgb24(addr + 12, blk, yo + 4, blk[ro + 2], blk[bo + 2]);
-      putquadrgb24(addr + 18, blk, yo + 6, blk[ro + 3], blk[bo + 3]);
-      putquadrgb24(addr + 24, blk, yo + 64, blk[ro + 4], blk[bo + 4]);
-      putquadrgb24(addr + 30, blk, yo + 66, blk[ro + 5], blk[bo + 5]);
-      putquadrgb24(addr + 36, blk, yo + 68, blk[ro + 6], blk[bo + 6]);
-      putquadrgb24(addr + 42, blk, yo + 70, blk[ro + 7], blk[bo + 7]);
+  // two pixels per byte, first pixel in the low nibble
+  const putmono4 = (yBlk, addr, bias) => {
+    const base = addr & 0x001fffff;
+    for (let i = 0; i < 32; ++i) {
+      const lo = ((yBlk[i * 2 + 0] + bias) & 0xff) >>> 4;
+      const hi = ((yBlk[i * 2 + 1] + bias) & 0xff) >>> 4;
+      map8[(base + i) & 0x1fffff] = (hi << 4) | lo;
     }
   };
 
@@ -281,7 +202,8 @@ mdlr('enge:psx:mdec', ({ include }) => {
     rlQueue: [],
     STP: 0,
     end: 0,
-    block: new Int32Array(6 * 64),
+    blocks: [0, 1, 2, 3, 4, 5].map(() => new Int32Array(64)),
+    rgb: new Int32Array(256),
 
     rd32r1820: () => {
       return mdc.r1820;
@@ -358,12 +280,13 @@ mdlr('enge:psx:mdec', ({ include }) => {
           if (mdc.r1820 !== 0x40000001) return abort();
           break;
 
+        case 0x3:
+          scaletab_init(addr);
+          break;
+
         default:
           console.log(hex(mdc.r1820 >>> 29));
       }
-
-      mdc.r1820 &= 0xf87fffff;
-      mdc.r1820 |= (mdc.r1824 & 0x1e000000) >> 2;
 
       return transferSize;
     },
@@ -375,45 +298,60 @@ mdlr('enge:psx:mdec', ({ include }) => {
       const numberOfWords = (blck >>> 16) * (blck & 0xffff);
       // clearCodeCache(addr, numberOfWords << 2); // optimistice assumption (performance reasons)
 
-      const blk = mdc.block;
+      const blocks = mdc.blocks;
+      const rgb = mdc.rgb;
       const end = addr + (numberOfWords << 2);
       const depth = (mdc.r1820 >>> 27) & 3;
+      const bias = (mdc.r1820 & (1 << 26)) ? 0x00 : 0x80; // signed / unsigned output
       mdc.end = end;
       mdc.STP = (mdc.r1820 & (1 << 25)) ? 0x8000 : 0x0000;
-      let decodedMacroBlocks = 0;
+      let decodedBlocks = 0;
       const rlStart = mdc.rl;
       while (addr < end) {
         nextInput();
-        mdc.rl = rl2blk(blk, mdc.rl);
-        switch (depth) {
-          case 0: // todo: implement
-            addr += (4 * 16) << 1;
-            break;
-          case 1: // todo: implement
-            addr += (8 * 16) << 1;
-            break;
-          case 2:
-            yuv2rgb24(blk, addr);
-            addr += (24 * 16) << 1;
-            break;
-          case 3:
-            yuv2rgb15(blk, addr);
-            addr += (16 * 16) << 1;
-            break;
+        if (depth < 2) {
+          // monochrome: one 8x8 luminance block per macroblock
+          mdc.rl = rl2blk(blocks[2], mdc.rl, iqY);
+          if (depth === 0) {
+            putmono4(blocks[2], addr, bias);
+            addr += 32;
+          }
+          else {
+            putmono8(blocks[2], addr, bias);
+            addr += 64;
+          }
+          decodedBlocks += 1;
+          continue;
         }
-        decodedMacroBlocks += 6;
+
+        // colour: Cr, Cb, then four luminance blocks
+        mdc.rl = rl2blk(blocks[0], mdc.rl, iqC);
+        mdc.rl = rl2blk(blocks[1], mdc.rl, iqC);
+        for (let i = 0; i < 4; ++i) {
+          mdc.rl = rl2blk(blocks[2 + i], mdc.rl, iqY);
+          yuv2rgb(rgb, blocks[0], blocks[1], blocks[2 + i], (i & 1) << 3, (i & 2) << 2, bias);
+        }
+        if (depth === 2) {
+          putrgb24(rgb, addr);
+          addr += 768;
+        }
+        else {
+          putrgb15(rgb, addr, mdc.STP);
+          addr += 512;
+        }
+        decodedBlocks += 6;
       }
       // consume trailing padding so a finished command reports idle
       skipPadding();
 
       mdecLog('dma1', {
         addr: hex(end - (numberOfWords << 2)), blck: hex(blck >>> 0), words: numberOfWords,
-        depth, macroblocks: decodedMacroBlocks / 6,
+        depth, blocks: decodedBlocks,
         cmd: hex(mdc.r1820 >>> 0), rlStart: hex(rlStart >>> 0), rlNow: hex(mdc.rl >>> 0), rlEnd: hex(mdc.rlEnd >>> 0)
       });
 
       // 320x240x30 = 9000 16x16 blocks
-      const decodingCyclesRemaining = (PSX_SPEED / 9000) * (decodedMacroBlocks / 6);
+      const decodingCyclesRemaining = (PSX_SPEED / 9000) * (decodedBlocks / 6);
       psx.setEvent(mdc.event, decodingCyclesRemaining >>> 0);
       return numberOfWords;
     },
@@ -426,12 +364,6 @@ mdlr('enge:psx:mdec', ({ include }) => {
   }
 
   mdc.event = psx.addEvent(0, mdc.complete.bind(mdc));
-
-  for (let i = 0; i < 256; ++i) {
-    scale[0 + i] = 0;
-    scale[256 + i] = i;
-    scale[512 + i] = 255;
-  }
 
   return { mdc };
 })
