@@ -71,3 +71,375 @@ body {
   filter: blur(100px);
 
 }
+
+#load-bios,
+#load-game,
+#save-state,
+#load-state,
+#menu-button,
+#fullscreen,
+#cloud-button {
+  position: relative;
+  z-index: 3;
+  margin: 1vh;
+  padding: 0.75em 1em;
+  font-size: 1rem;
+  pointer-events: auto;
+}
+
+#nav-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+#nav-actions > button {
+  position: static !important;
+  inset: auto !important;
+  margin: 0 !important;
+}
+
+.nav-icon-button {
+  flex: none;
+}
+
+#menu-button {
+  position: relative;
+  width: 10vh;
+  min-width: 10vh;
+  height: 10vh;
+  padding: 0;
+  border: 2px solid #555;
+  border-radius: 0.5rem;
+  background: #222 url('images/menu.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+}
+
+#fullscreen {
+  width: 10vh;
+  min-width: 10vh;
+  height: 10vh;
+  padding: 0;
+  border: 2px solid #555;
+  border-radius: 0.5rem;
+  background: #222 url('images/fullscreen.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+}
+
+#cloud-button {
+  width: 10vh;
+  min-width: 10vh;
+  height: 10vh;
+  padding: 0;
+  border: 2px solid #555;
+  border-radius: 0.5rem;
+  background: #222 url('images/cloud.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+}
+
+#overlay-toggle {
+  display: none !important;
+  width: 8vh;
+  min-width: 8vh;
+  height: 8vh;
+  padding: 0;
+  border: 2px solid #555;
+  border-radius: 0.5rem;
+  background: #222 url('images/eye.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+}
+
+body.touch-overlay-hidden #touch-controls {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#control-menu,
+#network-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+#control-menu.open,
+#network-menu.open { display: flex; }
+
+.control-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(90vw, 22rem);
+  padding: 1.25rem;
+  border: 1px solid #555;
+  border-radius: 0.35rem;
+  background: #222;
+  color: #eee;
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.45);
+}
+
+.control-menu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.control-menu-heading #close-menu,
+.control-menu-heading #close-network-menu { margin-left: auto; }
+
+.control-menu-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.control-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#state-status {
+  padding: 0.25rem 0;
+  color: #aaa;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.control-menu-panel button {
+  position: static !important;
+  inset: auto !important;
+  width: 100% !important;
+  min-height: 2.75rem;
+  margin: 0 !important;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  transform: none !important;
+  pointer-events: auto;
+  border: 1px solid #666;
+  border-radius: 0.25rem;
+  background: #2d2d2d;
+  color: #eee;
+  cursor: pointer;
+}
+
+.control-menu-panel button:hover,
+.control-menu-panel button:focus-visible { background: #3b3b3b; }
+
+.control-menu-panel button:disabled {
+  border-color: #444;
+  background: #1b1b1b;
+  color: #777;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.control-menu-panel #close-menu,
+.control-menu-panel #close-network-menu {
+  width: 2rem !important;
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+#touch-controls {
+  display: none;
+}
+
+html.enge-pseudo-fullscreen,
+html.enge-pseudo-fullscreen body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@media (pointer: coarse), (max-width: 700px) {
+  body { position: fixed; inset: 0; }
+
+  .control-menu-panel {
+    max-height: calc(100vh - 1rem);
+    overflow-y: auto;
+    padding: 0.75rem;
+  }
+
+  .control-menu-panel button {
+    min-height: 2.25rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .control-menu-list { gap: 0.35rem; }
+
+  #display {
+    top: 50%;
+    left: 50%;
+    width: min(100vw, calc(100vh * 4 / 3));
+    height: min(100vh, calc(100vw * 3 / 4));
+    transform: translate(-50%, -50%);
+    aspect-ratio: 4 / 3;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  #background, #ambilight { display: none; }
+
+  #nav-actions {
+    position: fixed;
+    top: 5.25rem;
+    left: 1rem;
+    z-index: 6;
+  }
+
+  #cloud-button,
+  #menu-button,
+  #fullscreen {
+    width: 4.25rem;
+    min-height: 2.5rem;
+    padding: 0.4rem;
+    font-size: 0.7rem;
+  }
+
+  #cloud-button,
+  #menu-button,
+  #fullscreen { height: 4.25rem; background-size: 3.25rem 3.25rem; }
+  #overlay-toggle { display: block !important; }
+
+  #touch-controls {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 4;
+    pointer-events: none;
+    touch-action: none;
+  }
+
+  .touch-button {
+    position: relative;
+    width: 3.75rem;
+    height: 3.75rem;
+    border: 1px solid #aaa;
+    border-radius: 50%;
+    background: #222b;
+    color: white;
+    font-size: 1.25rem;
+    pointer-events: auto;
+    touch-action: none;
+    color: #e6e6e6;
+    font-size: 0;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .touch-button:active { background: #777d; }
+  .touch-button.is-pressed { background: #777d; }
+
+  .touch-button:before {
+    content: '';
+    display: block;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .touch-button.select:before { width: 1.45rem; height: 0.85rem; border: 0.16rem solid currentColor; border-radius: 0.2rem; }
+  .touch-button.start:before { width: 1.65rem; height: 1.05rem; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+  .touch-button.circle:before { width: 1.45rem; height: 1.45rem; border: 0.16rem solid currentColor; border-radius: 50%; }
+  .touch-button.square:before { width: 1.35rem; height: 1.35rem; border: 0.16rem solid currentColor; }
+  .touch-button.triangle:before { width: 1.7rem; height: 1.55rem; background: currentColor; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .touch-button.triangle:after { content: ''; display: block; position: absolute; left: 50%; top: 50%; width: 1.05rem; height: 0.95rem; transform: translate(-50%, -42%); background: #222; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .touch-button.cross:before { width: 1.55rem; height: 1.55rem; background: linear-gradient(45deg, transparent 42%, currentColor 43%, currentColor 57%, transparent 58%), linear-gradient(-45deg, transparent 42%, currentColor 43%, currentColor 57%, transparent 58%); }
+
+  .touch-stick {
+    position: absolute;
+    left: 1rem;
+    bottom: 1.5rem;
+    width: 9rem;
+    height: 9rem;
+    border: 2px solid #aaa8;
+    border-radius: 50%;
+    background: #222b;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .touch-stick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4rem;
+    height: 4rem;
+    margin: -2rem;
+    border: 1px solid #ddd;
+    border-radius: 50%;
+    background: #777d;
+    pointer-events: none;
+  }
+
+  .touch-face,
+  .touch-menu,
+  .touch-shoulders {
+    position: absolute;
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .touch-face { right: 1rem; bottom: 1.5rem; width: 12rem; height: 12rem; }
+  .touch-face .touch-button { position: absolute; }
+  .touch-face .triangle { top: 0; left: 50%; transform: translateX(-50%); }
+  .touch-face .circle { top: 50%; right: 0; transform: translateY(-50%); }
+  .touch-face .square { top: 50%; left: 0; transform: translateY(-50%); }
+  .touch-face .cross { bottom: 0; left: 50%; transform: translateX(-50%); }
+  .touch-menu { top: 5.25rem; right: 1rem; left: auto; bottom: auto; transform: none; }
+  .touch-shoulders { left: 1rem; right: 1rem; top: 0.75rem; justify-content: space-between; }
+  .touch-shoulder-pair { display: flex; gap: 0.45rem; }
+  .touch-shoulder-pair .touch-button { font-size: 1.1rem; }
+}
+
+@media (pointer: coarse) and (orientation: portrait), (max-width: 700px) and (orientation: portrait) {
+  #nav-actions { top: 6.25rem; display: flex !important; flex-direction: row; gap: 0.6rem; }
+  #cloud-button, #menu-button, #fullscreen { top: auto; }
+  #nav-actions > #overlay-toggle { position: fixed !important; left: 50% !important; right: auto !important; top: auto !important; bottom: 1rem !important; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; transform: translateX(-50%) !important; }
+  .touch-button { width: 4rem; height: 4rem; }
+  .touch-stick { left: 2rem; bottom: 6rem; width: 9.5rem; height: 9.5rem; }
+  .touch-stick-knob { width: 4.5rem; height: 4.5rem; margin: -2.25rem; }
+  .touch-face { right: 0.5rem; bottom: 6rem; width: 12rem; height: 12rem; }
+  .touch-menu { top: 6rem; }
+  #cloud-button, #menu-button, #fullscreen { width: 6vh !important; min-width: 6vh !important; min-height: 0; height: 6vh !important; font-size: 0; background-size: 5vh 5vh !important; }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px),
+       (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  #nav-actions { left: 1rem; right: auto; width: 9rem; display: grid !important; grid-template-columns: repeat(2, 8vh); gap: 0.4rem; }
+  #cloud-button, #menu-button, #fullscreen { top: auto; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; background-size: 6vh 6vh; }
+  #nav-actions > #overlay-toggle { display: block !important; position: static !important; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; transform: none; }
+  .touch-button { width: 3.5rem; height: 3.5rem; }
+  .touch-stick { left: 0.75rem; bottom: 0.75rem; width: 8.5rem; height: 8.5rem; }
+  .touch-stick-knob { width: 3.5rem; height: 3.5rem; margin: -1.75rem; }
+  .touch-face { right: 0.75rem; bottom: 0.75rem; width: 10.5rem; height: 10.5rem; }
+  .touch-menu { top: 4.5rem; right: 0.75rem; gap: 0.2rem; }
+  .touch-shoulders { top: 0.5rem; gap: 0.2rem; }
+  .touch-shoulder-pair { gap: 0.2rem; }
+}

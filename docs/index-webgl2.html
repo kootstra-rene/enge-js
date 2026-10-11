@@ -3,7 +3,159 @@
 
 <head>
   <title>eNGE</title>
-  <link rel="stylesheet" type="text/css" href="index-webgl2.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="index-webgl2.css?v=20261007-quality3">
+  <style>
+    #control-menu[hidden] { display: none !important; }
+    #menu-button {
+      width: 10vh;
+      height: 10vh;
+      padding: 0;
+      border: 2px solid #555;
+      border-radius: .5rem;
+      background: #222 url('images/menu.svg') center / 8vh 8vh no-repeat;
+      color: transparent;
+      font-size: 0;
+    }
+    #fullscreen {
+      width: 10vh;
+      min-width: 10vh;
+      height: 10vh;
+      padding: 0;
+      border: 2px solid #555;
+      border-radius: .5rem;
+      background: #222 url('images/fullscreen.svg') center / 8vh 8vh no-repeat;
+      color: transparent;
+      font-size: 0;
+    }
+    #cloud-button {
+      width: 10vh;
+      min-width: 10vh;
+      height: 10vh;
+      padding: 0;
+      border: 2px solid #555;
+      border-radius: .5rem;
+      background: #222 url('images/cloud.svg') center / 8vh 8vh no-repeat;
+      color: transparent;
+      font-size: 0;
+    }
+    #quality {
+      width: 10vh;
+      min-width: 10vh;
+      height: 10vh;
+      padding: 0;
+      border: 2px solid #555;
+      border-radius: .5rem;
+      background: #222;
+      color: #555;
+      font-size: 2rem;
+      font-weight: bold;
+    }
+    #overlay-toggle {
+      display: none !important;
+      width: 8vh;
+      min-width: 8vh;
+      height: 8vh;
+      padding: 0;
+      border: 2px solid #555;
+      border-radius: .5rem;
+      background: #222 url('images/eye.svg') center / 8vh 8vh no-repeat;
+      color: transparent;
+      font-size: 0;
+    }
+    #control-menu.open:not([hidden]) {
+      display: flex;
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: rgba(0, 0, 0, .55);
+    }
+    .control-menu-panel {
+      width: min(90vw, 22rem);
+      padding: 1.25rem;
+      border: 1px solid #555;
+      border-radius: .35rem;
+      background: #222;
+      color: #eee;
+      box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, .45);
+    }
+    .control-menu-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .control-menu-heading #close-menu,
+    .control-menu-heading #close-network-menu { margin-left: auto; }
+    .control-menu-list { margin: 0; padding: 0; list-style: none; }
+    .control-menu-list li { margin: .6rem 0; }
+    .menu-section { padding: .35rem 0 .1rem; border-bottom: 1px solid #555; color: #aaa; font-size: .85rem; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; }
+    .menu-setting { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+    .menu-setting select { min-height: 2.25rem; padding: .25rem .5rem; border: 1px solid #666; border-radius: .25rem; background: #2d2d2d; color: #eee; font-size: 1rem; }
+    .control-menu-list button {
+      width: 100%;
+      min-height: 2.75rem;
+      border: 1px solid #666;
+      border-radius: .25rem;
+      background: #2d2d2d;
+      color: #eee;
+    }
+    .control-menu-list button:disabled { border-color: #444; background: #1b1b1b; color: #777; opacity: .75; cursor: not-allowed; }
+    #game-list, #bios-list { display: flex; flex-direction: column; gap: .6rem; }
+    #game-list button, #bios-list button { width: 100%; }
+    .control-menu-heading #close-network-menu {
+      width: 2rem;
+      min-height: 2rem;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      font-size: 1.6rem;
+      line-height: 1;
+    }
+    @media (pointer: coarse), (max-width: 700px) {
+      .control-menu-panel { max-height: calc(100vh - 1rem); overflow-y: auto; padding: .75rem; }
+      .control-menu-panel button { min-height: 2.25rem; padding: .35rem .6rem; }
+      .control-menu-list { gap: .35rem; }
+    }
+    @media (pointer: coarse), (max-width: 700px) {
+      #cloud-button,
+      #menu-button,
+      #fullscreen {
+        position: fixed;
+        z-index: 6;
+        left: 1rem;
+        right: auto;
+      }
+      #cloud-button { top: 5.25rem; }
+      #menu-button { top: 5.25rem; }
+      #fullscreen { top: 10rem; }
+    }
+    @media (pointer: coarse) and (orientation: portrait), (max-width: 700px) and (orientation: portrait) {
+      #nav-actions { top: 6.25rem; display: flex !important; flex-direction: row; gap: .6rem; }
+      #cloud-button, #menu-button, #fullscreen { top: auto; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; }
+      #nav-actions > #overlay-toggle { display: block !important; position: fixed !important; left: 50% !important; right: auto !important; top: auto !important; bottom: 1rem !important; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; transform: translateX(-50%) !important; }
+      .touch-button { width: 4rem; height: 4rem; }
+      .touch-stick { width: 10rem; height: 10rem; }
+      .touch-stick-knob { width: 4.5rem; height: 4.5rem; margin: -2.25rem; }
+      .touch-stick { width: 9.5rem; height: 9.5rem; }
+      .touch-face { right: .5rem; width: 12rem; height: 12rem; }
+    }
+    @media (pointer: coarse) and (orientation: landscape) and (max-height: 500px), (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+      #nav-actions { left: 1rem; right: auto; width: 9rem; display: grid !important; grid-template-columns: repeat(2, 8vh); gap: .4rem; }
+      #cloud-button, #menu-button, #fullscreen { top: auto; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; }
+      #nav-actions > #overlay-toggle { display: block !important; position: static !important; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; transform: none; }
+      .touch-button { width: 3.5rem; height: 3.5rem; }
+      .touch-stick { left: .75rem; bottom: .75rem; width: 8.5rem; height: 8.5rem; }
+      .touch-stick-knob { width: 3.5rem; height: 3.5rem; margin: -1.75rem; }
+      .touch-face { right: .75rem; bottom: .75rem; width: 10.5rem; height: 10.5rem; }
+      .touch-menu { top: 4.5rem; right: .75rem; gap: .2rem; }
+      .touch-shoulders { top: .5rem; gap: .2rem; }
+      .touch-shoulder-pair { gap: .2rem; }
+    }
+  </style>
   <script id="pixel" type="x-shader/x-vertex">#version 300 es
     precision highp float;
     precision highp int;
@@ -331,13 +483,97 @@
   </script>
 </head>
 
-<body onload="init();">
+<body>
   <canvas id="ambilight"></canvas>
   <div id="background"></div>
   <canvas id="display"></canvas>
+  <div id="touch-controls" aria-label="Virtual controller">
+    <div class="touch-stick" data-virtual-stick>
+      <div class="touch-stick-knob"></div>
+    </div>
+    <div class="touch-face">
+      <button aria-label="Triangle" data-virtual-property="hi" data-virtual-bit="16" class="touch-button triangle">TRI</button>
+      <button aria-label="Circle" data-virtual-property="hi" data-virtual-bit="32" class="touch-button circle">CIR</button>
+      <button aria-label="Cross" data-virtual-property="hi" data-virtual-bit="64" class="touch-button cross">X</button>
+      <button aria-label="Square" data-virtual-property="hi" data-virtual-bit="128" class="touch-button square">SQR</button>
+    </div>
+    <div class="touch-menu">
+      <button aria-label="Select" data-virtual-property="lo" data-virtual-bit="1" class="touch-button select">Select</button>
+      <button aria-label="Start" data-virtual-property="lo" data-virtual-bit="8" class="touch-button start">Start</button>
+    </div>
+    <div class="touch-shoulders">
+      <div class="touch-shoulder-pair">
+        <button data-virtual-property="hi" data-virtual-bit="4" class="touch-button">L1</button>
+        <button data-virtual-property="hi" data-virtual-bit="1" class="touch-button">L2</button>
+      </div>
+      <div class="touch-shoulder-pair">
+        <button data-virtual-property="hi" data-virtual-bit="8" class="touch-button">R1</button>
+        <button data-virtual-property="hi" data-virtual-bit="2" class="touch-button">R2</button>
+      </div>
+    </div>
+  </div>
+  <div id="nav-actions" style="position: fixed; z-index: 6; top: 5.25rem; left: 1rem; display: flex;">
+    <button id="cloud-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open network menu" aria-expanded="false" title="Network loading">Cloud</button>
+    <button id="overlay-toggle" class="nav-icon-button" style="margin: 0;" type="button" aria-label="Hide touch controls" aria-pressed="false" title="Hide touch controls">Overlay</button>
+    <button id="quality" aria-label="Video quality" class="nav-icon-button" style="position: static; margin: 0;" type="button">Q1</button>
+    <button id="menu-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open menu" aria-expanded="false">&#9776;</button>
+    <button id="fullscreen" class="nav-icon-button" style="position: static; margin: 0;" type="button">Fullscreen</button>
+  </div>
+
+  <div id="network-menu" role="dialog" aria-modal="true" aria-label="Network menu" hidden>
+    <div class="control-menu-panel">
+      <div class="control-menu-heading">
+        <h2>Network</h2>
+        <button id="close-network-menu" type="button" aria-label="Close network menu">×</button>
+      </div>
+      <ul class="control-menu-list">
+        <li class="menu-section">BIOS</li>
+        <li id="bios-list-status" role="status">Loading BIOS list...</li>
+        <li id="bios-list"></li>
+        <li class="menu-section">Games</li>
+        <li id="game-list-status" role="status">Loading game list...</li>
+        <li id="game-list"></li>
+        <li class="menu-section">Cloud Saves</li>
+        <li><button id="cloud-save-state" type="button" disabled>Save State to Cloud</button></li>
+        <li><button id="cloud-load-state" type="button" disabled>Load State from Cloud</button></li>
+        <li><button id="cloud-save-memorycard" type="button">Save Memory Card to Cloud</button></li>
+        <li><button id="cloud-load-memorycard" type="button">Load Memory Card from Cloud</button></li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="control-menu" role="dialog" aria-modal="true" aria-label="Emulator menu" hidden>
+    <div class="control-menu-panel">
+      <div class="control-menu-heading">
+        <h2>Menu</h2>
+        <button id="close-menu" type="button" aria-label="Close menu">×</button>
+      </div>
+      <ul class="control-menu-list">
+        <li id="state-status" role="status">State controls waiting for game startup</li>
+        <li><button id="save-state" type="button" disabled>Save State</button></li>
+        <li><button id="load-state" type="button" disabled>Load State</button></li>
+        <li><button id="download-state" type="button" disabled>Download Save State</button></li>
+        <li><button id="download-memorycard" type="button">Download Memory Card</button></li>
+        <li><button id="upload-state" type="button" disabled>Upload Save State</button></li>
+        <li><button id="upload-memorycard" type="button">Upload Memory Card</button></li>
+        <li><button id="reload-window" type="button">Reload Window</button></li>
+      </ul>
+      <input id="upload-state-file" type="file" accept=".json,application/json" hidden>
+      <input id="upload-memorycard-file" type="file" accept=".mcr,.mc,.bin,application/octet-stream" hidden>
+    </div>
+  </div>
 
   <!-- <script type="text/javascript" src="https://localhost/bundle/unit/enge:psx:webgl2"></script> -->
-  <script type="text/javascript" src="index-webgl2.js"></script>
+  <script type="text/javascript" src="index-webgl2.js?v=20261008-known-working"></script>
+  <script>
+    window.addEventListener('load', () => {
+      if (typeof window.init !== 'function') {
+        console.error('eNGE startup failed: init() was not exported by index-webgl2.js');
+        return;
+      }
+      window.init();
+    });
+  </script>
 </body>
 
 </html>

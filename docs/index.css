@@ -56,6 +56,147 @@ header > span {
   background: transparent;
 }
 
+#touch-controls {
+  display: none;
+}
+
+@media (pointer: coarse), (max-width: 700px) {
+  #touch-controls {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 4;
+    pointer-events: none;
+    touch-action: none;
+  }
+
+  .touch-button {
+    position: relative;
+    width: 3.5rem;
+    height: 3.5rem;
+    border: 1px solid #aaa;
+    border-radius: 50%;
+    background: #222b;
+    color: white;
+    font-size: 1.25rem;
+    pointer-events: auto;
+    touch-action: none;
+    color: #e6e6e6;
+    font-size: 0;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .touch-button:active {
+    background: #777d;
+  }
+
+  .touch-button.is-pressed { background: #777d; }
+
+  .touch-button:before {
+    content: '';
+    display: block;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .touch-button.select:before {
+    width: 1.45rem;
+    height: 0.85rem;
+    border: 0.16rem solid currentColor;
+    border-radius: 0.2rem;
+  }
+
+  .touch-button.start:before {
+    width: 1.65rem;
+    height: 1.05rem;
+    background: currentColor;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+  }
+
+  .touch-button.circle:before {
+    width: 1.45rem;
+    height: 1.45rem;
+    border: 0.16rem solid currentColor;
+    border-radius: 50%;
+  }
+
+  .touch-button.square:before {
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 0.16rem solid currentColor;
+  }
+
+  .touch-button.triangle:before {
+    width: 1.7rem;
+    height: 1.55rem;
+    background: currentColor;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+
+  .touch-button.triangle:after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1.05rem;
+    height: 0.95rem;
+    transform: translate(-50%, -42%);
+    background: #222;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+
+  .touch-button.cross:before {
+    width: 1.55rem;
+    height: 1.55rem;
+    background: linear-gradient(45deg, transparent 42%, currentColor 43%, currentColor 57%, transparent 58%), linear-gradient(-45deg, transparent 42%, currentColor 43%, currentColor 57%, transparent 58%);
+  }
+
+  .touch-stick {
+    position: absolute;
+    left: 1.5rem;
+    bottom: 2rem;
+    width: 10rem;
+    height: 10rem;
+    border: 2px solid #aaa8;
+    border-radius: 50%;
+    background: #222b;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .touch-stick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4rem;
+    height: 4rem;
+    margin: -2rem;
+    border: 1px solid #ddd;
+    border-radius: 50%;
+    background: #777d;
+    pointer-events: none;
+  }
+
+  .touch-face,
+  .touch-menu,
+  .touch-shoulders {
+    position: absolute;
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+
+  .touch-face { right: 1rem; bottom: 2rem; width: 11rem; flex-wrap: wrap; justify-content: center; }
+  .touch-menu { left: 50%; bottom: 1rem; transform: translateX(-50%); }
+  .touch-shoulders { left: 1rem; right: 1rem; top: 1rem; justify-content: space-between; }
+}
+
 nav {
   position: absolute;
   z-index: 2;
@@ -129,7 +270,8 @@ span.nobios {
   }
 }
 
-nav > div {
+nav > div,
+nav > .nav-icon-button {
   width: 10vh;
   height: 10vh;
   margin-bottom: 1vh;
@@ -150,6 +292,254 @@ nav > div:last-child {
 
 nav > span {
   flex: 1;
+}
+
+html.enge-pseudo-fullscreen,
+html.enge-pseudo-fullscreen body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@media (pointer: coarse), (max-width: 700px) {
+  body { position: fixed; inset: 0; }
+
+  .control-menu-panel {
+    max-height: calc(100vh - 1rem);
+    overflow-y: auto;
+    padding: 0.75rem;
+  }
+
+  .control-menu-panel button {
+    min-height: 2.25rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .control-menu-list { gap: 0.35rem; }
+  header, #file_loader, nav > #file, nav > #gamepad, nav > #quality, nav > span { display: none !important; }
+
+  canvas {
+    top: 50%;
+    left: 50%;
+    width: min(100vw, calc(100vh * 4 / 3));
+    height: min(100vh, calc(100vw * 3 / 4));
+    transform: translate(-50%, -50%);
+    aspect-ratio: 4 / 3;
+    border: 0;
+  }
+
+  nav {
+    z-index: 6;
+    top: 5.25rem;
+    left: 1rem;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    height: auto;
+    transform: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  nav > button {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  min-height: 2.5rem;
+    font-size: 0.75rem;
+  }
+
+  nav { gap: 0.6rem; }
+  nav > #cloud-button,
+  nav > #overlay-toggle,
+  nav > #menu-button,
+  nav > #fullscreen {
+    align-self: flex-start;
+    margin-left: 0 !important;
+    width: 8vh;
+    min-width: 8vh;
+    height: 8vh;
+  }
+
+  nav > #cloud-button { margin-bottom: 0 !important; }
+  nav > #overlay-toggle { display: block; margin-bottom: 0 !important; }
+  nav > #menu-button { margin-bottom: 0.4rem !important; }
+	  nav > #fullscreen { margin-top: 0 !important; }
+}
+
+#menu-button {
+  position: relative;
+  width: 10vh;
+  min-width: 10vh;
+  height: 10vh;
+  padding: 0;
+  border: 0.5vh solid #555;
+  border-radius: 1vh;
+  background: #222 url('images/menu.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+}
+
+#cloud-button {
+  padding: 0;
+  background: #222 url('images/cloud.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+}
+
+#overlay-toggle {
+  display: none;
+  padding: 0;
+  background: #222 url('images/eye.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+}
+
+body.touch-overlay-hidden #touch-controls {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#fullscreen {
+  width: 10vh;
+  min-width: 10vh;
+  height: 10vh;
+  padding: 0;
+  border: 0.5vh solid #555;
+  border-radius: 1vh;
+  background: #222 url('images/fullscreen.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+}
+
+#control-menu,
+#network-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+#control-menu.open,
+#network-menu.open { display: flex; }
+
+.control-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(90vw, 22rem);
+  padding: 1.25rem;
+  border: 1px solid #555;
+  border-radius: 0.35rem;
+  background: #222;
+  color: #eee;
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.45);
+}
+
+.control-menu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.control-menu-heading #close-menu { margin-left: auto; }
+
+.control-menu-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.control-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#game-list,
+#bios-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+#game-list button,
+#bios-list button { width: 100%; }
+
+#state-status {
+  padding: 0.25rem 0;
+  color: #aaa;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.menu-section {
+  padding: 0.35rem 0 0.1rem;
+  border-bottom: 1px solid #555;
+  color: #aaa;
+  font-size: 0.85rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.control-menu-panel button {
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  pointer-events: auto;
+  border: 1px solid #666;
+  border-radius: 0.25rem;
+  background: #2d2d2d;
+  color: #eee;
+  cursor: pointer;
+}
+
+.control-menu-panel button:hover,
+.control-menu-panel button:focus-visible { background: #3b3b3b; }
+
+.control-menu-panel button:disabled {
+  border-color: #444;
+  background: #1b1b1b;
+  color: #777;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.control-menu-panel #close-menu {
+  width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+  .touch-button { width: 3.75rem; height: 3.75rem; }
+  .touch-stick { left: 1rem; bottom: 1.5rem; width: 9rem; height: 9rem; }
+  .touch-face { right: 1rem; bottom: 1.5rem; width: 12rem; height: 12rem; }
+  .touch-face .touch-button { position: absolute; }
+  .touch-face .triangle { top: 0; left: 50%; transform: translateX(-50%); }
+  .touch-face .circle { top: 50%; right: 0; transform: translateY(-50%); }
+  .touch-face .square { top: 50%; left: 0; transform: translateY(-50%); }
+  .touch-face .cross { bottom: 0; left: 50%; transform: translateX(-50%); }
+  .touch-menu { top: 5.25rem; right: 1rem; left: auto; bottom: auto; transform: none; }
+  .touch-shoulders { top: 0.75rem; }
+  .touch-shoulder-pair { display: flex; gap: 0.45rem; }
+  .touch-shoulder-pair .touch-button { font-size: 1.1rem; }
 }
 
 #globe {
@@ -191,6 +581,31 @@ input[type="file"] {
   color: rgb(80, 80, 80);
 }
 
-#quality.restart {
-  border: 0.5vh solid #a42;
+.menu-setting { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.menu-setting select { min-height: 2.25rem; padding: 0.25rem 0.5rem; border: 1px solid #666; border-radius: 0.25rem; background: #2d2d2d; color: #eee; font-size: 1rem; }
+
+@media (pointer: coarse) and (orientation: portrait), (max-width: 700px) and (orientation: portrait) {
+  .touch-button { width: 4rem; height: 4rem; }
+  nav > #cloud-button, nav > #menu-button, nav > #fullscreen { width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; }
+  nav > #overlay-toggle { position: fixed; left: 50%; bottom: 1rem; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; transform: translateX(-50%); }
+  .touch-stick { left: 2rem; bottom: 6rem; width: 9.5rem; height: 9.5rem; }
+  .touch-stick-knob { width: 4.5rem; height: 4.5rem; margin: -2.25rem; }
+  .touch-face { right: 0.5rem; bottom: 6rem; width: 12rem; height: 12rem; }
+  .touch-menu { top: 6rem; }
+  nav { top: 6.25rem; flex-direction: row; gap: 0.6rem; align-items: flex-start; }
+  nav > button { min-height: 3rem; min-width: 5.5rem; font-size: 0.9rem; }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px),
+       (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  nav { left: 1rem; right: auto; width: 9rem; display: grid; grid-template-columns: repeat(2, 8vh); align-items: flex-start; gap: 0.4rem; }
+  nav > #file, nav > span, nav > #gamepad, nav > #quality { display: none; }
+  nav > #overlay-toggle { display: block; }
+  .touch-button { width: 3.5rem; height: 3.5rem; }
+  .touch-stick { left: 0.75rem; bottom: 0.75rem; width: 8.5rem; height: 8.5rem; }
+  .touch-stick-knob { width: 3.5rem; height: 3.5rem; margin: -1.75rem; }
+  .touch-face { right: 0.75rem; bottom: 0.75rem; width: 10.5rem; height: 10.5rem; }
+  .touch-menu { top: 4.5rem; right: 0.75rem; gap: 0.2rem; }
+  .touch-shoulders { top: 0.5rem; gap: 0.2rem; }
+  .touch-shoulder-pair { gap: 0.2rem; }
 }
