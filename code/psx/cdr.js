@@ -457,11 +457,20 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x19:
-        // Test 19h is a family of commands, not one fixed response. Crash
-        // Bash uses 19h/04h and 19h/05h for its SCEx check. Those commands
-        // complete with status/IRQ only; returning the version payload here
-        // leaves the game's command parser out of sync.
-        if (testSubcommand !== 0x04 && testSubcommand !== 0x05) {
+        // Test 04h starts SCEx reading and returns status, not the controller
+        // version. Dragoon retries drive initialization if it sees 99h here.
+        // Test 05h stops SCEx reading and returns total/success counters.
+        if (testSubcommand === 0x04) {
+          statusCode |= 0x02; // Test 04h forces the spindle motor on.
+          pushResults(statusCode);
+        }
+        else if (testSubcommand === 0x05) {
+          // SCEx exists only in the lead-in. Dragoon deliberately seeks into
+          // the data track to verify that the counters remain zero there.
+          const licensed = currLoc < 150 && sectorData8.length && tracks.some(track => track.data) ? 1 : 0;
+          pushResults(licensed, licensed);
+        }
+        else {
           pushResults(0x99, 0x02, 0x01, 0xc3);
         }
         status = (status & ~0x80) | 0x20;
@@ -967,7 +976,7 @@ mdlr('enge:psx:cdr', () => {
       rd08r1801: () => {
         if (status & 0x20) {
           if (results.length === 1) {
-            status &= ~(0x20); // clear 
+            status &= ~(0x20); // clear
           }
           const result = results.shift();
           if (cdDebug && debugResponseLogCount < 128) {
