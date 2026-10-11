@@ -90,6 +90,7 @@ mdlr('enge:psx:cdr', () => {
   // Second responses (INT2/INT4) run independently of the next command's first response.
   let asyncCode = 0;
   let asyncClock = 0;
+  let testSubcommand = 0;
 
   let sectorOffset = 0;
   let sectorIndex = 0;
@@ -456,7 +457,13 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x19:
-        pushResults(0x99, 0x02, 0x01, 0xc3);
+        // Test 19h is a family of commands, not one fixed response. Crash
+        // Bash uses 19h/04h and 19h/05h for its SCEx check. Those commands
+        // complete with status/IRQ only; returning the version payload here
+        // leaves the game's command parser out of sync.
+        if (testSubcommand !== 0x04 && testSubcommand !== 0x05) {
+          pushResults(0x99, 0x02, 0x01, 0xc3);
+        }
         status = (status & ~0x80) | 0x20;
         setIrq(3);
         break;
@@ -469,7 +476,9 @@ mdlr('enge:psx:cdr', () => {
         break;
       case 0x1A0:
         if (sectorData8.length) {
-          // SCEA alternative: 0x53, 0x43, 0x45, 0x41.
+          // Keep the historical eNGE branding in the CD-ROM response. Crash
+          // Bash was tested with this marker and still passes its startup
+          // checks, so compatibility does not require replacing it with SCEA.
           pushResults(0x02, 0x00, 0x20, 0x00, 0x65, 0x4e, 0x47, 0x45); // eNGE
           cdLog('GetID response', '02 00 20 00 65 4e 47 45 (eNGE)');
           status = (status & ~0x80) | 0x20;
@@ -615,6 +624,7 @@ mdlr('enge:psx:cdr', () => {
       hasDisc: sectorData8.length > 0,
       tracks: tracks.length
     });
+    if (data === 0x19) testSubcommand = params[0] || 0;
     switch (data) {
       case 0x01:  //- CdlNop
         nevtctrl = 0xc4e1;
@@ -1097,28 +1107,30 @@ mdlr('enge:psx:cdr', () => {
       dmaTransferMode0000: (addr, blck) => {
         if (!(addr & 0x007fffff)) return 0x10;
 
-        const transferWords =(blck & 0xFFFF); 
-        const transferSize = transferWords << 2;
+        // DMA block counts are 32-bit words. Convert to bytes only for the
+        // sector copy; return words so the DMA controller advances correctly.
+        const transferWords = blck & 0xFFFF;
+        const transferBytes = transferWords << 2;
 
         if (cdDebug && debugDmaLogCount < 32) {
           cdLog('DMA sector transfer', {
             addr: `0x${(addr >>> 0).toString(16).padStart(8, '0')}`,
-            bytes: transferSize,
+            bytes: transferBytes,
             sectorIndex,
             sectorEnd
           });
           debugDmaLogCount++;
         }
 
-        clearCodeCache(addr, transferSize);
+        clearCodeCache(addr, transferBytes);
 
-        for (let i = 0; i < transferSize; i += 2) {
+        for (let i = 0; i < transferBytes; i += 2) {
           map16[(addr & 0x001fffff) >> 1] = sectorData16[(sectorOffset + sectorIndex) >> 1];
           sectorIndex += 2;
           addr += 2;
         }
         if (cdDebug && debugDmaLogCount <= 32) {
-          const ramStart = (addr - transferSize) & 0x001fffff;
+          const ramStart = (addr - transferBytes) & 0x001fffff;
           cdLog('DMA payload check', {
             bytes: Array.from(map8.slice(ramStart, ramStart + 16), byte =>
               (byte & 0xff).toString(16).padStart(2, '0')).join(' '),
