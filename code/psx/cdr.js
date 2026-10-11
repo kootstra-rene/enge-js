@@ -248,7 +248,7 @@ mdlr('enge:psx:cdr', () => {
           enqueueEvent(5, 0x01);
         }
         else {
-          enqueueEvent(3, 0x02);
+          enqueueEvent(3, statusCode | 0x02);
         }
         break;
 
@@ -381,9 +381,10 @@ mdlr('enge:psx:cdr', () => {
         let ss = ((loc / (75)) >> 0) % 60;
         let st = loc % 75;
         pushResults(itob(currTrack.id), 0x01, itob(mm), itob(ss), itob(st));
-        pushResults(itob((((currLoc - 150) / 75) / 60) % 60));
-        pushResults(itob((((currLoc - 150) / 75) % 60)));
-        pushResults(itob((((currLoc - 150) % 75))));
+        // Absolute MSF includes the disc's 150-sector lead-in.
+        pushResults(itob(((currLoc / 75) / 60) % 60));
+        pushResults(itob((currLoc / 75) % 60));
+        pushResults(itob(currLoc % 75));
         status = (status & ~0x80) | 0x20;
         setIrq(3);
       } break;
@@ -552,6 +553,7 @@ mdlr('enge:psx:cdr', () => {
           return;
         }
         if (handleReadFailure(self, readSector(currLoc))) return;
+        statusCode = (statusCode & ~0x60) | 0x82;
         if (mode & 0x04) {
           switch (loc % 75) {
             case 0:
@@ -589,6 +591,8 @@ mdlr('enge:psx:cdr', () => {
       case 0x1b: {
         const result = readSector(currLoc);
         if (handleReadFailure(self, result)) return;
+        // XA audio still counts as reading, even when no data IRQ reaches the CPU.
+        statusCode = (statusCode & ~0xc0) | 0x22;
         if (result === READ_DATA) {
           results.length = 0;
           pushResults(0x22);
