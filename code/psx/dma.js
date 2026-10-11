@@ -1,5 +1,10 @@
 mdlr('enge:psx:dma', m => {
 
+  const dmaDebug = new URLSearchParams(window.location.search).has('debug-cd');
+  const dmaLog = (...args) => {
+    if (dmaDebug) console.debug('[DMA]', ...args);
+  };
+
   let dpcr;
   let dicr;
   let r1080, r1084, r1088, r1080n;
@@ -111,6 +116,13 @@ mdlr('enge:psx:dma', m => {
     r10b8 = ctrl;
     if (dpcr & 0x00008000) {
       let transferSize = 10;
+
+      dmaLog('channel 3 start', {
+        ctrl: `0x${(ctrl >>> 0).toString(16)}`,
+        addr: `0x${(r10b0 >>> 0).toString(16)}`,
+        block: `0x${(r10b4 >>> 0).toString(16)}`,
+        dicr: `0x${(dicr >>> 0).toString(16)}`
+      });
 
       switch (ctrl) {
         case 0x00000000: break;
@@ -269,6 +281,15 @@ mdlr('enge:psx:dma', m => {
 
   const eventDMA3 = addEvent(0, (self) => {
     completeIrq(3);
+
+    dmaLog('channel 3 complete', {
+      addr: `0x${(r10b0n >>> 0).toString(16)}`,
+      control: `0x${(r10b8 >>> 0).toString(16)}`,
+      dicr: `0x${(dicr >>> 0).toString(16)}`,
+      istat: `0x${(cpu.istat >>> 0).toString(16)}`,
+      imask: `0x${(cpu.imask >>> 0).toString(16)}`,
+      sr: `0x${(cpu.sr >>> 0).toString(16)}`
+    });
 
     r10b8 &= 0xfeffffff;
     r10b0 = r10b0n;

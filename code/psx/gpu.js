@@ -1,5 +1,8 @@
 mdlr('enge:psx:gpu', m => {
 
+  const debugGame = new URLSearchParams(window.location.search).has('debug-game');
+  let debugGpuCommandCount = 0;
+
   const $renderer = renderer;
   const [drawLine, drawTriangle, drawRectangle, setDrawAreaOF] = [$renderer.drawLine, $renderer.drawTriangle, $renderer.drawRectangle, $renderer.setDrawAreaOF].map(a => a.bind($renderer));
 
@@ -155,6 +158,7 @@ mdlr('enge:psx:gpu', m => {
         gpu.status &= 0x7fffffff;
       }
       if (++gpu.hline >= vsync) {
+        const frameUpdated = gpu.updated;
         if (gpu.updated) {
           ++gpu.internalFrame;
         }
@@ -162,6 +166,15 @@ mdlr('enge:psx:gpu', m => {
         cpu.istat |= 0x0001;
         gpu.hline = 0;
         ++gpu.frame;
+        if (debugGame && (gpu.frame % 60) === 0) {
+          console.debug('[GPU] frame', JSON.stringify({
+            frame: gpu.frame,
+            internalFrame: gpu.internalFrame,
+            updated: frameUpdated,
+            status: `0x${(gpu.status >>> 0).toString(16)}`,
+            display: gpu.getDisplayArea()
+          }));
+        }
       }
     },
 
@@ -177,6 +190,10 @@ mdlr('enge:psx:gpu', m => {
     },
 
     wr32r1810: data => {
+      if (debugGame && debugGpuCommandCount < 64) {
+        console.debug('[GPU] GP0', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
+        debugGpuCommandCount++;
+      }
       if (gpu.status & 0x10000000) {
         dmaBuffer[dmaIndex++] = data;
 
@@ -201,6 +218,10 @@ mdlr('enge:psx:gpu', m => {
     },
 
     wr32r1814: data => {
+      if (debugGame && debugGpuCommandCount < 128) {
+        console.debug('[GPU] GP1', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
+        debugGpuCommandCount++;
+      }
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14820000;
           dmaIndex = 0;
