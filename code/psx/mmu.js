@@ -250,9 +250,27 @@ mdlr('enge:psx:mmu', ({ include }) => {
     abort(hex(addr, 8));
   }
 
-  const memWrite8 = (base, data) => {
+  // debug-only RAM write watchpoints (enabled with ?debug-mdec)
+  const watchDebug = new URLSearchParams(window.location.search).has('debug-mdec');
+  const watches = [];
+  const watchRam = (addr, size, label) => {
+    if (watchDebug) watches.push({ addr: addr & 0x001fffff, size, label });
+  };
+  const checkWatch = (addr, size, data, pc) => {
+    for (const w of watches) {
+      if (addr < w.addr + w.size && addr + size > w.addr) {
+        console.debug('[WATCH]', w.label, {
+          addr: hex(addr, 6), size, data: hex(data >>> 0), pc: hex(pc >>> 0),
+          ra: hex(cpu.gpr[31] >>> 0), clock: psx.clock
+        });
+      }
+    }
+  };
+
+  const memWrite8 = (base, data, pc) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
+      if (watches.length) checkWatch(addr, 1, data & 0xff, pc);
       map8[(addr | cpu.forceWriteBits) >>> 0] = data;
       fastCache[addr] = 0;
       return;
@@ -310,9 +328,10 @@ mdlr('enge:psx:mmu', ({ include }) => {
     abort(hex(addr, 8));
   }
 
-  const memWrite16 = (base, data) => {
+  const memWrite16 = (base, data, pc) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
+      if (watches.length) checkWatch(addr, 2, data & 0xffff, pc);
       map16[(addr | cpu.forceWriteBits) >>> 1] = data;
       fastCache[addr] = 0;
       return;
@@ -372,9 +391,10 @@ mdlr('enge:psx:mmu', ({ include }) => {
     abort(hex(addr, 8));
   }
 
-  const memWrite32 = (base, data) => {
+  const memWrite32 = (base, data, pc) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
+      if (watches.length) checkWatch(addr, 4, data, pc);
       map[(addr | cpu.forceWriteBits) >>> 2] = data;
       fastCache[addr] = 0;
       return;
@@ -396,7 +416,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
   }
 
   return {
-    map, map8, map16, ram, rom, memRead8, memRead16, memRead32, memWrite8, memWrite16, memWrite32
+    map, map8, map16, ram, rom, memRead8, memRead16, memRead32, memWrite8, memWrite16, memWrite32, watchRam
   }
 
 })

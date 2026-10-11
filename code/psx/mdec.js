@@ -1,5 +1,10 @@
 mdlr('enge:psx:mdec', ({ include }) => {
 
+  const mdecDebug = new URLSearchParams(window.location.search).has('debug-mdec');
+  const mdecLog = (...args) => {
+    if (mdecDebug) console.debug('[MDEC]', ...args);
+  };
+
   const iq = new Int32Array(128);
 
   const scale = new Uint8Array(3 * 256);
@@ -250,10 +255,30 @@ mdlr('enge:psx:mdec', ({ include }) => {
     }
   };
 
+  // FE00h halfwords between blocks are padding
+  const skipPadding = () => {
+    while (mdc.rl < mdc.rlEnd && (map16[(mdc.rl & 0x001fffff) >>> 1] & 0xffff) === 0xfe00) {
+      mdc.rl += 2;
+    }
+  };
+
+  // move on to queued input once the current decode command's data is consumed
+  const nextInput = () => {
+    skipPadding();
+    while (mdc.rl >= mdc.rlEnd && mdc.rlQueue.length) {
+      const next = mdc.rlQueue.shift();
+      mdc.rl = next.addr;
+      mdc.rlEnd = next.end;
+      skipPadding();
+    }
+  };
+
   const mdc = {
     r1820: 0,
     r1824: 0x80040000,
     rl: 0,
+    rlEnd: 0,
+    rlQueue: [],
     STP: 0,
     end: 0,
     block: new Int32Array(6 * 64),
@@ -263,6 +288,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
     },
 
     wr32r1820: (data) => {
+      mdecLog('cmd', hex(data >>> 0), 'prev', hex(mdc.r1820 >>> 0));
       mdc.r1820 = data;
     },
 
@@ -271,9 +297,12 @@ mdlr('enge:psx:mdec', ({ include }) => {
     },
 
     wr32r1824: (data) => {
+      mdecLog('ctrl', hex(data >>> 0));
       if (data & 0x80000000) {
         mdc.r1820 = 0;
         mdc.r1824 = 0x80040000;
+        mdc.rl = mdc.rlEnd = 0;
+        mdc.rlQueue.length = 0;
         psx.unsetEvent(mdc.event);
       }
     },
@@ -284,11 +313,33 @@ mdlr('enge:psx:mdec', ({ include }) => {
 
       const transferSize = (blck >>> 16) * (blck & 0xffff);
 
+      mdecLog('dma0', {
+        addr: hex(addr), blck: hex(blck >>> 0), words: transferSize,
+        cmd: hex(mdc.r1820 >>> 0), firstWord: hex(map[addr >>> 2] >>> 0),
+        prevRl: hex(mdc.rl >>> 0), prevRlEnd: hex(mdc.rlEnd >>> 0), queued: mdc.rlQueue.length
+      });
+
       switch (mdc.r1820 >>> 29) {
         // case 0x0:
-        case 0x1:
-          mdc.rl = addr;
+        case 0x1: {
+          // the MDEC buffers input: games send the next frame before the
+          // current one is fully decoded, so queue it instead of jumping ahead
+          const end = addr + (transferSize << 2);
+          skipPadding();
+          if (mdc.rl < mdc.rlEnd) {
+            if (mdc.rlQueue.length) {
+              const next = mdc.rlQueue.shift();
+              mdc.rl = next.addr;
+              mdc.rlEnd = next.end;
+            }
+            mdc.rlQueue.push({ addr, end });
+          }
+          else {
+            mdc.rl = addr;
+            mdc.rlEnd = end;
+          }
           break;
+        }
 
         case 0x2:
           iqtab_init(addr, transferSize << 2);
@@ -318,7 +369,9 @@ mdlr('enge:psx:mdec', ({ include }) => {
       mdc.end = end;
       mdc.STP = (mdc.r1820 & (1 << 25)) ? 0x8000 : 0x0000;
       let decodedMacroBlocks = 0;
+      const rlStart = mdc.rl;
       while (addr < end) {
+        nextInput();
         mdc.rl = rl2blk(blk, mdc.rl);
         switch (depth) {
           case 0: // todo: implement
@@ -338,6 +391,12 @@ mdlr('enge:psx:mdec', ({ include }) => {
         }
         decodedMacroBlocks += 6;
       }
+
+      mdecLog('dma1', {
+        addr: hex(end - (numberOfWords << 2)), blck: hex(blck >>> 0), words: numberOfWords,
+        depth, macroblocks: decodedMacroBlocks / 6,
+        cmd: hex(mdc.r1820 >>> 0), rlStart: hex(rlStart >>> 0), rlNow: hex(mdc.rl >>> 0), rlEnd: hex(mdc.rlEnd >>> 0)
+      });
 
       // 320x240x30 = 9000 16x16 blocks
       const decodingCyclesRemaining = (PSX_SPEED / 9000) * (decodedMacroBlocks / 6);
