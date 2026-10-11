@@ -4,7 +4,6 @@ mdlr('enge:psx:dma', ({ include }) => {
   const dmaLog = (...args) => {
     if (dmaDebug) console.debug('[DMA]', ...args);
   };
-  const irqDebug = new URLSearchParams(window.location.search).has('debug-mdec');
 
   let dpcr;
   let dicr;
@@ -35,20 +34,9 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const completeIrq = channel => {
     const enable = 1 << (16 + channel);
-    const istat = cpu.istat;
 
     if (dicr & enable) {
       updateDicr(() => dicr |= enable << 8);
-    }
-
-    if (irqDebug) {
-      console.debug('[DMA] irq', channel, {
-        enabled: !!(dicr & enable),
-        dicr: hex(rd32r10f4() >>> 0),
-        raised: !(istat & 0x0008) && !!(cpu.istat & 0x0008),
-        istatBefore: hex(istat >>> 0),
-        imask: hex(cpu.imask >>> 0)
-      });
     }
   }
 
@@ -58,7 +46,6 @@ mdlr('enge:psx:dma', ({ include }) => {
   const rd32r10f4 = () => (dicr & 0x7fffffff) | (masterFlag() << 31);
 
   const wr32r10f4 = data => {
-    if (irqDebug) console.debug('[DMA] dicr write', hex(data >>> 0), 'was', hex(rd32r10f4() >>> 0));
     // b0-5 and b15-23 r/w, b24-30 write 1 to acknowledge, b6-14 always 0
     updateDicr(() => dicr = (dicr & (~((data & 0x7f000000) | 0x00ff803f))) | (data & 0x00ff803f));
   };

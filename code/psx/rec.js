@@ -1,9 +1,5 @@
 mdlr('enge:psx:rec', ({ include }) => {
 
-  // with ?debug-mdec, stores pass their pc so RAM watchpoints can report it
-  const debugStorePC = new URLSearchParams(window.location.search).has('debug-mdec');
-  const storePC = (rec) => debugStorePC ? `, 0x${hex(rec.pc)}` : '';
-
   const getOF = (opcode) => {
     const offset = ((opcode << 16) >> 16);
     return `(${offset} + ${getRS()}) & 0x01ffffff`;
@@ -175,12 +171,12 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '28': (rec, opc) => {
-      const code = setReg(0, 'memWrite8(' + getOF(opc) + ', ' + getRT() + storePC(rec) + ')');
+      const code = setReg(0, 'memWrite8(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
 
     '29': (rec, opc) => {
-      const code = setReg(0, 'memWrite16(' + getOF(opc) + ', ' + getRT() + storePC(rec) + ')');
+      const code = setReg(0, 'memWrite16(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
 
@@ -190,7 +186,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '2B': (rec, opc) => {
-      const code = setReg(0, `memWrite32(${getOF(opc)}, ${getRT()}${storePC(rec)})`);
+      const code = setReg(0, `memWrite32(${getOF(opc)}, ${getRT()})`);
       return code;
     },
 
