@@ -16,40 +16,51 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
 
-  const completeIrq = channel => {
-    const enable = 1 << (16 + channel);
-    const flag = (1 << 31) | (enable << 8);
+  //IF b15=1 OR (b23=1 AND (b16-22 AND b24-30)>0) THEN b31=1 ELSE b31=0
+  const masterFlag = () => {
+    const flags = (dicr >> 24) & 0x7f;
+    const enables = (dicr >> 16) & 0x7f;
+    return ((dicr & 0x8000) || ((dicr & 0x800000) && (flags & enables))) ? 1 : 0;
+  }
 
-    if (dicr & enable) {
+  // IRQ3 is only raised on a 0->1 transition of b31
+  const updateDicr = (update) => {
+    const before = masterFlag();
+    update();
+    if (!before && masterFlag()) {
       cpu.istat |= 0x0008;
-      dicr |= flag;
     }
   }
 
-  const rd32r10f4 = () => {
-    //IF b15=1 OR (b23=1 AND (b16-22 AND b24-30)>0) THEN b31=1 ELSE b31=0
-    const flags = (dicr >> 24) & 0x7f;
-    const enables = (dicr >> 16) & 0x7f;
-    const master = ((dicr & 0x8000) || ((dicr & 0x800000) && (flags & enables))) ? 0x80000000 : 0;
-    return (dicr & 0x7fffffff) | master;
+  const completeIrq = channel => {
+    const enable = 1 << (16 + channel);
+
+    if (dicr & enable) {
+      updateDicr(() => dicr |= enable << 8);
+    }
   }
 
-  const wr08r10f6 = data => {
-    data = (data << 16) | (dicr & 0xffff);
-    dicr = (dicr & (~((data & 0x7f000000) | 0x00ffffff))) | (data & 0x00ffffff);
-  };
+  // sync mode 1 transfers end with BA (blocks remaining) at zero
+  const completedBcr = (ctrl, bcr) => (((ctrl >> 9) & 3) === 1) ? (bcr & 0xffff) : bcr;
+
+  const rd32r10f4 = () => (dicr & 0x7fffffff) | (masterFlag() << 31);
 
   const wr32r10f4 = data => {
-    dicr = (dicr & (~((data & 0x7f000000) | 0x00ffffff))) | (data & 0x00ffffff);
+    // b0-5 and b15-23 r/w, b24-30 write 1 to acknowledge, b6-14 always 0
+    updateDicr(() => dicr = (dicr & (~((data & 0x7f000000) | 0x00ff803f))) | (data & 0x00ff803f));
+  };
+
+  const wr08r10f6 = data => {
+    wr32r10f4(((data & 0xff) << 16) | (dicr & 0x0000ffff));
   };
 
   const wr32r1088 = ctrl => {
     r1088 = ctrl;
+    if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00000008) {
       let transferSize = 10;
 
       switch (ctrl) {
-        case 0x00000000: break;
         case 0x01000201: transferSize = mdc.dmaTransferMode0201(r1080, r1084);
           r1080n = r1080 + (transferSize << 2);
           break;
@@ -66,11 +77,11 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const wr32r1098 = ctrl => {
     r1098 = ctrl;
+    if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00000080) {
       let transferSize = 10;
 
       switch (ctrl) {
-        case 0x00000000: break;
         case 0x01000200: transferSize = mdc.dmaTransferMode0200(r1090, r1094);
           r1090n = r1090 + (transferSize << 2);
           break;
@@ -86,14 +97,11 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const wr32r10a8 = ctrl => {
     r10a8 = ctrl;
+    if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00000800) {
       let transferSize = 10;
 
       switch (ctrl) {
-        case 0x00000000: break;
-        case 0x00000001: break;
-        case 0x00000401: break;
-        case 0x00000201: break;
         case 0x01000200: transferSize = gpu.dmaTransferMode0200(r10a0, r10a4) || 10;
           r10a0n = r10a0 + (transferSize << 2);
           break;
@@ -116,6 +124,7 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const wr32r10b8 = ctrl => {
     r10b8 = ctrl;
+    if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00008000) {
       let transferSize = 10;
 
@@ -127,7 +136,6 @@ mdlr('enge:psx:dma', ({ include }) => {
       });
 
       switch (ctrl) {
-        case 0x00000000: break;
         case 0x11000000: transferSize = cdr.dmaTransferMode0000(r10b0, r10b4);
           r10b0n = r10b0 + (transferSize << 2);
           break;
@@ -137,6 +145,9 @@ mdlr('enge:psx:dma', ({ include }) => {
 
         default: abort(hex(ctrl));
       }
+
+      // trigger bit clears once the transfer starts
+      r10b8 &= 0xefffffff;
 
       const rate = (cdr.mode & 0x80) ? 0x1400 : 0x2800;
       setEvent(eventDMA3, ((transferSize * rate) / 0x100) >>> 0);
@@ -148,11 +159,11 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const wr32r10c8 = ctrl => {
     r10c8 = ctrl;
+    if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00080000) {
       let transferSize = 10;
 
       switch (ctrl) {
-        case 0x00000201: break;
         case 0x01000000:
         case 0x01000200: transferSize = spu.dmaTransferMode0200(r10c0, r10c4);
           r10c0n = r10c0 + (transferSize << 2);
@@ -173,20 +184,15 @@ mdlr('enge:psx:dma', ({ include }) => {
   };
 
   const wr32r10e8 = ctrl => {
-    r10e8 = (ctrl & 0x50000002) | 0x2;
+    // only b24, b28 and b30 are r/w, b1 (decrement) is always set
+    r10e8 = (ctrl & 0x51000000) | 0x2;
+    if (!(r10e8 & 0x01000000)) return;
     if (dpcr & 0x08000000) {
-      let transferSize = 10;
+      const transferSize = gpu.dmaLinkedListMode0002(r10e0, r10e4) || 10;
+      r10e0n = 0x00ffffff; // todo: update with actual value
 
-      switch (r10e8) {
-        case 0x00000002: r10e0n = r10e0 = map[(r10e0 & 0x01ffffff) >> 2];
-          break;
-        case 0x10000002:
-        case 0x50000002: transferSize = gpu.dmaLinkedListMode0002(r10e0, r10e4);
-          r10e0n = 0x00ffffff; // todo: update with actual value
-          break;
-
-        default: abort(hex(ctrl) + ' ' + hex(r10e8));
-      }
+      // trigger bit clears once the transfer starts
+      r10e8 &= 0xefffffff;
 
       setEvent(eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
     }
@@ -202,6 +208,7 @@ mdlr('enge:psx:dma', ({ include }) => {
 
       r1098 &= 0xfeffffff;
       r1090 = r1090n;
+      r1094 = completedBcr(r1098, r1094);
 
       unsetEvent(self);
     },
@@ -226,38 +233,44 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const $rd32 = new Map([
     [0x1080, _ => r1080 >> 0],
+    [0x1084, _ => r1084 >> 0],
     [0x1088, _ => r1088 >> 0],
     [0x1090, _ => r1090 >> 0],
+    [0x1094, _ => r1094 >> 0],
     [0x1098, _ => r1098 >> 0],
     [0x10a0, _ => r10a0 >> 0],
+    [0x10a4, _ => r10a4 >> 0],
     [0x10a8, _ => r10a8 >> 0],
     [0x10b0, _ => r10b0 >> 0],
+    [0x10b4, _ => r10b4 >> 0],
     [0x10b8, _ => r10b8 >> 0],
     [0x10c0, _ => r10c0 >> 0],
+    [0x10c4, _ => r10c4 >> 0],
     [0x10c8, _ => r10c8 >> 0],
     [0x10e0, _ => r10e0 >> 0],
+    [0x10e4, _ => r10e4 >> 0],
     [0x10e8, _ => r10e8 >> 0],
     [0x10f0, _ => dpcr >> 0],
     [0x10f4, _ => rd32r10f4() >> 0],
   ]);
 
   const $wr32 = new Map([
-    [0x1080, _ => r1080 = _ >>> 0],
+    [0x1080, _ => r1080 = _ & 0x00ffffff],
     [0x1084, _ => r1084 = _ >>> 0],
     [0x1088, _ => wr32r1088(_)],
-    [0x1090, _ => r1090 = _ >>> 0],
+    [0x1090, _ => r1090 = _ & 0x00ffffff],
     [0x1094, _ => r1094 = _ >>> 0],
     [0x1098, _ => wr32r1098(_)],
-    [0x10a0, _ => r10a0 = _ >>> 0],
+    [0x10a0, _ => r10a0 = _ & 0x00ffffff],
     [0x10a4, _ => r10a4 = _ >>> 0],
     [0x10a8, _ => wr32r10a8(_)],
-    [0x10b0, _ => r10b0 = _ >>> 0],
+    [0x10b0, _ => r10b0 = _ & 0x00ffffff],
     [0x10b4, _ => r10b4 = _ >>> 0],
     [0x10b8, _ => wr32r10b8(_)],
-    [0x10c0, _ => r10c0 = _ >>> 0],
+    [0x10c0, _ => r10c0 = _ & 0x00ffffff],
     [0x10c4, _ => r10c4 = _ >>> 0],
     [0x10c8, _ => wr32r10c8(_)],
-    [0x10e0, _ => r10e0 = _ >>> 0],
+    [0x10e0, _ => r10e0 = _ & 0x00ffffff],
     [0x10e4, _ => r10e4 = _ >>> 0],
     [0x10e8, _ => wr32r10e8(_)],
     [0x10f0, _ => dpcr = _ >>> 0],
@@ -269,6 +282,7 @@ mdlr('enge:psx:dma', ({ include }) => {
 
     r1088 &= 0xfeffffff;
     r1080 = r1080n;
+    r1084 = completedBcr(r1088, r1084);
 
     unsetEvent(self);
   });
@@ -278,6 +292,7 @@ mdlr('enge:psx:dma', ({ include }) => {
 
     r10a8 &= 0xfeffffff;
     r10a0 = r10a0n;
+    r10a4 = completedBcr(r10a8, r10a4);
 
     unsetEvent(self);
   });
@@ -305,6 +320,7 @@ mdlr('enge:psx:dma', ({ include }) => {
 
     r10c8 &= 0xfeffffff;
     r10c0 = r10c0n;
+    r10c4 = completedBcr(r10c8, r10c4);
 
     unsetEvent(self);
   });
