@@ -15,18 +15,12 @@ mdlr('enge:psx:rec', ({ include }) => {
     return (nr ? state.reg(nr) + ' = ' : '') + `${value};`;
   };
 
-  // A/B DIAGNOSTIC TOGGLE: set false to disable the MIPS-I load-delay slot and
-  // make loads commit immediately (legacy behaviour). Used to isolate whether
-  // the load delay is responsible for the Tekken 2 stretched-limb regression.
-  const LOAD_DELAY = true;
-
   // Deferred GPR write for MIPS-I load-delay slots (loads + MFC0/MFC2/CFC2).
   // The value is computed now but committed to the GPR one instruction later
   // (see compileInstruction), so the delay-slot instruction sees the OLD
   // register value, matching real R3000 behaviour.
   const setLoad = (nr, value) => {
     if (!nr) return `${value};`;
-    if (!LOAD_DELAY) return setReg(nr, value);
     const tmp = `_ld${state.loadSeq++}`;
     state.newLoad = { reg: nr, tmp };
     return `const ${tmp} = ${value};`;
