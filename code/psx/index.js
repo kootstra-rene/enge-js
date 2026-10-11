@@ -510,6 +510,10 @@ mdlr('enge:psx:index', ({ include }) => {
   };
 
   const loadFileData = (arrayBuffer, sourceId = '') => {
+    // Do not carry a branch-delay-slot load from the previous BIOS/game into
+    // the new workload. This is especially important when testing multiple
+    // games without refreshing the page.
+    cpu.clearLoadDelay();
     const view = new DataView(arrayBuffer);
 
     if (view.getUint16(0, true) === 0x5350) { // PS

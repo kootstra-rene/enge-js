@@ -22,6 +22,14 @@ mdlr('enge:psx:cpu', ({ include }) => {
     'dv': 0,
     forceWriteBits: 0x00000000 >>> 0,
 
+    // A BIOS, executable, or disc reload starts a new CPU workload. Clearing
+    // this state prevents a deferred load from the previous workload from
+    // being applied to the first instruction of the new one.
+    clearLoadDelay: () => {
+      cpu.dr = 0;
+      cpu.dv = 0;
+    },
+
     getCtrl: (reg) => {
       switch (reg) {
         case 12: return cpu.sr >> 0;
