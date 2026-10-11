@@ -16,6 +16,10 @@ mdlr('enge:psx:cpu', ({ include }) => {
     'lo': 0,
     'pc': 0,
     'sr': 0,
+    // Cross-block load delay: a load in a branch delay slot defers its GPR
+    // write into the next block. dr = pending register (0 = none), dv = value.
+    'dr': 0,
+    'dv': 0,
     forceWriteBits: 0x00000000 >>> 0,
 
     getCtrl: (reg) => {
@@ -194,16 +198,27 @@ mdlr('enge:psx:cpu', ({ include }) => {
     return vector;
   }
 
+  // A load deferred across a block boundary (branch-delay-slot load, carried in
+  // cpu.dr/cpu.dv) must complete before an interrupt diverts execution to the
+  // exception vector — otherwise the deferred value would be applied inside the
+  // handler at the wrong instruction, and the real branch target (resumed via
+  // EPC) would see cpu.dr === 0 and lose it. Flush it here.
+  const flushDeferredLoad = () => {
+    if (cpu.dr !== 0) { gpr[cpu.dr] = cpu.dv; cpu.dr = 0; }
+  };
+
   const cpuInterrupt = (entry) => {
     if ((cpu.sr & 1) === 1) {
       let ip = cpu.cause & 0x300;
       let im = cpu.sr & 0x300;
       if ((ip & im) !== 0) {
+        flushDeferredLoad();
         return cpuException((ip & im), entry.pc);
       }
       else
         if ((cpu.sr & 0x400) === 0x400) {
           if (cpu.istat & cpu.imask) {
+            flushDeferredLoad();
             return cpuException(0x400, entry.pc);
           }
         }

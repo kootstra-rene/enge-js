@@ -11,7 +11,25 @@ mdlr('enge:psx:rec', ({ include }) => {
     return state.reg(state.rt);
   }
   const setReg = (nr, value) => {
+    if (nr) state.wreg = nr;
     return (nr ? state.reg(nr) + ' = ' : '') + `${value};`;
+  };
+
+  // A/B DIAGNOSTIC TOGGLE: set false to disable the MIPS-I load-delay slot and
+  // make loads commit immediately (legacy behaviour). Used to isolate whether
+  // the load delay is responsible for the Tekken 2 stretched-limb regression.
+  const LOAD_DELAY = true;
+
+  // Deferred GPR write for MIPS-I load-delay slots (loads + MFC0/MFC2/CFC2).
+  // The value is computed now but committed to the GPR one instruction later
+  // (see compileInstruction), so the delay-slot instruction sees the OLD
+  // register value, matching real R3000 behaviour.
+  const setLoad = (nr, value) => {
+    if (!nr) return `${value};`;
+    if (!LOAD_DELAY) return setReg(nr, value);
+    const tmp = `_ld${state.loadSeq++}`;
+    state.newLoad = { reg: nr, tmp };
+    return `const ${tmp} = ${value};`;
   };
 
   const createFunction = (pc, code, jumps) => {
@@ -44,6 +62,7 @@ mdlr('enge:psx:rec', ({ include }) => {
       rec.jump = true;
       rec.branchTarget = (opc & 0x007FFFFF) << 2;
       const code = setReg(0, `target = _${hex(rec.branchTarget)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+      rec.wreg = 31;
       return code;
     },
 
@@ -116,36 +135,43 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '20': (rec, opc) => {
-      const code = setReg(rec.rt, '(memRead8(' + getOF(opc) + ') << 24) >> 24');
+      const code = setLoad(rec.rt, '(memRead8(' + getOF(opc) + ') << 24) >> 24');
       return code;
     },
 
     '21': (rec, opc) => {
-      const code = setReg(rec.rt, '(memRead16 (' + getOF(opc) + ') << 16) >> 16');
+      const code = setLoad(rec.rt, '(memRead16 (' + getOF(opc) + ') << 16) >> 16');
       return code;
     },
 
     '22': (rec, opc) => {
+      // LWL reads+writes gpr[rt] inside cpu.lwl; mark rt as written so the
+      // load-delay slot-write-wins logic (within-block commit and cross-block
+      // apply) treats an incoming delayed load to rt as discarded (hardware
+      // delayReadWrite case).
+      if (rec.rt) rec.wreg = rec.rt;
       const code = setReg(0, 'cpu.lwl(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
 
     '23': (rec, opc) => {
-      const code = setReg(rec.rt, 'memRead32(' + getOF(opc) + ')');
+      const code = setLoad(rec.rt, 'memRead32(' + getOF(opc) + ')');
       return code;
     },
 
     '24': (rec, opc) => {
-      const code = setReg(rec.rt, 'memRead8(' + getOF(opc) + ') & 0xff');
+      const code = setLoad(rec.rt, 'memRead8(' + getOF(opc) + ') & 0xff');
       return code;
     },
 
     '25': (rec, opc) => {
-      const code = setReg(rec.rt, 'memRead16(' + getOF(opc) + ') & 0xffff');
+      const code = setLoad(rec.rt, 'memRead16(' + getOF(opc) + ') & 0xffff');
       return code;
     },
 
     '26': (rec, opc) => {
+      // LWR reads+writes gpr[rt] inside cpu.lwr; see LWL (0x22) above.
+      if (rec.rt) rec.wreg = rec.rt;
       const code = setReg(0, 'cpu.lwr(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
@@ -354,6 +380,7 @@ mdlr('enge:psx:rec', ({ include }) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
       const code = setReg(0, `target = (${getRS()} < 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+      rec.wreg = 31;
       return code;
     },
 
@@ -361,11 +388,12 @@ mdlr('enge:psx:rec', ({ include }) => {
       rec.stop = true;
       rec.branchTarget = rec.pc + 4 + 4 * ((opc << 16) >> 16);
       const code = setReg(0, `target = (${getRS()} >= 0) ? _${hex(rec.branchTarget)} : _${hex(rec.pc + 8)};\n` + rec.reg(31) + ' = 0x' + hex(rec.pc + 8));
+      rec.wreg = 31;
       return code;
     },
 
     'A0': (rec, opc) => {
-      const code = setReg(rec.rt, 'cpu.getCtrl(' + rec.rd + ')');
+      const code = setLoad(rec.rt, 'cpu.getCtrl(' + rec.rd + ')');
       return code;
     },
 
@@ -380,12 +408,12 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     'C0': (rec, opc) => {
-      const code = setReg(rec.rt, 'gte.get(' + rec.rd + ')');
+      const code = setLoad(rec.rt, 'gte.get(' + rec.rd + ')');
       return code;
     },
 
     'C2': (rec, opc) => {
-      const code = setReg(rec.rt, 'gte.get(' + (32 + rec.rd) + ')');
+      const code = setLoad(rec.rt, 'gte.get(' + (32 + rec.rd) + ')');
       return code;
     },
 
@@ -445,7 +473,23 @@ mdlr('enge:psx:rec', ({ include }) => {
     state.rs = (opcode >>> 21) & 0x1F;
     state.rt = (opcode >>> 16) & 0x1F;
 
+    state.wreg = 0;
+    state.newLoad = null;
     lines.push(recmap[opc](state, opcode));
+
+    // MIPS-I load delay: commit the previous instruction's pending load now
+    // (after this delay-slot instruction's reads), unless this instruction
+    // overwrote the same register — in which case that write wins.
+    if (state.pendingLoad) {
+      if (state.pendingLoad.reg !== state.wreg) {
+        lines.push(`gpr[${state.pendingLoad.reg}] = ${state.pendingLoad.tmp};`);
+      }
+      state.pendingLoad = null;
+    }
+    if (state.newLoad) {
+      state.pendingLoad = state.newLoad;
+      state.newLoad = null;
+    }
   }
 
   const state = {
@@ -460,6 +504,10 @@ mdlr('enge:psx:rec', ({ include }) => {
     'sr': false,
     'cycles': 0,
     'skipNext': false,
+    loadSeq: 0,
+    pendingLoad: null,
+    newLoad: null,
+    wreg: 0,
     entry: null,
     branchTarget: 0,
     jump: false,
@@ -478,6 +526,10 @@ mdlr('enge:psx:rec', ({ include }) => {
       state.sr = false;
       state.cycles = 0;
       state.skipNext = false;
+      state.loadSeq = 0;
+      state.pendingLoad = null;
+      state.newLoad = null;
+      state.wreg = 0;
     }
   };
 
@@ -490,9 +542,23 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     const lines = [];
 
+    // Cross-block load delay (Tekken 2 "vertex explosions" fix): a load in a
+    // branch delay slot is the last instruction of this block, so its GPR write
+    // must be deferred into the NEXT block and only become visible AFTER that
+    // block's first instruction. The pending load is carried at runtime in
+    // cpu.dr/cpu.dv (captured here, applied below). We emit the apply right
+    // after the first instruction, honouring slot-write-wins (if that first
+    // instruction writes the same register, the load is discarded).
+    let firstApplied = false;
+
     // todo: limit the amount of cycles per block
     while (!state.stop && state.cycles < 2048) {
       compileInstruction(state, lines, false);
+      if (!firstApplied) {
+        firstApplied = true;
+        const fw = state.wreg || (state.pendingLoad ? state.pendingLoad.reg : 0);
+        lines.push(`if (_dr !== 0 && _dr !== ${fw}) { gpr[_dr] = _dv; }`);
+      }
       state.cycles += 1;
       state.pc += 4;
     }
@@ -517,6 +583,14 @@ mdlr('enge:psx:rec', ({ include }) => {
     if (pc === 0xa0 || pc === 0xb0 || pc === 0xc0) {
       lines.unshift(`trace(${pc}, gpr[9]);`);
     }
+    // A load still pending at the block boundary is a branch-delay-slot load:
+    // defer its GPR write into the next block (see cross-block load delay above)
+    // instead of committing it here, so the next block's first instruction still
+    // sees the OLD register value.
+    if (state.pendingLoad) {
+      lines.push(`cpu.dr = ${state.pendingLoad.reg}; cpu.dv = ${state.pendingLoad.tmp};`);
+      state.pendingLoad = null;
+    }
     lines.push('psx.clock += ' + state.cycles + ';');
 
     return lines;
@@ -538,7 +612,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     lines.push(' ');
     lines.push('return target;');
     // lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
-    lines.unshift(`const gpr = cpu.gpr; let target;\n`);
+    lines.unshift(`const gpr = cpu.gpr; let target; const _dr = cpu.dr, _dv = cpu.dv; cpu.dr = 0;\n`);
 
     if (pc < 0x00200000) {
       lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(this); }`);

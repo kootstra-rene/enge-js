@@ -657,6 +657,12 @@ mdlr('enge:psx:gpu', ({ include }) => {
         addr = addr + 4; ++words;
 
         while (nitem > 0) {
+          // GP0(A0h) inside the list: following words are pixel data (DR_LOAD)
+          if (!(gpu.status & 0x10000000)) {
+            gpu.wr32r1810(ram.getInt32(addr, true));
+            addr += 4; --nitem; ++words;
+            continue;
+          }
           if (seen.has(addr)) return words;
           seen.add(addr);
           const packetWord = ram.getInt32(addr, true) >>> 0;
