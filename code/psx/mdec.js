@@ -293,7 +293,13 @@ mdlr('enge:psx:mdec', ({ include }) => {
     },
 
     rd32r1824: () => {
-      return mdc.r1824;
+      skipPadding();
+      // Keep Command Busy asserted until the frame's input has been consumed
+      // and its last output DMA has completed. FFIX uses this to decide when
+      // it may reset the movie column and submit the next frame.
+      const busy = (mdc.r1820 >>> 29) === 1 &&
+        (mdc.rl < mdc.rlEnd || mdc.rlQueue.length || mdc.event.active);
+      return (mdc.r1824 & ~0x20000000) | (busy ? 0x20000000 : 0);
     },
 
     wr32r1824: (data) => {

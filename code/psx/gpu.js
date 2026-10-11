@@ -197,8 +197,14 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     rd32r1810: function () {
-      if (gpu.rR1814 & 0x08000000) {
-        abort('gpu.rd32r1810 not implemented');
+      if (gpu.status & 0x08000000) {
+        // GPUREAD shares the VRAM read cursor with DMA. FFIX reads the
+        // resource header here before transferring the remaining data by DMA.
+        const low = gpu.img.buffer[gpu.img.index++] & 0xffff;
+        const high = gpu.img.buffer[gpu.img.index++] & 0xffff;
+        gpu.result = (low | (high << 16)) >>> 0;
+        gpu.transferTotal -= 2;
+        if (gpu.transferTotal <= 0) gpu.status &= ~0x08000000;
       }
       return gpu.result;
     },
