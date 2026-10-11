@@ -526,6 +526,16 @@ mdlr('enge:webgl', m => {
       }
       // buffer.fill(0x7c1f, 0, w*h);
     }
+
+    getVramState() {
+      return new Uint16Array(this.vram);
+    }
+
+    setVramState(buffer) {
+      this.vram.set(buffer);
+      this.storeImageInTexture({ x: 0, y: 0, w: 1024, h: 512, pixelCount: 1024 * 512, buffer: this.vram });
+    }
+
     moveImage(sx, sy, dx, dy, w, h) {
       var gl = this.gl;
 

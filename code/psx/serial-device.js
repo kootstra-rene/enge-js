@@ -31,6 +31,9 @@ mdlr('enge:psx:serial-device', m => {
         memory[i] = buffer[i];
       }
     },
+    // UI-only snapshot accessor for save/download/upload features. It does not
+    // alter the serial memory-card protocol or card initialization behavior.
+    getMemoryCard: () => new Uint8Array(memory),
     init: () => {
       mode = 0x00;
       response = [];

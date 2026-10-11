@@ -92,5 +92,39 @@ mdlr('enge:psx:core', m => {
     return cpuInterrupt(entry);
   }
 
+  // Events contain callbacks and therefore cannot be serialized directly.
+  // Save their stable ids and timing, then restore those values onto the
+  // existing event objects so closures remain intact.
+  psx.getState = () => ({
+    clock: psx.clock,
+    eventClock: psx.eventClock,
+    lastId,
+    events: [...events, ...inactiveEvents].map(event => ({
+      id: event.id,
+      active: event.active,
+      clock: event.clock,
+      start: event.start
+    }))
+  });
+
+  psx.setState = state => {
+    if (!state) return;
+    psx.clock = state.clock;
+    psx.eventClock = state.eventClock;
+    lastId = state.lastId;
+
+    const allEvents = [...events, ...inactiveEvents];
+    events.length = 0;
+    inactiveEvents.length = 0;
+    for (const saved of state.events || []) {
+      const event = allEvents.find(candidate => candidate.id === saved.id);
+      if (!event) continue;
+      event.clock = saved.clock;
+      event.start = saved.start;
+      event.active = saved.active;
+      (saved.active ? events : inactiveEvents).push(event);
+    }
+  };
+
   return { psx };
 })
