@@ -24,6 +24,30 @@ mdlr('enge:psx:cdr', () => {
   let debugDmaLogCount = 0;
   let debugResponseLogCount = 0;
 
+  const READ_MISSING = 0;
+  const READ_DATA = 1;
+  const READ_AUDIO = 2;
+  const READ_PENDING = 3;
+
+  const INVALID_COMMAND = 0x1000;
+
+  // Cue files are laid out back to back; maps an LBA to [fileIndex, fileSector].
+  const locateSector = (fileSectors, lba) => {
+    if (lba < 0) return null;
+    for (let i = 0; i < fileSectors.length; ++i) {
+      if (lba < fileSectors[i]) return [i, lba];
+      lba -= fileSectors[i];
+    }
+    return null;
+  };
+
+  const touchRemoteChunk = (file, chunkIndex) => {
+    const lru = remoteImage.lru;
+    const index = lru.findIndex(entry => entry.file === file && entry.chunkIndex === chunkIndex);
+    if (index !== -1) lru.splice(index, 1);
+    lru.push({ file, chunkIndex });
+  };
+
   const fetchRemoteChunk = (file, fileIndex, chunkIndex) => {
     const cached = file.chunks.get(chunkIndex);
     if (cached) return Promise.resolve(cached);
@@ -41,9 +65,11 @@ mdlr('enge:psx:cdr', () => {
       const data = new Uint8Array(await response.arrayBuffer());
       cdLog('HTTP range complete', { file: fileIndex, chunk: chunkIndex, bytes: data.byteLength });
       file.chunks.set(chunkIndex, data);
-      while (remoteImage.chunkCount() > remoteMaxChunks) {
-        const oldestFile = remoteImage.files.find(candidate => candidate.chunks.size);
-        oldestFile?.chunks.delete(oldestFile.chunks.keys().next().value);
+      if (!remoteImage?.files.includes(file)) return data;
+      touchRemoteChunk(file, chunkIndex);
+      while (remoteImage.lru.length > remoteMaxChunks) {
+        const oldest = remoteImage.lru.shift();
+        oldest.file.chunks.delete(oldest.chunkIndex);
       }
       return data;
     });
@@ -60,6 +86,10 @@ mdlr('enge:psx:cdr', () => {
 
   let ncmdread = 0;
   let ncmdctrl = 0;
+  let cmdClock = 0;
+  // Second responses (INT2/INT4) run independently of the next command's first response.
+  let asyncCode = 0;
+  let asyncClock = 0;
 
   let sectorOffset = 0;
   let sectorIndex = 0;
@@ -75,6 +105,8 @@ mdlr('enge:psx:cdr', () => {
 
   let currLoc = 0;
   let seekLoc = 0;
+  // Read/Play resume from currLoc unless a Setloc was issued since the last seek.
+  let setlocPending = false;
 
   let volCdLeft2SpuLeft = 1.0;
   let volCdLeft2SpuRight = 0.0;
@@ -139,7 +171,7 @@ mdlr('enge:psx:cdr', () => {
 
   const acknowledgeInterrupt = (data) => {
     const before = irq;
-    irq &= ~(data & (0x1F & irqEnable));
+    irq &= ~(data & 0x1F);
     if (cdDebug && (data & 0x1F)) {
       cdLog('interrupt acknowledged', {
         requested: data & 0x1F,
@@ -154,7 +186,7 @@ mdlr('enge:psx:cdr', () => {
   const enqueueEvent = (irq, ...params) => {
     // if (results.length) abort('not yet read all results');
     status = (status & ~0x80) | 0x20;
-    pushResults(params);
+    pushResults(...params);
     setIrq(irq);
   };
 
@@ -162,17 +194,45 @@ mdlr('enge:psx:cdr', () => {
     params.length = 0;
   };
 
+  const rearmCmdEvent = () => {
+    let next = Infinity;
+    if (ncmdctrl) next = cmdClock;
+    if (asyncCode && asyncClock < next) next = asyncClock;
+    if (next === Infinity) unsetEvent(eventCmd);
+    else setEvent(eventCmd, Math.max(0, next - psx.clock));
+  };
+
+  const scheduleAsync = (cycles, code) => {
+    asyncCode = code;
+    asyncClock = psx.clock + cycles;
+    rearmCmdEvent();
+  };
+
   const completeCmd = (self) => {
     unsetEvent(self);
     if (irq & 0x1f) {
-      setCommandEvent(64);
+      setEvent(self, 64);
       return;
     }
     const readCycles = PSX_SPEED / ((mode & 0x80) ? 150 : 75);
     const loc = currLoc - 150;
 
-    let currentCommand = ncmdctrl;
-    ncmdctrl = 0;
+    const isCommand = ncmdctrl !== 0 && psx.clock >= cmdClock;
+    if (!isCommand && !(asyncCode !== 0 && psx.clock >= asyncClock)) {
+      rearmCmdEvent();
+      return;
+    }
+    let currentCommand;
+    if (isCommand) {
+      currentCommand = ncmdctrl;
+      ncmdctrl = 0;
+    }
+    else {
+      currentCommand = asyncCode;
+      asyncCode = 0;
+    }
+    // Each new response replaces any unread bytes of the previous one.
+    results.length = 0;
     cdLog('complete command', `0x${currentCommand.toString(16).padStart(2, '0')}`, {
       status,
       statusCode,
@@ -200,13 +260,15 @@ mdlr('enge:psx:cdr', () => {
         else {
           seekLoc = currLoc;
         }
+        setlocPending = true;
         enqueueEvent(3, 0x02);
         break;
 
       case 0x03:
-        if (params.length === 0 || params[0] === 0) {
+        if ((params.length === 0 || params[0] === 0) && setlocPending) {
           currLoc = seekLoc;
         }
+        setlocPending = false;
         if (params.length === 1) {
           currTrack = tracks[btoi(params[0])];
           currLoc = seekLoc = currTrack.begin + 150;
@@ -220,12 +282,13 @@ mdlr('enge:psx:cdr', () => {
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x06;
         enqueueEvent(3, 0x42);
-        currLoc = seekLoc;
+        if (setlocPending) currLoc = seekLoc;
+        setlocPending = false;
         break;
 
       case 0x07:
         enqueueEvent(3, 0x00);
-        ncmdctrl = 0x70;
+        scheduleAsync(0x1000, 0x70);
         status |= 0x80;
         break
 
@@ -235,8 +298,7 @@ mdlr('enge:psx:cdr', () => {
 
       case 0x08:
         enqueueEvent(3, 0x02);
-        setCommandEvent(((mode & 0x80) ? 0x18a6076 : 0xd38aca) >>> 0);
-        ncmdctrl = 0x80;
+        scheduleAsync(((mode & 0x80) ? 0x18a6076 : 0xd38aca) >>> 0, 0x80);
         status |= 0x80;
         break;
       case 0x80:
@@ -245,8 +307,7 @@ mdlr('enge:psx:cdr', () => {
 
       case 0x09:
         pushResults(statusCode | 0x20);
-        setCommandEvent(((mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0);
-        ncmdctrl = 0x90;
+        scheduleAsync(((mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0, 0x90);
         status |= 0xA0;
         setIrq(3);
         break;
@@ -265,8 +326,7 @@ mdlr('enge:psx:cdr', () => {
 
       case 0x0A:
         enqueueEvent(3, 0x02);
-        setCommandEvent(0x1000 >>> 0);
-        ncmdctrl = 0xA0;
+        scheduleAsync(0x1000, 0xA0);
         status |= 0x80;
         break;
       case 0xA0:
@@ -328,8 +388,7 @@ mdlr('enge:psx:cdr', () => {
       } break;
 
       case 0x12:
-        setCommandEvent(0x1000 >>> 0);
-        ncmdctrl = 0x120;
+        scheduleAsync(0x1000, 0x120);
         statusCode |= 0x02;
         pushResults(statusCode);
         status |= 0x20;
@@ -375,8 +434,8 @@ mdlr('enge:psx:cdr', () => {
       } break;
 
       case 0x15:
-        setCommandEvent(seekCycles(seekLoc, currLoc));
-        ncmdctrl = 0x150;
+        setlocPending = false;
+        scheduleAsync(seekCycles(seekLoc, currLoc), 0x150);
         enqueueEvent(3, 0x42);
         status |= 0x80;
         break;
@@ -386,8 +445,8 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x16:
-        setCommandEvent(seekCycles(seekLoc, currLoc));
-        ncmdctrl = 0x160;
+        setlocPending = false;
+        scheduleAsync(seekCycles(seekLoc, currLoc), 0x160);
         enqueueEvent(3, 0x42);
         status |= 0x80;
         break;
@@ -403,9 +462,8 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x1A:
-        setCommandEvent(0x4a00 >>> 0);
+        scheduleAsync(0x4a00, 0x1A0);
         pushResults(statusCode);
-        ncmdctrl = 0x1A0;
         status |= 0x20;
         setIrq(3);
         break;
@@ -429,21 +487,40 @@ mdlr('enge:psx:cdr', () => {
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x1B;
         enqueueEvent(3, 0x42);
-        currLoc = seekLoc;
+        if (setlocPending) currLoc = seekLoc;
+        setlocPending = false;
         break;
 
       case 0x1E:
-        setCommandEvent(0x1000 >>> 0);
-        ncmdctrl = 0x1E0;
+        scheduleAsync(0x1000, 0x1E0);
         enqueueEvent(3, 0x02);
         break;
       case 0x1E0:
         enqueueEvent(2, 0x02);
         break;
 
-      default: abort(hex(ncmdctrl, 2));
+      case INVALID_COMMAND:
+        enqueueEvent(5, 0x03, 0x40);
+        break;
+
+      default: abort(hex(currentCommand, 2));
     }
-    resetparams();
+    if (isCommand) resetparams();
+    rearmCmdEvent();
+  };
+
+  // Returns true when the read event must not continue this tick.
+  const handleReadFailure = (self, result) => {
+    if (result === READ_PENDING) {
+      unsetEvent(self);
+      return true;
+    }
+    if (result === READ_MISSING) {
+      stopReading();
+      scheduleAsync(0x200, 0x99);
+      return true;
+    }
+    return false;
   };
 
   const completeRead = (self) => {
@@ -458,18 +535,15 @@ mdlr('enge:psx:cdr', () => {
       case 0x00:
         unsetEvent(eventRead);
         break;
-      case 0x03:
+      case 0x03: {
         playIndex = 0;
-        if (currLoc === currTrack.end) {
-          if (mode & 0x02) {
-            unsetEvent(self);
-            return command(0x99);
-          }
+        if ((mode & 0x02) && loc >= currTrack.end) {
+          stopReading();
+          scheduleAsync(0x200, 0x99);
+          return;
         }
-        if ((mode & 0x05) == 0x05) {
-          // A remote sector miss pauses this CD event until its range request
-          // completes. The event is retried without advancing currLoc.
-          if (!readSector(currLoc)) return;
+        if (handleReadFailure(self, readSector(currLoc))) return;
+        if (mode & 0x04) {
           switch (loc % 75) {
             case 0:
             case 20:
@@ -478,6 +552,7 @@ mdlr('enge:psx:cdr', () => {
               let amm = (loc / (60 * 75)) >> 0;
               let ass = ((loc / (75)) >> 0) % 60;
               let ast = loc % 75;
+              results.length = 0;
               pushResults(0x82, itob(currTrack.id), 1, itob(amm), itob(ass), itob(ast), 0, 0);
               status = (status & ~0x80) | 0x60;
               setIrq(1);
@@ -487,28 +562,33 @@ mdlr('enge:psx:cdr', () => {
             case 30:
             case 50:
             case 70: {
-              let loc = (currLoc - currTrack.begin);
+              let loc = (currLoc - 150 - currTrack.begin);
               let amm = (loc / (60 * 75)) >> 0;
               let ass = ((loc / (75)) >> 0) % 60;
               let ast = loc % 75;
+              results.length = 0;
               pushResults(0x82, itob(currTrack.id), 1, itob(amm), 0x80 | itob(ass), itob(ast), 0, 0);
               status = (status & ~0x80) | 0x60;
               setIrq(1);
             } break;
           }
-          psx.updateEvent(self, readCycles);
-          currLoc++;
-          break;
         }
-      case 0x06:
-      case 0x1b:
-        if (!readSector(currLoc)) return;
-        pushResults(0x22);
-        status = (status & ~0x80) | 0x60;
-        setIrq(1);
         psx.updateEvent(self, readCycles);
         currLoc++;
-        break;
+      } break;
+      case 0x06:
+      case 0x1b: {
+        const result = readSector(currLoc);
+        if (handleReadFailure(self, result)) return;
+        if (result === READ_DATA) {
+          results.length = 0;
+          pushResults(0x22);
+          status = (status & ~0x80) | 0x60;
+          setIrq(1);
+        }
+        psx.updateEvent(self, readCycles);
+        currLoc++;
+      } break;
 
       default:
         abort(hex(ncmdread, 2));
@@ -516,7 +596,6 @@ mdlr('enge:psx:cdr', () => {
   };
 
   const eventCmd = addEvent(0, completeCmd);
-  const setCommandEvent = e => setEvent(eventCmd, e);
 
   const eventRead = addEvent(0, completeRead);
   const setReadEvent = e => setEvent(eventRead, e);
@@ -524,7 +603,6 @@ mdlr('enge:psx:cdr', () => {
   const command = (data) => {
     let nevtctrl = 0x0200;
 
-    setIrq(0);
     results.length = 0;
     status |= 0x80;
     ncmdctrl = data;
@@ -565,45 +643,54 @@ mdlr('enge:psx:cdr', () => {
       case 0x15:  //- CdlSeekL
       case 0x16:  //- CdlSeekP
       case 0x1B:  //- CdlReadS
-        stopReading();
-        break;
       case 0x09:  //- CdlPause
         stopReading();
-        break;
-      case 0x99:  //- CdlPause (auto)
+        asyncCode = 0;
         break;
 
-      default: abort(hex(data, 2));
+      default:
+        ncmdctrl = INVALID_COMMAND;
+        break;
     }
 
-    setCommandEvent(nevtctrl >>> 0);
+    cmdClock = psx.clock + (nevtctrl >>> 0);
+    rearmCmdEvent();
   };
 
   const readSector = (readLoc) => {
+    const lba = readLoc - 150;
+    currTrack = tracks[tracks.length - 1] || {};
     for (let i = 1; i < tracks.length; ++i) {
-      let track = currTrack = tracks[i];
-      if ((track.begin < readLoc) && (readLoc < track.end)) break;
+      if (lba < tracks[i].end) {
+        currTrack = tracks[i];
+        break;
+      }
     }
 
     if (remoteImage) {
-      const track = currTrack || tracks[1];
-      const fileIndex = track.fileIndex || 0;
+      const location = locateSector(remoteImage.fileSectors, lba);
+      if (!location) return READ_MISSING;
+      const [fileIndex, fileSector] = location;
       const file = remoteImage.files[fileIndex];
-      const fileSector = (track.fileBegin || 0) + (readLoc - 150 - track.begin);
       const byteOffset = fileSector * remoteSectorSize;
       const chunkIndex = Math.floor(byteOffset / remoteChunkSize);
       const chunkOffset = byteOffset - chunkIndex * remoteChunkSize;
       const chunk = file.chunks.get(chunkIndex);
 
       if (!chunk || chunkOffset + remoteSectorSize > chunk.length) {
-        if (!remoteRead || remoteRead.fileIndex !== fileIndex || remoteRead.chunkIndex !== chunkIndex) {
+        // A settled request whose chunk is gone was evicted; fetch it again.
+        if (!remoteRead || remoteRead.file !== file || remoteRead.chunkIndex !== chunkIndex || remoteRead.done) {
           cdLog('sector cache miss; requesting range', { readLoc, file: fileIndex, chunk: chunkIndex });
-          const request = fetchRemoteChunk(file, fileIndex, chunkIndex);
-          remoteRead = { fileIndex, chunkIndex, request };
+          const read = { file, chunkIndex, done: false };
+          fetchRemoteChunk(file, fileIndex, chunkIndex).then(() => {
+            read.done = true;
+            if (remoteRead === read && ncmdread) setEvent(eventRead, 0);
+          }, error => abort(error.message));
+          remoteRead = read;
         }
-        remoteRead.request.then(() => setEvent(eventRead, 0)).catch(error => abort(error.message));
-        return false;
+        return READ_PENDING;
       }
+      touchRemoteChunk(file, chunkIndex);
 
       // Read ahead while the current range is still being consumed. This is
       // especially important for CDDA tracks, where a cache miss is audible.
@@ -619,25 +706,24 @@ mdlr('enge:psx:cdr', () => {
       sectorData16 = new Int16Array(remoteSector.buffer);
       sectorOffset = 0;
     } else if (localImage) {
-      const track = currTrack || tracks[1];
-      const fileIndex = track?.fileIndex || 0;
+      const location = locateSector(localImage.fileSectors, lba);
+      if (!location) return READ_MISSING;
+      const [fileIndex, fileSector] = location;
       const file = localImage.files[fileIndex];
-      const fileSector = (track?.fileBegin || 0) + (readLoc - 150 - (track?.begin || 0));
       const byteOffset = fileSector * remoteSectorSize;
-      if (!file || byteOffset < 0 || byteOffset + remoteSectorSize > file.byteLength) return false;
       remoteSector.set(file.subarray(byteOffset, byteOffset + remoteSectorSize));
       sectorData8 = new Int8Array(remoteSector.buffer);
       sectorData16 = new Int16Array(remoteSector.buffer);
       sectorOffset = 0;
+    } else {
+      const byteOffset = lba * 2352;
+      if (byteOffset < 0 || byteOffset + 2352 > sectorData8.length) return READ_MISSING;
+      sectorOffset = byteOffset;
     }
-
-    if (sectorData8.length <= 0) return false;
 
     if (cdDebug && (readLoc < 20 || readLoc % 75 === 0)) {
       cdLog('sector ready', { readLoc, track: currTrack.id, data: !!currTrack.data, audio: !!currTrack.audio });
     }
-
-    if (!remoteImage && !localImage) sectorOffset = (readLoc - 150) * 2352;
 
     if (cdDebug && debugSectorLogCount < 64) {
       const header = Array.from(sectorData8.slice(sectorOffset + 0x0f, sectorOffset + 0x15), byte =>
@@ -653,7 +739,6 @@ mdlr('enge:psx:cdr', () => {
       });
       debugSectorLogCount++;
 
-      const lba = readLoc - 150;
       if (lba === 22 && (mode & 0x30) === 0) {
         const entries = [];
         for (let offset = 24; offset < 24 + 2048;) {
@@ -686,20 +771,22 @@ mdlr('enge:psx:cdr', () => {
     }
     sectorEnd = sectorIndex + sectorSize;
 
-    if ((mode & 0x48) !== 0) {
+    // Real-time audio sectors go to the ADPCM decoder and are never delivered to the CPU.
+    if (mode & 0x40) {
       let sectorMode = sectorData8[sectorOffset + 0x0f];
-      if (sectorMode !== 2) return true;
-
-      if ((mode & 0x48) === 0x48) {
-        let file = sectorData8[sectorOffset + 0x10];
-        if (file !== filterFile) return true;
-
-        let chan = sectorData8[sectorOffset + 0x11];
-        if (chan !== filterChan) return true;
-      }
+      if (sectorMode !== 2) return READ_DATA;
 
       let sub = sectorData8[sectorOffset + 0x12];
-      if ((sub & 0x44) !== 0x44) return true;
+      if ((sub & 0x44) !== 0x44) return READ_DATA;
+
+      if (mode & 0x08) {
+        let file = sectorData8[sectorOffset + 0x10];
+        if (file !== filterFile) return READ_AUDIO;
+
+        let chan = sectorData8[sectorOffset + 0x11];
+        if (chan !== filterChan) return READ_AUDIO;
+      }
+
       let nfo = sectorData8[sectorOffset + 0x13];
 
       let ms, sr;
@@ -741,8 +828,9 @@ mdlr('enge:psx:cdr', () => {
         }
       }
       pcmmax = ix;
+      return READ_AUDIO;
     }
-    return true;
+    return READ_DATA;
   };
 
   const decodeMono = () => {
@@ -839,12 +927,16 @@ mdlr('enge:psx:cdr', () => {
     statusCode = 0x00;
     ncmdread = 0;
     ncmdctrl = 0;
+    asyncCode = 0;
+    unsetEvent(eventCmd);
+    remoteRead = undefined;
     sectorOffset = 0;
     sectorIndex = 0;
     sectorEnd = 0;
     playIndex = 0;
     currLoc = 0;
     seekLoc = 0;
+    setlocPending = false;
     irq = 0;
     results.length = 0;
     params.length = 0;
@@ -863,9 +955,9 @@ mdlr('enge:psx:cdr', () => {
       },
 
       rd08r1801: () => {
-        if ((status & 0x23) == 0x21) {
+        if (status & 0x20) {
           if (results.length === 1) {
-            status &= ~(0x40 | 0x20);
+            status &= ~(0x20); // clear 
           }
           const result = results.shift();
           if (cdDebug && debugResponseLogCount < 128) {
@@ -926,7 +1018,6 @@ mdlr('enge:psx:cdr', () => {
             break;
           case 1:
             irqEnable = data;
-            irq = 0;
             if (cdDebug) cdLog('interrupt register select/write', { irqEnable, irq });
             break;
           case 2:
@@ -949,7 +1040,7 @@ mdlr('enge:psx:cdr', () => {
             if (cdDebug && (data & 0x1f)) {
               cdLog('interrupt register acknowledge write', { data, irq, irqEnable });
             }
-            if (data & (0x1F & irqEnable)) {
+            if (data & 0x1F) {
               acknowledgeInterrupt(data);
             }
             if (data & 0x40) {
@@ -973,6 +1064,8 @@ mdlr('enge:psx:cdr', () => {
       nextpcm: (buf) => {
         if (ncmdread === 0x03) {
           if (currTrack.audio) {
+            // The next sector is late; hold the last frame instead of reading past the buffer.
+            if (playIndex > remoteSectorSize - 4) playIndex = remoteSectorSize - 4;
             let offset = (sectorOffset + playIndex) >> 1;
             let sampleL = sectorData16[offset + 0] / 32768.0;
             let sampleR = sectorData16[offset + 1] / 32768.0;
@@ -988,7 +1081,7 @@ mdlr('enge:psx:cdr', () => {
           playIndex += 4;
           return;
         }
-        if ((mode & 0x48) !== 0) {
+        if ((mode & 0x40) && pcmmax >= 1) {
           // if due to timing issues we read beyond the buffer, repeat last samples to reduce clicks.
           if (pcmidx >= (pcmmax - 1)) pcmidx = pcmmax - 1;
           let sampleL = pcm[pcmidx + 0];
@@ -1004,7 +1097,8 @@ mdlr('enge:psx:cdr', () => {
       dmaTransferMode0000: (addr, blck) => {
         if (!(addr & 0x007fffff)) return 0x10;
 
-        const transferSize = (blck & 0xFFFF) << 2;
+        const transferWords =(blck & 0xFFFF); 
+        const transferSize = transferWords << 2;
 
         if (cdDebug && debugDmaLogCount < 32) {
           cdLog('DMA sector transfer', {
@@ -1053,7 +1147,7 @@ mdlr('enge:psx:cdr', () => {
           status &= ~0x40;
         }
 
-        return transferSize;
+        return transferWords;
       },
 
       setTOC: (new_tracks) => {
@@ -1065,6 +1159,9 @@ mdlr('enge:psx:cdr', () => {
         statusCode,
         ncmdread,
         ncmdctrl,
+        cmdClock,
+        asyncCode,
+        asyncClock,
         sectorOffset,
         sectorIndex,
         sectorEnd,
@@ -1075,6 +1172,7 @@ mdlr('enge:psx:cdr', () => {
         mute,
         currLoc,
         seekLoc,
+        setlocPending,
         volCdLeft2SpuLeft,
         volCdLeft2SpuRight,
         volCdRight2SpuLeft,
@@ -1103,6 +1201,9 @@ mdlr('enge:psx:cdr', () => {
         statusCode = state.statusCode;
         ncmdread = state.ncmdread;
         ncmdctrl = state.ncmdctrl;
+        cmdClock = state.cmdClock ?? 0;
+        asyncCode = state.asyncCode ?? 0;
+        asyncClock = state.asyncClock ?? 0;
         sectorOffset = state.sectorOffset;
         sectorIndex = state.sectorIndex;
         sectorEnd = state.sectorEnd;
@@ -1113,6 +1214,7 @@ mdlr('enge:psx:cdr', () => {
         mute = state.mute;
         currLoc = state.currLoc;
         seekLoc = state.seekLoc;
+        setlocPending = state.setlocPending ?? false;
         volCdLeft2SpuLeft = state.volCdLeft2SpuLeft;
         volCdLeft2SpuRight = state.volCdLeft2SpuRight;
         volCdRight2SpuLeft = state.volCdRight2SpuLeft;
@@ -1131,7 +1233,8 @@ mdlr('enge:psx:cdr', () => {
         results.push(...state.results);
         params.length = 0;
         params.push(...state.params);
-        if (state.sectorData) {
+        // Whole-image discs live in sectorData8; only the per-sector paths use remoteSector.
+        if (state.sectorData && (remoteImage || localImage)) {
           remoteSector.set(state.sectorData);
           sectorData8 = new Int8Array(remoteSector.buffer);
           sectorData16 = new Int16Array(remoteSector.buffer);
@@ -1162,6 +1265,7 @@ mdlr('enge:psx:cdr', () => {
         }
         localImage = {
           files,
+          fileSectors: files.map(file => file.byteLength / remoteSectorSize),
           sectors: files.reduce((sectors, file) => sectors + file.byteLength / remoteSectorSize, 0)
         };
         sectorData8 = new Int8Array(remoteSector.buffer);
@@ -1191,7 +1295,8 @@ mdlr('enge:psx:cdr', () => {
         }));
         remoteImage = {
           files,
-          chunkCount: () => files.reduce((count, file) => count + file.chunks.size, 0)
+          fileSectors: files.map(file => file.size / remoteSectorSize),
+          lru: []
         };
         resetForNewImage();
         // The BIOS checks sectorData8.length to detect whether a disc is
