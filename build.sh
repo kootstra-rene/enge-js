@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-BUNDLER_URL="${BUNDLER_URL:-https://localhost:8443}"
+BUNDLER_URL="${BUNDLER_URL:-https://localhost}"
 
 build_bundle() {
   unit="$1"
@@ -10,7 +10,7 @@ build_bundle() {
   trap 'rm -rf "$temp_dir"' EXIT INT TERM
 
   curl --insecure --fail --silent --show-error \
-    "$BUNDLER_URL/bundler/node?unit=$unit" \
+    "$BUNDLER_URL/bundle/unit/$unit" \
     -o "$temp_dir/bundle.gz"
   gzip -t "$temp_dir/bundle.gz"
   gzip -dc "$temp_dir/bundle.gz" > "$temp_dir/bundle.js"

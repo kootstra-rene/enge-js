@@ -2,24 +2,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
   const debugGame = new URLSearchParams(window.location.search).has('debug-game');
   let debugGpuCommandCount = 0;
-  const debugMdec = new URLSearchParams(window.location.search).has('debug-mdec');
-  let statusReads = 0;
-  let sliceWatched = false;
-
-  // find RECT {x, y, w, h} copies in RAM (outside the stack) and watch them
-  const watchSliceRect = (x, y, w, h) => {
-    const sp = cpu.gpr[29] & 0x001fffff;
-    const found = [];
-    for (let i = 0; i < (0x200000 >>> 1) - 3 && found.length < 16; ++i) {
-      if ((map16[i + 2] & 0xffff) !== w || (map16[i + 3] & 0xffff) !== h) continue;
-      if ((map16[i + 1] & 0xffff) !== y) continue;
-      const addr = i << 1;
-      if (Math.abs(addr - sp) < 0x1000) continue;
-      found.push(addr);
-      watchRam(addr, 4, `rect@${hex(addr, 6)} x/y`);
-    }
-    console.debug('[GPU] slice rect candidates', found.map(a => hex(a, 6)), 'sp', hex(sp, 6));
-  };
 
   const $renderer = renderer;
   const [drawLine, drawTriangle, drawRectangle, setDrawAreaOF] = [$renderer.drawLine, $renderer.drawTriangle, $renderer.drawRectangle, $renderer.setDrawAreaOF].map(a => a.bind($renderer));
@@ -204,7 +186,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     rd32r1814: function () {
-      if (debugMdec) statusReads++;
       return gpu.status;
     },
 
@@ -530,15 +511,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
       gpu.img.index = 0;
       gpu.transferTotal = ((gpu.img.w * gpu.img.h) + 1) & ~1;
       gpu.img.pixelCount = gpu.transferTotal;
-
-      if (debugMdec) {
-        console.debug('[GPU] LoadImage', { x: gpu.img.x, y: gpu.img.y, w: gpu.img.w, h: gpu.img.h, statusReads });
-        statusReads = 0;
-        if (!sliceWatched && gpu.img.w === 24 && gpu.img.h === 224) {
-          sliceWatched = true;
-          watchSliceRect(gpu.img.x, gpu.img.y, gpu.img.w, gpu.img.h);
-        }
-      }
     },
 
     // Copy image from frame buffer
@@ -649,10 +621,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
         return (blck >> 16) * (blck & 0xFFFF);
       }
       var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-      if (debugMdec) {
-        console.debug('[GPU] dma2 upload', { addr: hex(addr), blck: hex(blck >>> 0), halfwords: transferSize, remaining: gpu.transferTotal, status: hex(gpu.status >>> 0), statusReads });
-        statusReads = 0;
-      }
       gpu.transferTotal -= transferSize;
 
       const img = gpu.img;

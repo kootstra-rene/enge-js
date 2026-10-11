@@ -292,8 +292,20 @@ mdlr('enge:psx:mdec', ({ include }) => {
       mdc.r1820 = data;
     },
 
+    // b31 data-out fifo empty, b29 command busy, b23-26 output format,
+    // b16-18 current block, b0-15 parameter words remaining minus 1 (ffff = none)
     rd32r1824: () => {
-      return mdc.r1824;
+      if (!mdc.rlEnd) return mdc.r1824; // no decode command since reset
+
+      const words = (mdc.rlEnd - mdc.rl) >> 2;
+      let status = (mdc.r1824 & 0xffff0000) | ((mdc.r1820 >>> 2) & 0x07800000);
+      if (words > 0) {
+        status |= 0x20000000 | ((words - 1) & 0xffff);
+      }
+      else {
+        status |= 0xffff;
+      }
+      return status;
     },
 
     wr32r1824: (data) => {
@@ -391,6 +403,8 @@ mdlr('enge:psx:mdec', ({ include }) => {
         }
         decodedMacroBlocks += 6;
       }
+      // consume trailing padding so a finished command reports idle
+      skipPadding();
 
       mdecLog('dma1', {
         addr: hex(end - (numberOfWords << 2)), blck: hex(blck >>> 0), words: numberOfWords,
