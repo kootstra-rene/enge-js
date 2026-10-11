@@ -819,7 +819,7 @@ mdlr('enge:webgl', ({ include }) => {
           break;
         case 2: gl.enable(gl.BLEND);
           gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT);
-          gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_COLOR);
+          gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ZERO, gl.ONE_MINUS_SRC_ALPHA);
           gl.uniform1f(this.programDraw.blendAlpha, 1.00);
           break;
         case 3: gl.enable(gl.BLEND);

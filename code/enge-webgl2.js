@@ -232,7 +232,7 @@ mdlr('enge:webgl2', ({ include }) => {
         case 2: {
           gl_enable(BLEND);
           gl_blendEquationSeparate(gl.FUNC_REVERSE_SUBTRACT, FUNC_ADD);
-          gl_blendFuncSeparate(ZERO, gl.ONE_MINUS_SRC_COLOR, ONE, ZERO);
+          gl_blendFuncSeparate(ONE, ONE, ONE, ZERO);
         } break;
         case 3: {
           gl_enable(BLEND);
