@@ -248,7 +248,7 @@ mdlr('enge:psx:cdr', () => {
           enqueueEvent(5, 0x01);
         }
         else {
-          enqueueEvent(3, 0x02);
+          enqueueEvent(3, statusCode | 0x02);
         }
         break;
 
@@ -381,9 +381,10 @@ mdlr('enge:psx:cdr', () => {
         let ss = ((loc / (75)) >> 0) % 60;
         let st = loc % 75;
         pushResults(itob(currTrack.id), 0x01, itob(mm), itob(ss), itob(st));
-        pushResults(itob((((currLoc - 150) / 75) / 60) % 60));
-        pushResults(itob((((currLoc - 150) / 75) % 60)));
-        pushResults(itob((((currLoc - 150) % 75))));
+        // Absolute MSF includes the disc's 150-sector lead-in.
+        pushResults(itob(((currLoc / 75) / 60) % 60));
+        pushResults(itob((currLoc / 75) % 60));
+        pushResults(itob(currLoc % 75));
         status = (status & ~0x80) | 0x20;
         setIrq(3);
       } break;
@@ -457,11 +458,20 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x19:
-        // Test 19h is a family of commands, not one fixed response. Crash
-        // Bash uses 19h/04h and 19h/05h for its SCEx check. Those commands
-        // complete with status/IRQ only; returning the version payload here
-        // leaves the game's command parser out of sync.
-        if (testSubcommand !== 0x04 && testSubcommand !== 0x05) {
+        // Test 04h starts SCEx reading and returns status, not the controller
+        // version. Dragoon retries drive initialization if it sees 99h here.
+        // Test 05h stops SCEx reading and returns total/success counters.
+        if (testSubcommand === 0x04) {
+          statusCode |= 0x02; // Test 04h forces the spindle motor on.
+          pushResults(statusCode);
+        }
+        else if (testSubcommand === 0x05) {
+          // SCEx exists only in the lead-in. Dragoon deliberately seeks into
+          // the data track to verify that the counters remain zero there.
+          const licensed = currLoc < 150 && sectorData8.length && tracks.some(track => track.data) ? 1 : 0;
+          pushResults(licensed, licensed);
+        }
+        else {
           pushResults(0x99, 0x02, 0x01, 0xc3);
         }
         status = (status & ~0x80) | 0x20;
@@ -552,6 +562,7 @@ mdlr('enge:psx:cdr', () => {
           return;
         }
         if (handleReadFailure(self, readSector(currLoc))) return;
+        statusCode = (statusCode & ~0x60) | 0x82;
         if (mode & 0x04) {
           switch (loc % 75) {
             case 0:
@@ -589,6 +600,8 @@ mdlr('enge:psx:cdr', () => {
       case 0x1b: {
         const result = readSector(currLoc);
         if (handleReadFailure(self, result)) return;
+        // XA audio still counts as reading, even when no data IRQ reaches the CPU.
+        statusCode = (statusCode & ~0xc0) | 0x22;
         if (result === READ_DATA) {
           results.length = 0;
           pushResults(0x22);
@@ -967,7 +980,7 @@ mdlr('enge:psx:cdr', () => {
       rd08r1801: () => {
         if (status & 0x20) {
           if (results.length === 1) {
-            status &= ~(0x20); // clear 
+            status &= ~(0x20); // clear
           }
           const result = results.shift();
           if (cdDebug && debugResponseLogCount < 128) {
@@ -990,7 +1003,9 @@ mdlr('enge:psx:cdr', () => {
 
       rd08r1802: () => {
         if (status & 0x40) {
-          return sectorData8[sectorOffset + sectorIndex++];
+          const index = sectorIndex < sectorEnd ? sectorIndex++ :
+            sectorEnd - ((sectorEnd === 2072) ? 8 : 4);
+          return sectorData8[sectorOffset + index];
         }
         return 0x00;
       },
@@ -1109,7 +1124,8 @@ mdlr('enge:psx:cdr', () => {
 
         // DMA block counts are 32-bit words. Convert to bytes only for the
         // sector copy; return words so the DMA controller advances correctly.
-        const transferWords = blck & 0xFFFF;
+        // A zero manual DMA word count encodes 65,536 words.
+        const transferWords = (blck & 0xFFFF) || 0x10000;
         const transferBytes = transferWords << 2;
 
         if (cdDebug && debugDmaLogCount < 32) {
@@ -1123,10 +1139,25 @@ mdlr('enge:psx:cdr', () => {
         }
 
         clearCodeCache(addr, transferBytes);
+        const ramStart = addr & 0x001fffff;
+        if (ramStart + transferBytes > 0x200000) {
+          clearCodeCache(0, ramStart + transferBytes - 0x200000);
+        }
 
         for (let i = 0; i < transferBytes; i += 2) {
-          map16[(addr & 0x001fffff) >> 1] = sectorData16[(sectorOffset + sectorIndex) >> 1];
-          sectorIndex += 2;
+          let word;
+          if (sectorIndex < sectorEnd) {
+            word = sectorData16[(sectorOffset + sectorIndex) >> 1];
+            sectorIndex += 2;
+          }
+          else {
+            // Once the FIFO is exhausted it repeats a padding byte, not ECC
+            // bytes, the next sector, or undefined data from the sector buffer.
+            const index = sectorEnd - ((sectorEnd === 2072) ? 8 : 4);
+            const padding = sectorData8[sectorOffset + index] & 0xff;
+            word = padding | (padding << 8);
+          }
+          map16[(addr & 0x001fffff) >> 1] = word;
           addr += 2;
         }
         if (cdDebug && debugDmaLogCount <= 32) {

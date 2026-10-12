@@ -86,6 +86,12 @@
       background: rgba(0, 0, 0, .55);
     }
     .control-menu-panel {
+      max-height: calc(100vh - 2rem);
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
       width: min(90vw, 22rem);
       padding: 1.25rem;
       border: 1px solid #555;

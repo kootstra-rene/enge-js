@@ -18,10 +18,23 @@ mdlr('enge:psx:serial-device', ({ include }) => {
   let received = [];
   let checkSum = 0;
   let addr = 0;
+  let dualShock = false;
+  let analog = false;
+  let config = false;
+  let commandConfig = false;
+  let rumbleMap = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
 
   return {
     lo: 0xff,
     hi: 0xff,
+    lx: 0x80, ly: 0x80, rx: 0x80, ry: 0x80,
+    get analogMode() { return dualShock && analog; },
+    setControllerMode: function (value) {
+      dualShock = value === "analog";
+      analog = dualShock;
+      config = false;
+      rumbleMap.fill(0xff);
+    },
     setId: function (deviceId) {
       id = deviceId;
       return this;
@@ -55,18 +68,42 @@ mdlr('enge:psx:serial-device', ({ include }) => {
     },
     buildControllerResponse: function (byte) {
       mode = byte;
+      commandConfig = config;
+      const buttons = [this.lo, this.hi];
+      const inputs = [...buttons, this.rx, this.ry, this.lx, this.ly];
+      if (byte === 0x42 || (dualShock && byte === 0x43)) {
+        const header = config ? 0xf3 : analog ? 0x73 : 0x41;
+        response.push(header, 0x5a, ...(config && byte === 0x43 ? [0, 0, 0, 0, 0, 0] :
+          (config || analog) ? inputs : buttons));
+        return;
+      }
+      if (!dualShock || !config) {
+        response.push(0xff);
+        return;
+      }
       switch (byte) {
-        case 0x42:
-          response.push(0x41, 0x5a, this.lo, this.hi/*, 0x00, 0x00, 0x00, 0x00*/);
-          break;
-        case 0x43:  // todo: Exit/Enter configuration
-          response.push(0xff);
-          break;
-        default:
-          return abort(hex(byte, 2));
+        case 0x44: response.push(0xf3, 0x5a, 0, 0, 0, 0, 0, 0); break;
+        case 0x45: response.push(0xf3, 0x5a, 1, 2, analog ? 1 : 0, 2, 1, 0); break;
+        case 0x46: response.push(0xf3, 0x5a, 0, 0, 1, 2, 0, 10); break;
+        case 0x47: response.push(0xf3, 0x5a, 0, 0, 2, 0, 1, 0); break;
+        case 0x4c: response.push(0xf3, 0x5a, 0, 0, 0, 4, 0, 0); break;
+        case 0x4d: response.push(0xf3, 0x5a, ...rumbleMap); break;
+        default: response.push(0xff); break;
       }
     },
-    sendReceiveByte:  byte => {
+    sendReceiveByte: byte => {
+      const index = received.length;
+      if (dualShock && index === 2) {
+        if (mode === 0x43 && (byte === 0 || byte === 1)) config = byte === 1;
+        if (commandConfig && mode === 0x44 && (byte === 0 || byte === 1)) analog = byte === 1;
+        if (commandConfig && mode === 0x46) {
+          response.splice(2, 4, ...(byte === 0 ? [1, 2, 0, 10] : byte === 1 ? [1, 1, 1, 20] : [0, 0, 0, 0]));
+        }
+        if (commandConfig && mode === 0x4c) response[3] = byte === 0 ? 4 : byte === 1 ? 7 : 0;
+      }
+      if (dualShock && commandConfig && mode === 0x4d && index >= 2 && index < 8) {
+        rumbleMap[index - 2] = byte;
+      }
       if (response.length <= 0) console.log(`#${id}: reading unexpected in mode $${hex(mode, 2)}`);
       let data = response.shift() || 0;
 
