@@ -644,10 +644,11 @@ mdlr('enge:webgl', ({ include }) => {
       gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
 
-      // needed for 16bit video
+      // Upload conversion reads packed bytes, regardless of the current draw texture depth.
+      this.setBlendMode(4);
       var x1 = img.x; var x2 = img.x + img.w;
       var y1 = img.y; var y2 = img.y + img.h;
-      var buffer = this.getVertexBuffer(6, 0);
+      var buffer = this.vertexBuffer;
       buffer.addVertexUV(x1, y1, 0, 7, 0, 0, 0, 0);
       buffer.addVertexUV(x2, y1, 0, 7, 0, 0, 0, 0);
       buffer.addVertexUV(x1, y2, 0, 7, 0, 0, 0, 0);
