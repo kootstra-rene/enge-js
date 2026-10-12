@@ -376,14 +376,17 @@ mdlr('enge:psx:cdr', () => {
       } break;
 
       case 0x11: {
-        let loc = (currLoc - 150 - currTrack.begin);
+        // Pregap (index 0) counts down to the track's index 1 start.
+        const relativeLoc = currLoc - 150 - currTrack.begin;
+        const loc = Math.abs(relativeLoc);
         let mm = (loc / (60 * 75)) >> 0;
         let ss = ((loc / (75)) >> 0) % 60;
         let st = loc % 75;
-        pushResults(itob(currTrack.id), 0x01, itob(mm), itob(ss), itob(st));
-        pushResults(itob((((currLoc - 150) / 75) / 60) % 60));
-        pushResults(itob((((currLoc - 150) / 75) % 60)));
-        pushResults(itob((((currLoc - 150) % 75))));
+        pushResults(itob(currTrack.id), relativeLoc < 0 ? 0x00 : 0x01, itob(mm), itob(ss), itob(st));
+        // Absolute MSF includes the disc's 150-sector lead-in.
+        pushResults(itob((currLoc / 75) / 60));
+        pushResults(itob((currLoc / 75) % 60));
+        pushResults(itob(currLoc % 75));
         status = (status & ~0x80) | 0x20;
         setIrq(3);
       } break;
@@ -443,6 +446,7 @@ mdlr('enge:psx:cdr', () => {
       case 0x150:
         enqueueEvent(2, 0x2);
         currLoc = seekLoc;
+        selectTrack(currLoc);
         break;
 
       case 0x16:
@@ -454,6 +458,7 @@ mdlr('enge:psx:cdr', () => {
       case 0x160:
         enqueueEvent(2, 0x2);
         currLoc = seekLoc;
+        selectTrack(currLoc);
         break;
 
       case 0x19:
@@ -667,7 +672,7 @@ mdlr('enge:psx:cdr', () => {
     rearmCmdEvent();
   };
 
-  const readSector = (readLoc) => {
+  const selectTrack = (readLoc) => {
     const lba = readLoc - 150;
     currTrack = tracks[tracks.length - 1] || {};
     for (let i = 1; i < tracks.length; ++i) {
@@ -676,7 +681,11 @@ mdlr('enge:psx:cdr', () => {
         break;
       }
     }
+  };
 
+  const readSector = (readLoc) => {
+    const lba = readLoc - 150;
+    selectTrack(readLoc);
     if (remoteImage) {
       const location = locateSector(remoteImage.fileSectors, lba);
       if (!location) return READ_MISSING;
