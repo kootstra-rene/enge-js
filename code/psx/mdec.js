@@ -219,14 +219,14 @@ mdlr('enge:psx:mdec', ({ include }) => {
     rd32r1824: () => {
       if (!mdc.rlEnd) return mdc.r1824; // no decode command since reset
 
+      skipPadding();
       const words = (mdc.rlEnd - mdc.rl) >> 2;
-      let status = (mdc.r1824 & 0xffff0000) | ((mdc.r1820 >>> 2) & 0x07800000);
-      if (words > 0) {
-        status |= 0x20000000 | ((words - 1) & 0xffff);
-      }
-      else {
-        status |= 0xffff;
-      }
+      let status = (mdc.r1824 & 0xdfff0000) | ((mdc.r1820 >>> 2) & 0x07800000);
+      status |= words > 0 ? ((words - 1) & 0xffff) : 0xffff;
+      // FFIX must not reset its movie column before the final output DMA completes.
+      const busy = (mdc.r1820 >>> 29) === 1 &&
+        (mdc.rl < mdc.rlEnd || mdc.rlQueue.length || mdc.event.active);
+      if (busy) status |= 0x20000000;
       return status;
     },
 
