@@ -3,6 +3,7 @@ mdlr('enge:psx:rtc', ({ include }) => {
   const r11x0 = new Float64Array(4);
   const r11x4 = new Uint32Array(4);
   const r11x8 = new Uint32Array(4);
+  const irqDone = new Uint8Array(4); // one-shot IRQ already raised since mode write
 
   // Advances counter `id` by `increment` and detects the target and overflow
   // events separately (mode bit 11 = reached target, bit 12 = reached 0xffff).
@@ -44,46 +45,59 @@ mdlr('enge:psx:rtc', ({ include }) => {
     if (hitOverflow) r11x4[id] |= (1 << 12);
 
     if (counter && ((hitTarget && (mode & 0x010)) || (hitOverflow && (mode & 0x020)))) {
-      counter.onLimitReached(counter);
+      // bit 6 clear = one-shot: only the first IRQ after a mode write is raised
+      if ((mode & 0x040) || !irqDone[id]) {
+        irqDone[id] = 1;
+        counter.onLimitReached(counter);
+      }
     }
     return value;
   }
 
+  // Sync mode bits (0-2) only matter while sync is enabled (bit 0); with sync
+  // disabled every combination behaves as free running (key 0).
+  const syncKey = (mode) => (mode & 0x001) ? (mode & 0x007) : 0x000;
+
+  // Value bookkeeping shared by all counters: r11x0[n] holds the counter value
+  // at the start of the current scanline (minus any offset from a mid-line
+  // register write), elapsed() returns how far the counter advanced since then.
+  // A register write stores `value - elapsed()` so the next read returns
+  // exactly `value`; onScanLine() then adds the cycles of the finished line.
+
   const rc0 = {
     freerun: false,
 
-    getValue: () => {
+    elapsed: () => {
       const f = rc0.freerun;
 
       let cyclesToPeek = +0;
 
-      switch (r11x4[0] & 0x007) {
-        case 0x000: // no irq, clock source, target 0xffff+1
+      switch (syncKey(r11x4[0])) {
+        case 0x000: // free run
           cyclesToPeek = +(psx.clock - dot.start);
           break;
-        case 0x001: // no irq, clock source, target 0xffff+1, pause in hblank
+        case 0x001: // pause in hblank
           switch (dot.whereInScanLine()) {
             case -1: cyclesToPeek = +0; break;
             case 0: cyclesToPeek = +(psx.clock - dot.dispHStart); break;
             case 1: cyclesToPeek = +(dot.dispHStop - dot.dispHStart); break;
           }
           break;
-        case 0x003: // no irq, clock source, target 0xffff+1, reset counter at hblank
+        case 0x003: // reset counter at hblank
           switch (dot.whereInScanLine()) {
             case -1: cyclesToPeek = +(psx.clock - dot.start); break;
             case 0: cyclesToPeek = +(psx.clock - dot.start); break;
             case 1: cyclesToPeek = +(psx.clock - dot.dispHStop); break;
           }
           break;
-
-        case 0x005: // no irq, clock source, target 0xffff+1, reset counter at hblank, pause outside hblank
+        case 0x005: // reset counter at hblank, pause outside hblank
           switch (dot.whereInScanLine()) {
             case -1: cyclesToPeek = +(psx.clock - dot.start); break;
             case 0: cyclesToPeek = +(dot.dispHStart - dot.start); break;
             case 1: cyclesToPeek = +(psx.clock - dot.dispHStop); break;
           }
           break;
-        case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
+        case 0x007: // pause until hblank then switch to free run
           switch (dot.whereInScanLine()) {
             case -1: cyclesToPeek = !f ? +0 : +(psx.clock - dot.start); break;
             case 0: cyclesToPeek = !f ? +0 : +(psx.clock - dot.start); break;
@@ -93,11 +107,13 @@ mdlr('enge:psx:rtc', ({ include }) => {
       }
 
       if (r11x4[0] & 0x100) {
-        return limitReached(0, +gpu.cyclesToDotClock(cyclesToPeek));
+        return +gpu.cyclesToDotClock(cyclesToPeek);
       }
-      else {
-        return limitReached(0, +cyclesToPeek);
-      }
+      return +cyclesToPeek;
+    },
+
+    getValue: () => {
+      return limitReached(0, rc0.elapsed());
     },
 
     getTarget: () => {
@@ -112,42 +128,11 @@ mdlr('enge:psx:rtc', ({ include }) => {
 
     setMode: (bits32) => {
       r11x4[0] = (bits32 & 0x3ff) | (1 << 10);
+      irqDone[0] = 0;
+      if (syncKey(r11x4[0]) === 0x007) rc0.freerun = false;
 
-      let cyclesToSkip = +0;
-
-      switch (bits32 & 0x007) {
-        case 0x000: // no irq, clock source, target 0xffff+1
-          cyclesToSkip = +(psx.clock - dot.start);
-          break;
-        case 0x001: // no irq, clock source, target 0xffff+1, pause in hblank
-          switch (dot.whereInScanLine()) {
-            case -1: cyclesToSkip = +0; break;
-            case 0: cyclesToSkip = +(psx.clock - dot.dispHStart); break;
-            case 1: cyclesToSkip = +0; break;
-          }
-          break;
-        case 0x003: // no irq, clock source, target 0xffff+1, reset counter at hblank
-        case 0x005: // no irq, clock source, target 0xffff+1, reset counter at hblank, pause outside hblank
-          switch (dot.whereInScanLine()) {
-            case -1: cyclesToSkip = +0; break;
-            case 0: cyclesToSkip = +0; break;
-            case 1: cyclesToSkip = +(psx.clock - dot.dispHStop); break;
-          }
-          break;
-        case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
-          rc0.freerun = false;
-          cyclesToSkip = +0;
-          break;
-      }
-
-      if (r11x4[0] & 0x100) {
-        r11x0[0] = +0;
-        r11x0[0] = limitReached(0, -gpu.cyclesToDotClock(cyclesToSkip));
-      }
-      else {
-        r11x0[0] = +0;
-        r11x0[0] = limitReached(0, -cyclesToSkip);
-      }
+      // a mode write restarts the counter at 0
+      r11x0[0] = -rc0.elapsed();
     },
 
     setTarget: (bits32) => {
@@ -156,7 +141,7 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     setValue: (bits32) => {
-      r11x0[0] = bits32;
+      r11x0[0] = (bits32 & 0xffff) - rc0.elapsed();
     },
 
     onLimitReached: () => {
@@ -169,23 +154,21 @@ mdlr('enge:psx:rtc', ({ include }) => {
 
       let cyclesToAdd = +0;
 
-      switch (r11x4[0] & 0x007) {
-        case 0x000: // no irq, clock source, target 0xffff+1
+      switch (syncKey(r11x4[0])) {
+        case 0x000: // free run
           cyclesToAdd = +(dot.stop - dot.start);
           break;
-        case 0x001: // no irq, clock source, target 0xffff+1, pause in hblank
+        case 0x001: // pause in hblank
           cyclesToAdd = +(dot.dispHStop - dot.dispHStart);
           break;
 
-        case 0x003: // no irq, clock source, target 0xffff+1, reset counter at hblank
-        case 0x005: // no irq, clock source, target 0xffff+1, reset counter at hblank, pause outside hblank
-          switch (dot.whereInScanLine()) {
-            case -1: cyclesToAdd = +0; break;
-            case 0: cyclesToAdd = +0; break;
-            case 1: cyclesToAdd = - +(psx.clock - dot.dispHStop); break;
-          }
+        case 0x003: // reset counter at hblank
+        case 0x005: // reset counter at hblank, pause outside hblank
+          // the value is derived from the position in the line; drop any
+          // offset from a register write, the hblank reset has passed it
+          r11x0[0] = +0;
           break;
-        case 0x007: // no irq, clock source, target 0xffff+1, pause until hblank then switch to free run
+        case 0x007: // pause until hblank then switch to free run
           cyclesToAdd = !f ? +(dot.stop - dot.dispHStop) : +(dot.stop - dot.start);
           rc0.freerun = true;
           break;
@@ -202,32 +185,28 @@ mdlr('enge:psx:rtc', ({ include }) => {
 
   const rc1 = {
     freerun: false,
+    vblank: false, // vblank state of the scanline that just finished
+
+    elapsed: () => {
+      switch ((r11x4[1] & 0x100) | syncKey(r11x4[1])) {
+        case 0x000: // clock source, free run
+          return +(psx.clock - dot.start);
+        case 0x001: // clock source, pause in vblank
+          return dot.isInVBlank() ? +0 : +psx.eventCycles(dot.event);
+        case 0x003: // clock source, reset counter at vblank
+          return +psx.eventCycles(dot.event);
+        case 0x005: // clock source, reset counter at vblank, count only in vblank
+          return dot.isInVBlank() ? +psx.eventCycles(dot.event) : +0;
+        case 0x007: // clock source, pause until vblank then switch to free run
+          return rc1.freerun ? +psx.eventCycles(dot.event) : +0;
+
+        default: // h-blank source: only advances at scanline boundaries
+          return +0;
+      }
+    },
 
     getValue: () => {
-      // const factor = dot.isInVBlank() ? 0.0 : 1.0;
-
-      switch (r11x4[1] & 0x107) {
-        case 0x000: // no irq, clock source, target 0xffff+1
-          return limitReached(1, +(psx.clock - dot.start));
-        case 0x001: // no irq, clock source, target 0xffff+1, pause in vblank
-          return limitReached(1, dot.isInVBlank() ? +0 : +psx.eventCycles(dot.event));
-        case 0x003: // no irq, clock source, target 0xffff+1, reset counter at vblank
-          return limitReached(1, +psx.eventCycles(dot.event));
-        case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
-          return limitReached(1, dot.isInVBlank() ? +0 : +0);
-        case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
-          if (!rc1.freerun) return limitReached(1, +0);
-          return limitReached(1, +psx.eventCycles(dot.event));
-
-        case 0x100: // no irq, h-blank source, target 0xffff+1
-        case 0x101: // no irq, h-blank source, target 0xffff+1, pause in vblank
-        case 0x103: // no irq, h-blank source, target 0xffff+1, reset counter at vblank
-        case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
-          return limitReached(1, +0);
-        case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
-          if (!rc1.freerun) return limitReached(1, +0);
-          return limitReached(1, +0);
-      }
+      return limitReached(1, rc1.elapsed());
     },
 
     getTarget: () => {
@@ -241,33 +220,13 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     setMode: (bits32) => {
-      r11x4[1] = ((bits32 & 0x13f) | (1 << 10)) >>> 0;
+      // keep bits 6/7 (repeat, toggle) and 9 (clock source) readable
+      r11x4[1] = ((bits32 & 0x3ff) | (1 << 10)) >>> 0;
+      irqDone[1] = 0;
+      if (syncKey(r11x4[1]) === 0x007) rc1.freerun = false;
 
-      // todo: implement synchronisation
-      switch (r11x4[1] & 0x107) {
-        case 0x000: // no irq, clock source, target 0xffff+1
-        case 0x001: // no irq, clock source, target 0xffff+1, pause in vblank
-        case 0x003: // no irq, clock source, target 0xffff+1, reset counter at vblank
-        case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
-          r11x0[1] = - +(psx.clock - dot.start);
-          r11x0[1] = limitReached(1, +0);
-          break;
-        case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
-          rc1.freerun = false;
-          r11x0[1] = +0;
-          break;
-
-        case 0x100: // no irq, h-blank source, target 0xffff+1
-        case 0x101: // no irq, h-blank source, target 0xffff+1, pause in vblank
-        case 0x103: // no irq, h-blank source, target 0xffff+1, reset counter at vblank
-        case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
-          r11x0[1] = +0;
-          break;
-        case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
-          rc1.freerun = false;
-          r11x0[1] = +0;
-          break;
-      }
+      // a mode write restarts the counter at 0
+      r11x0[1] = -rc1.elapsed();
     },
 
     setTarget: (bits32) => {
@@ -276,7 +235,7 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     setValue: (bits32) => {
-      r11x0[1] = +bits32;
+      r11x0[1] = (bits32 & 0xffff) - rc1.elapsed();
     },
 
     onLimitReached: () => {
@@ -286,23 +245,25 @@ mdlr('enge:psx:rtc', ({ include }) => {
 
     onScanLine: (isVBlankStart) => {
       const cyclesPerScanLine = +(dot.stop - dot.start);
+      const wasVBlank = rc1.vblank;
+      rc1.vblank = dot.isInVBlank();
 
-      switch (r11x4[1] & 0x107) {
-        case 0x000: // no irq, clock source, target 0xffff+1
+      switch ((r11x4[1] & 0x100) | syncKey(r11x4[1])) {
+        case 0x000: // clock source, free run
           r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
           break;
-        case 0x001: // no irq, clock source, target 0xffff+1, pause in vblank
+        case 0x001: // clock source, pause in vblank
           r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : cyclesPerScanLine, rc1);
           break;
-        case 0x003: // no irq, clock source, target 0xffff+1, reset counter at vblank
+        case 0x003: // clock source, reset counter at vblank
           r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
           if (isVBlankStart) r11x0[1] = 0;
           break;
-        case 0x005: // no irq, clock source, target 0xffff+1, reset counter at vblank, pause outside vblank
-          r11x0[1] = limitReached(1, dot.isInVBlank() ? cyclesPerScanLine : +0, rc1);
-          if (dot.isInVBlank()) r11x0[1] = 0;
+        case 0x005: // clock source, reset counter at vblank, count only in vblank
+          r11x0[1] = limitReached(1, wasVBlank ? cyclesPerScanLine : +0, rc1);
+          if (isVBlankStart) r11x0[1] = 0;
           break;
-        case 0x007: // no irq, clock source, target 0xffff+1, pause until vblank then switch to free run
+        case 0x007: // clock source, pause until vblank then switch to free run
           if (rc1.freerun) {
             r11x0[1] = limitReached(1, cyclesPerScanLine, rc1);
           }
@@ -314,21 +275,21 @@ mdlr('enge:psx:rtc', ({ include }) => {
           }
           break;
 
-        case 0x100: // no irq, h-blank source, target 0xffff+1
+        case 0x100: // h-blank source, free run
           r11x0[1] = limitReached(1, +1, rc1);
           break;
-        case 0x101: // no irq, h-blank source, target 0xffff+1, pause in vblank
-          r11x0[1] = limitReached(1, dot.isInVBlank() ? + 0 : +1, rc1);
-          break;
-        case 0x103: // no irq, h-blank source, target 0xffff+1, reset counter at vblank
-          r11x0[1] = limitReached(1, +1, rc1);
-          if (isVBlankStart) r11x0[1] = 0;
-          break;
-        case 0x105: // no irq, h-blank source, target 0xffff+1, reset counter at vblank, pause outside vblank
+        case 0x101: // h-blank source, pause in vblank
           r11x0[1] = limitReached(1, dot.isInVBlank() ? +0 : +1, rc1);
+          break;
+        case 0x103: // h-blank source, reset counter at vblank
+          r11x0[1] = limitReached(1, +1, rc1);
           if (isVBlankStart) r11x0[1] = 0;
           break;
-        case 0x107: // no irq, h-blank source, target 0xffff+1, pause until vblank then switch to free run
+        case 0x105: // h-blank source, reset counter at vblank, count only in vblank
+          r11x0[1] = limitReached(1, wasVBlank ? +1 : +0, rc1);
+          if (isVBlankStart) r11x0[1] = 0;
+          break;
+        case 0x107: // h-blank source, pause until vblank then switch to free run
           if (rc1.freerun) {
             r11x0[1] = limitReached(1, +1, rc1);
           }
@@ -344,23 +305,20 @@ mdlr('enge:psx:rtc', ({ include }) => {
   }
 
   const rc2 = {
+    // Timer 2 has no gate: sync modes 0 and 3 stop the counter, 1 and 2 (and
+    // sync disabled) free run. Clock source 2/3 (bit 9) is sysclk/8.
+    rate: () => {
+      const sync = syncKey(r11x4[2]);
+      if (sync === 0x001 || sync === 0x007) return +0;
+      return (r11x4[2] & 0x200) ? +0.125 : +1.0;
+    },
+
+    elapsed: () => {
+      return rc2.rate() * +(psx.clock - dot.start);
+    },
+
     getValue: () => {
-      switch (r11x4[2] & 0x207) {
-        case 0x000: // no irq, clock source, target 0xffff+1
-        case 0x003: // no irq, clock source, target 0xffff+1, free run
-        case 0x005: // no irq, clock source, target 0xffff+1, free run
-          return limitReached(2, +(psx.clock - dot.start));
-
-        case 0x001: // no irq, clock source, target 0xffff+1, stop counter
-        case 0x007: // no irq, clock source, target 0xffff+1, stop counter
-          return limitReached(2, +0);
-
-        case 0x008: // no irq, clock source, reset @ target+1
-          return limitReached(2, +(psx.clock - dot.start));
-
-        case 0x200: // no irq, clock/8 source, target 0xffff+1
-          return limitReached(2, 0.125 * +(psx.clock - dot.start));
-      }
+      return limitReached(2, rc2.elapsed());
     },
 
     getTarget: () => {
@@ -375,28 +333,10 @@ mdlr('enge:psx:rtc', ({ include }) => {
 
     setMode: (bits32) => {
       r11x4[2] = (bits32 & 0x3ff) | (1 << 10);
+      irqDone[2] = 0;
 
-      switch (r11x4[2] & 0x207) {
-        case 0x000: // no irq, clock source, reset @ 0xffff+1
-        case 0x003: // no irq, clock source, reset @ 0xffff+1, free run
-        case 0x005: // no irq, clock source, reset @ 0xffff+1, free run
-          r11x0[2] = - +(psx.clock - dot.start);
-          r11x0[2] = limitReached(2, +0);
-          break;
-
-        case 0x001: // no irq, clock source, reset @ 0xffff+1, stop counter
-        case 0x007: // no irq, clock source, reset @ 0xffff+1, stop counter
-          r11x0[2] = +0;
-          break;
-
-        case 0x008: // no irq, clock source, reset @ target+1
-          r11x0[2] = -1.000 * psx.eventCycles(dot.event);
-          break;
-
-        case 0x200: // no irq, clock/8 source, reset @ 0xffff+1
-          r11x0[2] = -0.125 * psx.eventCycles(dot.event);
-          break;
-      }
+      // a mode write restarts the counter at 0
+      r11x0[2] = -rc2.elapsed();
     },
 
     setTarget: (bits32) => {
@@ -406,7 +346,7 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     setValue: (bits32) => {
-      r11x0[2] = bits32;
+      r11x0[2] = (bits32 & 0xffff) - rc2.elapsed();
     },
 
     onLimitReached: () => {
@@ -415,22 +355,7 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     onScanLine: () => {
-      switch (r11x4[2] & 0x207) {
-        case 0x000: // no irq, clock source, target 0xffff+1
-        case 0x003: // no irq, clock source, target 0xffff+1, free run
-        case 0x005: // no irq, clock source, target 0xffff+1, free run
-          r11x0[2] = limitReached(2, +(dot.stop - dot.start), rc2);
-          break;
-
-        case 0x001: // no irq, clock source, target 0xffff+1, stop counter
-        case 0x007: // no irq, clock source, target 0xffff+1, stop counter
-          r11x0[2] = limitReached(2, +0, rc2);
-          break;
-
-        case 0x200: // no irq, clock/8 source, reset @ 0xffff+1
-          r11x0[2] = limitReached(2, 0.125 * +(dot.stop - dot.start), rc2);
-          break;
-      }
+      r11x0[2] = limitReached(2, rc2.rate() * +(dot.stop - dot.start), rc2);
     }
   }
 
