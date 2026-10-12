@@ -186,6 +186,8 @@ mdlr('enge:psx:dma', ({ include }) => {
     // only b24, b28 and b30 are r/w, b1 (decrement) is always set
     r10e8 = (ctrl & 0x51000000) | 0x2;
     if (!(r10e8 & 0x01000000)) return;
+    // sync mode 0 (start immediately) also needs the manual start trigger
+    if (!((ctrl >> 9) & 3) && !(ctrl & 0x10000000)) return;
     if (dpcr & 0x08000000) {
       const transferSize = gpu.dmaLinkedListMode0002(r10e0, r10e4) || 10;
       r10e0n = 0x00ffffff; // todo: update with actual value
