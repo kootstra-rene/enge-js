@@ -863,17 +863,22 @@ mdlr('enge:psx:index', ({ include }) => {
         }
       }
     };
-    const cloudRequest = (path, options = {}) => fetch(`${cloudBase}${path}`, {
-      cache: 'no-store',
-      ...options,
-    }).then(async response => {
-      if (!response.ok) {
-        let message = response.statusText;
-        try { message = (await response.text()) || message; } catch (_) { }
-        throw new Error(`${response.status} ${message}`);
+    const cloudRequest = (path, options = {}) => {
+      if (typeof path !== 'string' || !/^\/api\/[a-zA-Z0-9/_-]*$/.test(path)) {
+        return Promise.reject(new Error('Invalid cloud request path'));
       }
-      return response;
-    });
+      return fetch(`${cloudBase}${path}`, {
+        cache: 'no-store',
+        ...options,
+      }).then(async response => {
+        if (!response.ok) {
+          let message = response.statusText;
+          try { message = (await response.text()) || message; } catch (_) { }
+          throw new Error(`${response.status} ${message}`);
+        }
+        return response;
+      });
+    };
 
     const cloudSaveStateButton = document.getElementById('cloud-save-state');
     cloudSaveStateButton?.addEventListener('click', async () => {
