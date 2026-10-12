@@ -225,10 +225,51 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       return 3;
     }
     setBlendMode(mode) {
+      // Texture depth is stored per vertex and does not affect the pipeline.
+      mode &= 15;
       if (this.renderMode !== mode) {
         this.flushVertexBuffer(true);
         this.renderMode = mode;
       }
+    }
+    needsTextureSync(data) {
+      if (!this.dirty) return false;
+
+      const [left, top, right, bottom] = this.dirty;
+      const overlapsWrapped = (start, size, min, max, limit) => {
+        start = ((start % limit) + limit) % limit;
+        const end = start + size;
+        if (end <= limit) return start < max && end > min;
+        return (start < max && limit > min) || (end - limit > min && max > 0);
+      };
+      const overlapsVram = (x, y, width, height) =>
+        overlapsWrapped(x, width, left, right, 1024) &&
+        overlapsWrapped(y, height, top, bottom, 512);
+
+      for (let i = 0; i < data.length; i += 6) {
+        const depth = (data[i] >>> 24) & 7;
+        if (depth === 3) continue;
+
+        const page = data[i + 4];
+        const window = data[i + 5];
+        const divisor = depth === 0 ? 4 : depth === 1 ? 2 : 1;
+        const textureX = Math.floor(
+          ((page & 0xffff) + ((window >>> 16) & 0xff)) / divisor,
+        );
+        const textureY = (page >>> 16) + (window >>> 24);
+        const textureWidth = Math.ceil(256 / divisor) + 1;
+        if (overlapsVram(textureX, textureY, textureWidth, 256)) return true;
+
+        if (depth < 2) {
+          const clut = data[i + 3];
+          const clutX = clut & 0xffff;
+          const clutY = clut >>> 16;
+          const clutWidth = depth === 0 ? 16 : 256;
+          if (overlapsVram(clutX, clutY, clutWidth, 1)) return true;
+        }
+      }
+
+      return false;
     }
     flushVertexBuffer(clip = true) {
       if (!this.vertexBuffer.index) return;
@@ -276,15 +317,21 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         }
       // Untextured primitives never sample VRAM; snapshot only when it is read.
       if (textured && this.dirty) {
-        const [x, y, r, b] = this.dirty;
-        encoder.copyTextureToTexture(
-          { texture: this.target, origin: [x * quality, y * quality] },
-          { texture: this.source, origin: [x * quality, y * quality] },
-          [(r - x) * quality, (b - y) * quality],
-        );
-        this.dirty = null;
+        if (this.needsTextureSync(data)) {
+          if (this.drawingPass) {
+            this.drawingPass.end();
+            this.drawingPass = null;
+          }
+          const [x, y, r, b] = this.dirty;
+          encoder.copyTextureToTexture(
+            { texture: this.target, origin: [x * quality, y * quality] },
+            { texture: this.source, origin: [x * quality, y * quality] },
+            [(r - x) * quality, (b - y) * quality],
+          );
+          this.dirty = null;
+        }
       }
-      const pass = encoder.beginRenderPass({
+      const pass = this.drawingPass ||= encoder.beginRenderPass({
         colorAttachments: [
           { view: this.target.createView(), loadOp: "load", storeOp: "store" },
         ],
@@ -310,8 +357,6 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         );
         pass.draw(this.vertexBuffer.getNumberOfVertices());
       }
-      pass.end();
-
       let minX = r,
         minY = b,
         maxX = l,
@@ -343,6 +388,10 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       this.vertexBuffer.reset();
     }
     submitDrawing(){
+      if (this.drawingPass) {
+        this.drawingPass.end();
+        this.drawingPass = null;
+      }
       if(this.drawingEncoder){this.device.queue.submit([this.drawingEncoder.finish()]);this.drawingEncoder=null;}
       this.drawSlot=0;
     }
