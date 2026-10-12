@@ -69,7 +69,8 @@ mdlr('enge:webgl', ({ include }) => {
     this[index + 2] = uv;
     this[index + 3] = cxy;
     this[index + 4] = txy;
-    this[index + 5] = gpu.twin;
+    // Texture-window offsets only replace coordinate bits selected by the mask.
+    this[index + 5] = (gpu.twin & 0xffff) | (gpu.twin & (gpu.twin << 16));
 
     this.index += 24;
   }
@@ -536,26 +537,53 @@ mdlr('enge:webgl', ({ include }) => {
       this.storeImageInTexture({ x: 0, y: 0, w: 1024, h: 512, pixelCount: 1024 * 512, buffer: this.vram });
     }
 
-    moveImage(sx, sy, dx, dy, w, h) {
-      var gl = this.gl;
+    readRenderedImage(x, y, w, h, buffer) {
+      const gl = this.gl;
+      // Drawn pixels live in tex16draw; the CPU VRAM mirror only contains uploads.
+      // Read the complete source before writing, so overlapping copies are safe.
+      this.flushVertexBuffer(true);
+      const framebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
 
-      var o = 0;
-      var img = gpu.img;
+      for (let row = 0; row < h;) {
+        const tileY = (y + row) & 511;
+        const rows = Math.min(h - row, 512 - tileY);
+        for (let column = 0; column < w;) {
+          const tileX = (x + column) & 1023;
+          const columns = Math.min(w - column, 1024 - tileX);
+          const width = columns * qwf;
+          const height = rows * qhf;
+          const size = width * height * 4;
+          if (!this.copyPixels || this.copyPixels.length < size) this.copyPixels = new Uint8Array(size);
+          gl.readPixels(tileX * qwf, tileY * qhf, width, height, gl.RGBA, gl.UNSIGNED_BYTE, this.copyPixels);
+          for (let j = 0; j < rows; ++j) {
+            for (let i = 0; i < columns; ++i) {
+              const offset = ((j * qhf + (qhf >> 1)) * width + i * qwf + (qwf >> 1)) * 4;
+              // Uploaded 5-bit channels are encoded as channel / 32 in the shader.
+              const r = Math.min(31, Math.round(this.copyPixels[offset] * 32 / 255));
+              const g = Math.min(31, Math.round(this.copyPixels[offset + 1] * 32 / 255));
+              const b = Math.min(31, Math.round(this.copyPixels[offset + 2] * 32 / 255));
+              const mask = this.copyPixels[offset + 3] >= 128 ? 0x8000 : 0;
+              buffer[(row + j) * w + column + i] = mask | (b << 10) | (g << 5) | r;
+            }
+          }
+          column += columns;
+        }
+        row += rows;
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+
+    }
+
+    moveImage(sx, sy, dx, dy, w, h) {
+      const img = gpu.img;
       img.x = dx;
       img.y = dy;
       img.w = w;
       img.h = h;
       img.pixelCount = w * h;
-      var copy = img.buffer;
-      var vram = this.vram;
-      for (var j = h; j > 0; --j) {
-        var x = sx;
-        var oy = ((sy++) % 512) * 1024;
-        for (var i = w; i > 0; --i) {
-          copy[o++] = vram[oy + ((x++) % 1024)];
-        }
-      }
-
+      this.readRenderedImage(sx, sy, w, h, img.buffer);
       this.storeImage(img);
     }
     storeImage(img) {
@@ -608,19 +636,20 @@ mdlr('enge:webgl', ({ include }) => {
         let h1 = 512 - img.y;
         let h2 = img.h - h1;
 
-        this.storeImageInTexture({ x: img.x, y: img.y, w: img.w, h: h1, buffer: new Uint16Array(img.buffer.buffer, 0, h1 * img.w), pixelCount: h1 * img.w });
-        this.storeImageInTexture({ x: img.x, y: 0, w: img.w, h: h2, buffer: new Uint16Array(img.buffer.buffer, h1 * img.w), pixelCount: h2 * img.w });
+        this.storeImageInTexture({ x: img.x, y: img.y, w: img.w, h: h1, buffer: new Uint16Array(img.buffer.buffer, img.buffer.byteOffset, h1 * img.w), pixelCount: h1 * img.w });
+        this.storeImageInTexture({ x: img.x, y: 0, w: img.w, h: h2, buffer: new Uint16Array(img.buffer.buffer, img.buffer.byteOffset + h1 * img.w * 2, h2 * img.w), pixelCount: h2 * img.w });
         return;
       }
       // copy image to GPU
-      const view = new Uint8Array(img.buffer.buffer, 0, img.pixelCount << 1);
+      const view = new Uint8Array(img.buffer.buffer, img.buffer.byteOffset, img.pixelCount << 1);
       gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
 
-      // needed for 16bit video
+      // Upload conversion reads packed bytes, regardless of the current draw texture depth.
+      this.setBlendMode(4);
       var x1 = img.x; var x2 = img.x + img.w;
       var y1 = img.y; var y2 = img.y + img.h;
-      var buffer = this.getVertexBuffer(6, 0);
+      var buffer = this.vertexBuffer;
       buffer.addVertexUV(x1, y1, 0, 7, 0, 0, 0, 0);
       buffer.addVertexUV(x2, y1, 0, 7, 0, 0, 0, 0);
       buffer.addVertexUV(x1, y2, 0, 7, 0, 0, 0, 0);
@@ -896,9 +925,9 @@ mdlr('enge:webgl', ({ include }) => {
       this.seenRender = true;
       if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
 
-      if (data[0] & 0x01000000) data[c1] = (data[c1] & 0xff000000) | 0x00808080; //- raw-texture
-      if (data[0] & 0x01000000) data[c2] = (data[c2] & 0xff000000) | 0x00808080; //- raw-texture
-      if (data[0] & 0x01000000) data[c3] = (data[c3] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[c1] = (data[c1] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[c2] = (data[c2] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[c3] = (data[c3] & 0xff000000) | 0x00808080; //- raw-texture
 
       var x1 = this.drawOffsetX + ((data[xy1] << 21) >> 21);
       var y1 = this.drawOffsetY + ((data[xy1] << 5) >> 21);
@@ -932,7 +961,6 @@ mdlr('enge:webgl', ({ include }) => {
       var tm = Math.min(((gpu.status >> 7) & 3), 2);
 
       var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
-      var clut = ((this.renderMode >> 4) & 3) < 2;
 
       var info = 3;
       if (semi_transparent) {
@@ -941,13 +969,13 @@ mdlr('enge:webgl', ({ include }) => {
 
       if (!semi_transparent || ((info & 2) === 2)) {
         var buffer = this.getVertexBuffer(3, data[0]);
-        buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 8, u1, v1, cx, cy);
-        buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | 8, u2, v2, cx, cy);
-        buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | 8, u3, v3, cx, cy);
+        buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | (semi_transparent ? 24 : 8), u1, v1, cx, cy);
+        buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | (semi_transparent ? 24 : 8), u2, v2, cx, cy);
+        buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | (semi_transparent ? 24 : 8), u3, v3, cx, cy);
       }
 
-      if (clut && semi_transparent && ((info & 1) === 1)) {
-        // there are opaque colors in the clut
+      if (semi_transparent && ((info & 1) === 1)) {
+        // Opaque texels bypass blending, including direct-colour textures.
         var buffer = this.getVertexBuffer(3, 0);
         buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 16, u1, v1, cx, cy);
         buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | 16, u2, v2, cx, cy);
@@ -958,7 +986,7 @@ mdlr('enge:webgl', ({ include }) => {
       this.seenRender = true;
 
       if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
-      if (data[0] & 0x01000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
 
 
       var x = this.drawOffsetX + ((data[1] << 21) >> 21);
@@ -1011,7 +1039,6 @@ mdlr('enge:webgl', ({ include }) => {
       }
 
       var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
-      var clut = ((this.renderMode >> 4) & 3) < 2;
 
       var info = 3;
       if (semi_transparent) {
@@ -1020,17 +1047,17 @@ mdlr('enge:webgl', ({ include }) => {
 
       if (!semi_transparent || ((info & 2) === 2)) {
         var buffer = this.getVertexBuffer(6, data[0]);
-        buffer.addVertexUV(x + 0, y + 0, c, tm | 8, tl, tt, cx, cy);
-        buffer.addVertexUV(x + w, y + 0, c, tm | 8, tr, tt, cx, cy);
-        buffer.addVertexUV(x + 0, y + h, c, tm | 8, tl, tb, cx, cy);
+        buffer.addVertexUV(x + 0, y + 0, c, tm | (semi_transparent ? 24 : 8), tl, tt, cx, cy);
+        buffer.addVertexUV(x + w, y + 0, c, tm | (semi_transparent ? 24 : 8), tr, tt, cx, cy);
+        buffer.addVertexUV(x + 0, y + h, c, tm | (semi_transparent ? 24 : 8), tl, tb, cx, cy);
 
-        buffer.addVertexUV(x + w, y + 0, c, tm | 8, tr, tt, cx, cy);
-        buffer.addVertexUV(x + 0, y + h, c, tm | 8, tl, tb, cx, cy);
-        buffer.addVertexUV(x + w, y + h, c, tm | 8, tr, tb, cx, cy);
+        buffer.addVertexUV(x + w, y + 0, c, tm | (semi_transparent ? 24 : 8), tr, tt, cx, cy);
+        buffer.addVertexUV(x + 0, y + h, c, tm | (semi_transparent ? 24 : 8), tl, tb, cx, cy);
+        buffer.addVertexUV(x + w, y + h, c, tm | (semi_transparent ? 24 : 8), tr, tb, cx, cy);
       }
 
-      if (clut && semi_transparent && ((info & 1) === 1)) {
-        // there are opaque colors in the clut
+      if (semi_transparent && ((info & 1) === 1)) {
+        // Opaque texels bypass blending, including direct-colour textures.
         var buffer = this.getVertexBuffer(6, 0);
         buffer.addVertexUV(x + 0, y + 0, c, tm | 16, tl, tt, cx, cy);
         buffer.addVertexUV(x + w, y + 0, c, tm | 16, tr, tt, cx, cy);

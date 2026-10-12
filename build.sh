@@ -23,3 +23,5 @@ build_bundle() {
 
 build_bundle 'enge:psx:webgl2' docs/index-webgl2.js
 build_bundle 'enge:psx:webgl' docs/index.js
+
+build_bundle 'enge:psx:webgpu' docs/index-webgpu.js

@@ -74,11 +74,12 @@ mdlr('enge:psx:spu', ({ include }) => {
     let cdSampleL = (cdxa[0] * cdVolumeLeft);
     let cdSampleR = (cdxa[1] * cdVolumeRight);
     {
-      const mono = (cdSampleL * 0x8000) >>> 0;
+      // Capture CD samples before output volume, including while muted.
+      const mono = (cdxa[0] * 0x8000) >>> 0;
       view.setInt16(0x0000 + captureIndex, mono, true);
     }
     {
-      const mono = (cdSampleR * 0x8000) >>> 0;
+      const mono = (cdxa[1] * 0x8000) >>> 0;
       view.setInt16(0x0400 + captureIndex, mono, true);
     }
     l += cdSampleL;
@@ -353,7 +354,10 @@ mdlr('enge:psx:spu', ({ include }) => {
         if (ramOffset === irqOffset) {
           irq = true;
         }
-        if (captureIndex === irqOffset) {
+        // The four 1 KiB capture buffers share the same sample position.
+        // RAM transfer control bits 2/3 enable capture writes and their IRQs.
+        if ((regs.get(0x1dac) & 0x0c) && irqOffset < 0x1000 &&
+            (irqOffset & 0x3ff) === captureIndex) {
           irq = true;
         }
       }
