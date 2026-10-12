@@ -98,16 +98,16 @@ mdlr('enge:psx:gte', ({ include }) => {
     // Clamp the depth-cue delta before interpolate() applies IR0. The lm
     // flag belongs to the final interpolated IR result, not this intermediate
     // signed step; this is required by Crash Bash's signed INTPL path.
-    ir[1] = lim(((fc[0] * 4096.0) - mac[1]) / sf, -32768.0, 24, 32767.0, 24);
-    ir[2] = lim(((fc[1] * 4096.0) - mac[2]) / sf, -32768.0, 23, 32767.0, 23);
-    ir[3] = lim(((fc[2] * 4096.0) - mac[3]) / sf, -32768.0, 22, 32767.0, 22);
+    ir[1] = lim(Math.floor(((fc[0] * 4096.0) - mac[1]) / sf), -32768.0, 24, 32767.0, 24);
+    ir[2] = lim(Math.floor(((fc[1] * 4096.0) - mac[2]) / sf), -32768.0, 23, 32767.0, 23);
+    ir[3] = lim(Math.floor(((fc[2] * 4096.0) - mac[3]) / sf), -32768.0, 22, 32767.0, 22);
   };
 
   const interpolate = () => {
     // [MAC1,MAC2,MAC3] = (([IR1,IR2,IR3] * IR0) + [MAC1,MAC2,MAC3]) SAR (sf*12)
-    mac[1] = (mac[1] + (ir[1] * ir[0])) / sf;
-    mac[2] = (mac[2] + (ir[2] * ir[0])) / sf;
-    mac[3] = (mac[3] + (ir[3] * ir[0])) / sf;
+    mac[1] = Math.floor((mac[1] + (ir[1] * ir[0])) / sf);
+    mac[2] = Math.floor((mac[2] + (ir[2] * ir[0])) / sf);
+    mac[3] = Math.floor((mac[3] + (ir[3] * ir[0])) / sf);
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -115,9 +115,9 @@ mdlr('enge:psx:gte', ({ include }) => {
 
   const transform = (add, mat, vec) => {
     // [MAC1,MAC2,MAC3] = (Tx*1000h + Mx*Vx) SAR (sf*12)
-    mac[1] = ((add[0] * 4096.0) + (mat[0] * vec[1]) + (mat[1] * vec[2]) + (mat[2] * vec[3])) / sf;
-    mac[2] = ((add[1] * 4096.0) + (mat[3] * vec[1]) + (mat[4] * vec[2]) + (mat[5] * vec[3])) / sf;
-    mac[3] = ((add[2] * 4096.0) + (mat[6] * vec[1]) + (mat[7] * vec[2]) + (mat[8] * vec[3])) / sf;
+    mac[1] = Math.floor(((add[0] * 4096.0) + (mat[0] * vec[1]) + (mat[1] * vec[2]) + (mat[2] * vec[3])) / sf);
+    mac[2] = Math.floor(((add[1] * 4096.0) + (mat[3] * vec[1]) + (mat[4] * vec[2]) + (mat[5] * vec[3])) / sf);
+    mac[3] = Math.floor(((add[2] * 4096.0) + (mat[6] * vec[1]) + (mat[7] * vec[2]) + (mat[8] * vec[3])) / sf);
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -164,9 +164,9 @@ mdlr('enge:psx:gte', ({ include }) => {
     mac[3] = (((rgb[3] >> 16) & 0xff) * ir[3]) * 16.0;
 
     // [MAC1,MAC2,MAC3] = [MAC1,MAC2,MAC3] SAR (sf*12)
-    mac[1] = mac[1] / sf;
-    mac[2] = mac[2] / sf;
-    mac[3] = mac[3] / sf;
+    mac[1] = Math.floor(mac[1] / sf);
+    mac[2] = Math.floor(mac[2] / sf);
+    mac[3] = Math.floor(mac[3] / sf);
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -194,9 +194,9 @@ mdlr('enge:psx:gte', ({ include }) => {
     interpolate();
 
     // [MAC1,MAC2,MAC3] = [MAC1,MAC2,MAC3] SAR (sf*12)
-    mac[1] = mac[1] / sf;
-    mac[2] = mac[2] / sf;
-    mac[3] = mac[3] / sf;
+    mac[1] = Math.floor(mac[1] / sf);
+    mac[2] = Math.floor(mac[2] / sf);
+    mac[3] = Math.floor(mac[3] / sf);
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -310,9 +310,9 @@ mdlr('enge:psx:gte', ({ include }) => {
     mac[3] = (((rgb[3] >> 16) & 0xff) * ir[3]) * 16.0;
 
     // [MAC1,MAC2,MAC3] = [MAC1,MAC2,MAC3] SAR (sf*12)
-    mac[1] = mac[1] / sf;
-    mac[2] = mac[2] / sf;
-    mac[3] = mac[3] / sf;
+    mac[1] = Math.floor(mac[1] / sf);
+    mac[2] = Math.floor(mac[2] / sf);
+    mac[3] = Math.floor(mac[3] / sf);
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -368,9 +368,9 @@ mdlr('enge:psx:gte', ({ include }) => {
 
   const op = () => {
     // [MAC1,MAC2,MAC3] = [IR3*D2-IR2*D3, IR1*D3-IR3*D1, IR2*D1-IR1*D2] SAR (sf*12)
-    mac[1] = ((ir[3] * rt[4]) - (ir[2] * rt[8])) / sf;
-    mac[2] = ((ir[1] * rt[8]) - (ir[3] * rt[0])) / sf;
-    mac[3] = ((ir[2] * rt[0]) - (ir[1] * rt[4])) / sf;
+    mac[1] = Math.floor(((ir[3] * rt[4]) - (ir[2] * rt[8])) / sf);
+    mac[2] = Math.floor(((ir[1] * rt[8]) - (ir[3] * rt[0])) / sf);
+    mac[3] = Math.floor(((ir[2] * rt[0]) - (ir[1] * rt[4])) / sf);
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -387,13 +387,13 @@ mdlr('enge:psx:gte', ({ include }) => {
     const dqb = regs[0x3c];
 
     // [MAC1,MAC2,MAC3] = (TR*1000h + RT*Vx) SAR (sf*12)
-    mac[1] = ((tr[0] * 4096.0) + (rt[0] * vec[1]) + (rt[1] * vec[2]) + (rt[2] * vec[3])) / sf;
+    mac[1] = Math.floor(((tr[0] * 4096.0) + (rt[0] * vec[1]) + (rt[1] * vec[2]) + (rt[2] * vec[3])) / sf);
     if (mac[1] > MAXRTPS) regs[0x3f] |= flag[30];
     if (mac[1] < MINRTPS) regs[0x3f] |= flag[27];
-    mac[2] = ((tr[1] * 4096.0) + (rt[3] * vec[1]) + (rt[4] * vec[2]) + (rt[5] * vec[3])) / sf;
+    mac[2] = Math.floor(((tr[1] * 4096.0) + (rt[3] * vec[1]) + (rt[4] * vec[2]) + (rt[5] * vec[3])) / sf);
     if (mac[2] > MAXRTPS) regs[0x3f] |= flag[29];
     if (mac[2] < MINRTPS) regs[0x3f] |= flag[26];
-    mac[3] = ((tr[2] * 4096.0) + (rt[6] * vec[1]) + (rt[7] * vec[2]) + (rt[8] * vec[3])) / sf;
+    mac[3] = Math.floor(((tr[2] * 4096.0) + (rt[6] * vec[1]) + (rt[7] * vec[2]) + (rt[8] * vec[3])) / sf);
     if (mac[3] > MAXRTPS) regs[0x3f] |= flag[28];
     if (mac[3] < MINRTPS) regs[0x3f] |= flag[25];
 
@@ -409,7 +409,7 @@ mdlr('enge:psx:gte', ({ include }) => {
     sz[0] = sz[1];
     sz[1] = sz[2];
     sz[2] = sz[3];
-    let zs3 = mac[3] / isf;
+    let zs3 = Math.floor(mac[3] / isf);
     sz[3] = lim(zs3, 0.0, 18, 65535.0, 18);
 
     let hsz3 = 131072.0;
@@ -432,9 +432,9 @@ mdlr('enge:psx:gte', ({ include }) => {
 
   const sqr = () => {
     //[MAC1,MAC2,MAC3] = [IR1*IR1,IR2*IR2,IR3*IR3] SHR (sf*12)
-    mac[1] = (ir[1] * ir[1]) / sf;
-    mac[2] = (ir[2] * ir[2]) / sf;
-    mac[3] = (ir[3] * ir[3]) / sf;
+    mac[1] = Math.floor((ir[1] * ir[1]) / sf);
+    mac[2] = Math.floor((ir[2] * ir[2]) / sf);
+    mac[3] = Math.floor((ir[3] * ir[3]) / sf);
 
     // [IR1,IR2,IR3] = [MAC1,MAC2,MAC3]
     limit(lm);
@@ -444,10 +444,14 @@ mdlr('enge:psx:gte', ({ include }) => {
   const s16hi = data => (data << 0) >> 16;
   const s32 = data => (data << 0) >> 0;
   const u16lo = data => (data << 16) >>> 16;
+  const sat5 = data => data < 0 ? 0 : data > 0x1f ? 0x1f : data;
 
   const gte = {
     get: (regId) => {
       switch (regId) {
+        case 0x01: // VZ0..VZ2 read back sign-extended
+        case 0x03:
+        case 0x05: return s16lo(regs[regId]);
         case 0x07: return u16lo(regs[regId]);
         case 0x08: return s16lo(ir[0]);
         case 0x09: return s16lo(ir[1]);
@@ -468,10 +472,11 @@ mdlr('enge:psx:gte', ({ include }) => {
         case 0x19: return mac[1];
         case 0x1a: return mac[2];
         case 0x1b: return mac[3];
+        case 0x1c: // IRGB and ORGB both read IR1..IR3 / 0x80, saturated to 0..0x1f
         case 0x1d: let value = 0;
-          value |= ((ir[1] >> 7) << 0);
-          value |= ((ir[2] >> 7) << 5);
-          value |= ((ir[3] >> 7) << 10);
+          value |= (sat5(ir[1] >> 7) << 0);
+          value |= (sat5(ir[2] >> 7) << 5);
+          value |= (sat5(ir[3] >> 7) << 10);
           return value;
         case 0x1f: return lzcr;
         case 0x3a: return s16lo(regs[regId]);
