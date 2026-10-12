@@ -30,6 +30,10 @@ mdlr('enge:psx:cdr', () => {
   const READ_PENDING = 3;
 
   const INVALID_COMMAND = 0x1000;
+  const SHELL_OPENED = 0x1001;
+
+  // Commands that need a readable disc; with the shell open they fail with INT5(stat|1, 80h).
+  const discCommands = new Set([0x03, 0x06, 0x10, 0x11, 0x13, 0x14, 0x15, 0x16, 0x1A, 0x1B, 0x1E]);
 
   // Cue files are laid out back to back; maps an LBA to [fileIndex, fileSector].
   const locateSector = (fileSectors, lba) => {
@@ -125,6 +129,10 @@ mdlr('enge:psx:cdr', () => {
   let filterChan = 0;
 
   let currTrack = {};
+
+  // Shell (lid) open: the disc can be swapped. Stat bit 4 stays latched until the
+  // first GetStat after the shell is closed again, which is how games detect a swap.
+  let shellOpen = false;
 
   const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
 
@@ -241,14 +249,24 @@ mdlr('enge:psx:cdr', () => {
       loc: currLoc,
       results: results.length
     });
+    if (isCommand && shellOpen && discCommands.has(currentCommand)) {
+      enqueueEvent(5, statusCode | 0x01, 0x80);
+      resetparams();
+      rearmCmdEvent();
+      return;
+    }
     switch (currentCommand) {
       case 0x00: break;
       case 0x01:
-        if (!sectorData8.length) {
+        if (shellOpen) {
+          enqueueEvent(3, statusCode);
+        }
+        else if (!sectorData8.length) {
           enqueueEvent(5, 0x01);
         }
         else {
           enqueueEvent(3, statusCode | 0x02);
+          statusCode &= ~0x10;
         }
         break;
 
@@ -472,7 +490,7 @@ mdlr('enge:psx:cdr', () => {
         else if (testSubcommand === 0x05) {
           // SCEx exists only in the lead-in. Dragoon deliberately seeks into
           // the data track to verify that the counters remain zero there.
-          const licensed = currLoc < 150 && sectorData8.length && tracks.some(track => track.data) ? 1 : 0;
+          const licensed = !shellOpen && currLoc < 150 && sectorData8.length && tracks.some(track => track.data) ? 1 : 0;
           pushResults(licensed, licensed);
         }
         else {
@@ -524,6 +542,11 @@ mdlr('enge:psx:cdr', () => {
 
       case INVALID_COMMAND:
         enqueueEvent(5, 0x03, 0x40);
+        break;
+
+      case SHELL_OPENED:
+        // The shell was opened while the drive was busy (reading, playing, seeking).
+        enqueueEvent(5, statusCode | 0x01, 0x08);
         break;
 
       default: abort(hex(currentCommand, 2));
@@ -625,6 +648,30 @@ mdlr('enge:psx:cdr', () => {
 
   const eventRead = addEvent(0, completeRead);
   const setReadEvent = e => setEvent(eventRead, e);
+
+  const openShell = () => {
+    unsetEvent(eventShell);
+    if (shellOpen) return;
+    shellOpen = true;
+    const busy = ncmdread !== 0 || asyncCode !== 0;
+    stopReading();
+    asyncCode = 0;
+    // Spindle motor stops; reading, seeking and playing end.
+    statusCode = (statusCode & ~0xE2) | 0x10;
+    if (busy) scheduleAsync(0x200, SHELL_OPENED);
+    else rearmCmdEvent();
+  };
+
+  const closeShell = () => {
+    unsetEvent(eventShell);
+    if (!shellOpen) return;
+    shellOpen = false;
+    // The shell open bit stays set until the next GetStat.
+    statusCode |= 0x02;
+  };
+
+  const eventShell = addEvent(0, closeShell);
+  unsetEvent(eventShell);
 
   const command = (data) => {
     let nevtctrl = 0x0200;
@@ -953,6 +1000,13 @@ mdlr('enge:psx:cdr', () => {
   };
 
   const resetForNewImage = () => {
+    // With the shell open only the media is swapped; the controller keeps running.
+    if (shellOpen) {
+      remoteRead = undefined;
+      sectorOffset = 0;
+      currTrack = {};
+      return;
+    }
     stopReading();
     status = 0x18;
     statusCode = 0x00;
@@ -1205,6 +1259,19 @@ mdlr('enge:psx:cdr', () => {
         tracks.splice(0, tracks.length, ...new_tracks);
       },
 
+      // Disc swap: open the shell, load the next disc with setCdImage*/setTOC, close the shell.
+      openShell,
+
+      // delayCycles keeps the shell open a while longer so the game can notice it was open.
+      closeShell: (delayCycles = 0) => {
+        if (delayCycles > 0 && shellOpen) setEvent(eventShell, delayCycles);
+        else closeShell();
+      },
+
+      get shellOpen() {
+        return shellOpen;
+      },
+
       getState: () => ({
         status,
         statusCode,
@@ -1236,6 +1303,7 @@ mdlr('enge:psx:cdr', () => {
         pcmmax,
         filterFile,
         filterChan,
+        shellOpen,
         currTrackIndex: tracks.indexOf(currTrack),
         results: [...results],
         params: [...params],
@@ -1278,6 +1346,8 @@ mdlr('enge:psx:cdr', () => {
         pcmmax = state.pcmmax;
         filterFile = state.filterFile;
         filterChan = state.filterChan;
+        shellOpen = state.shellOpen ?? false;
+        unsetEvent(eventShell);
         currTrack = tracks[state.currTrackIndex] || {};
 
         results.length = 0;

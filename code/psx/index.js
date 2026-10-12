@@ -675,6 +675,24 @@ mdlr('enge:psx:index', ({ include }) => {
     }
   }
 
+  // Swaps the disc like on a real console: open the shell, insert the next disc and keep
+  // the shell open for a second of emulated time, so the game notices the disc changed.
+  const changeDisc = async (selectedFiles) => {
+    cdr.openShell();
+    try {
+      const cueFile = selectedFiles.find(file => /\.cue$/i.test(file.name));
+      if (cueFile) {
+        await loadCueFromFiles(cueFile, selectedFiles);
+      }
+      else {
+        loadFileData(await selectedFiles[0].arrayBuffer(), selectedFiles[0].name);
+      }
+    }
+    finally {
+      cdr.closeShell(PSX_SPEED);
+    }
+  };
+
   const handleDragOver = (evt) => {
     evt.stopPropagation();
     evt.preventDefault();
@@ -1039,6 +1057,21 @@ mdlr('enge:psx:index', ({ include }) => {
         updateStateButton(uploadMemoryCardButton, 'Load Failed');
         alert(`Unable to upload memory card: ${error.message}`);
       }).finally(() => { uploadMemoryCardInput.value = ''; });
+    });
+
+    const changeDiscButton = document.getElementById('change-disc');
+    const changeDiscInput = document.getElementById('change-disc-file');
+    changeDiscButton?.addEventListener('click', () => changeDiscInput?.click());
+    changeDiscInput?.addEventListener('change', () => {
+      const files = [...(changeDiscInput.files || [])];
+      if (!files.length) return;
+      changeDisc(files).then(() => {
+        updateStateButton(changeDiscButton, 'Disc Changed');
+      }).catch(error => {
+        console.error('Unable to change disc:', error);
+        updateStateButton(changeDiscButton, 'Change Failed');
+        alert(`Unable to change disc: ${error.message}`);
+      }).finally(() => { changeDiscInput.value = ''; });
     });
 
     const menuButton = document.getElementById('menu-button');
