@@ -69,7 +69,8 @@ mdlr('enge:webgl', ({ include }) => {
     this[index + 2] = uv;
     this[index + 3] = cxy;
     this[index + 4] = txy;
-    this[index + 5] = gpu.twin;
+    // Texture-window offsets only replace coordinate bits selected by the mask.
+    this[index + 5] = (gpu.twin & 0xffff) | (gpu.twin & (gpu.twin << 16));
 
     this.index += 24;
   }
