@@ -424,7 +424,28 @@ mdlr('enge:psx:index', ({ include }) => {
     return Object.fromEntries(Object.entries(snapshot).map(([key, value]) => [key, restoreSnapshot(value)]));
   };
 
-  const saveState = () => {
+  let stateDatabase;
+  const storedState = async (encoded) => {
+    if (!stateDatabase) {
+      stateDatabase = new Promise((resolve, reject) => {
+        const request = indexedDB.open('enge-save-states', 1);
+        request.onupgradeneeded = () => request.result.createObjectStore('states');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+    const database = await stateDatabase;
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction('states', encoded === undefined ? 'readonly' : 'readwrite');
+      const store = transaction.objectStore('states');
+      const request = encoded === undefined ? store.get(stateStorageKey) : store.put(encoded, stateStorageKey);
+      transaction.oncomplete = () => resolve(encoded === undefined ? (request.result ?? localStorage.getItem(stateStorageKey)) : true);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error || new Error('Save state storage aborted'));
+    });
+  };
+
+  const saveState = (persist = true) => {
     const wasRunning = running;
     running = false;
     spu.silence();
@@ -443,8 +464,9 @@ mdlr('enge:psx:index', ({ include }) => {
         cdr: snapshotValue(cdr.getState()),
         context: snapshotValue(context)
       };
-      localStorage.setItem(stateStorageKey, JSON.stringify(state));
-      return true;
+      const encoded = JSON.stringify(state);
+      if (!persist) return encoded;
+      return storedState(encoded);
     }
     finally {
       running = wasRunning;
@@ -856,11 +878,12 @@ mdlr('enge:psx:index', ({ include }) => {
     const cloudSaveStateButton = document.getElementById('cloud-save-state');
     cloudSaveStateButton?.addEventListener('click', async () => {
       try {
-        if (!saveState()) throw new Error('Save state is unavailable');
+        const encoded = saveState(false);
+        if (!encoded) throw new Error('Save state is unavailable');
         await cloudRequest('/api/state', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: localStorage.getItem(stateStorageKey),
+          body: encoded,
         });
         updateStateButton(cloudSaveStateButton, 'Cloud Saved');
       }
@@ -876,7 +899,7 @@ mdlr('enge:psx:index', ({ include }) => {
       try {
         const encoded = await (await cloudRequest('/api/state')).text();
         loadState(encoded);
-        localStorage.setItem(stateStorageKey, encoded);
+        await storedState(encoded);
         updateStateButton(cloudLoadStateButton, 'Cloud State Loaded');
       }
       catch (error) {
@@ -922,9 +945,9 @@ mdlr('enge:psx:index', ({ include }) => {
     });
 
     const saveStateButton = document.getElementById('save-state');
-    saveStateButton?.addEventListener('click', () => {
+    saveStateButton?.addEventListener('click', async () => {
       try {
-        updateStateButton(saveStateButton, saveState() ? 'State Saved' : 'Save Failed');
+        updateStateButton(saveStateButton, await saveState() ? 'State Saved' : 'Save Failed');
       }
       catch (error) {
         console.error('Unable to save state:', error);
@@ -933,9 +956,9 @@ mdlr('enge:psx:index', ({ include }) => {
     });
 
     const loadStateButton = document.getElementById('load-state');
-    loadStateButton?.addEventListener('click', () => {
+    loadStateButton?.addEventListener('click', async () => {
       try {
-        updateStateButton(loadStateButton, loadState() ? 'State Loaded' : 'No State');
+        updateStateButton(loadStateButton, loadState(await storedState()) ? 'State Loaded' : 'No State');
       }
       catch (error) {
         console.error('Unable to load state:', error);
@@ -951,13 +974,14 @@ mdlr('enge:psx:index', ({ include }) => {
     });
 
     const downloadStateButton = document.getElementById('download-state');
-    downloadStateButton?.addEventListener('click', () => {
+    downloadStateButton?.addEventListener('click', async () => {
       try {
-        if (!saveState()) {
+        const encoded = saveState(false);
+        if (!encoded) {
           updateStateButton(downloadStateButton, 'Save Failed');
           return;
         }
-        downloadFile(localStorage.getItem(stateStorageKey), 'enge-save-state.json', 'application/json');
+        downloadFile(encoded, 'enge-save-state.json', 'application/json');
         updateStateButton(downloadStateButton, 'Downloaded');
       }
       catch (error) {
@@ -986,9 +1010,9 @@ mdlr('enge:psx:index', ({ include }) => {
     uploadStateInput?.addEventListener('change', () => {
       const file = uploadStateInput.files?.[0];
       if (!file) return;
-      file.text().then(encoded => {
+      file.text().then(async encoded => {
         loadState(encoded);
-        localStorage.setItem(stateStorageKey, encoded);
+        await storedState(encoded);
         updateStateButton(uploadStateButton, 'State Loaded');
       }).catch(error => {
         console.error('Unable to upload state:', error);
