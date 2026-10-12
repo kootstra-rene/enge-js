@@ -668,7 +668,6 @@ mdlr('enge:psx:index', ({ include }) => {
     fileElem?.addEventListener('change', handleFileSelect, false);
     const openLocalFiles = () => fileElem?.click();
     document.getElementById('local-files-button')?.addEventListener('click', openLocalFiles);
-    document.getElementById('open-local-files')?.addEventListener('click', openLocalFiles);
 
     const loadBiosButton = document.getElementById('load-bios');
     loadBiosButton?.addEventListener('click', async () => {

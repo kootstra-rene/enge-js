@@ -527,13 +527,14 @@
     </div>
   </div>
   <div id="nav-actions" style="position: fixed; z-index: 6; top: 5.25rem; left: 1rem; display: flex;">
-    <button id="cloud-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open network menu" aria-expanded="false" title="Network loading">Cloud</button>
     <button id="local-files-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open local files" title="Open local files">Open Files</button>
+    <button id="cloud-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open network menu" aria-expanded="false" title="Network loading">Cloud</button>
     <button id="overlay-toggle" class="nav-icon-button" style="margin: 0;" type="button" aria-label="Hide touch controls" aria-pressed="false" title="Hide touch controls">Overlay</button>
     <button id="quality" aria-label="Video quality" class="nav-icon-button" style="position: static; margin: 0;" type="button">Q1</button>
     <button id="menu-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open menu" aria-expanded="false">&#9776;</button>
     <button id="fullscreen" class="nav-icon-button" style="position: static; margin: 0;" type="button">Fullscreen</button>
   </div>
+  <input id="file" type="file" accept=".cue,.bin,.iso,.img,.bios,application/octet-stream" multiple hidden>
 
   <div id="network-menu" role="dialog" aria-modal="true" aria-label="Network menu" hidden>
     <div class="control-menu-panel">
@@ -564,9 +565,6 @@
         <button id="close-menu" type="button" aria-label="Close menu">×</button>
       </div>
       <ul class="control-menu-list">
-        <li class="menu-section">Local Files</li>
-        <li><button id="open-local-files" type="button">Open Local Files</button></li>
-        <li>Select a BIOS, a raw BIN/ISO, or a CUE and all of its BIN tracks.</li>
         <li class="menu-section">Save States</li>
         <li id="state-status" role="status">State controls waiting for game startup</li>
         <li><button id="save-state" type="button" disabled>Save State</button></li>
@@ -579,7 +577,6 @@
       </ul>
       <input id="upload-state-file" type="file" accept=".json,application/json" hidden>
       <input id="upload-memorycard-file" type="file" accept=".mcr,.mc,.bin,application/octet-stream" hidden>
-      <input id="file" type="file" accept=".cue,.bin,.iso,.img,.bios,application/octet-stream" multiple hidden>
     </div>
   </div>
 
