@@ -78,7 +78,8 @@ body {
 #load-state,
 #menu-button,
 #fullscreen,
-#cloud-button {
+#cloud-button,
+#local-files-button {
   position: relative;
   z-index: 3;
   margin: 1vh;
@@ -138,6 +139,19 @@ body {
   border: 2px solid #555;
   border-radius: 0.5rem;
   background: #222 url('images/cloud.svg') center / 8vh 8vh no-repeat;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+}
+
+#local-files-button {
+  width: 10vh;
+  min-width: 10vh;
+  height: 10vh;
+  padding: 0;
+  border: 2px solid #555;
+  border-radius: 0.5rem;
+  background: #222 url('images/upload.svg') center / 8vh 8vh no-repeat;
   color: transparent;
   font-size: 0;
   cursor: pointer;
@@ -316,6 +330,7 @@ html.enge-pseudo-fullscreen body {
   }
 
   #cloud-button,
+  #local-files-button,
   #menu-button,
   #fullscreen {
     width: 4.25rem;
@@ -325,6 +340,7 @@ html.enge-pseudo-fullscreen body {
   }
 
   #cloud-button,
+  #local-files-button,
   #menu-button,
   #fullscreen { height: 4.25rem; background-size: 3.25rem 3.25rem; }
   #overlay-toggle { display: block !important; }
@@ -426,20 +442,20 @@ html.enge-pseudo-fullscreen body {
 
 @media (pointer: coarse) and (orientation: portrait), (max-width: 700px) and (orientation: portrait) {
   #nav-actions { top: 6.25rem; display: flex !important; flex-direction: row; gap: 0.6rem; }
-  #cloud-button, #menu-button, #fullscreen { top: auto; }
+  #cloud-button, #local-files-button, #menu-button, #fullscreen { top: auto; }
   #nav-actions > #overlay-toggle { position: fixed !important; left: 50% !important; right: auto !important; top: auto !important; bottom: 1rem !important; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; transform: translateX(-50%) !important; }
   .touch-button { width: 4rem; height: 4rem; }
   .touch-stick { left: 2rem; bottom: 6rem; width: 9.5rem; height: 9.5rem; }
   .touch-stick-knob { width: 4.5rem; height: 4.5rem; margin: -2.25rem; }
   .touch-face { right: 0.5rem; bottom: 6rem; width: 12rem; height: 12rem; }
   .touch-menu { top: 6rem; }
-  #cloud-button, #menu-button, #fullscreen { width: 6vh !important; min-width: 6vh !important; min-height: 0; height: 6vh !important; font-size: 0; background-size: 5vh 5vh !important; }
+  #cloud-button, #local-files-button, #menu-button, #fullscreen { width: 6vh !important; min-width: 6vh !important; min-height: 0; height: 6vh !important; font-size: 0; background-size: 5vh 5vh !important; }
 }
 
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 500px),
        (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
   #nav-actions { left: 1rem; right: auto; width: 9rem; display: grid !important; grid-template-columns: repeat(2, 8vh); gap: 0.4rem; }
-  #cloud-button, #menu-button, #fullscreen { top: auto; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; background-size: 6vh 6vh; }
+  #cloud-button, #local-files-button, #menu-button, #fullscreen { top: auto; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; background-size: 6vh 6vh; }
   #nav-actions > #overlay-toggle { display: block !important; position: static !important; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; transform: none; }
   .touch-button { width: 3.5rem; height: 3.5rem; }
   .touch-stick { left: 0.75rem; bottom: 0.75rem; width: 8.5rem; height: 8.5rem; }
