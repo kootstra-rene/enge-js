@@ -283,9 +283,9 @@ mdlr('enge:psx:index', ({ include }) => {
   const stateStorageKey = 'enge-psx-save-state-v1';
   const stateBuild = 'enge-save-state-v3-renderer-v1';
   const stateStartupDelay = 15000;
-  const emulatorVariant = [...document.scripts].some(script => script.src.includes('index-webgl2'))
-    ? 'webgl2'
-    : 'webgl';
+  const emulatorVariant = [...document.scripts].some(script => script.src.includes('index-webgpu'))
+    ? 'webgpu'
+    : [...document.scripts].some(script => script.src.includes('index-webgl2')) ? 'webgl2' : 'webgl';
   let loadedBiosId = 'unloaded';
   let loadedGameId = 'unloaded';
   let biosBooted = false;
