@@ -436,6 +436,12 @@ body.touch-overlay-hidden #touch-controls {
   flex-direction: column;
   gap: 0.6rem;
   width: min(90vw, 22rem);
+  max-height: calc(100vh - 2rem);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 1.25rem;
   border: 1px solid #555;
   border-radius: 0.35rem;

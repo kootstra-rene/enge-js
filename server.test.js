@@ -41,9 +41,10 @@ test('server serves byte ranges and cloud files', async () => {
   const docs = path.join(root, 'docs');
   const games = path.join(root, 'games');
   const cloud = path.join(root, 'cloud');
-  await fs.mkdir(docs, { recursive: true });
+  await fs.mkdir(path.join(docs, 'images'), { recursive: true });
   await fs.mkdir(games, { recursive: true });
   await fs.writeFile(path.join(docs, 'index.html'), '<!doctype html>');
+  await fs.writeFile(path.join(docs, 'images', 'menu.svg'), '<svg></svg>');
   await fs.writeFile(path.join(games, 'test.bin'), Buffer.from('0123456789'));
 
   const server = createServer({ docs, games, cloud });
@@ -56,6 +57,11 @@ test('server serves byte ranges and cloud files', async () => {
     assert.equal(rangeResponse.status, 206);
     assert.equal(rangeResponse.headers.get('content-range'), 'bytes 2-5/10');
     assert.equal(await rangeResponse.text(), '2345');
+
+    const imageResponse = await fetch(`http://127.0.0.1:${port}/images/menu.svg`);
+    assert.equal(imageResponse.status, 200);
+    assert.equal(imageResponse.headers.get('content-type'), 'image/svg+xml');
+    assert.equal(await imageResponse.text(), '<svg></svg>');
 
     const stateResponse = await fetch(`http://127.0.0.1:${port}/api/state`, {
       method: 'PUT',
