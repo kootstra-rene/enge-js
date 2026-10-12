@@ -97,6 +97,8 @@ mdlr('enge:psx:cdr', () => {
   let testSubcommand = 0;
 
   let sectorOffset = 0;
+  // GetlocL fails (INT5) until a sector header has been read from this disc
+  let headerRead = false;
   let sectorIndex = 0;
   let sectorEnd = 0;
 
@@ -326,7 +328,9 @@ mdlr('enge:psx:cdr', () => {
 
       case 0x09:
         pushResults(statusCode | 0x20);
-        scheduleAsync(((mode & 0x80) ? 0x10bd93 : 0x21181c) >>> 0, 0x90);
+        // hardware (ps1-tests cdrom/timing): Pause completes after ~1.01M cycles
+        // at single speed and ~1.04M at double speed
+        scheduleAsync((mode & 0x80) ? 1036808 : 1011910, 0x90);
         status |= 0xA0;
         setIrq(3);
         break;
@@ -378,6 +382,12 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x10: {
+        if (!headerRead) {
+          pushResults(statusCode | 0x01, 0x80);
+          status = (status & ~0x80) | 0x20;
+          setIrq(5);
+          break;
+        }
         const offset = sectorOffset + 12;
         pushResults(
           sectorData8[offset + 0],
@@ -798,6 +808,7 @@ mdlr('enge:psx:cdr', () => {
       if (byteOffset < 0 || byteOffset + 2352 > sectorData8.length) return READ_MISSING;
       sectorOffset = byteOffset;
     }
+    headerRead = true;
 
     if (cdDebug && (readLoc < 20 || readLoc % 75 === 0)) {
       cdLog('sector ready', { readLoc, track: currTrack.id, data: !!currTrack.data, audio: !!currTrack.audio });
@@ -1000,6 +1011,7 @@ mdlr('enge:psx:cdr', () => {
   };
 
   const resetForNewImage = () => {
+    headerRead = false;
     // With the shell open only the media is swapped; the controller keeps running.
     if (shellOpen) {
       remoteRead = undefined;
@@ -1316,6 +1328,7 @@ mdlr('enge:psx:cdr', () => {
 
       setState: state => {
         if (!state) return;
+        headerRead = true; // a running game has read sectors
         status = state.status;
         statusCode = state.statusCode;
         ncmdread = state.ncmdread;
