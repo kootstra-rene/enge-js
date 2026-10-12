@@ -40,6 +40,17 @@
       color: transparent;
       font-size: 0;
     }
+    #local-files-button {
+      width: 10vh;
+      min-width: 10vh;
+      height: 10vh;
+      padding: 0;
+      border: 2px solid #555;
+      border-radius: .5rem;
+      background: #222 url('images/upload.svg') center / 8vh 8vh no-repeat;
+      color: transparent;
+      font-size: 0;
+    }
     #quality {
       width: 10vh;
       min-width: 10vh;
@@ -122,6 +133,7 @@
     }
     @media (pointer: coarse), (max-width: 700px) {
       #cloud-button,
+      #local-files-button,
       #menu-button,
       #fullscreen {
         position: fixed;
@@ -135,7 +147,7 @@
     }
     @media (pointer: coarse) and (orientation: portrait), (max-width: 700px) and (orientation: portrait) {
       #nav-actions { top: 6.25rem; display: flex !important; flex-direction: row; gap: .6rem; }
-      #cloud-button, #menu-button, #fullscreen { top: auto; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; }
+      #cloud-button, #local-files-button, #menu-button, #fullscreen { top: auto; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; }
       #nav-actions > #overlay-toggle { display: block !important; position: fixed !important; left: 50% !important; right: auto !important; top: auto !important; bottom: 1rem !important; width: 6vh !important; min-width: 6vh !important; height: 6vh !important; background-size: 5vh 5vh !important; transform: translateX(-50%) !important; }
       .touch-button { width: 4rem; height: 4rem; }
       .touch-stick { width: 10rem; height: 10rem; }
@@ -145,7 +157,7 @@
     }
     @media (pointer: coarse) and (orientation: landscape) and (max-height: 500px), (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
       #nav-actions { left: 1rem; right: auto; width: 9rem; display: grid !important; grid-template-columns: repeat(2, 8vh); gap: .4rem; }
-      #cloud-button, #menu-button, #fullscreen { top: auto; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; }
+      #cloud-button, #local-files-button, #menu-button, #fullscreen { top: auto; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; }
       #nav-actions > #overlay-toggle { display: block !important; position: static !important; width: 8vh !important; min-width: 8vh !important; height: 8vh !important; transform: none; }
       .touch-button { width: 3.5rem; height: 3.5rem; }
       .touch-stick { left: .75rem; bottom: .75rem; width: 8.5rem; height: 8.5rem; }
@@ -516,6 +528,7 @@
   </div>
   <div id="nav-actions" style="position: fixed; z-index: 6; top: 5.25rem; left: 1rem; display: flex;">
     <button id="cloud-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open network menu" aria-expanded="false" title="Network loading">Cloud</button>
+    <button id="local-files-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open local files" title="Open local files">Open Files</button>
     <button id="overlay-toggle" class="nav-icon-button" style="margin: 0;" type="button" aria-label="Hide touch controls" aria-pressed="false" title="Hide touch controls">Overlay</button>
     <button id="quality" aria-label="Video quality" class="nav-icon-button" style="position: static; margin: 0;" type="button">Q1</button>
     <button id="menu-button" class="nav-icon-button" style="position: static; margin: 0;" type="button" aria-label="Open menu" aria-expanded="false">&#9776;</button>
