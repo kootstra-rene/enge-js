@@ -16,11 +16,10 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
 
-  //IF b15=1 OR (b23=1 AND (b16-22 AND b24-30)>0) THEN b31=1 ELSE b31=0
+  // Completion flags are gated when raised, then persist until acknowledged.
   const masterFlag = () => {
     const flags = (dicr >> 24) & 0x7f;
-    const enables = (dicr >> 16) & 0x7f;
-    return ((dicr & 0x8000) || ((dicr & 0x800000) && (flags & enables))) ? 1 : 0;
+    return ((dicr & 0x8000) || ((dicr & 0x800000) && flags)) ? 1 : 0;
   }
 
   // IRQ3 is only raised on a 0->1 transition of b31
@@ -35,7 +34,7 @@ mdlr('enge:psx:dma', ({ include }) => {
   const completeIrq = channel => {
     const enable = 1 << (16 + channel);
 
-    if (dicr & enable) {
+    if ((dicr & 0x800000) && (dicr & enable)) {
       updateDicr(() => dicr |= enable << 8);
     }
   }
