@@ -87,6 +87,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
   }
 
   let dmaIndex = 0;
+  let allowTextureDisable = 0; // GP1(09h)
 
   let gpu = {
     dispB: 256,
@@ -231,7 +232,15 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     rd32r1814: function () {
-      return gpu.status;
+      // bit 25 (DMA request) depends on the DMA direction: off 0, FIFO 1,
+      // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
+      let request = 0;
+      switch ((gpu.status >>> 29) & 3) {
+        case 1: request = 1; break;
+        case 2: request = (gpu.status >>> 28) & 1; break;
+        case 3: request = (gpu.status >>> 27) & 1; break;
+      }
+      return (gpu.status & ~0x02000000) | (request << 25);
     },
 
     wr32r1810: data => {
@@ -283,6 +292,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14820000;
           dmaIndex = 0;
+          allowTextureDisable = 0;
           /*
             GP1(01h)      ;clear fifo
             GP1(02h)      ;ack irq (0)
@@ -340,6 +350,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
           gpu.status |= ((data & 0x3F) << 0x11);
           gpu.status |= ((data & 0x40) ? 0x010000 : 0x000000);
           break;
+        case 0x09: allowTextureDisable = data & 1;
+          break;
         case 0x10:
           gpu.result = gpu.info[data & 0xf];
           break;
@@ -354,7 +366,12 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     updateTexturePage: function (bitfield) {
-      if (bitfield !== undefined) gpu.status = (gpu.status & ~0x9FF) | (bitfield & 0x9FF);
+      // polygon texpage: bits 0-8 to GPUSTAT 0-8, texture disable (bit 11) to
+      // GPUSTAT 15 only while GP1(09h) allows it
+      if (bitfield !== undefined) {
+        gpu.status = (gpu.status & ~0x1ff) | (bitfield & 0x1ff);
+        if (allowTextureDisable) gpu.status = (gpu.status & ~0x8000) | ((bitfield & 0x800) << 4);
+      }
 
       gpu.tx = ((gpu.status >>> 0) & 15) << 6;
       gpu.ty = ((gpu.status >>> 4) & 1) << 8;
@@ -606,7 +623,10 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
     // Draw mode setting
     pcktE1: data => {
-      gpu.status = (gpu.status & 0xfffff800) | (data[0] & 0x7ff);
+      // bits 0-10 to GPUSTAT 0-10; texture disable (bit 11) to GPUSTAT 15 only
+      // while GP1(09h) allows it
+      gpu.status = (gpu.status & 0xffff7800) | (data[0] & 0x7ff);
+      if (allowTextureDisable) gpu.status |= (data[0] & 0x800) << 4;
       gpu.txflip = (data[0] >>> 12) & 1;
       gpu.tyflip = (data[0] >>> 13) & 1;
       gpu.updateTexturePage();
