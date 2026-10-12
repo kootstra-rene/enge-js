@@ -551,6 +551,10 @@
         <button id="close-menu" type="button" aria-label="Close menu">×</button>
       </div>
       <ul class="control-menu-list">
+        <li class="menu-section">Local Files</li>
+        <li><button id="open-local-files" type="button">Open Local Files</button></li>
+        <li>Select a BIOS, a raw BIN/ISO, or a CUE and all of its BIN tracks.</li>
+        <li class="menu-section">Save States</li>
         <li id="state-status" role="status">State controls waiting for game startup</li>
         <li><button id="save-state" type="button" disabled>Save State</button></li>
         <li><button id="load-state" type="button" disabled>Load State</button></li>
@@ -562,6 +566,7 @@
       </ul>
       <input id="upload-state-file" type="file" accept=".json,application/json" hidden>
       <input id="upload-memorycard-file" type="file" accept=".mcr,.mc,.bin,application/octet-stream" hidden>
+      <input id="file" type="file" accept=".cue,.bin,.iso,.img,.bios,application/octet-stream" multiple hidden>
     </div>
   </div>
 
