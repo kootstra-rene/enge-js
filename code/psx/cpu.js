@@ -12,6 +12,7 @@ mdlr('enge:psx:cpu', ({ include }) => {
     'hi': 0,
     'imask': 0,
     'istat': 0,
+    'irqLines': 0,
     'icurr': 0,
     'lo': 0,
     'pc': 0,
@@ -30,10 +31,23 @@ mdlr('enge:psx:cpu', ({ include }) => {
       cpu.dv = 0;
     },
 
+    // I_STAT is edge triggered: a bit is only set when the device's IRQ line
+    // goes from inactive to active. Pulsed IRQs set the line and release it.
+    setIrqLine: (mask, active) => {
+      if (active) {
+        if (!(cpu.irqLines & mask)) cpu.istat |= mask;
+        cpu.irqLines |= mask;
+      }
+      else {
+        cpu.irqLines &= ~mask;
+      }
+    },
+
     getCtrl: (reg) => {
       switch (reg) {
         case 12: return cpu.sr >> 0;
-        case 13: return cpu.cause >> 0;
+        // CAUSE.IP2 (bit 10) follows the interrupt controller output
+        case 13: return ((cpu.cause & ~0x400) | ((cpu.istat & cpu.imask) ? 0x400 : 0)) >> 0;
         case 14: return cpu.epc >> 0;
         case 15: return 2 >> 0;
       }
@@ -227,7 +241,7 @@ mdlr('enge:psx:cpu', ({ include }) => {
         if ((cpu.sr & 0x400) === 0x400) {
           if (cpu.istat & cpu.imask) {
             flushDeferredLoad();
-            return cpuException(0x400, entry.pc);
+            return cpuException(0x000, entry.pc);
           }
         }
     }
