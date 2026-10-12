@@ -536,26 +536,53 @@ mdlr('enge:webgl', ({ include }) => {
       this.storeImageInTexture({ x: 0, y: 0, w: 1024, h: 512, pixelCount: 1024 * 512, buffer: this.vram });
     }
 
-    moveImage(sx, sy, dx, dy, w, h) {
-      var gl = this.gl;
+    readRenderedImage(x, y, w, h, buffer) {
+      const gl = this.gl;
+      // Drawn pixels live in tex16draw; the CPU VRAM mirror only contains uploads.
+      // Read the complete source before writing, so overlapping copies are safe.
+      this.flushVertexBuffer(true);
+      const framebuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.buf16draw);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex16draw, 0);
 
-      var o = 0;
-      var img = gpu.img;
+      for (let row = 0; row < h;) {
+        const tileY = (y + row) & 511;
+        const rows = Math.min(h - row, 512 - tileY);
+        for (let column = 0; column < w;) {
+          const tileX = (x + column) & 1023;
+          const columns = Math.min(w - column, 1024 - tileX);
+          const width = columns * qwf;
+          const height = rows * qhf;
+          const size = width * height * 4;
+          if (!this.copyPixels || this.copyPixels.length < size) this.copyPixels = new Uint8Array(size);
+          gl.readPixels(tileX * qwf, tileY * qhf, width, height, gl.RGBA, gl.UNSIGNED_BYTE, this.copyPixels);
+          for (let j = 0; j < rows; ++j) {
+            for (let i = 0; i < columns; ++i) {
+              const offset = ((j * qhf + (qhf >> 1)) * width + i * qwf + (qwf >> 1)) * 4;
+              // Uploaded 5-bit channels are encoded as channel / 32 in the shader.
+              const r = Math.min(31, Math.round(this.copyPixels[offset] * 32 / 255));
+              const g = Math.min(31, Math.round(this.copyPixels[offset + 1] * 32 / 255));
+              const b = Math.min(31, Math.round(this.copyPixels[offset + 2] * 32 / 255));
+              const mask = this.copyPixels[offset + 3] >= 128 ? 0x8000 : 0;
+              buffer[(row + j) * w + column + i] = mask | (b << 10) | (g << 5) | r;
+            }
+          }
+          column += columns;
+        }
+        row += rows;
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+
+    }
+
+    moveImage(sx, sy, dx, dy, w, h) {
+      const img = gpu.img;
       img.x = dx;
       img.y = dy;
       img.w = w;
       img.h = h;
       img.pixelCount = w * h;
-      var copy = img.buffer;
-      var vram = this.vram;
-      for (var j = h; j > 0; --j) {
-        var x = sx;
-        var oy = ((sy++) % 512) * 1024;
-        for (var i = w; i > 0; --i) {
-          copy[o++] = vram[oy + ((x++) % 1024)];
-        }
-      }
-
+      this.readRenderedImage(sx, sy, w, h, img.buffer);
       this.storeImage(img);
     }
     storeImage(img) {
@@ -608,12 +635,12 @@ mdlr('enge:webgl', ({ include }) => {
         let h1 = 512 - img.y;
         let h2 = img.h - h1;
 
-        this.storeImageInTexture({ x: img.x, y: img.y, w: img.w, h: h1, buffer: new Uint16Array(img.buffer.buffer, 0, h1 * img.w), pixelCount: h1 * img.w });
-        this.storeImageInTexture({ x: img.x, y: 0, w: img.w, h: h2, buffer: new Uint16Array(img.buffer.buffer, h1 * img.w), pixelCount: h2 * img.w });
+        this.storeImageInTexture({ x: img.x, y: img.y, w: img.w, h: h1, buffer: new Uint16Array(img.buffer.buffer, img.buffer.byteOffset, h1 * img.w), pixelCount: h1 * img.w });
+        this.storeImageInTexture({ x: img.x, y: 0, w: img.w, h: h2, buffer: new Uint16Array(img.buffer.buffer, img.buffer.byteOffset + h1 * img.w * 2, h2 * img.w), pixelCount: h2 * img.w });
         return;
       }
       // copy image to GPU
-      const view = new Uint8Array(img.buffer.buffer, 0, img.pixelCount << 1);
+      const view = new Uint8Array(img.buffer.buffer, img.buffer.byteOffset, img.pixelCount << 1);
       gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, img.x << 1, img.y, img.w << 1, img.h, gl.ALPHA, gl.UNSIGNED_BYTE, view);
 
