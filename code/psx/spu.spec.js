@@ -6,7 +6,7 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
   // (https://github.com/JaCzekanski/ps1-tests, MIT). Only the 7 cases listed as
   // passing in its psx.log, captured on real hardware, are included.
 
-  const globalNames = ['window', 'psx', 'cpu', 'spu', 'map16', 'abort', 'hex'];
+  const globalNames = ['window', 'psx', 'cpu', 'spu', 'map16', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
 
   const SPU_TRANSFER_ADDRESS = 0x1da6;
@@ -87,6 +87,7 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
     globalThis.window = { location: { search: '' } };
+    globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
   });

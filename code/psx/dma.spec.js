@@ -6,7 +6,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
   // MIT). Only the 13 cases listed as passing in its psx.log, captured on real
   // hardware, are included.
 
-  const globalNames = ['window', 'psx', 'cpu', 'gpu', 'ram', 'renderer', 'abort', 'hex'];
+  const globalNames = ['window', 'psx', 'cpu', 'gpu', 'ram', 'renderer', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
 
   const DPCR = 0x10f0;
@@ -62,6 +62,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
     globalThis.window = { location: { search: '' } };
+    globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
     globalThis.renderer = new Proxy({}, { get: () => () => {} });

@@ -309,7 +309,7 @@ mdlr('enge:psx:spu', ({ include }) => {
       if (!(addr & 0x007fffff)) return 0x10;
 
       let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
-      // clearCodeCache(addr, transferSize); // optimistice assumption (performance reasons)
+      clearCodeCache(addr, transferSize);
 
       while (transferSize > 0) {
         ramOffset = ramOffset % memory.byteLength;
