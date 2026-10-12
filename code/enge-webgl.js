@@ -924,9 +924,9 @@ mdlr('enge:webgl', ({ include }) => {
       this.seenRender = true;
       if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
 
-      if (data[0] & 0x01000000) data[c1] = (data[c1] & 0xff000000) | 0x00808080; //- raw-texture
-      if (data[0] & 0x01000000) data[c2] = (data[c2] & 0xff000000) | 0x00808080; //- raw-texture
-      if (data[0] & 0x01000000) data[c3] = (data[c3] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[c1] = (data[c1] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[c2] = (data[c2] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[c3] = (data[c3] & 0xff000000) | 0x00808080; //- raw-texture
 
       var x1 = this.drawOffsetX + ((data[xy1] << 21) >> 21);
       var y1 = this.drawOffsetY + ((data[xy1] << 5) >> 21);
@@ -986,7 +986,7 @@ mdlr('enge:webgl', ({ include }) => {
       this.seenRender = true;
 
       if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
-      if (data[0] & 0x01000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
 
 
       var x = this.drawOffsetX + ((data[1] << 21) >> 21);
