@@ -246,6 +246,15 @@ mdlr('enge:psx:mmu', ({ include }) => {
       case 0x1801: return cdr.wr08r1801(data);
       case 0x1802: return cdr.wr08r1802(data);
       case 0x1803: return cdr.wr08r1803(data);
+      // an 8-bit store drives only its own byte lane, the other bits are 0
+      case 0x1070: case 0x1071: case 0x1072: case 0x1073:
+        cpu.istat &= ((data & 0xff) << ((addr & 3) << 3)) & 0x07ff;
+        irqLog('I_STAT acknowledge8', `0x${(data & 0xff).toString(16)}`, `istat=0x${(cpu.istat >>> 0).toString(16)}`);
+        return;
+      case 0x1074: case 0x1075: case 0x1076: case 0x1077:
+        cpu.imask = ((data & 0xff) << ((addr & 3) << 3)) & 0x07ff;
+        irqLog('I_MASK write8', `0x${(data & 0xff).toString(16)}`);
+        return;
     }
     abort(hex(addr, 8));
   }

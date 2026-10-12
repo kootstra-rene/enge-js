@@ -24,23 +24,32 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
     return gpu;
   };
 
-  // scheduler stub that fires the scanline event the way core.js does
+  // scheduler stub that fires events in clock order the way core.js does
   const createScheduler = () => {
-    let event = null;
+    const events = [];
     const psx = {
       clock: 0,
-      addEvent: (clocks, cb) => (event = { cb, start: psx.clock, clock: psx.clock + clocks }),
-      updateEvent: (e, clocks) => { e.start = e.clock; e.clock += clocks; },
+      addEvent: (clocks, cb) => {
+        const event = { cb, active: true, start: psx.clock, clock: psx.clock + clocks };
+        events.push(event);
+        return event;
+      },
+      updateEvent: (e, clocks) => { e.start = e.clock; e.clock += clocks; e.active = true; return e; },
+      setEvent: (e, clocks) => { e.start = psx.clock; e.clock = psx.clock + clocks; e.active = true; return e; },
+      unsetEvent: e => { e.active = false; return e; },
       eventCycles: e => psx.clock - e.start,
       advance: cycles => {
         const end = psx.clock + cycles;
-        while (event && event.clock <= end) {
-          psx.clock = event.clock;
+        for (;;) {
+          const due = events.filter(e => e.active && e.clock <= end);
+          if (!due.length) break;
+          const event = due.reduce((a, b) => (b.clock < a.clock ? b : a));
+          psx.clock = Math.max(psx.clock, event.clock);
           event.cb(event, psx.clock);
         }
         psx.clock = end;
       },
-      nextLine: () => psx.advance(event.clock - psx.clock),
+      nextLine: () => psx.advance(events[0].clock - psx.clock), // first event is the scanline
     };
     return psx;
   };
@@ -77,7 +86,7 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
 
   beforeEach(async () => {
     psx = globalThis.psx = createScheduler();
-    globalThis.cpu = { istat: 0 };
+    globalThis.cpu = include('enge:psx:cpu').cpu;
     globalThis.gpu = createGpu();
     ({ rtc } = include('enge:psx:rtc'));
     psx.nextLine(); // establish the first scanline
@@ -145,6 +154,18 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
       expect(row.slice(start + 1).every((v, i) => v > row[start + i])).to.eql(true);
     });
 
+    it('should reset at the end of hblank in sync mode 1', async () => {
+      // the counter keeps running through the hblank at the start of the line
+      // and restarts when the display area begins (gpu.dispL)
+      const dispHStart = gpu.dispL * 7 / 11;
+      setMode(0, 0x003);
+      psx.nextLine();
+      psx.advance(10);
+      expect(value(0)).to.eql(Math.floor(LINE - dispHStart + 10));
+      psx.advance(Math.ceil(dispHStart) - 10);
+      expect(value(0)).to.eql(0);
+    });
+
   });
 
   describe('timer 1 sync modes (vblank gate)', () => {
@@ -164,6 +185,17 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
         setMode(1, mode);
         expect(samples(1, 10).every(v => v === 0)).to.eql(true);
       }
+    });
+
+    it('should reset at the end of vblank in sync mode 1', async () => {
+      // hblank source counts scanlines; display is lines 16..255 (dispT..dispB)
+      setMode(1, 0x103);
+      lines(240);                 // line 21 -> 261: vblank started at 256
+      expect(value(1)).to.eql(240);
+      lines(263 - 261 + 16);      // vblank ends when line 16 starts
+      expect(value(1)).to.eql(0);
+      lines(5);
+      expect(value(1)).to.eql(5);
     });
 
     it('should count during vblank in sync mode 2', async () => {
@@ -261,6 +293,86 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
 
   });
 
+  describe('interrupt timing', () => {
+
+    it('should raise the target IRQ at the exact cycle', async () => {
+      rtc.wr32(TARGET[2], 100);
+      setMode(2, 0x010);
+      psx.advance(99);
+      expect(cpu.istat & 0x40).to.eql(0);
+      psx.advance(1);
+      expect(cpu.istat & 0x40).to.eql(0x40);
+    });
+
+    it('should raise the overflow IRQ at the exact cycle', async () => {
+      setMode(2, 0x020);
+      rtc.wr32(VALUE[2], 0xfff0);
+      psx.advance(15);
+      expect(cpu.istat & 0x40).to.eql(0);
+      psx.advance(1);
+      expect(cpu.istat & 0x40).to.eql(0x40);
+    });
+
+    it('should raise every target IRQ within one scanline', async () => {
+      rtc.wr32(TARGET[2], 99);
+      setMode(2, 0x058);
+      let count = 0;
+      for (let i = 0; i < 20; ++i) {
+        psx.advance(100);
+        if (cpu.istat & 0x40) ++count;
+        cpu.istat = 0;
+      }
+      expect(count).to.eql(20);
+    });
+
+    it('should raise the target IRQ at the exact dot clock tick', async () => {
+      gpu.status = 0; // 256 wide: divider 10
+      rtc.wr32(TARGET[0], 100);
+      setMode(0, 0x110);
+      const cycles = Math.ceil(100 * 7 * 10 / 11);
+      psx.advance(cycles - 1);
+      expect(cpu.istat & 0x10).to.eql(0);
+      psx.advance(1);
+      expect(cpu.istat & 0x10).to.eql(0x10);
+    });
+
+  });
+
+  describe('irq line (mode bit 10)', () => {
+
+    it('should read bit 10 as 1 after a pulse IRQ', async () => {
+      rtc.wr32(TARGET[2], 100);
+      setMode(2, 0x058);
+      psx.advance(150);
+      expect(cpu.istat & 0x40).to.eql(0x40);
+      expect((rtc.rd32(MODE[2]) >> 10) & 1).to.eql(1);
+    });
+
+    it('should toggle bit 10 in toggle mode and only raise the IRQ when it drops', async () => {
+      rtc.wr32(TARGET[2], 99);
+      setMode(2, 0x0d8);
+      const bit10 = [];
+      const irq = [];
+      for (let i = 0; i < 4; ++i) {
+        psx.advance(100);
+        bit10.push((rtc.rd32(MODE[2]) >> 10) & 1);
+        irq.push((cpu.istat >> 6) & 1);
+        cpu.istat = 0;
+      }
+      expect(bit10).to.eql([0, 1, 0, 1]);
+      expect(irq).to.eql([1, 0, 1, 0]);
+    });
+
+    it('should set bit 10 on a mode write', async () => {
+      rtc.wr32(TARGET[2], 99);
+      setMode(2, 0x0d8);
+      psx.advance(100);
+      setMode(2, 0x0d8);
+      expect((rtc.rd32(MODE[2]) >> 10) & 1).to.eql(1);
+    });
+
+  });
+
   describe('register writes', () => {
 
     it('should restart the counter at 0 on a mode write', async () => {
@@ -278,6 +390,21 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
       expect(value(2)).to.eql(110);
       psx.nextLine();
       expect(value(2) > 110).to.eql(true);
+    });
+
+    it('should keep the reached bits on a mode write', async () => {
+      rtc.wr32(TARGET[2], 10);
+      setMode(2, 0x008);
+      lines(1);
+      setMode(2, 0x008);
+      expect((rtc.rd32(MODE[2]) >> 11) & 3).to.eql(1);
+    });
+
+    it('should store target 0 as 0', async () => {
+      for (const timer of [0, 1, 2]) {
+        rtc.wr32(TARGET[timer], 0x10000);
+        expect(rtc.rd32(TARGET[timer])).to.eql(0);
+      }
     });
 
     it('should keep mode bits 0-9 readable on all timers', async () => {

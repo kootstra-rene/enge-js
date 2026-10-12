@@ -26,7 +26,7 @@ mdlr('enge:psx:serial', ({ include }) => {
 
   const eventIRQ = psx.addEvent(0, (self, clock) => {
     r1044 |= 0x0200; // JOY_STAT.IRQ = 1;
-    cpu.istat |= 0x0080; // todo: should take care of edge triggering
+    cpu.setIrqLine(0x0080, true);
     psx.unsetEvent(self);
   });
 
@@ -118,10 +118,12 @@ mdlr('enge:psx:serial', ({ include }) => {
         psx.unsetEvent(eventIRQ);
         command = 0;
         r1044 = 0x0005;
+        cpu.setIrqLine(0x0080, false);
       }
 
       if ((data & 0x0010)) {
         r1044 &= ~(0x0200); // JOY_STAT.IRQ = 0
+        cpu.setIrqLine(0x0080, false);
       }
     },
 
