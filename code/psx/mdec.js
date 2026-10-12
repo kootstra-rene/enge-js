@@ -166,12 +166,13 @@ mdlr('enge:psx:mdec', ({ include }) => {
     }
   };
 
-  // two pixels per byte, first pixel in the low nibble
+  // two pixels per byte, first pixel in the low nibble. The hardware rounds
+  // the 8 bit value to 4 bits and saturates: min(15, (v + 8) >> 4)
   const putmono4 = (yBlk, addr, bias) => {
     const base = addr & 0x001fffff;
     for (let i = 0; i < 32; ++i) {
-      const lo = ((yBlk[i * 2 + 0] + bias) & 0xff) >>> 4;
-      const hi = ((yBlk[i * 2 + 1] + bias) & 0xff) >>> 4;
+      const lo = Math.min(15, (((yBlk[i * 2 + 0] + bias) & 0xff) + 8) >>> 4);
+      const hi = Math.min(15, (((yBlk[i * 2 + 1] + bias) & 0xff) + 8) >>> 4);
       map8[(base + i) & 0x1fffff] = (hi << 4) | lo;
     }
   };
