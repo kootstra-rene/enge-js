@@ -263,7 +263,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map8[(addr | cpu.forceWriteBits) >>> 0] = data;
-      fastCache[addr] = 0;
+      fastCache[addr & ~3] = 0;
       return;
     }
     if ((base >= 0x01800000) && (base < 0x01802000)) {
@@ -323,7 +323,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map16[(addr | cpu.forceWriteBits) >>> 1] = data;
-      fastCache[addr] = 0;
+      fastCache[addr & ~3] = 0;
       return;
     }
     if ((base >= 0x01800000) && (base < 0x01802000)) {

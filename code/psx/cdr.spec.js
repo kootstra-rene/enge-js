@@ -6,7 +6,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
   const SECTOR_SIZE = 2352;
 
   // cdr.js uses the emulator globals; provide minimal stand-ins.
-  const globalNames = ['window', 'psx', 'cpu', 'PSX_SPEED', 'abort', 'hex'];
+  const globalNames = ['window', 'psx', 'cpu', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
   const windowStubs = { location: { search: '' }, localStorage: { getItem: () => null } };
   const addedWindowStubs = [];
@@ -114,6 +114,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
       addedWindowStubs.push(name);
     }
     globalThis.PSX_SPEED = PSX_SPEED;
+    globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
   });

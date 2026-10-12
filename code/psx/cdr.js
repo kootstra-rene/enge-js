@@ -1213,10 +1213,6 @@ mdlr('enge:psx:cdr', () => {
         }
 
         clearCodeCache(addr, transferBytes);
-        const ramStart = addr & 0x001fffff;
-        if (ramStart + transferBytes > 0x200000) {
-          clearCodeCache(0, ramStart + transferBytes - 0x200000);
-        }
 
         for (let i = 0; i < transferBytes; i += 2) {
           let word;

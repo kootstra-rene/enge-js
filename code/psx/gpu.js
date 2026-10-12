@@ -689,7 +689,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
     dmaTransferMode0200: function (addr, blck) {
       if (!(addr & 0x007fffff)) return 0x10;
       var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-      // clearCodeCache( addr, transferSize << 1); // optimistice assumption (performance reasons)
+      // games can park code in VRAM and read it back, so this must invalidate
+      clearCodeCache(addr, transferSize << 1);
 
       gpu.transferTotal -= transferSize;
 
@@ -818,7 +819,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       }
       ram.setInt32(addr, 0x00ffffff, true);
 
-      // clearCodeCache(addr, transferSize << 2); // optimistice assumption (performance reasons)
+      clearCodeCache(addr, transferSize << 2);
       return transferSize;
     },
   }

@@ -6,7 +6,7 @@ mdlr('[test]enge:psx:mdec', ({ include, test }) => {
   // (https://github.com/JaCzekanski/ps1-tests, MIT). The expected bytes are the
   // decoded output dumped by the tests on real hardware (psx.log).
 
-  const globalNames = ['window', 'psx', 'dma', 'map', 'map8', 'map16', 'PSX_SPEED', 'abort', 'hex'];
+  const globalNames = ['window', 'psx', 'dma', 'map', 'map8', 'map16', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
 
   const bytes = text => text.split(' ').map(h => parseInt(h, 16));
@@ -56,6 +56,7 @@ mdlr('[test]enge:psx:mdec', ({ include, test }) => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
     globalThis.window = { location: { search: '' } };
     globalThis.PSX_SPEED = 44100 * 768;
+    globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
   });

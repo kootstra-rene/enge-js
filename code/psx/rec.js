@@ -627,15 +627,23 @@ mdlr('enge:psx:rec', ({ include }) => {
 
   let clears = 0;
   function clearCodeCache(addr, size) {
-    const ibase = getCacheIndex(addr);
+    const ibase = getCacheIndex(addr) & ~3;
+    const iend = getCacheIndex(addr) + size;
     if (ibase < 0x00200000) {
-      fastCache.fill(0, ibase, ibase + size);
+      fastCache.fill(0, ibase, iend);
+      // DMA addresses wrap around the 2MB RAM mirror
+      if (iend > 0x00200000) fastCache.fill(0, 0, iend - 0x00200000);
     }
-
-    // The BIOS is mapped above the fast-cache range.  Its translated blocks
-    // live in the Map cache, so replacing a BIOS must evict those entries too.
-    for (const pc of cached.keys()) {
-      if (pc >= ibase && pc < ibase + size) cached.delete(pc);
+    else {
+      // The BIOS is mapped above the fast-cache range, so its blocks have no
+      // fastCache guard and must be reset explicitly.  Entries are reset in
+      // place and never deleted: compiled blocks hold direct references to
+      // their jump targets, and a second entry for the same pc would let a
+      // stale block run after the other copy recompiled and re-armed
+      // fastCache[pc].
+      for (const [pc, entry] of cached) {
+        if (pc >= ibase && pc < iend) entry.code = lazyCompile;
+      }
     }
     ++clears;
   }
