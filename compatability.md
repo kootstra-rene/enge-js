@@ -78,6 +78,7 @@
 | SCUS-94183 | PaRappa the Rapper | US | 🟡 In-Game | 2026-10-11 | FMV video does not play for about the first minute while audio continues. The title screen eventually appears white, and the video can appear several minutes late. |
 | SLPM-86272 | Rakugaki Showtime | JP | 🟢 Playable | 2022-05-17 | Graphical glitches in menus and gameplay. |
 | SCUS-94300 | Ridge Racer | US | 🟢 Playable | 2026-10-08 | |
+| SLUS-00895 | Shadow Man | US | 🟢 Playable | 2026-10-12 | Playable. |
 | SLUS-00707 | Silent Hill | US | 🟢 Playable | 2022-01-21 | When launching a new game and passing the cutscene, a strange effect appears on the player and other objects, including a white transparent square. Aside from lag spikes, it is playable. |
 | SLUS-00113 | SimCity 2000 | US | 🟢 Playable | 2026-10-11 | The title screen background appears only in a small square around the mouse pointer. A new game is playable, but the pointer continuously reveals part of the title screen. |
 | SLUS-00936 | South Park | US | 🟢 Playable | 2026-10-08 | |
@@ -90,7 +91,7 @@
 | SLUS-00152 | Tomb Raider | US | 🟢 Playable | 2026-10-11 | Playable. |
 | SLUS-00437 | Tomb Raider II: Starring Lara Croft | US | 🟡 In-Game | 2026-10-11 | Graphical glitches produce a white title screen, followed by a black screen when loading Lara’s Home. |
 | SLUS-00691 | Tomb Raider III: Adventures of Lara Croft | US | 🟢 Playable | 2026-10-08 | |
-| SCUS-94236 | Tomba! | US | 🟢 Playable | 2026-10-11 | Playable; text boxes are now rendered correctly. |
+| SCUS-94236 | Tomba! | US | 🟢 Playable | 2026-10-11 | Playable |
 | SCUS-94454 | Tomba! 2: The Evil Swine Return | US | 🟢 Playable | 2026-10-11 | Playable. |
 | SLUS-00860 | Tony Hawk's Pro Skater | US | 🟢 Playable | 2026-10-08 | Graphical glitches in menus. |
 | SLUS-01485 | Tony Hawk's Pro Skater 4 | US | 🟢 Playable | 2026-10-08 | |
@@ -101,3 +102,4 @@
 | SCUS-94608 | Wild Arms | US | 🟢 Playable | 2026-10-08 | |
 | SCUS-94484 | Wild Arms 2 | US | 🟢 Playable | 2026-10-11 | Playable. |
 | SCUS-94301 | WipEout | US | 🟡 In-Game | 2026-10-11 | Loads the intro, then shows a black screen while audio plays. |
+| SLUS-00183 | Zero Divide | US | 🟢 Playable | 2026-10-11 | Playable; though a bit fast |
