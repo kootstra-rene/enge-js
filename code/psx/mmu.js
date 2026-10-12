@@ -299,11 +299,11 @@ mdlr('enge:psx:mmu', ({ include }) => {
       case 0x105a: return;
       case 0x105e: return;
       case 0x1070:
-        cpu.istat &= ((data & 0xffff) & cpu.imask);
+        cpu.istat &= (data & 0x07ff);
         irqLog('I_STAT acknowledge16', `0x${(data & 0xffff).toString(16)}`, `istat=0x${(cpu.istat >>> 0).toString(16)}`);
         return;
       case 0x1074:
-        cpu.imask = data;
+        cpu.imask = data & 0x07ff;
         irqLog('I_MASK write16', `0x${(data >>> 0).toString(16)}`);
         return;
     }
@@ -357,11 +357,11 @@ mdlr('enge:psx:mmu', ({ include }) => {
       case 0x1020: return;
       case 0x1060: return;
       case 0x1070:
-        cpu.istat &= (data & cpu.imask);
+        cpu.istat &= (data & 0x07ff);
         irqLog('I_STAT acknowledge32', `0x${(data >>> 0).toString(16)}`, `istat=0x${(cpu.istat >>> 0).toString(16)}`);
         return;
       case 0x1074:
-        cpu.imask = data >>> 0;
+        cpu.imask = data & 0x07ff;
         irqLog('I_MASK write32', `0x${(data >>> 0).toString(16)}`);
         return;
       case 0x1810: gpu.wr32r1810(data); return;

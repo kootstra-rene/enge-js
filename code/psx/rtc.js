@@ -4,20 +4,47 @@ mdlr('enge:psx:rtc', ({ include }) => {
   const r11x4 = new Uint32Array(4);
   const r11x8 = new Uint32Array(4);
 
+  // Advances counter `id` by `increment` and detects the target and overflow
+  // events separately (mode bit 11 = reached target, bit 12 = reached 0xffff).
+  // When `counter` is given, the IRQ enable for each event that occurred is
+  // checked (bit 4 = IRQ at target, bit 5 = IRQ at 0xffff); getValue() calls
+  // this without `counter` to peek, which only updates the reached flags.
   const limitReached = (id, increment, counter) => {
-    const limitBit = (r11x4[id] & 0x008) ? 11 : 12;
-    switch (limitBit) {
-      case 11: var limit = +(r11x8[id] + 1.0);
-        break;
-      case 12: var limit = +(+0xffff + 1.0);
-        break;
+    const mode = r11x4[id];
+    const target = +r11x8[id];
+    const old = +r11x0[id];
+
+    let value = old + increment;
+    let hitTarget = false;
+    let hitOverflow = false;
+
+    if (mode & 0x008) {
+      // reset counter after counter = target
+      const limit = +(target + 1.0);
+      if (value >= limit) {
+        hitTarget = true;
+        // with target 0xffff the counter also passes 0xffff
+        hitOverflow = (limit >= 0x10000);
+        value %= limit;
+      }
+    }
+    else {
+      // free running to 0xffff; the target can still be passed on the way
+      if (old < target && value >= target) {
+        hitTarget = true;
+      }
+      if (value >= 0x10000) {
+        hitOverflow = true;
+        value %= 0x10000;
+        if (value >= target) hitTarget = true;
+      }
     }
 
-    let value = r11x0[id] + increment;
-    if (value >= limit) {
-      counter?.onLimitReached(counter);
-      r11x4[id] |= (1 << limitBit);
-      return value %= limit;
+    if (hitTarget) r11x4[id] |= (1 << 11);
+    if (hitOverflow) r11x4[id] |= (1 << 12);
+
+    if (counter && ((hitTarget && (mode & 0x010)) || (hitOverflow && (mode & 0x020)))) {
+      counter.onLimitReached(counter);
     }
     return value;
   }
@@ -114,10 +141,12 @@ mdlr('enge:psx:rtc', ({ include }) => {
       }
 
       if (r11x4[0] & 0x100) {
-        r11x0[0] = +0, limitReached(0, -gpu.cyclesToDotClock(cyclesToSkip));
+        r11x0[0] = +0;
+        r11x0[0] = limitReached(0, -gpu.cyclesToDotClock(cyclesToSkip));
       }
       else {
-        r11x0[0] = +0, limitReached(0, -cyclesToSkip);
+        r11x0[0] = +0;
+        r11x0[0] = limitReached(0, -cyclesToSkip);
       }
     },
 
@@ -131,9 +160,8 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     onLimitReached: () => {
-      if (r11x4[0] & 0x0030) {
-        cpu.istat |= 0x0010;
-      }
+      // IRQ enables are checked per event in limitReached()
+      cpu.istat |= 0x0010;
     },
 
     onScanLine: () => {
@@ -252,9 +280,8 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     onLimitReached: () => {
-      if (r11x4[1] & 0x0030) {
-        cpu.istat |= 0x0020;
-      }
+      // IRQ enables are checked per event in limitReached()
+      cpu.istat |= 0x0020;
     },
 
     onScanLine: (isVBlankStart) => {
@@ -383,9 +410,8 @@ mdlr('enge:psx:rtc', ({ include }) => {
     },
 
     onLimitReached: () => {
-      if (r11x4[2] & 0x0030) {
-        cpu.istat |= 0x0040;
-      }
+      // IRQ enables are checked per event in limitReached()
+      cpu.istat |= 0x0040;
     },
 
     onScanLine: () => {
