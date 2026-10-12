@@ -82,11 +82,8 @@ fn pixel(x:u32,y:u32)->vec4f {return textureLoad(source,vec2i(i32(x&1023u)*${qua
 fn word(x:u32,y:u32)->u32 {let c=pixel(x,y);let rgb=vec3u(clamp(round(c.rgb*32.0),vec3f(0.0),vec3f(31.0)));
  return rgb.r|(rgb.g<<5u)|(rgb.b<<10u)|select(0u,32768u,c.a>=0.5);}
 @fragment fn fragment(i:Vertex)->@location(0) vec4f {
- // the psx samples textures at the top-left corner of a pixel, not at the fragment center
- let subpixel=fract(i.position.xy/${quality}.0);
- let corner=i.uv-(dpdx(i.uv)*subpixel.x+dpdy(i.uv)*subpixel.y)*${quality}.0;
  let depth=i.mode&7u; if(depth==3u){return vec4f(i.color,params.x);}
- var uv=vec2u(vec2i(floor(corner+1.0/256.0))&vec2i(255));if(depth!=2u && any(i.window.xy!=vec2u(0u))){
+ var uv=vec2u(vec2i(floor(i.uv)));if(depth!=2u && any(i.window.xy!=vec2u(0u))){
  // Preserve the working WebGL1 modulo window behaviour in this initial backend.
  uv=uv%(vec2u(256u)-i.window.xy);}
  let t=i.page+i.window.zw+uv;var c:vec4f;
@@ -758,12 +755,12 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         return;
       }
 
-      var u1 = (data[uv1] >>> 0) & 255;
-      var v1 = (data[uv1] >>> 8) & 255;
-      var u2 = (data[uv2] >>> 0) & 255;
-      var v2 = (data[uv2] >>> 8) & 255;
-      var u3 = (data[uv3] >>> 0) & 255;
-      var v3 = (data[uv3] >>> 8) & 255;
+      var u1 = ((data[uv1] >>> 0) & 255) + gpu.quadU;
+      var v1 = ((data[uv1] >>> 8) & 255) + gpu.quadV;
+      var u2 = ((data[uv2] >>> 0) & 255) + gpu.quadU;
+      var v2 = ((data[uv2] >>> 8) & 255) + gpu.quadV;
+      var u3 = ((data[uv3] >>> 0) & 255) + gpu.quadU;
+      var v3 = ((data[uv3] >>> 8) & 255) + gpu.quadV;
       var cx = ((cl >>> 0) & 0x03f) * 16;
       var cy = (cl >>> 6) & 0x1ff;
 
@@ -904,15 +901,15 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       var tl = tx + 0;
       var tr = tx + w;
       if (gpu.txflip) {
-        tl = tx + 0;
-        tr = tx - w;
+        tl = tx + 1;
+        tr = tx + 1 - w;
       }
 
       var tt = ty + 0;
       var tb = ty + h;
       if (gpu.tyflip) {
-        tt = ty + 0;
-        tb = ty - h;
+        tt = ty + 1;
+        tb = ty + 1 - h;
       }
 
       var semi_transparent = (data[0] & 0x02000000) === 0x02000000;

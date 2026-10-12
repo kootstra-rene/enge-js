@@ -322,12 +322,12 @@ mdlr('enge:webgl2', ({ include }) => {
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       const buffer = vertexBuffer;
-      const u1 = (data[uv1] >>> 0) & 255;
-      const v1 = (data[uv1] >>> 8) & 255;
-      const u2 = (data[uv2] >>> 0) & 255;
-      const v2 = (data[uv2] >>> 8) & 255;
-      const u3 = (data[uv3] >>> 0) & 255;
-      const v3 = (data[uv3] >>> 8) & 255;
+      const u1 = ((data[uv1] >>> 0) & 255) + gpu.quadU;
+      const v1 = ((data[uv1] >>> 8) & 255) + gpu.quadV;
+      const u2 = ((data[uv2] >>> 0) & 255) + gpu.quadU;
+      const v2 = ((data[uv2] >>> 8) & 255) + gpu.quadV;
+      const u3 = ((data[uv3] >>> 0) & 255) + gpu.quadU;
+      const v3 = ((data[uv3] >>> 8) & 255) + gpu.quadV;
 
       buffer.addVertex(x1, y1, u1, v1, c1, cl);
       buffer.addVertex(x2, y2, u2, v2, c2, cl);
@@ -354,15 +354,15 @@ mdlr('enge:webgl2', ({ include }) => {
       var tl = tx + 0;
       var tr = tx + w;
       if (gpu.txflip) {
-        tl = tx + 0;
-        tr = tx - w;
+        tl = tx + 1;
+        tr = tx + 1 - w;
       }
 
       var tt = ty + 0;
       var tb = ty + h;
       if (gpu.tyflip) {
-        tt = ty + 0;
-        tb = ty - h;
+        tt = ty + 1;
+        tb = ty + 1 - h;
       }
 
       var buffer = vertexBuffer;

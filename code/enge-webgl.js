@@ -174,10 +174,8 @@ mdlr('enge:webgl', ({ include }) => {
     "varying float tcy;" + // texture coordinate y
 
     "varying float twin;" +
-    "varying vec2 vPixel;" + // psx pixel position
 
     "void main(void) {" +
-    "  vPixel = aVertexPosition / 16.0;" +
     "  gl_Position = vec4(aVertexPosition, 0.0, 1.0); " +
     "  gl_Position.x -= 8192.0; gl_Position.y -= 4096.0;" +
     "  gl_Position.x /= 8192.0; gl_Position.y /= 4096.0;" +
@@ -209,7 +207,6 @@ mdlr('enge:webgl', ({ include }) => {
     "}";
 
   const fragmentShaderDraw =
-    "#extension GL_OES_standard_derivatives : enable\n" +
     "precision highp float;" +
     "uniform sampler2D uTex8;" +
     "uniform float uBlendAlpha;" +
@@ -228,10 +225,6 @@ mdlr('enge:webgl', ({ include }) => {
     "varying float tcy;" + // texture coordinate y
 
     "varying float twin;" +
-    "varying vec2 vPixel;" + // psx pixel position
-
-    "float ucx;" + // texel at the top-left corner of the psx pixel
-    "float ucy;" +
 
     "float getSRGB16(float cx, float cy) {" +
     "  float tx = floor(cx * 1024.0) * 2.0;" +
@@ -254,12 +247,12 @@ mdlr('enge:webgl', ({ include }) => {
     "  float cx, cy, val, tx, ty;" +
     "  vec4 rgba;" +
     "  if (twin != 0.0) {" +
-    "    tx = tox + mod(ucx, tmx);" +
-    "    ty = toy + mod(ucy, tmy);" +
+    "    tx = tox + mod(floor(tcx), tmx);" +
+    "    ty = toy + mod(floor(tcy), tmy);" +
     "  }" +
     "  else {" +
-    "    tx = tox + ucx;" +
-    "    ty = toy + ucy;" +
+    "    tx = tox + floor(tcx);" +
+    "    ty = toy + floor(tcy);" +
     "  }" +
     "  if (vTextureMode == 1.0) {" +
     "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).a * 255.0;" +
@@ -288,15 +281,6 @@ mdlr('enge:webgl', ({ include }) => {
     "}" +
 
     "void main(void) {" +
-    // the psx samples textures at the top-left corner of a pixel, not at the fragment center
-    // (derivatives must be taken outside non-uniform control flow)
-    "  vec2 tc = vec2(tcx, tcy);" +
-    "  vec2 tcdx = dFdx(tc) / dFdx(vPixel.x);" +
-    "  vec2 tcdy = dFdy(tc) / dFdy(vPixel.y);" +
-    "  vec2 subpixel = fract(vPixel);" +
-    "  vec2 uc = mod(floor(tc - tcdx * subpixel.x - tcdy * subpixel.y + 1.0 / 256.0), 256.0);" +
-    "  ucx = uc.x; ucy = uc.y;" +
-
     "  float fx = tcx - floor(tcx);" +
     "  float fy = tcy - floor(tcy);" +
 
@@ -444,7 +428,6 @@ mdlr('enge:webgl', ({ include }) => {
         var gl = this.gl;
 
         // Drawing
-        gl.getExtension("OES_standard_derivatives");
         this.programDraw = gl.createProgram();
         gl.attachShader(this.programDraw, this.makeShader(vertexShaderDraw, gl.VERTEX_SHADER));
         gl.attachShader(this.programDraw, this.makeShader(fragmentShaderDraw, gl.FRAGMENT_SHADER));
@@ -966,12 +949,12 @@ mdlr('enge:webgl', ({ include }) => {
         return;
       }
 
-      var u1 = (data[uv1] >>> 0) & 255;
-      var v1 = (data[uv1] >>> 8) & 255;
-      var u2 = (data[uv2] >>> 0) & 255;
-      var v2 = (data[uv2] >>> 8) & 255;
-      var u3 = (data[uv3] >>> 0) & 255;
-      var v3 = (data[uv3] >>> 8) & 255;
+      var u1 = ((data[uv1] >>> 0) & 255) + gpu.quadU;
+      var v1 = ((data[uv1] >>> 8) & 255) + gpu.quadV;
+      var u2 = ((data[uv2] >>> 0) & 255) + gpu.quadU;
+      var v2 = ((data[uv2] >>> 8) & 255) + gpu.quadV;
+      var u3 = ((data[uv3] >>> 0) & 255) + gpu.quadU;
+      var v3 = ((data[uv3] >>> 8) & 255) + gpu.quadV;
       var cx = ((cl >>> 0) & 0x03f) * 16;
       var cy = ((cl >>> 6) & 0x1ff);
 
@@ -1044,15 +1027,15 @@ mdlr('enge:webgl', ({ include }) => {
       var tl = tx + 0;
       var tr = tx + w;
       if (gpu.txflip) {
-        tl = tx + 0;
-        tr = tx - w;
+        tl = tx + 1;
+        tr = tx + 1 - w;
       }
 
       var tt = ty + 0;
       var tb = ty + h;
       if (gpu.tyflip) {
-        tt = ty + 0;
-        tb = ty - h;
+        tt = ty + 1;
+        tb = ty + 1 - h;
       }
 
       var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
