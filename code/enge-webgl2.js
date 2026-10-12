@@ -355,14 +355,14 @@ mdlr('enge:webgl2', ({ include }) => {
       var tr = tx + w;
       if (gpu.txflip) {
         tl = tx + 0;
-        tr = tx - w + 1;
+        tr = tx - w;
       }
 
       var tt = ty + 0;
       var tb = ty + h;
       if (gpu.tyflip) {
         tt = ty + 0;
-        tb = ty - h + 1;
+        tb = ty - h;
       }
 
       var buffer = vertexBuffer;

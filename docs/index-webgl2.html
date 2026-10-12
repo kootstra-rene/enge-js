@@ -277,6 +277,13 @@
       bool transparentPrimitive = 2u == (packetId & 2u);
       ivec2 texel = ivec2(v_pixelCoord).xy;
 
+      // the psx samples textures at the top-left corner of a pixel, not at the fragment center
+      // (derivatives must be taken outside non-uniform control flow)
+      vec2 uvdx = dFdx(v_vramCoord) / dFdx(v_pixelCoord.x);
+      vec2 uvdy = dFdy(v_vramCoord) / dFdy(v_pixelCoord.y);
+      vec2 subpixel = fract(v_pixelCoord);
+      vec2 uv = floor(v_vramCoord - uvdx * subpixel.x - uvdy * subpixel.y + 1.0 / 256.0);
+
       if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
         if (0x00u == (packetId & 0x04u)) {
           outColor = vec4(v_color, transparentPrimitive ? 1.0 : 0.0);
@@ -284,8 +291,8 @@
         else {
           vec4 tc;
 
-          int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
-          int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
+          int tx = ((int(uv.x) & 255) & ~twin.x) | (twin.z & twin.x);
+          int ty = ((int(uv.y) & 255) & ~twin.y) | (twin.a & twin.y);
 
           if (v_textureMode == 0u) tc = vram4bit(tx, ty);
           if (v_textureMode == 1u) tc = vram8bit(tx, ty);
