@@ -11,6 +11,33 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
   const dmaBuffer = new Int32Array(4096);
 
+  // The psx gives the first pixel of a span the start u/v without interpolation, gpus sample at the pixel
+  // center. For flipped 2d sprites drawn as quads that samples one texel too far, compensate by adding one
+  // to the flipped coordinate (same approach as duckstation/beetle-psx).
+  const flippedQuad = (data, xy0, xy1, xy2, uv0, uv1, uv2) => {
+    const x0 = (data[xy0] << 21) >> 21, y0 = (data[xy0] << 5) >> 21;
+    const x1 = (data[xy1] << 21) >> 21, y1 = (data[xy1] << 5) >> 21;
+    const x2 = (data[xy2] << 21) >> 21, y2 = (data[xy2] << 5) >> 21;
+    const u0 = data[uv0] & 255, v0 = (data[uv0] >>> 8) & 255;
+    const u1 = data[uv1] & 255, v1 = (data[uv1] >>> 8) & 255;
+    const u2 = data[uv2] & 255, v2 = (data[uv2] >>> 8) & 255;
+
+    gpu.quadU = gpu.quadV = 0;
+
+    const xyArea = (x2 - x1) * (y0 - y2) - (y2 - y1) * (x0 - x2);
+    const uvArea = (u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0);
+    if (!xyArea || !uvArea) return;
+
+    const sign = Math.sign(xyArea);
+    const dudx = sign * -((y1 - y0) * u2 + (y2 - y1) * u0 + (y0 - y2) * u1);
+    const dvdx = sign * -((y1 - y0) * v2 + (y2 - y1) * v0 + (y0 - y2) * v1);
+    const dudy = sign * ((x1 - x0) * u2 + (x2 - x1) * u0 + (x0 - x2) * u1);
+    const dvdy = sign * ((x1 - x0) * v2 + (x2 - x1) * v0 + (x0 - x2) * v1);
+
+    if ((dudx < 0 && dudy === 0) || (dudy < 0 && dudx === 0)) gpu.quadU = 1;
+    if ((dvdx < 0 && dvdy === 0) || (dvdy < 0 && dvdx === 0)) gpu.quadV = 1;
+  }
+
   const renderTexture = (data, cb) => {
     const packetId = data[0] >>> 24;
 
@@ -89,6 +116,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
     txflip: 0,
     ty: 0,
     tyflip: 0,
+    quadU: 0,
+    quadV: 0,
     widths: [10, 7, 8, 7, 5, 7, 4, 7],
     frame: 0,
     internalFrame: 0,
@@ -396,10 +425,12 @@ mdlr('enge:psx:gpu', ({ include }) => {
     pckt2C: data => {
       gpu.updateTexturePage(data[4] >>> 16);
 
+      flippedQuad(data, 1, 3, 5, 2, 4, 6);
       renderTexture(data, () => {
         drawTriangle(data, 0, 1, 0, 3, 0, 5, gpu.tx, gpu.ty, 2, 4, 6, data[2] >>> 16);
         drawTriangle(data, 0, 3, 0, 5, 0, 7, gpu.tx, gpu.ty, 4, 6, 8, data[2] >>> 16);
       });
+      gpu.quadU = gpu.quadV = 0;
     },
 
     // Gradated 3 point polygon
@@ -426,10 +457,12 @@ mdlr('enge:psx:gpu', ({ include }) => {
     pckt3C: data => {
       gpu.updateTexturePage(data[5] >>> 16);
 
+      flippedQuad(data, 1, 4, 7, 2, 5, 8);
       renderTexture(data, () => {
         drawTriangle(data, 0, 1, 3, 4, 6, 7, gpu.tx, gpu.ty, 2, 5, 8, data[2] >>> 16);
         drawTriangle(data, 3, 4, 6, 7, 9, 10, gpu.tx, gpu.ty, 5, 8, 11, data[2] >>> 16);
       });
+      gpu.quadU = gpu.quadV = 0;
     },
 
     // Monochrome line

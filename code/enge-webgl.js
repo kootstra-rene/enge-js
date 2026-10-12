@@ -949,12 +949,12 @@ mdlr('enge:webgl', ({ include }) => {
         return;
       }
 
-      var u1 = (data[uv1] >>> 0) & 255;
-      var v1 = (data[uv1] >>> 8) & 255;
-      var u2 = (data[uv2] >>> 0) & 255;
-      var v2 = (data[uv2] >>> 8) & 255;
-      var u3 = (data[uv3] >>> 0) & 255;
-      var v3 = (data[uv3] >>> 8) & 255;
+      var u1 = ((data[uv1] >>> 0) & 255) + gpu.quadU;
+      var v1 = ((data[uv1] >>> 8) & 255) + gpu.quadV;
+      var u2 = ((data[uv2] >>> 0) & 255) + gpu.quadU;
+      var v2 = ((data[uv2] >>> 8) & 255) + gpu.quadV;
+      var u3 = ((data[uv3] >>> 0) & 255) + gpu.quadU;
+      var v3 = ((data[uv3] >>> 8) & 255) + gpu.quadV;
       var cx = ((cl >>> 0) & 0x03f) * 16;
       var cy = ((cl >>> 6) & 0x1ff);
 
@@ -1027,15 +1027,15 @@ mdlr('enge:webgl', ({ include }) => {
       var tl = tx + 0;
       var tr = tx + w;
       if (gpu.txflip) {
-        tl = tx + 0;
-        tr = tx - w + 1;
+        tl = tx + 1;
+        tr = tx + 1 - w;
       }
 
       var tt = ty + 0;
       var tb = ty + h;
       if (gpu.tyflip) {
-        tt = ty + 0;
-        tb = ty - h + 1;
+        tt = ty + 1;
+        tb = ty + 1 - h;
       }
 
       var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
