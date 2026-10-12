@@ -18,7 +18,7 @@
 | SLUS-00680 | Bomberman | US | 🟢 Playable | 2026-10-08 | |
 | SLUS-00726 | Brave Fencer Musashi | US | 🟢 Playable | 2026-10-11 | Playable, but the wrong audio plays when starting a new game. |
 | SLUS-00422 | Breath of Fire III | US | 🟢 Playable | 2026-10-08 | |
-| SLUS-01324 | Breath of Fire IV | US | 🔴 Not Playable | 2026-10-08 | Hangs after the PlayStation logo. |
+| SLUS-01324 | Breath of Fire IV | US | 🟢 Playable | 2026-10-08 | |
 | SLUS-00561 | Brunswick Circuit Pro Bowling | US | 🟢 Playable | 2026-10-08 | Screen flickers. |
 | SLUS-00725 | Bust-A-Move 99 | US | 🟢 Playable | 2026-10-08 | |
 | SLUS-00067 | Castlevania: Symphony of the Night | US | 🟢 Playable | 2026-10-08 | |
@@ -69,6 +69,7 @@
 | SLUS-00628 | Lunar: Silver Star Story Complete | US | 🟢 Playable | 2026-10-08 | |
 | SLUS-01584 | Madden NFL 2005 | US | 🟢 Playable | 2026-10-08 | |
 | SLUS-00401 | MechWarrior 2: 31st Century Combat - Arcade Combat Edition | US | 🟢 Playable | 2026-10-08 | Flickering. |
+| SLUS-00603 | Mega Man X6 | US | 🟢 Playable | 2026-10-12 | |
 | SLUS-00603 | Mega Man Legends | US | 🔴 Not Playable | 2026-10-11 | Shows “Now Loading,” then plays audio over a black screen; pressing Enter stops the audio. |
 | SLUS-00594 | Metal Gear Solid | US | 🟢 Playable | 2021-06-01 | |
 | SLUS-01571 | NASCAR Thunder 2004 | US | 🟢 Playable | 2026-10-08 | |
@@ -102,4 +103,5 @@
 | SCUS-94608 | Wild Arms | US | 🟢 Playable | 2026-10-08 | |
 | SCUS-94484 | Wild Arms 2 | US | 🟢 Playable | 2026-10-11 | Playable. |
 | SCUS-94301 | WipEout | US | 🟡 In-Game | 2026-10-11 | Loads the intro, then shows a black screen while audio plays. |
-| SLUS-00183 | Zero Divide | US | 🟢 Playable | 2026-10-11 | Playable; though a bit fast |
+| SLUS-00888 | Worms Armageddon | US | 🟢 Playable | 2026-10-12 | Playable |
+| SLUS-00183 | Zero Divide | US | 🟢 Playable | 2026-10-12 | Playable; though a bit fast |
