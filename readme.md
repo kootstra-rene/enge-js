@@ -6,7 +6,7 @@ You have the emscriptem based ones but that is not pure JavaScript and also thos
 All the code resides in the docs folder so that, when pushing to GitHub, the emulator gets automatically deployed to GitHub pages. Keep in mind it is a hobby project and does not have tests nor is it very structured. When I will find the time some parts will be rewritten using TDD and more ES6 style coding.
 
 # How to run
-Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). You can alse find the experimental WebGL2 version [here](https://kootstra-rene.github.io/enge-js/index-webgl2.html). It still has some performance and transparency issues but I hope to fix those soon. Note you'll need chrome for running this emulator and read the rest of this readme before you do. On a Mac use Safari instead of chrome and give the permission to play audio on the site.
+Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). You can also try the experimental [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) and [WebGPU](https://kootstra-rene.github.io/enge-js/index-webgpu.html) versions. Note you'll need Chrome for running this emulator and read the rest of this readme before you do. On a Mac use Safari instead of Chrome and give the permission to play audio on the site.
 
 ## Loading the BIOS
 When the emulator is running and no BIOS has been loaded the eNGE logo will be pulsating with a red color.
@@ -23,28 +23,17 @@ Same as with the BIOS drag and drop the .bin file on the emulator page and it wi
 The included server is written in Node.js and serves the emulator, game files, generated catalogs, save states, and memory cards from one port. It has no npm runtime dependencies and requires Node.js 18 or newer.
 
 ```sh
-ln -s /path/to/your/games games
 node server.js
 ```
 
 The default URL is `http://<your-lan-ip>:8000/`. The server prints the detected LAN address when it starts. See [SERVER.md](./SERVER.md) for command-line options, catalog generation, range requests, and cloud endpoints.
 
 ## Improving quality
-Clicking the Qx button, toggle between Q1,Q2,Q4 and Q8 the latter being the highest quality. After doing so the border will get an redisch color indicating that you have to restart the emulator which can be done by reloading the page.
+Click the Qx button to cycle through Q1, Q2, and Q4, with Q4 as the highest quality. The red border indicates that you need to reload the emulator for the change to take effect.
 
 ## Controls
 
-When using the keyboard:  
-q = L2  
-w = L1  
-e = triangle  
-r = R1  
-t = R2  
-s = square  
-d = circle  
-x = x  
-space = select  
-enter = start  
+Keyboard: circle = D, cross = X, square = S, triangle = E, R1 = R, R2 = T, L1 = W, L2 = Q, start = Enter, select = Space, D-pad directions = arrow keys (also left stick), right stick up/left/down/right = I/J/K/L.
 
 When using the gamepad just connect it, press a button on the gamepad and the border around the gamepad/keyboardicon should become blueish and you are ready to go.
 
@@ -60,5 +49,17 @@ I have started a [compatibility list](./compatability.md). So feel free to updat
 
 # Release notes
 
-2024-01-31: publish latest state. [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) is running smoothly if your hardware supports it.  
-2024-02-13: SPU envelope refactors and added SPU Reverb for voices and CD-Audio.
+- **2026-10-12:** Added an experimental [WebGPU renderer](https://kootstra-rene.github.io/enge-js/index-webgpu.html), then improved its performance. Also improved GPU/MDEC handling and PSX-style texture sampling, added WebGL renderer options and a WebGL2 TV-effect toggle, added CD image conversion and disc-swap tools, and updated compatibility metrics.
+- **2026-10-11:** Improved compatibility across multiple games. Added the Node.js local server and improved cloud controls, save-state storage, and CD/audio handling.
+- **2026-10-10:** Improved Crash Bash startup compatibility and updated compatibility results for multiple games.
+- **2026-10-09:** Added CUE-based and range-streamed CD loading, OpenBIOS support, keyboard and dual-controller input, save-state foundations, optional DMA/GPU diagnostics, and a responsive interface.
+- **2026-10-08:** Updated the compatibility list with more games and their status.
+- **2026-06-24:** Fixed SPU reverb issues and migrated module loading to the new include API.
+- **2026-05-11:** Fixed CD read handling when changing disc locations.
+- **2024-02-16:** Refactored DMA handling into a dedicated module.
+- **2024-02-15:** Corrected rendered colors and added Gaussian interpolation using the last four audio samples.
+- **2024-02-13:** Refactored SPU envelopes and added SPU reverb for voices and CD audio.
+- **2024-01-31:** Published latest state. [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) is running smoothly if your hardware supports it.
+- **2023-11 to 2023-12:** Fixed a reproducible Final Fantasy VII crash and advanced the WebGL2 renderer with performance, transparency, depth-buffer, blitting, blending, and display-timing improvements.
+- **2022-01 to 2022-11:** Expanded the compatibility list and developed WebGL2 rendering, including texture handling, transparency, and primitive drawing. Improved CD and DMA timing.
+- **2021-01 to 2021-12:** Started the project and published its first browser release. Built out core CPU/GPU emulation, recompilation, graphics, CD/audio handling, gamepad support, and quality settings; began the compatibility list.
