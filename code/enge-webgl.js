@@ -932,7 +932,6 @@ mdlr('enge:webgl', ({ include }) => {
       var tm = Math.min(((gpu.status >> 7) & 3), 2);
 
       var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
-      var clut = ((this.renderMode >> 4) & 3) < 2;
 
       var info = 3;
       if (semi_transparent) {
@@ -941,13 +940,13 @@ mdlr('enge:webgl', ({ include }) => {
 
       if (!semi_transparent || ((info & 2) === 2)) {
         var buffer = this.getVertexBuffer(3, data[0]);
-        buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 8, u1, v1, cx, cy);
-        buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | 8, u2, v2, cx, cy);
-        buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | 8, u3, v3, cx, cy);
+        buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | (semi_transparent ? 24 : 8), u1, v1, cx, cy);
+        buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | (semi_transparent ? 24 : 8), u2, v2, cx, cy);
+        buffer.addVertexUV(x3, y3, data[c3] & 0xfefefe, tm | (semi_transparent ? 24 : 8), u3, v3, cx, cy);
       }
 
-      if (clut && semi_transparent && ((info & 1) === 1)) {
-        // there are opaque colors in the clut
+      if (semi_transparent && ((info & 1) === 1)) {
+        // Opaque texels bypass blending, including direct-colour textures.
         var buffer = this.getVertexBuffer(3, 0);
         buffer.addVertexUV(x1, y1, data[c1] & 0xfefefe, tm | 16, u1, v1, cx, cy);
         buffer.addVertexUV(x2, y2, data[c2] & 0xfefefe, tm | 16, u2, v2, cx, cy);
@@ -1011,7 +1010,6 @@ mdlr('enge:webgl', ({ include }) => {
       }
 
       var semi_transparent = (data[0] & 0x02000000) === 0x02000000;
-      var clut = ((this.renderMode >> 4) & 3) < 2;
 
       var info = 3;
       if (semi_transparent) {
@@ -1020,17 +1018,17 @@ mdlr('enge:webgl', ({ include }) => {
 
       if (!semi_transparent || ((info & 2) === 2)) {
         var buffer = this.getVertexBuffer(6, data[0]);
-        buffer.addVertexUV(x + 0, y + 0, c, tm | 8, tl, tt, cx, cy);
-        buffer.addVertexUV(x + w, y + 0, c, tm | 8, tr, tt, cx, cy);
-        buffer.addVertexUV(x + 0, y + h, c, tm | 8, tl, tb, cx, cy);
+        buffer.addVertexUV(x + 0, y + 0, c, tm | (semi_transparent ? 24 : 8), tl, tt, cx, cy);
+        buffer.addVertexUV(x + w, y + 0, c, tm | (semi_transparent ? 24 : 8), tr, tt, cx, cy);
+        buffer.addVertexUV(x + 0, y + h, c, tm | (semi_transparent ? 24 : 8), tl, tb, cx, cy);
 
-        buffer.addVertexUV(x + w, y + 0, c, tm | 8, tr, tt, cx, cy);
-        buffer.addVertexUV(x + 0, y + h, c, tm | 8, tl, tb, cx, cy);
-        buffer.addVertexUV(x + w, y + h, c, tm | 8, tr, tb, cx, cy);
+        buffer.addVertexUV(x + w, y + 0, c, tm | (semi_transparent ? 24 : 8), tr, tt, cx, cy);
+        buffer.addVertexUV(x + 0, y + h, c, tm | (semi_transparent ? 24 : 8), tl, tb, cx, cy);
+        buffer.addVertexUV(x + w, y + h, c, tm | (semi_transparent ? 24 : 8), tr, tb, cx, cy);
       }
 
-      if (clut && semi_transparent && ((info & 1) === 1)) {
-        // there are opaque colors in the clut
+      if (semi_transparent && ((info & 1) === 1)) {
+        // Opaque texels bypass blending, including direct-colour textures.
         var buffer = this.getVertexBuffer(6, 0);
         buffer.addVertexUV(x + 0, y + 0, c, tm | 16, tl, tt, cx, cy);
         buffer.addVertexUV(x + w, y + 0, c, tm | 16, tr, tt, cx, cy);
