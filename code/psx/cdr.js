@@ -1003,7 +1003,9 @@ mdlr('enge:psx:cdr', () => {
 
       rd08r1802: () => {
         if (status & 0x40) {
-          return sectorData8[sectorOffset + sectorIndex++];
+          const index = sectorIndex < sectorEnd ? sectorIndex++ :
+            sectorEnd - ((sectorEnd === 2072) ? 8 : 4);
+          return sectorData8[sectorOffset + index];
         }
         return 0x00;
       },
@@ -1122,7 +1124,8 @@ mdlr('enge:psx:cdr', () => {
 
         // DMA block counts are 32-bit words. Convert to bytes only for the
         // sector copy; return words so the DMA controller advances correctly.
-        const transferWords = blck & 0xFFFF;
+        // A zero manual DMA word count encodes 65,536 words.
+        const transferWords = (blck & 0xFFFF) || 0x10000;
         const transferBytes = transferWords << 2;
 
         if (cdDebug && debugDmaLogCount < 32) {
@@ -1136,10 +1139,25 @@ mdlr('enge:psx:cdr', () => {
         }
 
         clearCodeCache(addr, transferBytes);
+        const ramStart = addr & 0x001fffff;
+        if (ramStart + transferBytes > 0x200000) {
+          clearCodeCache(0, ramStart + transferBytes - 0x200000);
+        }
 
         for (let i = 0; i < transferBytes; i += 2) {
-          map16[(addr & 0x001fffff) >> 1] = sectorData16[(sectorOffset + sectorIndex) >> 1];
-          sectorIndex += 2;
+          let word;
+          if (sectorIndex < sectorEnd) {
+            word = sectorData16[(sectorOffset + sectorIndex) >> 1];
+            sectorIndex += 2;
+          }
+          else {
+            // Once the FIFO is exhausted it repeats a padding byte, not ECC
+            // bytes, the next sector, or undefined data from the sector buffer.
+            const index = sectorEnd - ((sectorEnd === 2072) ? 8 : 4);
+            const padding = sectorData8[sectorOffset + index] & 0xff;
+            word = padding | (padding << 8);
+          }
+          map16[(addr & 0x001fffff) >> 1] = word;
           addr += 2;
         }
         if (cdDebug && debugDmaLogCount <= 32) {
