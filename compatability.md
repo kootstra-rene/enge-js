@@ -1,9 +1,9 @@
 ## Compatibility summary
-**94 games tested**
+**97 games tested**
 
-- 🟢 **Playable:** 76 (80.9%)
-- 🟡 **In-Game/Menu:** 11 (11.7%) — 7 in-game, 4 menu-only
-- 🔴 **Not Playable:** 7 (7.4%)
+- 🟢 **Playable:** 80 (82.5%)
+- 🟡 **In-Game/Menu:** 11 (11.3%) — 7 in-game, 4 menu-only
+- 🔴 **Not Playable:** 6 (6.2%)
 
 | GameCode | Title | Region | Compatability | Date Tested | Reasons/Comments |
 |----------|-------|--------|---------------|-------------|------------------|
