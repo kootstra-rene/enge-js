@@ -345,6 +345,7 @@
     uniform ivec4     u_disp;
     uniform ivec4     u_draw;
     uniform int       u_mode;
+    uniform bool      u_tv_effect;
   
     in vec2 v_texcoord;
     in vec2 v_vramCoord;
@@ -474,7 +475,8 @@
       }
 
       if (u_mode <= 1) {
-        outColor = tv_effect(color.rgb + InterleavedGradientNoise().rgb);
+        vec4 displayColor = color + InterleavedGradientNoise();
+        outColor = u_tv_effect ? tv_effect(displayColor.rgb) : displayColor;
       }
       else {
         outColor = color;

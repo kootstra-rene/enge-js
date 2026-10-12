@@ -1018,6 +1018,25 @@ mdlr('enge:psx:index', ({ include }) => {
     const menuButton = document.getElementById('menu-button');
     const controlMenu = document.getElementById('control-menu');
     const closeMenuButton = document.getElementById('close-menu');
+    if (emulatorVariant === 'webgl2') {
+      const tvEffect = document.createElement('button');
+      tvEffect.id = 'tv-effect';
+      tvEffect.type = 'button';
+      const tvEffectRow = document.createElement('li');
+      tvEffectRow.append(tvEffect);
+      controlMenu?.querySelector('.control-menu-list')?.append(tvEffectRow);
+      const updateTvEffect = () => {
+        const enabled = settings.tvEffect !== false;
+        tvEffect.textContent = `TV effect: ${enabled ? 'On' : 'Off'}`;
+        tvEffect.setAttribute('aria-pressed', String(enabled));
+      };
+      updateTvEffect();
+      tvEffect.addEventListener('click', () => {
+        settings.tvEffect = settings.tvEffect === false;
+        localStorage.setItem('config', JSON.stringify(settings));
+        updateTvEffect();
+      });
+    }
     const closeMenu = () => {
       if (!controlMenu) return;
       controlMenu.classList.remove('open');
