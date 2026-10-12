@@ -1018,6 +1018,27 @@ mdlr('enge:psx:index', ({ include }) => {
     const menuButton = document.getElementById('menu-button');
     const controlMenu = document.getElementById('control-menu');
     const closeMenuButton = document.getElementById('close-menu');
+    const controllerMode = document.createElement('button');
+    controllerMode.id = 'controller-mode';
+    controllerMode.type = 'button';
+    const controllerRow = document.createElement('li');
+    controllerRow.append(controllerMode);
+    controlMenu?.querySelector('.control-menu-list')?.append(controllerRow);
+    const updateControllerMode = () => {
+      const analog = settings.controllerMode === 'analog';
+      for (const device of joy.devices) device.setControllerMode(analog ? 'analog' : 'digital');
+      controllerMode.textContent = analog ? 'Controller: Analog (DualShock)' : 'Controller: Digital';
+      controllerMode.setAttribute('aria-pressed', String(analog));
+    };
+    updateControllerMode();
+    controllerMode.addEventListener('click', () => {
+      settings.controllerMode = settings.controllerMode === 'analog' ? 'digital' : 'analog';
+      localStorage.setItem('config', JSON.stringify(settings));
+      updateControllerMode();
+    });
+    const stickHelp = document.createElement('li');
+    stickHelp.textContent = 'Analog keyboard: arrows = left stick; I/J/K/L = right stick.';
+    controllerRow.after(stickHelp);
     const closeMenu = () => {
       if (!controlMenu) return;
       controlMenu.classList.remove('open');

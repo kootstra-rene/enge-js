@@ -5,6 +5,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   const keyboard = new Map();
   const virtual = { lo: 0xff, hi: 0xff };
   const keyboardState = { lo: 0xff, hi: 0xff };
+  const analogKeys = new Set();
   const debugPad = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug-pad') === '1';
   const debugInput = (...args) => {
     if (debugPad) console.log('[PAD]', ...args);
@@ -31,10 +32,10 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     const axis = (index) => axes[index] || 0;
 
     let lo = virtual.lo & keyboardState.lo;
-    if (axis(0) <= -0.4) { lo &= ~0x80 } // left
-    if (axis(0) >= 0.4) { lo &= ~0x20 } // right
-    if (axis(1) <= -0.4) { lo &= ~0x10 } // up
-    if (axis(1) >= 0.4) { lo &= ~0x40 } // down
+    if (!device.analogMode && axis(0) <= -0.4) { lo &= ~0x80 } // left
+    if (!device.analogMode && axis(0) >= 0.4) { lo &= ~0x20 } // right
+    if (!device.analogMode && axis(1) <= -0.4) { lo &= ~0x10 } // up
+    if (!device.analogMode && axis(1) >= 0.4) { lo &= ~0x40 } // down
 
     if (buttonPressed(buttons[14])) { lo &= ~0x80 } // left
     if (buttonPressed(buttons[15])) { lo &= ~0x20 } // right
@@ -43,7 +44,18 @@ mdlr('enge:psx:gamepad', ({ include }) => {
 
     if (buttonPressed(buttons[8])) { lo &= ~0x01 } // select
     if (buttonPressed(buttons[9])) { lo &= ~0x08 } // start
+    if (buttonPressed(buttons[10])) lo &= ~0x02; // L3
+    if (buttonPressed(buttons[11])) lo &= ~0x04; // R3
     device.lo = lo;
+    const stickByte = value => Math.max(0, Math.min(255, Math.round(128 +
+      (Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0) * 128)));
+    const directions = virtual.lo & keyboardState.lo;
+    const leftX = ((directions & 0x20) ? 0 : 1) - ((directions & 0x80) ? 0 : 1);
+    const leftY = ((directions & 0x40) ? 0 : 1) - ((directions & 0x10) ? 0 : 1);
+    device.lx = stickByte(leftX || axis(0));
+    device.ly = stickByte(leftY || axis(1));
+    device.rx = stickByte(Number(analogKeys.has('KeyL')) - Number(analogKeys.has('KeyJ')) || axis(2));
+    device.ry = stickByte(Number(analogKeys.has('KeyK')) - Number(analogKeys.has('KeyI')) || axis(3));
 
     let hi = virtual.hi & keyboardState.hi;
     if (buttonPressed(buttons[3])) { hi &= ~0x10 } // triangle
@@ -62,6 +74,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     if (device) {
       device.lo = 0xff;
       device.hi = 0xff;
+      device.lx = device.ly = device.rx = device.ry = 0x80;
     }
   };
 
@@ -184,7 +197,12 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   window.addEventListener('pointercancel', releaseVirtualStick);
   window.addEventListener('touchend', releaseVirtualStick, {passive: false});
   window.addEventListener('touchcancel', releaseVirtualStick, {passive: false});
-  window.addEventListener('blur', releaseVirtualStick);
+  window.addEventListener('blur', () => {
+    releaseVirtualStick({});
+    analogKeys.clear();
+    keyboardState.lo = keyboardState.hi = 0xff;
+    releaseDevice(joy.devices[0]);
+  });
 
   const enge_gamepad_update = () => {
     if (!navigator.getGamepads) return;
@@ -250,6 +268,10 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     keyboard.get(event.keyCode) || keyboard.get(keyboardCodes.get(event.code));
 
   window.addEventListener("keydown", (e) => {
+    if (['KeyI', 'KeyJ', 'KeyK', 'KeyL'].includes(e.code)) {
+      e.preventDefault();
+      analogKeys.add(e.code);
+    }
     const mapping = getKeyboardMapping(e);
     const device = joy.devices[0];
 
@@ -263,6 +285,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   }, false);
 
   window.addEventListener("keyup", (e) => {
+    analogKeys.delete(e.code);
     const mapping = getKeyboardMapping(e);
     const device = joy.devices[0];
 
