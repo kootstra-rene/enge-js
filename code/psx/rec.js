@@ -26,6 +26,21 @@ mdlr('enge:psx:rec', ({ include }) => {
     return `const ${tmp} = ${value};`;
   };
 
+  // PGXP hooks are only generated when the pgxp module is loaded and enabled
+  // (?pgxp in the URL); otherwise the compiled code is unchanged.
+  const pgxpOn = () => typeof pgxp !== 'undefined' && pgxp.enabled;
+  // same mapping as shadowIndex() in pgxp.js, inlined into compiled code
+  const pgxpIndex = (a) => `((${a} < 0x00800000 ? (${a} & 0x001fffff) : (0x00200000 | (${a} & 0x3ff))) >>> 2)`;
+
+  // PGXP: `addu rd, rs, zero` / `or rd, rs, zero` (and the mirrored forms)
+  // are register moves; carry the sub-pixel fraction along with the value.
+  const pgxpMove = (rec) => {
+    if (!pgxpOn() || !rec.rd) return '';
+    if (rec.rt === 0) return `\npgxp.move(${rec.rd}, ${rec.rs});`;
+    if (rec.rs === 0) return `\npgxp.move(${rec.rd}, ${rec.rt});`;
+    return '';
+  };
+
   const createFunction = (pc, code, jumps) => {
     const lines = [
       "  return function $" + hex(pc).toUpperCase() + "(psx) { ++calls;\n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
@@ -95,6 +110,8 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '09': (rec, opc) => {
       const code = setReg(rec.rt, ((opc << 16) >> 16) + ' + ' + getRS());
+      // addiu rt, rs, 0 is a register move
+      if (pgxpOn() && rec.rt && !(opc & 0xffff)) return code + `\npgxp.move(${rec.rt}, ${rec.rs});`;
       return code;
     },
 
@@ -149,6 +166,14 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '23': (rec, opc) => {
+      if (pgxpOn()) {
+        // inline fast path: only call into pgxp when the word has a fraction
+        const a = `_pa${state.loadSeq++}`;
+        const code = `const ${a} = ${getOF(opc)};\n` + setLoad(rec.rt, `memRead32(${a})`);
+        const value = state.newLoad ? state.newLoad.tmp : null;
+        if (!value) return code;
+        return code + `\nif (pgxpMemFrac[${pgxpIndex(a)}] !== 0) pgxp.lw(${rec.rt}, ${a}, ${value});`;
+      }
       const code = setLoad(rec.rt, 'memRead32(' + getOF(opc) + ')');
       return code;
     },
@@ -186,6 +211,13 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '2B': (rec, opc) => {
+      if (pgxpOn()) {
+        // inline fast path: only call into pgxp when rt carries a fraction
+        if (!rec.rt) return setReg(0, `memWrite32(${getOF(opc)}, 0)`);
+        const a = `_pa${state.loadSeq++}`;
+        return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, ${getRT()});\n` +
+          `if (pgxpGprFrac[${rec.rt}] !== 0) pgxp.sw(${rec.rt}, ${a}, ${getRT()});`;
+      }
       const code = setReg(0, `memWrite32(${getOF(opc)}, ${getRT()})`);
       return code;
     },
@@ -201,6 +233,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '3A': (rec, opc) => {
+      if (pgxpOn()) return setReg(0, `pgxp.swc2(${rec.rt}, ${getOF(opc)})`);
       const code = setReg(0, 'memWrite32(' + getOF(opc) + ', gte.get(' + rec.rt + '))');
       return code;
     },
@@ -315,7 +348,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '61': (rec, opc) => {
       const code = setReg(rec.rd, getRS() + ' + ' + getRT());
-      return code;
+      return code + pgxpMove(rec);
     },
 
     '62': (rec, opc) => {
@@ -335,7 +368,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '65': (rec, opc) => {
       const code = setReg(rec.rd, getRS() + ' | ' + getRT());
-      return code;
+      return code + pgxpMove(rec);
     },
 
     '66': (rec, opc) => {
@@ -404,6 +437,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     'C0': (rec, opc) => {
+      if (pgxpOn()) return setLoad(rec.rt, `pgxp.mfc2(${rec.rt}, ${rec.rd})`);
       const code = setLoad(rec.rt, 'gte.get(' + rec.rd + ')');
       return code;
     },
