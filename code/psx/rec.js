@@ -608,16 +608,106 @@ mdlr('enge:psx:rec', ({ include }) => {
     // lines.unshift(`const gpr = cpu.gpr; let target = _${hex(pc)};\n`);
     lines.unshift(`const gpr = cpu.gpr; let target; const _dr = cpu.dr, _dv = cpu.dv; cpu.dr = 0;\n`);
 
-    if (pc < 0x00200000) {
-      lines.unshift(`if (!fastCache[${pc}]) { return invalidateCache(this); }`);
-      fastCache[pc] = 1;
+    if (pc < RAM_SIZE) {
+      // state.pc is one past the last compiled instruction (incl. delay slot)
+      registerBlock(entry, pc, Math.min(state.pc >>> 0, RAM_SIZE));
     }
     return createFunction(pc, lines.filter(a => a).join('\n'), jumps);
   }
 
   const cached = new Map();
-  const fastCache = new Uint8Array(0x00200000);
-  fastCache.fill(0);
+
+  // ---------------------------------------------------------------------------
+  // Self-modifying code detection for RAM.
+  //
+  // codeWords has one byte per RAM word: non-zero when at least one compiled
+  // block contains that instruction word. mmu.js checks it on every RAM store
+  // and only calls invalidateCodeWord() when an actual instruction word is
+  // overwritten, so data that merely sits next to code never triggers a
+  // recompile.
+  //
+  // To find the blocks that contain a word, RAM is split into lines of
+  // CODE_LINE_SIZE bytes; every block is listed in each line it spans
+  // (including blocks entered in the middle of other blocks). Invalidation
+  // resets only the blocks whose [start, end) range contains the written
+  // word, then clears codeWords for words no remaining block covers.
+  //
+  // Entries are reset in place (entry.code = lazyCompile) and never deleted:
+  // compiled blocks hold direct references to their jump targets.
+  // ---------------------------------------------------------------------------
+  const RAM_SIZE = 0x00200000;
+  const CODE_LINE_SHIFT = 8;
+  const CODE_LINE_SIZE = 1 << CODE_LINE_SHIFT;
+  const codeWords = new Uint8Array(RAM_SIZE >>> 2);
+  const lineBlocks = new Array(RAM_SIZE >>> CODE_LINE_SHIFT);
+  for (let i = 0; i < lineBlocks.length; ++i) lineBlocks[i] = [];
+
+  let recompiles = 0;
+  let invalidations = 0;
+
+  function registerBlock(entry, start, end) {
+    if (entry.end) unregisterBlock(entry);
+    if (end <= start) end = start + 4;
+    entry.start = start;
+    entry.end = end;
+    const firstLine = start >>> CODE_LINE_SHIFT;
+    const lastLine = (end - 1) >>> CODE_LINE_SHIFT;
+    for (let line = firstLine; line <= lastLine; ++line) {
+      lineBlocks[line].push(entry);
+    }
+    codeWords.fill(1, start >>> 2, end >>> 2);
+  }
+
+  function unregisterBlock(entry) {
+    const firstLine = entry.start >>> CODE_LINE_SHIFT;
+    const lastLine = (entry.end - 1) >>> CODE_LINE_SHIFT;
+    for (let line = firstLine; line <= lastLine; ++line) {
+      const list = lineBlocks[line];
+      const index = list.indexOf(entry);
+      if (index >= 0) list.splice(index, 1);
+    }
+    entry.start = entry.end = 0;
+  }
+
+  // Recompute codeWords for [start, end) from the blocks still registered.
+  function refreshCodeWords(start, end) {
+    codeWords.fill(0, start >>> 2, end >>> 2);
+    const firstLine = start >>> CODE_LINE_SHIFT;
+    const lastLine = (end - 1) >>> CODE_LINE_SHIFT;
+    for (let line = firstLine; line <= lastLine; ++line) {
+      for (const block of lineBlocks[line]) {
+        const s = Math.max(block.start, start);
+        const e = Math.min(block.end, end);
+        if (e > s) codeWords.fill(1, s >>> 2, e >>> 2);
+      }
+    }
+  }
+
+  // Reset every block overlapping RAM range [start, end).
+  function invalidateRange(start, end) {
+    const firstLine = start >>> CODE_LINE_SHIFT;
+    const lastLine = (end - 1) >>> CODE_LINE_SHIFT;
+    let lo = start, hi = end;
+    for (let line = firstLine; line <= lastLine; ++line) {
+      const list = lineBlocks[line];
+      for (let i = list.length - 1; i >= 0; --i) {
+        const block = list[i];
+        if (block.start >= end || block.end <= start) continue;
+        if (block.start < lo) lo = block.start;
+        if (block.end > hi) hi = block.end;
+        unregisterBlock(block);
+        block.code = lazyCompile;
+        ++invalidations;
+      }
+    }
+    refreshCodeWords(lo & ~3, hi);
+  }
+
+  // Called by mmu.js when a store hits a word flagged in codeWords.
+  function invalidateCodeWord(addr) {
+    const word = addr & (RAM_SIZE - 4);
+    invalidateRange(word, word + 4);
+  }
 
   function getCacheIndex(pc) {
     let ipc = pc & 0x01ffffff;
@@ -629,18 +719,16 @@ mdlr('enge:psx:rec', ({ include }) => {
   function clearCodeCache(addr, size) {
     const ibase = getCacheIndex(addr) & ~3;
     const iend = getCacheIndex(addr) + size;
-    if (ibase < 0x00200000) {
-      fastCache.fill(0, ibase, iend);
+    if (ibase < RAM_SIZE) {
+      if (iend <= ibase) return;
+      invalidateRange(ibase, Math.min(iend, RAM_SIZE));
       // DMA addresses wrap around the 2MB RAM mirror
-      if (iend > 0x00200000) fastCache.fill(0, 0, iend - 0x00200000);
+      if (iend > RAM_SIZE) invalidateRange(0, Math.min(iend - RAM_SIZE, RAM_SIZE));
     }
     else {
-      // The BIOS is mapped above the fast-cache range, so its blocks have no
-      // fastCache guard and must be reset explicitly.  Entries are reset in
-      // place and never deleted: compiled blocks hold direct references to
-      // their jump targets, and a second entry for the same pc would let a
-      // stale block run after the other copy recompiled and re-armed
-      // fastCache[pc].
+      // The BIOS is mapped above RAM and is not covered by codeWords, so its
+      // blocks are reset explicitly. Entries are reset in place and never
+      // deleted: compiled blocks hold direct references to their jump targets.
       for (const [pc, entry] of cached) {
         if (pc >= ibase && pc < iend) entry.code = lazyCompile;
       }
@@ -649,6 +737,7 @@ mdlr('enge:psx:rec', ({ include }) => {
   }
 
   function lazyCompile() {
+    ++recompiles;
     this.code = compileBlock(this);
     return this;
   }
@@ -683,25 +772,24 @@ mdlr('enge:psx:rec', ({ include }) => {
     const renderCounter = renderer.fpsRenderCounter - prevFpsRenderCounter;
     prevFpsRenderCounter = renderer.fpsRenderCounter;
 
-    if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} ${context.counter - prevCounter}/${renderer.fpsCounter - prevFpsCounter}/${renderCounter}`);
+    if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} rec:${recompiles} inv:${invalidations} ${context.counter - prevCounter}/${renderer.fpsCounter - prevFpsCounter}/${renderCounter}`);
     psx.setEvent(self, cyclesPerTrace);
     prevCounter = context.counter;
     prevFpsCounter = renderer.fpsCounter;
     clears = 0;
+    recompiles = 0;
+    invalidations = 0;
     calls = 0;
   });
 
   window.calls = 0;
   window.vector = null;
-  window.fastCache = fastCache;
+  window.codeWords = codeWords;
+  window.invalidateCodeWord = invalidateCodeWord;
   window.cached = cached;
 
-  window.invalidateCache = entry => {
-    entry.code = lazyCompile;
-    return entry;
-  }
-
   window.resetCacheEntry = entry => {
+    if (entry.end) unregisterBlock(entry);
     entry.code = lazyCompile;
     return entry;
   }
