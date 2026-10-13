@@ -3,6 +3,7 @@ mdlr('enge:psx:serial-device', ({ include }) => {
   const { encode } = include('base64');
 
   const memory = new Uint8Array(128 * 1024);
+  const writeBuffer = new Uint8Array(128);
 
   const setResponseBlock = (before, after) => {
     response.push(...before);
@@ -23,6 +24,9 @@ mdlr('enge:psx:serial-device', ({ include }) => {
   let config = false;
   let commandConfig = false;
   let rumbleMap = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+  // Bit 3 is the no-write-yet/new-card status. It stays set across reads and
+  // clears after the card accepts a write, matching DuckStation and PCSX-ReARMed.
+  let memoryCardFlag = 0x08;
 
   return {
     lo: 0xff,
@@ -56,10 +60,12 @@ mdlr('enge:psx:serial-device', ({ include }) => {
       mode = byte;
       switch (byte) {
         case 0x52:
-          setResponseBlock([0x00, 0x5a, 0x5d, 0x00, -1, 0x5c, -1, -1, -1], [-1, 0x47]);
+          // OpenBIOS reads the reply to 0x52 on the next IRQ. The command
+          // transfer therefore returns FLAG immediately; there is no dummy 0.
+          setResponseBlock([memoryCardFlag, 0x5a, 0x5d, 0x00, -1, 0x5c, 0x5d, -1, -1], [-1, 0x47]);
           break;
         case 0x57:
-          setResponseBlock([0x00, 0x5a, 0x5d, -1, -1], [-1, 0x5c, 0x5d, 0x47]);
+          setResponseBlock([memoryCardFlag, 0x5a, 0x5d, -1, -1], [-1, 0x5c, 0x5d, 0x47]);
           break;
         default:
           response.push(0xff);
@@ -114,15 +120,12 @@ mdlr('enge:psx:serial-device', ({ include }) => {
             case (dataIndex === 4):
               data = received[3];
               break;
-            case (dataIndex === 6):
-              data = 0x5d;
-              break;
             case (dataIndex === 7):
               data = received[3];
+              addr = (received[3] << 8) | received[4];
               checkSum = data;
               break;
             case (dataIndex === 8):
-              addr = (received[3] << 8) | received[4];
               data = received[4];
               checkSum ^= data;
               break;
@@ -144,24 +147,29 @@ mdlr('enge:psx:serial-device', ({ include }) => {
           const dataIndex = received.length;
           switch (true) {
             case (dataIndex === 3):
-              data = received[3];
-              checkSum = data;
+              // The address MSB is sent while the card returns 00h.
+              data = 0x00;
+              checkSum = byte;
               break;
             case (dataIndex === 4):
               data = received[3];
-              checkSum ^= data;
-              addr = (data << 8) | byte;
+              checkSum ^= byte;
+              addr = (received[3] << 8) | byte;
               break;
             case (dataIndex >= 5 && dataIndex < 133):
-              const offset = (addr * 128) + dataIndex - 5;
-              data = memory[offset - 1];
-              memory[offset] = byte;
+              data = 0;
+              writeBuffer[dataIndex - 5] = byte;
               checkSum ^= byte;
               break;
             case (dataIndex === 133):
-              // todo: check checkSum
-              data = memory[132];
-              localStorage.setItem(`card${id + 1}`, encode(memory));
+              data = 0;
+              if (byte === (checkSum & 0xff)) {
+                memory.set(writeBuffer, addr * 128);
+                memoryCardFlag &= ~0x08;
+                localStorage.setItem(`card${id + 1}`, encode(memory));
+              } else {
+                memoryCardFlag |= 0x04;
+              }
               break;
           }
         }
@@ -170,6 +178,7 @@ mdlr('enge:psx:serial-device', ({ include }) => {
       received.push(byte);
       return data & 0xff;
     },
-    hasMore: () => response.length > 0
+    hasMore: () => response.length > 0,
+    isMemoryCardFastReadStart: () => mode === 0x52 && received.length === 7
   }
 })
