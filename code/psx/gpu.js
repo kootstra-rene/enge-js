@@ -10,11 +10,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
   const handlers = [];
 
   const dmaBuffer = new Int32Array(4096);
-  // PGXP: per-word sub-pixel fraction for the polygon packet in dmaBuffer
-  // (see pgxp.js). Renderers read it through gpu.pgxpFrac, which is only set
-  // while a polygon packet with at least one precise vertex is being drawn.
-  const dmaFrac = new Uint8Array(4096);
-  const pgxpOn = () => typeof pgxp !== 'undefined' && pgxp.enabled;
 
   // The psx gives the first pixel of a span the start u/v without interpolation, gpus sample at the pixel
   // center. For flipped 2d sprites drawn as quads that samples one texel too far, compensate by adding one
@@ -108,7 +103,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
     drawAreaY2: 0,
     heights: [1, 2, 1, 2],
     hline: 0,
-    pgxpFrac: null,
     img: { w: 0, h: 0, x: 0, y: 0, index: 0, pixelCount: 0, buffer: new Uint16Array(1024 * 512) },
     info: new Uint32Array(16),
     maxheights: [240, 480, 256, 512],
@@ -788,20 +782,14 @@ mdlr('enge:psx:gpu', ({ include }) => {
             gpu.updated = true;
           }
           else {
-            // polygons (0x20..0x3f) may carry PGXP sub-pixel vertex positions
-            const precise = (packetId >= 0x20) && (packetId < 0x40) && pgxpOn();
-            let anyFrac = 0;
             for (var i = 0; i < packetSizes[packetId]; ++i) {
               data[i] = ram.getInt32(addr, true);
-              if (precise) anyFrac |= (dmaFrac[i] = pgxp.fracAt(addr, data[i]));
               addr += 4; --nitem;
               ++words;
             }
             if (nitem < 0) return words;
             nextPrimitive();
-            gpu.pgxpFrac = anyFrac ? dmaFrac : null;
             handlers[packetId].call(gpu, data, 0);
-            gpu.pgxpFrac = null;
             gpu.updated = true;
           }
         }

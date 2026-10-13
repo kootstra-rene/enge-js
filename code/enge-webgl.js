@@ -936,14 +936,6 @@ mdlr('enge:webgl', ({ include }) => {
       var x3 = this.drawOffsetX + ((data[xy3] << 21) >> 21);
       var y3 = this.drawOffsetY + ((data[xy3] << 5) >> 21);
 
-      // PGXP: add the quarter-pixel fraction carried from the GTE (polygons only)
-      const pgxpFrac = gpu.pgxpFrac;
-      if (pgxpFrac) {
-        x1 += (pgxpFrac[xy1] & 3) * 0.25; y1 += ((pgxpFrac[xy1] >> 2) & 3) * 0.25;
-        x2 += (pgxpFrac[xy2] & 3) * 0.25; y2 += ((pgxpFrac[xy2] >> 2) & 3) * 0.25;
-        x3 += (pgxpFrac[xy3] & 3) * 0.25; y3 += ((pgxpFrac[xy3] >> 2) & 3) * 0.25;
-      }
-
       if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
       if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
 
