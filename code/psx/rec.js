@@ -247,7 +247,9 @@ mdlr('enge:psx:rec', ({ include }) => {
     '49': (rec, opc) => {
       rec.stop = true;
       rec.jump = true;
-      const code = setReg(rec.rd, '0x' + hex(rec.pc + 8) + ';\ntarget = getCacheEntry(' + getRS() + ')');
+      // Read rs before writing the link register: with `jalr rX, rX` the jump
+      // must go to the old value of rX, not to the return address.
+      const code = setReg(0, 'target = getCacheEntry(' + getRS() + ')') + '\n' + setReg(rec.rd, '0x' + hex(rec.pc + 8));
       return code;
     },
 
