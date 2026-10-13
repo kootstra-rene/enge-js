@@ -8,19 +8,18 @@ mdlr('enge:psx:serial', ({ include }) => {
   const syncWithDevice = (device, data) => {
     let byte = device.sendReceiveByte(data & 0xff);
     let more = device.hasMore();
-    setResult(byte, !more);
+    setResult(byte, !more, device);
   }
 
-  const setResult = (byte, last) => {
+  const setResult = (byte, last, device = null) => {
     r1044 |= 0x0002; // JOY_STAT.RX = 1
     data = byte & 0xff;
 
     if (!last) {
-      // OpenBIOS expects the serial device to advance at the faster cadence
-      // for both pad and memory-card transfers. This changes timing only; the
-      // upstream memory-card commands, response bytes, and checksums remain
-      // unchanged so card behavior can be tested independently.
-      psx.setEvent(eventIRQ, (baud * 4) >>> 0);
+      // Give OpenBIOS time to leave its sector-read handler before raising the
+      // first IRQ that starts the card's fast-track byte transfer.
+      const cycles = device?.isMemoryCardFastReadStart?.() ? baud * 16 : baud * 4;
+      psx.setEvent(eventIRQ, cycles >>> 0);
     }
   }
 
