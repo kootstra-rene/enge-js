@@ -26,6 +26,16 @@ mdlr('enge:psx:rec', ({ include }) => {
     return `const ${tmp} = ${value};`;
   };
 
+  // Current value of rt as seen by LWL/LWR, which merge into it. A load to rt
+  // that is still in flight is forwarded instead of the stale GPR: from the
+  // previous instruction, or (first instruction of a block) from the load
+  // deferred across the block boundary in _dr/_dv.
+  const getLoadBase = (nr) => {
+    if (state.pendingLoad && state.pendingLoad.reg === nr) return state.pendingLoad.tmp;
+    if (state.first) return `(_dr === ${nr} ? _dv : ${state.reg(nr)})`;
+    return state.reg(nr);
+  };
+
   const createFunction = (pc, code, jumps) => {
     const lines = [
       "  return function $" + hex(pc).toUpperCase() + "(psx) { ++calls;\n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
@@ -139,12 +149,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '22': (rec, opc) => {
-      // LWL reads+writes gpr[rt] inside cpu.lwl; mark rt as written so the
-      // load-delay slot-write-wins logic (within-block commit and cross-block
-      // apply) treats an incoming delayed load to rt as discarded (hardware
-      // delayReadWrite case).
-      if (rec.rt) rec.wreg = rec.rt;
-      const code = setReg(0, 'cpu.lwl(' + rec.rt + ', ' + getOF(opc) + ')');
+      const code = setLoad(rec.rt, 'cpu.lwl(' + getLoadBase(rec.rt) + ', ' + getOF(opc) + ')');
       return code;
     },
 
@@ -164,9 +169,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '26': (rec, opc) => {
-      // LWR reads+writes gpr[rt] inside cpu.lwr; see LWL (0x22) above.
-      if (rec.rt) rec.wreg = rec.rt;
-      const code = setReg(0, 'cpu.lwr(' + rec.rt + ', ' + getOF(opc) + ')');
+      const code = setLoad(rec.rt, 'cpu.lwr(' + getLoadBase(rec.rt) + ', ' + getOF(opc) + ')');
       return code;
     },
 
@@ -394,11 +397,15 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     'A4': (rec, opc) => {
+      // SR/CAUSE writes can unmask a pending interrupt: end the block so it is
+      // taken right after this instruction.
+      if (rec.rd === 12 || rec.rd === 13) rec.sync = true;
       const code = setReg(0, 'cpu.setCtrl(' + rec.rd + ', ' + getRT() + ')');
       return code;
     },
 
     'B0': (rec, opc) => { // simplicity
+      rec.sync = true;
       const code = setReg(0, 'cpu.rfe()');
       return code;
     },
@@ -475,9 +482,11 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     // MIPS-I load delay: commit the previous instruction's pending load now
     // (after this delay-slot instruction's reads), unless this instruction
-    // overwrote the same register — in which case that write wins.
+    // overwrote the same register — in which case that write wins — or is
+    // itself a load to the same register, which cancels the first load.
     if (state.pendingLoad) {
-      if (state.pendingLoad.reg !== state.wreg) {
+      const reg = state.pendingLoad.reg;
+      if (reg !== state.wreg && !(state.newLoad && state.newLoad.reg === reg)) {
         lines.push(`gpr[${state.pendingLoad.reg}] = ${state.pendingLoad.tmp};`);
       }
       state.pendingLoad = null;
@@ -500,6 +509,8 @@ mdlr('enge:psx:rec', ({ include }) => {
     'sr': false,
     'cycles': 0,
     'skipNext': false,
+    sync: false,
+    first: false,
     loadSeq: 0,
     pendingLoad: null,
     newLoad: null,
@@ -522,6 +533,8 @@ mdlr('enge:psx:rec', ({ include }) => {
       state.sr = false;
       state.cycles = 0;
       state.skipNext = false;
+      state.sync = false;
+      state.first = false;
       state.loadSeq = 0;
       state.pendingLoad = null;
       state.newLoad = null;
@@ -546,12 +559,14 @@ mdlr('enge:psx:rec', ({ include }) => {
     // after the first instruction, honouring slot-write-wins (if that first
     // instruction writes the same register, the load is discarded).
     let firstApplied = false;
+    state.first = true;
 
     // todo: limit the amount of cycles per block
-    while (!state.stop && state.cycles < 2048) {
+    while (!state.stop && !state.sync && state.cycles < 2048) {
       compileInstruction(state, lines, false);
       if (!firstApplied) {
         firstApplied = true;
+        state.first = false;
         const fw = state.wreg || (state.pendingLoad ? state.pendingLoad.reg : 0);
         lines.push(`if (_dr !== 0 && _dr !== ${fw}) { gpr[_dr] = _dv; }`);
       }
@@ -559,7 +574,7 @@ mdlr('enge:psx:rec', ({ include }) => {
       state.pc += 4;
     }
 
-    if (!state.stop && state.cycles >= 64) {
+    if (!state.stop && (state.sync || state.cycles >= 64)) {
       state.branchTarget = (state.pc >>> 0) & 0x01ffffff;
       state.skipNext = true;
       state.jump = true;

@@ -54,40 +54,53 @@ mdlr('enge:psx:cpu', ({ include }) => {
       return cop[reg];
     },
 
+    // Interrupts are only checked when the main loop handles events. After a
+    // write that can unmask an already pending interrupt (SR, CAUSE, I_MASK,
+    // RFE), force that check right after the current block.
+    requestInterruptCheck: () => {
+      psx.eventClock = 0;
+    },
+
     setCtrl: (reg, value) => {
       cop[reg] = value >> 0;
       switch (reg) {
         case 12: cpu.sr = value;
           // trick to force writing to unused memory location with isolated cache
           cpu.forceWriteBits = (value & 0x00010000) ? 0x01fffffc >>> 0 : 0x00000000 >>> 0;
+          cpu.requestInterruptCheck();
           break;
         case 13: cpu.cause = cpu.cause & 0xfffffcff;
           cpu.cause |= (value & 0x00000300);
+          cpu.requestInterruptCheck();
           break;
       }
     },
 
     rfe: () => {
       cpu.sr = (cpu.sr & ~0x0F) | ((cpu.sr >> 2) & 0x0F);
+      cpu.requestInterruptCheck();
     },
 
-    lwl: (reg, addr) => {
+    // LWL/LWR merge memory into the current register value and return the
+    // result; the recompiler commits it through the load-delay slot. `value`
+    // is the in-flight value when a load to the same register is pending.
+    lwl: (value, addr) => {
       const data = memRead32((addr & ~3) & 0x01ffffff);
       switch (addr & 3) {
-        case 0: gpr[reg] = (gpr[reg] & 0x00FFFFFF) | (data << 24); break;
-        case 1: gpr[reg] = (gpr[reg] & 0x0000FFFF) | (data << 16); break;
-        case 2: gpr[reg] = (gpr[reg] & 0x000000FF) | (data << 8); break;
-        case 3: gpr[reg] = (gpr[reg] & 0x00000000) | (data << 0); break;
+        case 0: return (value & 0x00FFFFFF) | (data << 24);
+        case 1: return (value & 0x0000FFFF) | (data << 16);
+        case 2: return (value & 0x000000FF) | (data << 8);
+        case 3: return (value & 0x00000000) | (data << 0);
       };
     },
 
-    lwr: (reg, addr) => {
+    lwr: (value, addr) => {
       const data = memRead32((addr & ~3) & 0x01ffffff);
       switch (addr & 3) {
-        case 0: gpr[reg] = (gpr[reg] & 0x00000000) | (data >>> 0); break;
-        case 1: gpr[reg] = (gpr[reg] & 0xFF000000) | (data >>> 8); break;
-        case 2: gpr[reg] = (gpr[reg] & 0xFFFF0000) | (data >>> 16); break;
-        case 3: gpr[reg] = (gpr[reg] & 0xFFFFFF00) | (data >>> 24); break;
+        case 0: return (value & 0x00000000) | (data >>> 0);
+        case 1: return (value & 0xFF000000) | (data >>> 8);
+        case 2: return (value & 0xFFFF0000) | (data >>> 16);
+        case 3: return (value & 0xFFFFFF00) | (data >>> 24);
       };
     },
 
