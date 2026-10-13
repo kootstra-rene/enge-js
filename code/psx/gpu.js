@@ -670,7 +670,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       gpu.info[5] = data[0] & 0x003fffff;
 
       const drawOffsetX = (data[0] << 21) >> 21;
-      const drawOffsetY = (data[0] << 11) >> 22;
+      const drawOffsetY = (data[0] << 10) >> 21;
 
       setDrawAreaOF(drawOffsetX, drawOffsetY);
     },
