@@ -17,6 +17,7 @@ mdlr('enge:psx', ({ include }) => {
     include('enge:psx:mmu'),
     include('enge:psx:rec'),
     include('enge:psx:spu'),
+    include('enge:psx:stall'),
   );
 
   Object.assign(window,

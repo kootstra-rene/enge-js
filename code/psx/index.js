@@ -66,14 +66,29 @@ mdlr('enge:psx:index', ({ include }) => {
     handleGamePads();
 
     const $ = psx;
-    while (!endAnimationFrame) {
-      entry = entry.code($);
+    if (stall.enabled) {
+      // ?debug-stall: same loop, but records every block for the stall report
+      while (!endAnimationFrame) {
+        stall.block(entry);
+        entry = entry.code($);
 
-      if ($.clock >= $.eventClock) {
-        entry = $.handleEvents(entry);
+        if ($.clock >= $.eventClock) {
+          entry = $.handleEvents(entry);
+        }
       }
+      cpu.pc = entry.pc;
+      stall.endFrame();
     }
-    cpu.pc = entry.pc;
+    else {
+      while (!endAnimationFrame) {
+        entry = entry.code($);
+
+        if ($.clock >= $.eventClock) {
+          entry = $.handleEvents(entry);
+        }
+      }
+      cpu.pc = entry.pc;
+    }
 
     if (cpuDebug && stamp - lastCpuDebugTime >= 1000) {
       lastCpuDebugTime = stamp;
