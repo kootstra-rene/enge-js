@@ -104,6 +104,7 @@
 | SLUS-00860 | Tony Hawk's Pro Skater | US | 🟢 Playable | 2026-10-08 | Graphical glitches in menus. |
 | SLUS-01485 | Tony Hawk's Pro Skater 4 | US | 🟢 Playable | 2026-10-08 | |
 | SCUS-94448 | Um Jammer Lammy | US | 🟢 Playable | 2026-10-12 | Able to enter stages. |
+| SLUS-00447 | Vandal Hearts | US | 🟢 Playable | 2026-10-14 | |
 | SCES-02873 | Vib-Ribbon | EU | 🟢 Playable | 2026-10-12 | Previously reported issues are fixed. |
 | SLUS-00480 | WarCraft II: The Dark Saga | US | 🟢 Playable | 2026-10-12 | Graphical glitches are fixed. |
 | SLUS-01174 | Wheel of Fortune: 2nd Edition | US | 🟢 Playable | 2026-10-08 | |
