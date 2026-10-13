@@ -2,6 +2,10 @@ mdlr('enge:webgl2', ({ include }) => {
 
   const { createVertexBuffer, createProgramFromScripts } = include('enge:webgl2:utils');
 
+  // Draw primitives store positions in 1/SUBPIXEL pixel units so PGXP
+  // vertices can land between pixels; must match the 'pixel' vertex shader.
+  const SUBPIXEL = 4;
+
   const $gpu = {
     // draw area that applies to the vertices currently queued; the da* fields
     // can already hold a newer area that only takes effect in updateDrawArea()
@@ -212,13 +216,14 @@ mdlr('enge:webgl2', ({ include }) => {
 
   // todo: refactor to completely move this class
   class WebGLRenderer {
+    // positions in quarter pixels (SUBPIXEL), see the 'pixel' shader
     buffers = [
-      createVertexBuffer(),     // 0-3: semi-transparent, per blend mode
-      createVertexBuffer(),
-      createVertexBuffer(),
-      createVertexBuffer(),
-      createVertexBuffer(true), // 4: opaque, filled backwards (front to back)
-      createVertexBuffer(),     // 5: opaque in submission order (check mask)
+      createVertexBuffer(false, SUBPIXEL), // 0-3: semi-transparent, per blend mode
+      createVertexBuffer(false, SUBPIXEL),
+      createVertexBuffer(false, SUBPIXEL),
+      createVertexBuffer(false, SUBPIXEL),
+      createVertexBuffer(true, SUBPIXEL),  // 4: opaque, filled backwards (front to back)
+      createVertexBuffer(false, SUBPIXEL), // 5: opaque in submission order (check mask)
     ];
 
     constructor() {
@@ -528,12 +533,20 @@ mdlr('enge:webgl2', ({ include }) => {
       this.seenRender = true;
       this.updateDrawArea();
 
-      const x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
-      const y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
-      const x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
-      const y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
-      const x3 = $gpu.daX + ((data[xy3] << 21) >> 21);
-      const y3 = $gpu.daY + ((data[xy3] << 5) >> 21);
+      let x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
+      let y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
+      let x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
+      let y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
+      let x3 = $gpu.daX + ((data[xy3] << 21) >> 21);
+      let y3 = $gpu.daY + ((data[xy3] << 5) >> 21);
+
+      // PGXP: add the quarter-pixel fraction carried from the GTE (polygons only)
+      const pgxpFrac = gpu.pgxpFrac;
+      if (pgxpFrac) {
+        x1 += (pgxpFrac[xy1] & 3) * 0.25; y1 += ((pgxpFrac[xy1] >> 2) & 3) * 0.25;
+        x2 += (pgxpFrac[xy2] & 3) * 0.25; y2 += ((pgxpFrac[xy2] >> 2) & 3) * 0.25;
+        x3 += (pgxpFrac[xy3] & 3) * 0.25; y3 += ((pgxpFrac[xy3] >> 2) & 3) * 0.25;
+      }
 
       if (outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
       if (largePrimitive(x1, y1, x2, y2, x3, y3)) return;
@@ -1244,7 +1257,8 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    *
    * @returns vertex-buffer
    */
-  function createVertexBuffer(reverse = false) {
+  // scale: positions are stored as x * scale (int16), e.g. 4 for quarter pixels
+  function createVertexBuffer(reverse = false, scale = 1) {
     // vertex layout (24 bytes, every field naturally aligned):
     //    0 x  i16    2 y  i16    4 primitive id  i16    6 u  i16    8 v  i16
     //   10 (unused)  12 colour u32   16 texture window u32
@@ -1263,8 +1277,8 @@ mdlr('enge:webgl2:utils', ({ include }) => {
         index -= bytesPerVertex;
       }
       const h = index >> 1, w = index >> 2;
-      i16[h + 0] = x;
-      i16[h + 1] = y;
+      i16[h + 0] = x * scale;
+      i16[h + 1] = y * scale;
       i16[h + 2] = primitiveId;
       i16[h + 3] = u;
       i16[h + 4] = v;
