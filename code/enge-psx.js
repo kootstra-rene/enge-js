@@ -14,7 +14,6 @@ mdlr('enge:psx', ({ include }) => {
     include('enge:psx:mdec'),
     include('enge:psx:gpu'),
     include('enge:psx:gte'),
-    include('enge:psx:pgxp'),
     include('enge:psx:mmu'),
     include('enge:psx:rec'),
     include('enge:psx:spu'),
