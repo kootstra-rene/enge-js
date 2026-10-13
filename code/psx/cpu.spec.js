@@ -4,17 +4,21 @@ mdlr('[test]enge:psx:cpu', ({ include, test }) => {
   const { describe, it, expect, beforeEach, before, after } = test;
 
   const savedVector = globalThis.vector;
+  const savedPsx = globalThis.psx;
   const vector = { pc: 0x80000080 };
 
   let cpu, cpuException, cpuInterrupt;
 
   before(async () => {
     globalThis.vector = vector;
+    globalThis.psx = { clock: 0, eventClock: 0 };
   });
 
   after(async () => {
     if (savedVector === undefined) delete globalThis.vector;
     else globalThis.vector = savedVector;
+    if (savedPsx === undefined) delete globalThis.psx;
+    else globalThis.psx = savedPsx;
   });
 
   beforeEach(async () => {
@@ -83,6 +87,39 @@ mdlr('[test]enge:psx:cpu', ({ include, test }) => {
       cpu.istat = 0;
       cpuException(8 << 2, 0x2000);
       expect(cpu.getCtrl(13) >>> 0).to.eql(8 << 2);
+    });
+
+  });
+
+  describe('interrupt check after unmasking', () => {
+
+    // The main loop only checks interrupts once psx.clock reaches
+    // psx.eventClock; eventClock 0 means "check after this block".
+    beforeEach(async () => {
+      psx.clock = 5000;
+      psx.eventClock = 10000;
+    });
+
+    it('should request a check when SR is written', async () => {
+      cpu.setCtrl(12, 0x401);
+      expect(psx.eventClock).to.eql(0);
+    });
+
+    it('should request a check when CAUSE is written', async () => {
+      cpu.setCtrl(13, 0x100);
+      expect(psx.eventClock).to.eql(0);
+    });
+
+    it('should request a check on RFE', async () => {
+      cpu.sr = 0x04;
+      cpu.rfe();
+      expect(cpu.sr & 0x0f).to.eql(0x01);
+      expect(psx.eventClock).to.eql(0);
+    });
+
+    it('should not request a check for other COP0 registers', async () => {
+      cpu.setCtrl(7, 0);
+      expect(psx.eventClock).to.eql(10000);
     });
 
   });

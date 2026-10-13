@@ -253,6 +253,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
         return;
       case 0x1074: case 0x1075: case 0x1076: case 0x1077:
         cpu.imask = ((data & 0xff) << ((addr & 3) << 3)) & 0x07ff;
+        cpu.requestInterruptCheck();
         irqLog('I_MASK write8', `0x${(data & 0xff).toString(16)}`);
         return;
     }
@@ -313,6 +314,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
         return;
       case 0x1074:
         cpu.imask = data & 0x07ff;
+        cpu.requestInterruptCheck();
         irqLog('I_MASK write16', `0x${(data >>> 0).toString(16)}`);
         return;
     }
@@ -371,6 +373,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
         return;
       case 0x1074:
         cpu.imask = data & 0x07ff;
+        cpu.requestInterruptCheck();
         irqLog('I_MASK write32', `0x${(data >>> 0).toString(16)}`);
         return;
       case 0x1810: gpu.wr32r1810(data); return;
