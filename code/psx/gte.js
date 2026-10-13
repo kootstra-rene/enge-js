@@ -539,6 +539,17 @@ mdlr('enge:psx:gte', ({ include }) => {
 
     cycles: (commandId) => $cycles.get(commandId & 0x3f) || 5,
 
+    // PGXP: set the fraction of SXY0..SXY2 / SXYP after gte.set() wrote the
+    // integer value (LWC2/MTC2 of a value that carries a fraction)
+    setFrac: (regId, frac) => {
+      switch (regId) {
+        case 0x0c: sxyFrac[0] = frac & 15; break;
+        case 0x0d: sxyFrac[1] = frac & 15; break;
+        case 0x0e:
+        case 0x0f: sxyFrac[2] = frac & 15; break;
+      }
+    },
+
     // PGXP: quarter-pixel fraction for SXY0..SXY2 / SXYP (0 for other registers)
     frac: (regId) => {
       switch (regId) {

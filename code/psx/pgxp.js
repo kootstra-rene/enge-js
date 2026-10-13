@@ -13,15 +13,30 @@ mdlr('enge:psx:pgxp', ({ include }) => {
   // therefore just falls back to the normal integer position: a shadow can
   // be missing, but never wrong.
   //
-  // frac byte: bits 0-1 x fraction, bits 2-3 y fraction, bit 4 = valid.
+  // frac byte: bits 0-1 x fraction (low halfword), bits 2-3 y fraction (high
+  // halfword), bit 4 = x valid, bit 5 = y valid. The halves are tracked
+  // separately so packed screen words can be split and recombined.
+  //
+  // Memory-type instructions (LW/SW, LH/LHU/SH, LWC2/SWC2, MFC2/MTC2, moves)
+  // are tracked whenever PGXP is on. ?pgxp=cpu also tracks the ALU
+  // instructions games use on screen coordinates (CPU mode, see alu()).
 
   const params = new URLSearchParams(window.location.search);
   const enabled = params.has('pgxp');
+  const cpuMode = enabled && params.get('pgxp') === 'cpu';
   // ?pgxp&debug-pgxp: report every emulated second how many polygon vertices
   // are precise, and why the others are not (see noteVertex)
   const debug = enabled && params.has('debug-pgxp');
 
-  const VALID = 0x10;
+  const VX = 0x10, VY = 0x20, VALID = VX | VY;
+  const lowF = (f) => f & (0x03 | VX);                                // x half
+  const highF = (f) => f & (0x0c | VY);                               // y half
+  const toHigh = (f) => (f & VX) ? (((f & 3) << 2) | VY) : 0;          // x half moved to the y half
+  const toLow = (f) => (f & VY) ? (((f >> 2) & 3) | VX) : 0;           // y half moved to the x half
+  const isSxy = (reg) => reg >= 0x0c && reg <= 0x0f;
+
+  // ALU kinds used by the recompiler in CPU mode (rec.js PGXP_ALU)
+  const ADDU = 1, SUBU = 2, OR = 3, AND = 4, ADDIU = 5, ORI = 6, ANDI = 7, SLL = 8, SRL = 9, SRA = 10;
   const RAM_WORDS = 0x00200000 >>> 2;
   const SHADOW_WORDS = RAM_WORDS + (0x400 >>> 2);
 
@@ -50,6 +65,17 @@ mdlr('enge:psx:pgxp', ({ include }) => {
   };
 
   const memFracAt = (index, value) => (memFrac[index] && memRaw[index] === value) ? memFrac[index] : 0;
+  const gprFracOf = (r, value) => (r && gprFrac[r] && gprRaw[r] === value) ? gprFrac[r] : 0;
+  const wordOf = (addr) => addr < 0x00800000 ? map[(addr & 0x001fffff) >>> 2] : map[addr >>> 2];
+
+  // a half of a mask keeps a coordinate when it covers all 11 bits the GPU uses
+  const keepByMask = (f, mask) =>
+    (((mask & 0x7ff) === 0x7ff) ? lowF(f) : 0) | ((((mask >>> 16) & 0x7ff) === 0x7ff) ? highF(f) : 0);
+
+  // per half: keep a fraction when exactly one operand has one for that half
+  const eitherHalf = (fa, fb) =>
+    ((fa & VX) && !(fb & VX) ? lowF(fa) : (fb & VX) && !(fa & VX) ? lowF(fb) : 0) |
+    ((fa & VY) && !(fb & VY) ? highF(fa) : (fb & VY) && !(fa & VY) ? highF(fb) : 0);
 
   // ---------------------------------------------------------------------------
   // ?debug-pgxp: coverage statistics
@@ -71,7 +97,7 @@ mdlr('enge:psx:pgxp', ({ include }) => {
   const hex8 = (v) => (v >>> 0).toString(16).padStart(8, '0');
   const cpuAddress = (pc) => pc < 0x00800000 ? (0x80000000 | pc) >>> 0
     : (pc >= 0x01c00000 && pc < 0x01c80000) ? (0xbfc00000 + (pc - 0x01c00000)) >>> 0 : (0x1e000000 + pc) >>> 0;
-  const wordAt = (addr) => addr < 0x00800000 ? map[(addr & 0x001fffff) >>> 2] : map[addr >>> 2];
+  const wordAt = wordOf;
 
   const miss = (reason, pc) => {
     let m = stats.misses.get(reason);
@@ -124,8 +150,65 @@ mdlr('enge:psx:pgxp', ({ include }) => {
     swc2: (rt, addr) => {
       const value = gte.get(rt);
       memWrite32(addr, value);
-      setMem(addr, value, gte.frac(rt) | VALID);
+      setMem(addr, value, isSxy(rt) ? gte.frac(rt) | VALID : 0);
       if (debug) pgxp.noteStore(STORE_SWC2, addr, pgxp.pc);
+    },
+
+    // LWC2 into SXY: called after gte.set(reg, value) when the word has a fraction
+    lwc2: (reg, addr, value) => {
+      gte.setFrac(reg, memFracAt(shadowIndex(addr), value));
+    },
+
+    // MTC2 into SXY: called after gte.set(reg, value) when rt has a fraction
+    mtc2: (reg, rt, value) => {
+      gte.setFrac(reg, gprFracOf(rt, value));
+    },
+
+    // LH/LHU rt, (addr): called after the load (value = the loaded, extended
+    // halfword) when the word has a fraction; that half becomes rt's x half
+    lh: (rt, addr, value) => {
+      if (!rt) return;
+      const f = memFracAt(shadowIndex(addr), wordOf(addr));
+      setGpr(rt, value, (addr & 2) ? toLow(f) : lowF(f));
+    },
+
+    // SH rt, (addr): called after the store (oldWord = the word before it)
+    // when rt or the word has a fraction. rt's x half goes into the stored
+    // half, the other half keeps its fraction.
+    sh: (rt, addr, value, oldWord) => {
+      const index = shadowIndex(addr);
+      const old = (memFrac[index] && memRaw[index] === oldWord) ? memFrac[index] : 0;
+      const f = gprFracOf(rt, value);
+      memRaw[index] = wordOf(addr);
+      memFrac[index] = (addr & 2) ? (lowF(old) | toHigh(f)) : (highF(old) | lowF(f));
+    },
+
+    // CPU mode: called before an ALU instruction when a source has a fraction.
+    // Computes the result like the instruction does and the fraction it keeps:
+    // integer offsets keep it, halves can be split (andi/shift by 16) and
+    // combined (or/addu), anything else drops it (integer fallback).
+    cpu: cpuMode,
+    alu: (kind, rd, rs, rt, a, b, imm) => {
+      if (!rd) return;
+      const fa = gprFracOf(rs, a), fb = gprFracOf(rt, b);
+      let r, f;
+      switch (kind) {
+        case ADDU: r = (a + b) | 0; f = eitherHalf(fa, fb); break;
+        case SUBU: r = (a - b) | 0; f = eitherHalf(fa, 0) & ~((fb & VX ? 0x03 | VX : 0) | (fb & VY ? 0x0c | VY : 0)); break;
+        case OR: r = a | b;
+          f = ((b & 0xffff) === 0 ? lowF(fa) : (a & 0xffff) === 0 ? lowF(fb) : 0) |
+            ((b >>> 16) === 0 ? highF(fa) : (a >>> 16) === 0 ? highF(fb) : 0);
+          break;
+        case AND: r = a & b; f = fa && !fb ? keepByMask(fa, b) : fb && !fa ? keepByMask(fb, a) : 0; break;
+        case ADDIU: r = (a + imm) | 0; f = fa; break;
+        case ORI: r = a | imm; f = highF(fa) | (imm === 0 ? lowF(fa) : 0); break;
+        case ANDI: r = a & imm; f = keepByMask(fa, imm); break;
+        case SLL: r = b << imm; f = imm === 0 ? fb : imm === 16 ? toHigh(fb) : 0; break;
+        case SRL: r = (b >>> imm) | 0; f = imm === 0 ? fb : imm === 16 ? toLow(fb) : 0; break;
+        case SRA: r = b >> imm; f = imm === 0 ? fb : imm === 16 ? toLow(fb) : 0; break;
+        default: return;
+      }
+      setGpr(rd, r, f);
     },
 
     // ?debug-pgxp: set by recompiled code before SWC2 (instruction address)
@@ -167,7 +250,7 @@ mdlr('enge:psx:pgxp', ({ include }) => {
     // by the load delay; the fraction only applies while gpr[rt] === value)
     mfc2: (rt, rd) => {
       const value = gte.get(rd);
-      if (rt) setGpr(rt, value, gte.frac(rd) | VALID);
+      if (rt) setGpr(rt, value, isSxy(rd) ? gte.frac(rd) | VALID : 0);
       return value;
     },
 

@@ -3,7 +3,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
   const { describe, it, expect, before, after } = test;
 
   const globalNames = ['window', 'psx', 'cpu', 'map', 'ram', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls',
-    'getCacheEntry', 'memRead32', 'memWrite32', 'memWrite16', 'memWrite8', 'gte', 'pgxp', 'gpu', 'clearCodeCache',
+    'getCacheEntry', 'memRead32', 'memRead16', 'memWrite32', 'memWrite16', 'memWrite8', 'gte', 'pgxp', 'gpu', 'clearCodeCache',
     'fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord', 'nextPrimitive', 'pgxpMemFrac', 'pgxpGprFrac'];
   const savedGlobals = {};
 
@@ -20,7 +20,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
   const SXY2 = 14;
   const DATA = 0x00100000;
-  const VALID = 0x10;
+  const VALID = 0x30; // x and y half valid
 
   // RTPS result used throughout: SX2 = 100.25, SY2 = 50.75
   const SXY_WORD = (50 << 16) | 100;
@@ -70,6 +70,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     globalThis.memWrite32 = (addr, data) => { map[(addr < 0x00800000 ? addr & 0x001fffff : addr) >>> 2] = data; };
     const bytes = new DataView(map.buffer);
     globalThis.memWrite16 = (addr, data) => bytes.setInt16(addr < 0x00800000 ? addr & 0x001fffff : addr, data, true);
+    globalThis.memRead16 = addr => bytes.getInt16(addr < 0x00800000 ? addr & 0x001fffff : addr, true);
     globalThis.memWrite8 = (addr, data) => bytes.setInt8(addr < 0x00800000 ? addr & 0x001fffff : addr, data);
 
     globalThis.renderer = { fpsRenderCounter: 0, fpsCounter: 0 };
@@ -209,6 +210,149 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
     it('should not pass fractions when no vertex is precise', async () => {
       expect(runList([0x20ffffff | 0, 0x00050005, 0x00100010, 0x00200020])).to.eql([null]);
+    });
+
+  });
+
+  describe('halfwords, LWC2 and MTC2', () => {
+
+    const SH = (rt, rs, off) => ((0x29 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
+    const LH = (rt, rs, off) => ((0x21 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
+    const LWC2 = (rt, rs, off) => ((0x32 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
+    const MTC2 = (rt, rd) => ((0x12 << 26) | (4 << 21) | (rt << 16) | (rd << 11)) >>> 0;
+
+    it('should keep the x fraction when a coordinate is stored with SH', async () => {
+      projectPoint();
+      cpu.gpr[T0] = DATA + 0x40;
+      map[(DATA + 0x40) >>> 2] = 0;
+      runProgram([MFC2(T1, SXY2), NOP, SH(T1, T0, 0), JR_RA, NOP]);
+      expect(map[(DATA + 0x40) >>> 2]).to.eql(100);
+      expect(fracAt(DATA + 0x40)).to.eql(1 | 0x10); // x .25, x valid only
+    });
+
+    it('should load a fraction into the GTE with LWC2', async () => {
+      projectPoint();
+      cpu.gpr[T0] = DATA + 0x50;
+      runProgram([SWC2(SXY2, T0, 0), JR_RA, NOP]);
+      gte.set(0x0c, 0); // clear SXY0
+      runProgram([LWC2(0x0c, T0, 0), JR_RA, NOP]);
+      expect(gte.frac(0x0c)).to.eql(SXY_FRAC);
+    });
+
+    it('should move a fraction into the GTE with MTC2', async () => {
+      projectPoint();
+      runProgram([MFC2(T1, SXY2), NOP, MTC2(T1, 0x0d), JR_RA, NOP]);
+      expect(gte.frac(0x0d)).to.eql(SXY_FRAC);
+    });
+
+    it('should carry the fraction of the loaded half with LH', async () => {
+      projectPoint();
+      cpu.gpr[T0] = DATA + 0x60;
+      runProgram([SWC2(SXY2, T0, 0), LH(T2, T0, 2), NOP, SW(T2, T0, 4), JR_RA, NOP]);
+      // y (50.75) loaded into the low half of t2 and stored as a word: x fraction .75
+      expect(fracAt(DATA + 0x64)).to.eql(3 | 0x10);
+    });
+
+  });
+
+  describe('CPU mode (?pgxp=cpu)', () => {
+
+    const ANDI = (rt, rs, imm) => ((0x0c << 26) | (rs << 21) | (rt << 16) | (imm & 0xffff)) >>> 0;
+    const SLL = (rd, rt, sa) => ((rt << 16) | (rd << 11) | (sa << 6) | 0x00) >>> 0;
+    const SRL = (rd, rt, sa) => ((rt << 16) | (rd << 11) | (sa << 6) | 0x02) >>> 0;
+    const SRA = (rd, rt, sa) => ((rt << 16) | (rd << 11) | (sa << 6) | 0x03) >>> 0;
+    const ADDU = (rd, rs, rt) => ((rs << 21) | (rt << 16) | (rd << 11) | 0x21) >>> 0;
+    const SUBU = (rd, rs, rt) => ((rs << 21) | (rt << 16) | (rd << 11) | 0x23) >>> 0;
+    const SH = (rt, rs, off) => ((0x29 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
+    const LH = (rt, rs, off) => ((0x21 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
+    const LHU = (rt, rs, off) => ((0x25 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
+    const T4 = 12, T5 = 13;
+    const names = ['pgxp', 'pgxpMemFrac', 'pgxpGprFrac', 'getCacheEntry'];
+    const saved = {};
+    let cpuPgxp, cpuGetCacheEntry;
+
+    const use = () => { globalThis.pgxp = cpuPgxp; globalThis.getCacheEntry = cpuGetCacheEntry; };
+
+    before(async () => {
+      for (const name of names) saved[name] = globalThis[name];
+      window.location.search = '?pgxp=cpu';
+      ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = include('enge:psx:pgxp'));
+      ({ getCacheEntry: globalThis.getCacheEntry } = include('enge:psx:rec'));
+      for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
+        if (window[name]) globalThis[name] = window[name];
+      }
+      cpuPgxp = globalThis.pgxp;
+      cpuGetCacheEntry = globalThis.getCacheEntry;
+    });
+
+    after(async () => {
+      window.location.search = '?pgxp';
+      for (const name of names) globalThis[name] = saved[name];
+    });
+
+    // project, then run the program with t0 = buffer and store the result word (t4) at t0+4
+    const run = (words, offset = 0x70) => {
+      use();
+      projectPoint();
+      cpu.gpr[T0] = DATA + offset;
+      runProgram([MFC2(T1, SXY2), NOP, ...words, SW(T4, T0, 4), JR_RA, NOP]);
+      return { word: map[(DATA + offset + 4) >>> 2], frac: fracAt(DATA + offset + 4) };
+    };
+
+    it('should keep the fraction when an integer offset is added', async () => {
+      const r = run([ADDIU(T4, T1, 0x10)]);
+      expect(r.word).to.eql(SXY_WORD + 0x10);
+      expect(r.frac).to.eql(SXY_FRAC | VALID);
+    });
+
+    it('should keep both halves through split and re-pack with andi/srl/sll/or', async () => {
+      const r = run([ANDI(T2, T1, 0xffff), SRL(T3, T1, 16), SLL(T3, T3, 16), OR(T4, T2, T3)], 0x80);
+      expect(r.word).to.eql(SXY_WORD);
+      expect(r.frac).to.eql(SXY_FRAC | VALID);
+    });
+
+    it('should keep both halves when x and y << 16 are packed with addu', async () => {
+      const r = run([ANDI(T2, T1, 0xffff), SRA(T3, T1, 16), SLL(T3, T3, 16), ADDU(T4, T2, T3)], 0x90);
+      expect(r.word).to.eql(SXY_WORD);
+      expect(r.frac).to.eql(SXY_FRAC | VALID);
+    });
+
+    it('should carry halves through SH and LH/LHU', async () => {
+      // store x and y as separate halfwords, read them back, re-pack
+      const r = run([SH(T1, T0, 0), SRL(T2, T1, 16), SH(T2, T0, 2), NOP,
+        LHU(T3, T0, 0), LH(T5, T0, 2), NOP, SLL(T5, T5, 16), OR(T4, T3, T5)], 0xa0);
+      expect(fracAt(DATA + 0xa0)).to.eql(SXY_FRAC | VALID); // the halfword-written word
+      expect(r.word).to.eql(SXY_WORD);
+      expect(r.frac).to.eql(SXY_FRAC | VALID);
+    });
+
+    it('should drop a half when two fractions are added', async () => {
+      // x + x: both have an x fraction, so the x half is dropped; y stays
+      const r = run([ANDI(T2, T1, 0xffff), ADDU(T4, T1, T2)], 0xb0);
+      expect(r.word).to.eql(SXY_WORD + 100);
+      expect(r.frac).to.eql((SXY_FRAC & 0x0c) | 0x20);
+    });
+
+    it('should drop the fraction for a mask that cuts the coordinate', async () => {
+      const r = run([ANDI(T4, T1, 0x00ff)], 0xc0);
+      expect(r.frac).to.eql(0);
+    });
+
+    it('should drop the fraction when the position is subtracted', async () => {
+      const r = run([SUBU(T4, 0, T1)], 0xd0);
+      expect(r.frac).to.eql(0);
+    });
+
+    it('should not generate ALU tracking without CPU mode', async () => {
+      globalThis.pgxp = saved.pgxp;
+      globalThis.getCacheEntry = saved.getCacheEntry;
+      try {
+        const entry = runProgram([ADDIU(T4, T1, 0x10), SLL(T3, T1, 16), OR(T4, T2, T3), JR_RA, NOP]);
+        expect(entry.code.toString().includes('pgxp.alu')).to.eql(false);
+      }
+      finally {
+        use();
+      }
     });
 
   });
