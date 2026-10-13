@@ -195,13 +195,15 @@
     flat out ivec4 twin;
 
     void main() {
-      gl_Position = vec4(a_position, 1.0);
+      // a_position.xy is in quarter pixels (SUBPIXEL = 4 in enge-webgl2.js)
+      vec2 pixel = a_position.xy * 0.25;
+      gl_Position = vec4(pixel, a_position.z, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
       gl_Position.z = (a_position.z / 32768.0);
 
       v_vramCoord = a_texcoord; // texture is 4096x2048
-      v_pixelCoord = a_position.xy;
+      v_pixelCoord = pixel;
       //v_color = vec4(a_color.rgb, 1.0);
       v_textureMode = uint(mod(a_tmode, 4.0));
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
