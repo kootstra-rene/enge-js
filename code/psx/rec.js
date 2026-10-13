@@ -39,6 +39,15 @@ mdlr('enge:psx:rec', ({ include }) => {
   // PGXP hooks are only generated when the pgxp module is loaded and enabled
   // (?pgxp in the URL); otherwise the compiled code is unchanged.
   const pgxpOn = () => typeof pgxp !== 'undefined' && pgxp.enabled;
+  // ?debug-pgxp: stores also report their kind and instruction address
+  const pgxpDebug = () => pgxpOn() && pgxp.debug;
+  const pgxpNote = (kind, a) => pgxpDebug() ? `\npgxp.noteStore(${kind}, ${a}, 0x${hex(state.pc)});` : '';
+  // store through a temporary address so the debug note can use it
+  const pgxpStore = (kind, store) => {
+    if (!pgxpDebug()) return null;
+    const a = `_pa${state.loadSeq++}`;
+    return `const ${a} = ${getOF(state.opcode)};\n` + store(a) + pgxpNote(kind, a);
+  };
   // same mapping as shadowIndex() in pgxp.js, inlined into compiled code
   const pgxpIndex = (a) => `((${a} < 0x00800000 ? (${a} & 0x001fffff) : (0x00200000 | (${a} & 0x3ff))) >>> 2)`;
 
@@ -199,16 +208,22 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '28': (rec, opc) => {
+      const debug = pgxpStore(1, a => `memWrite8(${a}, ${getRT()});`);
+      if (debug) return debug;
       const code = setReg(0, 'memWrite8(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
 
     '29': (rec, opc) => {
+      const debug = pgxpStore(2, a => `memWrite16(${a}, ${getRT()});`);
+      if (debug) return debug;
       const code = setReg(0, 'memWrite16(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
 
     '2A': (rec, opc) => {
+      const debug = pgxpStore(5, a => `cpu.swl(${rec.rt}, ${a});`);
+      if (debug) return debug;
       const code = setReg(0, 'cpu.swl(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
@@ -216,16 +231,18 @@ mdlr('enge:psx:rec', ({ include }) => {
     '2B': (rec, opc) => {
       if (pgxpOn()) {
         // inline fast path: only call into pgxp when rt carries a fraction
-        if (!rec.rt) return setReg(0, `memWrite32(${getOF(opc)}, 0)`);
         const a = `_pa${state.loadSeq++}`;
+        if (!rec.rt) return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, 0);` + pgxpNote(3, a);
         return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, ${getRT()});\n` +
-          `if (pgxpGprFrac[${rec.rt}] !== 0) pgxp.sw(${rec.rt}, ${a}, ${getRT()});`;
+          `if (pgxpGprFrac[${rec.rt}] !== 0) pgxp.sw(${rec.rt}, ${a}, ${getRT()});` + pgxpNote(3, a);
       }
       const code = setReg(0, `memWrite32(${getOF(opc)}, ${getRT()})`);
       return code;
     },
 
     '2E': (rec, opc) => {
+      const debug = pgxpStore(5, a => `cpu.swr(${rec.rt}, ${a});`);
+      if (debug) return debug;
       const code = setReg(0, 'cpu.swr(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
@@ -236,7 +253,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '3A': (rec, opc) => {
-      if (pgxpOn()) return setReg(0, `pgxp.swc2(${rec.rt}, ${getOF(opc)})`);
+      if (pgxpOn()) return (pgxpDebug() ? `pgxp.pc = 0x${hex(rec.pc)};\n` : '') + setReg(0, `pgxp.swc2(${rec.rt}, ${getOF(opc)})`);
       const code = setReg(0, 'memWrite32(' + getOF(opc) + ', gte.get(' + rec.rt + '))');
       return code;
     },
@@ -512,6 +529,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     state.wreg = 0;
     state.newLoad = null;
+    state.opcode = opcode;
     lines.push(recmap[opc](state, opcode));
 
     // MIPS-I load delay: commit the previous instruction's pending load now

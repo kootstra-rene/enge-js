@@ -3,7 +3,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
   const { describe, it, expect, before, after } = test;
 
   const globalNames = ['window', 'psx', 'cpu', 'map', 'ram', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls',
-    'getCacheEntry', 'memRead32', 'memWrite32', 'gte', 'pgxp', 'gpu', 'clearCodeCache',
+    'getCacheEntry', 'memRead32', 'memWrite32', 'memWrite16', 'memWrite8', 'gte', 'pgxp', 'gpu', 'clearCodeCache',
     'fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord', 'nextPrimitive', 'pgxpMemFrac', 'pgxpGprFrac'];
   const savedGlobals = {};
 
@@ -68,6 +68,9 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     globalThis.ram = new DataView(map.buffer, 0, 2 * 1024 * 1024);
     globalThis.memRead32 = addr => map[(addr < 0x00800000 ? addr & 0x001fffff : addr) >>> 2];
     globalThis.memWrite32 = (addr, data) => { map[(addr < 0x00800000 ? addr & 0x001fffff : addr) >>> 2] = data; };
+    const bytes = new DataView(map.buffer);
+    globalThis.memWrite16 = (addr, data) => bytes.setInt16(addr < 0x00800000 ? addr & 0x001fffff : addr, data, true);
+    globalThis.memWrite8 = (addr, data) => bytes.setInt8(addr < 0x00800000 ? addr & 0x001fffff : addr, data);
 
     globalThis.renderer = { fpsRenderCounter: 0, fpsCounter: 0 };
     ({ gte: globalThis.gte } = include('enge:psx:gte'));
@@ -206,6 +209,103 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
     it('should not pass fractions when no vertex is precise', async () => {
       expect(runList([0x20ffffff | 0, 0x00050005, 0x00100010, 0x00200020])).to.eql([null]);
+    });
+
+  });
+
+  describe('coverage statistics (?debug-pgxp)', () => {
+
+    const LUI = (rt, imm) => ((0x0f << 26) | (rt << 16) | (imm & 0xffff)) >>> 0;
+    const ORI = (rt, rs, imm) => ((0x0d << 26) | (rs << 21) | (rt << 16) | (imm & 0xffff)) >>> 0;
+    const SH = (rt, rs, off) => ((0x29 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
+    const saved = {};
+    const names = ['pgxp', 'pgxpMemFrac', 'pgxpGprFrac', 'getCacheEntry'];
+    let logs, debugPgxp, debugGetCacheEntry;
+    const savedLog = console.log;
+
+    // linked-list packet at base: [header, cmd, xy0, xy1, xy2]
+    const header = (base) => { map[base >>> 2] = ((4 << 24) | 0x00ffffff) | 0; map[(base >>> 2) + 1] = 0x20ffffff | 0; };
+    const drawList = (base) => { gpu.dmaTransferMode0401(base, 0); pgxp.report(); return window.pgxpStats || ''; };
+
+    before(async () => {
+      for (const name of names) saved[name] = globalThis[name];
+      window.location.search = '?pgxp&debug-pgxp';
+      ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = include('enge:psx:pgxp'));
+      ({ getCacheEntry: globalThis.getCacheEntry } = include('enge:psx:rec'));
+      for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
+        if (window[name]) globalThis[name] = window[name];
+      }
+      debugPgxp = globalThis.pgxp;
+      debugGetCacheEntry = globalThis.getCacheEntry;
+      logs = [];
+      console.log = (...args) => logs.push(args.join(' '));
+    });
+
+    after(async () => {
+      console.log = savedLog;
+      window.location.search = '?pgxp';
+      delete window.pgxpStats;
+      for (const name of names) globalThis[name] = saved[name];
+    });
+
+    it('should count precise vertices and name the store that wrote the others', async () => {
+      const base = 0x4000;
+      header(base);
+      projectPoint();
+      cpu.gpr[T0] = base;
+      const entry = runProgram([
+        SWC2(SXY2, T0, 8),                              // xy0: precise
+        LUI(T1, 0x0010), ORI(T1, T1, 0x0010), SW(T1, T0, 12), // xy1: SW of a constant
+        ADDIU(T2, 0, 0x20), SH(T2, T0, 16), SH(T2, T0, 18),   // xy2: two halfwords
+        JR_RA, NOP]);
+      const at = (i) => '0x' + ((0x80000000 | (entry.pc + 4 * i)) >>> 0).toString(16).padStart(8, '0');
+      const line = drawList(base);
+      expect(line.includes('1/3 polygon vertices precise (33.3%)')).to.eql(true);
+      expect(line.includes(`SW of a register without a fraction: 1 (at ${at(3)} x1)`)).to.eql(true);
+      expect(line.includes(`written with SH (halfword): 1 (at ${at(6)} x1)`)).to.eql(true);
+      expect(logs.includes(line)).to.eql(true);
+    });
+
+    it('should report vertices that were never stored by the CPU', async () => {
+      const base = 0x5000;
+      header(base);
+      [0x00050005, 0x00100010, 0x00200020].forEach((w, i) => { map[(base >>> 2) + 2 + i] = w; }); // e.g. CD DMA
+      const line = drawList(base);
+      expect(line.includes('0/3 polygon vertices precise')).to.eql(true);
+      expect(line.includes('never stored by the CPU (e.g. loaded by DMA): 3')).to.eql(true);
+    });
+
+    it('should report vertices changed after the last CPU store', async () => {
+      const base = 0x6000;
+      header(base);
+      cpu.gpr[T0] = base;
+      cpu.gpr[T1] = 0x00100010;
+      runProgram([SW(T1, T0, 8), SW(T1, T0, 12), SW(T1, T0, 16), JR_RA, NOP]);
+      map[(base >>> 2) + 2] = 0x00300030; // overwritten without a tracked store
+      const line = drawList(base);
+      expect(line.includes('changed after the last CPU store (DMA or an untracked path): 1')).to.eql(true);
+      expect(line.includes('SW of a register without a fraction: 2')).to.eql(true);
+    });
+
+    it('should count polygons written to GP0 by the CPU', async () => {
+      [0x20ffffff | 0, 0x00050005, 0x00100010, 0x00200020].forEach(w => gpu.wr32r1810(w));
+      pgxp.report();
+      expect((window.pgxpStats || '').includes('3 vertices in polygons written to GP0 by the CPU')).to.eql(true);
+    });
+
+    it('should not generate the statistics code without ?debug-pgxp', async () => {
+      globalThis.getCacheEntry = saved.getCacheEntry;
+      globalThis.pgxp = saved.pgxp;
+      try {
+        cpu.gpr[T0] = DATA;
+        const entry = runProgram([SW(T1, T0, 0), SH(T1, T0, 4), SWC2(SXY2, T0, 8), JR_RA, NOP]);
+        expect(entry.code.toString().includes('noteStore')).to.eql(false);
+        expect(entry.code.toString().includes('pgxp.pc')).to.eql(false);
+      }
+      finally {
+        globalThis.pgxp = debugPgxp;
+        globalThis.getCacheEntry = debugGetCacheEntry;
+      }
     });
 
   });
