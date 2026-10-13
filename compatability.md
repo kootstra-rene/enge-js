@@ -47,6 +47,7 @@
 | SLUS-00900 | Final Fantasy VI | US | 🟢 Playable | 2026-10-08 | |
 | SCUS-94163 | Final Fantasy VII | US | 🟢 Playable | 2026-10-08 | Graphical glitches; minigames require WebGL2. |
 | SLUS-00892 | Final Fantasy VIII | US | 🟢 Playable | 2026-10-08 | |
+| SLUS-01251 | Final Fantasy IX | US | 🟢 Playable | 2026-10-13 | |
 | SLUS-00690 | G-Darius | US | 🟢 Playable | 2021-06-20 | |
 | SCUS-94194 | Gran Turismo | US | 🟢 Playable | 2026-10-12 | |
 | SCUS-94455 | Gran Turismo 2 | US | 🟢 Playable | 2026-10-12 | |
