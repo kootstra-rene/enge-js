@@ -2,10 +2,6 @@ mdlr('enge:webgl2', ({ include }) => {
 
   const { createVertexBuffer, createProgramFromScripts } = include('enge:webgl2:utils');
 
-  // Draw primitives store positions in 1/SUBPIXEL pixel units so PGXP
-  // vertices can land between pixels; must match the 'pixel' vertex shader.
-  const SUBPIXEL = 4;
-
   const $gpu = {
     // draw area that applies to the vertices currently queued; the da* fields
     // can already hold a newer area that only takes effect in updateDrawArea()
@@ -216,14 +212,13 @@ mdlr('enge:webgl2', ({ include }) => {
 
   // todo: refactor to completely move this class
   class WebGLRenderer {
-    // positions in quarter pixels (SUBPIXEL), see the 'pixel' shader
     buffers = [
-      createVertexBuffer(false, SUBPIXEL), // 0-3: semi-transparent, per blend mode
-      createVertexBuffer(false, SUBPIXEL),
-      createVertexBuffer(false, SUBPIXEL),
-      createVertexBuffer(false, SUBPIXEL),
-      createVertexBuffer(true, SUBPIXEL),  // 4: opaque, filled backwards (front to back)
-      createVertexBuffer(false, SUBPIXEL), // 5: opaque in submission order (check mask)
+      createVertexBuffer(),     // 0-3: semi-transparent, per blend mode
+      createVertexBuffer(),
+      createVertexBuffer(),
+      createVertexBuffer(),
+      createVertexBuffer(true), // 4: opaque, filled backwards (front to back)
+      createVertexBuffer(),     // 5: opaque in submission order (check mask)
     ];
 
     constructor() {
@@ -995,7 +990,12 @@ mdlr('enge:webgl2', ({ include }) => {
     ambilight.drawImage(canvas, 0, 0);
   }
 
-  const vertexStride = 24;
+  // Vertex layout, shared by both programs (see createVertexBuffer):
+  //   0 position x, y, z (float32; x/y may be sub-pixel with PGXP, z = primitiveId)
+  //  12 texcoord u, v (int16)   16 color (4 x u8)   20 twin (4 x u8)
+  //  24 clut (u16)              26 tmode (u8)
+  // Positions are floats so sub-pixel vertices need no shader change.
+  const vertexStride = 28;
 
   // attribute layout lives in a VAO per program, bound to that program's own
   // vertex buffer; attributes the linker optimised out (location -1) are skipped
@@ -1021,8 +1021,8 @@ mdlr('enge:webgl2', ({ include }) => {
     program.drawArea = gl_getUniformLocation(program, "u_draw");
 
     createVertexArray(program, displayBuffer, [
-      ['a_position', 3, gl.SHORT, false, 0],
-      ['a_texcoord', 2, gl.SHORT, false, 6],
+      ['a_position', 3, gl.FLOAT, false, 0],
+      ['a_texcoord', 2, gl.SHORT, false, 12],
     ]);
 
     return program;
@@ -1034,12 +1034,12 @@ mdlr('enge:webgl2', ({ include }) => {
     program.setMask = gl_getUniformLocation(program, 'u_setMask');
 
     createVertexArray(program, renderBuffer, [
-      ['a_position', 3, gl.SHORT, false, 0],
-      ['a_texcoord', 2, gl.SHORT, false, 6],
-      ['a_color', 4, UNSIGNED_BYTE, true, 12],
-      ['a_twin', 4, UNSIGNED_BYTE, false, 16],
-      ['a_clut', 1, gl.SHORT, false, 20],
-      ['a_tmode', 1, gl.BYTE, false, 22],
+      ['a_position', 3, gl.FLOAT, false, 0],
+      ['a_texcoord', 2, gl.SHORT, false, 12],
+      ['a_color', 4, UNSIGNED_BYTE, true, 16],
+      ['a_twin', 4, UNSIGNED_BYTE, false, 20],
+      ['a_clut', 1, gl.SHORT, false, 24],
+      ['a_tmode', 1, gl.BYTE, false, 26],
     ]);
 
     return program;
@@ -1257,35 +1257,33 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    *
    * @returns vertex-buffer
    */
-  // scale: positions are stored as x * scale (int16), e.g. 4 for quarter pixels
-  function createVertexBuffer(reverse = false, scale = 1) {
-    // vertex layout (24 bytes, every field naturally aligned):
-    //    0 x  i16    2 y  i16    4 primitive id  i16    6 u  i16    8 v  i16
-    //   10 (unused)  12 colour u32   16 texture window u32
-    //   20 clut u16  22 texture mode/page u8   23 (unused)
+  // layout: see vertexStride in enge:webgl2
+  function createVertexBuffer(reverse = false) {
     // typed-array stores are about twice as fast as DataView calls; WebGL and
     // typed arrays both use the platform byte order
-    const buffer = new Uint8Array(1024 * 1024);
+    const bytesPerVertex = 28;
+    // same vertex capacity as the former 1MB buffer of 24-byte vertices
+    const buffer = new Uint8Array(bytesPerVertex * 43690);
     const i16 = new Int16Array(buffer.buffer);
     const u16 = new Uint16Array(buffer.buffer);
     const u32 = new Uint32Array(buffer.buffer);
+    const f32 = new Float32Array(buffer.buffer);
 
-    const bytesPerVertex = 24;
     let index = 0;
     buffer.addVertex = (x, y, u, v, c = 0x00808080, cl) => {
       if (reverse) {
         index -= bytesPerVertex;
       }
       const h = index >> 1, w = index >> 2;
-      i16[h + 0] = x * scale;
-      i16[h + 1] = y * scale;
-      i16[h + 2] = primitiveId;
-      i16[h + 3] = u;
-      i16[h + 4] = v;
-      u32[w + 3] = c;
-      u32[w + 4] = gpu.twin;
-      u16[h + 10] = cl;
-      buffer[index + 22] = ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2);
+      f32[w + 0] = x;
+      f32[w + 1] = y;
+      f32[w + 2] = primitiveId;
+      i16[h + 6] = u;
+      i16[h + 7] = v;
+      u32[w + 4] = c;
+      u32[w + 5] = gpu.twin;
+      u16[h + 12] = cl;
+      buffer[index + 26] = ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2);
       if (!reverse) {
         index += bytesPerVertex;
       }
