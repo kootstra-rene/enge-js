@@ -72,8 +72,7 @@ fn signed16(v:u32)->f32 { return f32(i32(v << 16u) >> 16); }
 @vertex fn vertex(@builtin(vertex_index) i:u32)->Vertex {
  let n=i*6u; let c=vertices[n]; let xy=vertices[n+1u]; let uv=vertices[n+2u];
  let cl=vertices[n+3u]; let page=vertices[n+4u]; let win=vertices[n+5u]; var o:Vertex;
- // Match PS1's half-pixel vertex sampling when rasterizing at pixel centers.
- o.position=vec4f((signed16(xy)+8.0)/8192.0-1.0,1.0-(signed16(xy>>16u)+8.0)/4096.0,0.0,1.0);
+ o.position=vec4f(signed16(xy)/8192.0-1.0,1.0-signed16(xy>>16u)/4096.0,0.0,1.0);
  o.color=vec3f(f32(c&255u),f32((c>>8u)&255u),f32((c>>16u)&255u))/256.0;
  o.uv=vec2f(signed16(uv),signed16(uv>>16u)); o.clut=vec2u(cl&65535u,cl>>16u);
  o.page=vec2u(page&65535u,page>>16u);o.window=vec4u(win&255u,(win>>8u)&255u,(win>>16u)&255u,win>>24u);
@@ -84,7 +83,7 @@ fn word(x:u32,y:u32)->u32 {let c=pixel(x,y);let rgb=vec3u(clamp(round(c.rgb*32.0
  return rgb.r|(rgb.g<<5u)|(rgb.b<<10u)|select(0u,32768u,c.a>=0.5);}
 @fragment fn fragment(i:Vertex)->@location(0) vec4f {
  let depth=i.mode&7u; if(depth==3u){return vec4f(i.color,params.x);}
- var uv=vec2u(vec2i(floor(i.uv+vec2f(0.001))));if(depth!=2u && any(i.window.xy!=vec2u(0u))){
+ var uv=vec2u(vec2i(floor(i.uv)));if(depth!=2u && any(i.window.xy!=vec2u(0u))){
  // Preserve the working WebGL1 modulo window behaviour in this initial backend.
  uv=uv%(vec2u(256u)-i.window.xy);}
  let t=i.page+i.window.zw+uv;var c:vec4f;
