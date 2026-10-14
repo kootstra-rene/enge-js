@@ -6,7 +6,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
   // MIT). Only the 13 cases listed as passing in its psx.log, captured on real
   // hardware, are included.
 
-  const globalNames = ['window', 'psx', 'cpu', 'gpu', 'ram', 'renderer', 'abort', 'hex', 'clearCodeCache'];
+  const globalNames = ['window', 'psx', 'cpu', 'gpu', 'ram', 'renderer', 'nextPrimitive', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
 
   const DPCR = 0x10f0;
@@ -66,6 +66,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
     globalThis.renderer = new Proxy({}, { get: () => () => {} });
+    globalThis.nextPrimitive = () => {}; // renderer hook
   });
 
   after(async () => {
@@ -155,6 +156,40 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
     it('should clear start and trigger after a transfer', async () => {
       runOtc(OTC, 32 * 1024);
       expect(dma.rd32(CHCR) >>> 0).to.eql(0b10);
+    });
+
+  });
+
+  describe('GPU transfers (channel 2)', () => {
+
+    const MADR2 = 0x10a0;
+    const BCR2 = 0x10a4;
+    const CHCR2 = 0x10a8;
+    const LIST = 0x2000;
+
+    // one linked list node holding a POLY_F3 covering 5000 pixels
+    const startPolygonList = () => {
+      gpu.wr32r1810(0xe3000000);
+      gpu.wr32r1810(0xe4000000 | (239 << 10) | 319);
+      [0x04ffffff, 0x20ff0000, 0x00000000, 0x00000064, 0x00640000].forEach((v, i) => ram.setUint32(LIST + 4 * i, v, true));
+      dma.wr32(DPCR, 0x00000800);
+      dma.wr32(MADR2, LIST);
+      dma.wr32(BCR2, 0);
+      dma.wr32(CHCR2, 0x01000401);
+    };
+
+    it('should not complete before the GPU has drawn the list', async () => {
+      startPolygonList();
+      const drawEnd = gpu.busyUntil;
+      expect(drawEnd > 1000).to.eql(true);
+      psx.settle();
+      expect(psx.clock >= drawEnd).to.eql(true);
+      expect((gpu.rd32r1814() >>> 26) & 1).to.eql(1); // ready for commands when the IRQ fires
+    });
+
+    it('should keep the transfer busy while the GPU is drawing', async () => {
+      startPolygonList();
+      expect((dma.rd32(CHCR2) >>> 24) & 1).to.eql(1);
     });
 
   });
