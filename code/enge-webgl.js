@@ -170,10 +170,11 @@ mdlr('enge:webgl', ({ include }) => {
     "varying float tox;" + // texture window offset x
     "varying float toy;" + // texture window offset y
 
+    "varying float twox;" + // texture window offset x bits
+    "varying float twoy;" + // texture window offset y bits
+
     "varying float tcx;" + // texture coordinate x
     "varying float tcy;" + // texture coordinate y
-
-    "varying float twin;" +
 
     "void main(void) {" +
     "  gl_Position = vec4(aVertexPosition, 0.0, 1.0); " +
@@ -184,13 +185,13 @@ mdlr('enge:webgl', ({ include }) => {
     "  vClut.x /= 1024.0;" +
     "  vClut.y /= 512.0;" +
 
-    "  twin = aTextureWindow.x + aTextureWindow.y;" +
+    "  tmx = aTextureWindow.x;" +
+    "  tmy = aTextureWindow.y;" +
 
-    "  tmx = 256.0 - aTextureWindow.x;" +
-    "  tmy = 256.0 - aTextureWindow.y;" +
-
-    "  tox = aTexturePage.x + aTextureWindow.z;" +
-    "  toy = aTexturePage.y + aTextureWindow.a;" +
+    "  tox = aTexturePage.x;" +
+    "  toy = aTexturePage.y;" +
+    "  twox = aTextureWindow.z;" +
+    "  twoy = aTextureWindow.a;" +
 
     "  tcx = aVertexTexture.x;" +
     "  tcy = aVertexTexture.y;" +
@@ -221,10 +222,11 @@ mdlr('enge:webgl', ({ include }) => {
     "varying float tox;" + // texture window offset x
     "varying float toy;" + // texture window offset yx
 
+    "varying float twox;" + // texture window offset x bits
+    "varying float twoy;" + // texture window offset y bits
+
     "varying float tcx;" + // texture coordinate x
     "varying float tcy;" + // texture coordinate y
-
-    "varying float twin;" +
 
     "float getSRGB16(float cx, float cy) {" +
     "  float tx = floor(cx * 1024.0) * 2.0;" +
@@ -243,17 +245,25 @@ mdlr('enge:webgl', ({ include }) => {
     "  return vec4(r, g, b, a);" +
     "}" +
 
+    "float applyTextureWindow(float coord, float mask, float offset) {" +
+    "  float source = mod(floor(coord + 0.001), 256.0);" +
+    "  float result = source;" +
+    "  for (int bitIndex = 0; bitIndex < 8; bitIndex++) {" +
+    "    float bitValue = pow(2.0, float(bitIndex));" +
+    "    if (mod(floor(mask / bitValue), 2.0) >= 1.0) {" +
+    "      float sourceBit = mod(floor(source / bitValue), 2.0);" +
+    "      float offsetBit = mod(floor(offset / bitValue), 2.0);" +
+    "      result += (offsetBit - sourceBit) * bitValue;" +
+    "    }" +
+    "  }" +
+    "  return result;" +
+    "}" +
+
     "vec4 getClutColor() {" +
     "  float cx, cy, val, tx, ty;" +
     "  vec4 rgba;" +
-    "  if (twin != 0.0) {" +
-    "    tx = tox + mod(floor(tcx), tmx);" +
-    "    ty = toy + mod(floor(tcy), tmy);" +
-    "  }" +
-    "  else {" +
-    "    tx = tox + floor(tcx);" +
-    "    ty = toy + floor(tcy);" +
-    "  }" +
+    "  tx = tox + applyTextureWindow(tcx, tmx, twox);" +
+    "  ty = toy + applyTextureWindow(tcy, tmy, twoy);" +
     "  if (vTextureMode == 1.0) {" +
     "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).a * 255.0;" +
     "    cx = vClut.x + (val / 1024.0); cy = vClut.y;" +
@@ -268,7 +278,7 @@ mdlr('enge:webgl', ({ include }) => {
     "  }" +
     "  else" +
     "  if (vTextureMode == 2.0) {" +
-    `    cx = (tox + tcx) / 1024.0; cy = (toy + tcy) / 512.0;` +
+    `    cx = tx / 1024.0; cy = ty / 512.0;` +
     "    rgba = texture2D(uTex8, vec2(cx, cy));" +
     "  }" +
     "  if (rgba.a == 0.0) {" +
