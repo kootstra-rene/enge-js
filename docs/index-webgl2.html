@@ -195,7 +195,9 @@
     flat out ivec4 twin;
 
     void main() {
-      gl_Position = vec4(a_position, 1.0);
+      // PS1 vertices are positioned on integer pixel coordinates. Offset the
+      // rasterized position by half a pixel so fragment centers match PS1.
+      gl_Position = vec4(a_position.xy + vec2(0.5), a_position.z, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
       gl_Position.z = (a_position.z / 32768.0);
@@ -284,8 +286,8 @@
         else {
           vec4 tc;
 
-          int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
-          int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
+          int tx = ((int(v_vramCoord.x + 0.001) & 255) & ~twin.x) | (twin.z & twin.x);
+          int ty = ((int(v_vramCoord.y + 0.001) & 255) & ~twin.y) | (twin.a & twin.y);
 
           if (v_textureMode == 0u) tc = vram4bit(tx, ty);
           if (v_textureMode == 1u) tc = vram8bit(tx, ty);
