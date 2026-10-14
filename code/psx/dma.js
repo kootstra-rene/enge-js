@@ -114,7 +114,11 @@ mdlr('enge:psx:dma', ({ include }) => {
         default: abort(hex(ctrl));
       }
 
-      setEvent(eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
+      // The GPU FIFO is only 16 words deep, so a transfer to the GPU cannot
+      // finish before the GPU has drawn what it received: complete the DMA
+      // (and raise its IRQ) no earlier than the end of the draw time.
+      const drawCycles = Math.max(0, gpu.busyUntil - psx.clock);
+      setEvent(eventDMA2, Math.max(((transferSize * 0x110) / 0x100) >>> 0, Math.ceil(drawCycles)));
     }
     else {
       r10a8 &= 0xfeffffff;
