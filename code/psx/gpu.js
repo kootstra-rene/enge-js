@@ -79,63 +79,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
   const isPolyLine = packetId => (packetId & 0xe8) === 0x48;
 
-  // Drawing takes time on the real GPU: GPUSTAT bit 26 (ready to receive a
-  // command) stays clear until the queued primitives are drawn. Some libgpu
-  // versions rely on that, e.g. DrawSync(1) in Dukes of Hazzard only returns
-  // 0 while bit 28 is set and bit 26 is clear, and the game spins on it right
-  // after DrawOTag. The draw time is a rough estimate from the pixel count:
-  // about one pixel per GPU clock, two when textured, and the DuckStation
-  // formula for fills. GPU clock = CPU clock * 11 / 7.
-  const triPixels = (a, b, c) => {
-    const ax = (a << 21) >> 21, ay = (a << 5) >> 21;
-    const bx = (b << 21) >> 21, by = (b << 5) >> 21;
-    const cx = (c << 21) >> 21, cy = (c << 5) >> 21;
-    return Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2;
-  };
-
-  const drawAreaPixels = () =>
-    Math.max(0, gpu.drawAreaX2 - gpu.drawAreaX1 + 1) * Math.max(0, gpu.drawAreaY2 - gpu.drawAreaY1 + 1);
-
-  const RECT_SIZES = [0, 1, 8, 16];
-
-  const drawCycles = (packetId, data) => {
-    const textured = (packetId >>> 2) & 1;
-    let ticks = 0;
-    switch (packetId >>> 5) {
-      case 0: // fill
-        if (packetId === 0x02) {
-          const w = ((data[2] & 0x3ff) + 0xf) & ~0xf, h = (data[2] >>> 16) & 0x1ff;
-          ticks = 46 + ((w >>> 3) + 9) * h;
-        }
-        break;
-      case 1: { // polygon
-        const stride = 1 + textured + ((packetId >>> 4) & 1);
-        let pixels = triPixels(data[1], data[1 + stride], data[1 + 2 * stride]);
-        if (packetId & 0x08) pixels += triPixels(data[1 + stride], data[1 + 2 * stride], data[1 + 3 * stride]);
-        ticks = Math.min(pixels, drawAreaPixels()) * (1 + textured);
-        break;
-      }
-      case 3: { // rectangle
-        const size = (packetId >>> 3) & 3;
-        const wh = data[textured ? 3 : 2];
-        const pixels = size ? RECT_SIZES[size] * RECT_SIZES[size] : (wh & 0x3ff) * ((wh >>> 16) & 0x1ff);
-        ticks = Math.min(pixels, drawAreaPixels()) * (1 + textured);
-        break;
-      }
-      case 4: { // VRAM to VRAM copy: read and write every pixel
-        const wh = data[3];
-        ticks = 2 * (((wh - 1) & 0x3ff) + 1) * ((((wh >>> 16) - 1) & 0x1ff) + 1);
-        break;
-      }
-    }
-    return ticks * 7 / 11;
-  };
-
-  const addDrawTime = (packetId, data) => {
-    const cycles = drawCycles(packetId, data);
-    if (cycles > 0) gpu.busyUntil = Math.max(gpu.busyUntil, psx.clock) + cycles;
-  };
-
   // the terminator is checked at the start of every vertex after the first one
   const isPolyLineTerminator = (packetId, index, value) => {
     if (index < 2) return false;
@@ -165,7 +108,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
     maxheights: [240, 480, 256, 512],
     maxwidths: [256, 368, 320, 368, 512, 368, 640, 368],
     packetSize: 0,
-    busyUntil: 0,
     result: 2,
     status: 0x14802000,
     tp: 0,
@@ -298,8 +240,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         case 2: request = (gpu.status >>> 28) & 1; break;
         case 3: request = (gpu.status >>> 27) & 1; break;
       }
-      const ready = psx.clock < gpu.busyUntil ? ~0x04000000 : ~0;
-      return (gpu.status & ~0x02000000 & ready) | (request << 25);
+      return (gpu.status & ~0x02000000) | (request << 25);
     },
 
     wr32r1810: data => {
@@ -313,7 +254,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
           if (isPolyLineTerminator(packetId, dmaIndex, data) || dmaIndex === dmaBuffer.length) {
             nextPrimitive();
             handlers[packetId].call(gpu, dmaBuffer, dmaIndex);
-            addDrawTime(packetId, dmaBuffer);
             dmaIndex = 0;
           }
           else {
@@ -332,7 +272,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
           var packetId = dmaBuffer[0] >>> 24;
           nextPrimitive();
           handlers[packetId].call(gpu, dmaBuffer);
-          addDrawTime(packetId, dmaBuffer);
           dmaIndex = 0;
         }
       }
@@ -352,7 +291,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
       }
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14820000;
-          gpu.busyUntil = 0;
           dmaIndex = 0;
           allowTextureDisable = 0;
           /*
@@ -841,7 +779,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
             if (nitem < 0) return words;
             nextPrimitive();
             handlers[packetId].call(gpu, data, i);
-            addDrawTime(packetId, data);
             gpu.updated = true;
           }
           else {
@@ -853,7 +790,6 @@ mdlr('enge:psx:gpu', ({ include }) => {
             if (nitem < 0) return words;
             nextPrimitive();
             handlers[packetId].call(gpu, data, 0);
-            addDrawTime(packetId, data);
             gpu.updated = true;
           }
         }
