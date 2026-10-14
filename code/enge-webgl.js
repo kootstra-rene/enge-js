@@ -177,6 +177,9 @@ mdlr('enge:webgl', ({ include }) => {
 
     "void main(void) {" +
     "  gl_Position = vec4(aVertexPosition, 0.0, 1.0); " +
+    // PS1 vertices lie on integer pixel coordinates. Shift them by half a pixel so WebGL's
+    // pixel-center sampling matches the PS1 rasterizer's texture-coordinate interpolation.
+    "  gl_Position.x += 8.0; gl_Position.y += 8.0;" +
     "  gl_Position.x -= 8192.0; gl_Position.y -= 4096.0;" +
     "  gl_Position.x /= 8192.0; gl_Position.y /= 4096.0;" +
 
@@ -247,12 +250,12 @@ mdlr('enge:webgl', ({ include }) => {
     "  float cx, cy, val, tx, ty;" +
     "  vec4 rgba;" +
     "  if (twin != 0.0) {" +
-    "    tx = tox + mod(floor(tcx), tmx);" +
-    "    ty = toy + mod(floor(tcy), tmy);" +
+    "    tx = tox + mod(floor(tcx + 0.001), tmx);" +
+    "    ty = toy + mod(floor(tcy + 0.001), tmy);" +
     "  }" +
     "  else {" +
-    "    tx = tox + floor(tcx);" +
-    "    ty = toy + floor(tcy);" +
+    "    tx = tox + floor(tcx + 0.001);" +
+    "    ty = toy + floor(tcy + 0.001);" +
     "  }" +
     "  if (vTextureMode == 1.0) {" +
     "    val = texture2D(uTex8, vec2(tx / 2048.0, ty / 512.0)).a * 255.0;" +
