@@ -29,7 +29,9 @@ mdlr('enge:webgl2', ({ include }) => {
     gl = canvas.getContext("webgl2", {
       alpha: false,
       antialias: false,
-      preserveDrawingBuffer: true,
+      // nothing reads the canvas after the frame is handed to the compositor:
+      // the ambilight copy is taken in the same task, right after drawing
+      preserveDrawingBuffer: false,
       premultipliedAlpha: false,
       depth: false,
       stencil: false,
