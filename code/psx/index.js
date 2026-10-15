@@ -554,6 +554,13 @@ mdlr('enge:psx:index', ({ include }) => {
     const view = new DataView(arrayBuffer);
 
     if (view.getUint16(0, true) === 0x5350) { // PS
+      // The BIOS boot is deferred until a game is loaded, but an executable
+      // needs an initialised kernel (syscall vectors, exception handler).
+      if (!biosBooted && loadedBiosId !== 'unloaded') {
+        bios();
+        biosBooted = true;
+        cpu.clearLoadDelay();
+      }
       cpu.pc = view.getInt32(0x10, true);
       cpu.gpr[28] = view.getInt32(0x14, true);
       cpu.gpr[29] = view.getInt32(0x30, true) || 0x801ffff0;
