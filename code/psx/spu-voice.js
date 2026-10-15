@@ -16,6 +16,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   let adsrReleaseRate = 0;
   let sweepLeft = [];
   let sweepRight = [];
+  let pitchModulationEnabled = false;
 
   let pitchStep = 0;
   let pitchCounter = BLOCKSIZE;
@@ -152,22 +153,29 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     const shiftFilter = ram[blockAddress + 0];
     const flags = ram[blockAddress + 1];
 
-    const shift = (shiftFilter & 0x0f) >>> 0;
+    const shiftValue = shiftFilter & 0x0f;
+    const shift = shiftValue > 12 ? 9 : shiftValue;
     const filter = (shiftFilter & 0xf0) >>> 3;
 
-    const k0 = xa2flt[filter + 0];
-    const k1 = xa2flt[filter + 1];
+    const k0 = Math.round(xa2flt[filter + 0] * 64);
+    const k1 = Math.round(xa2flt[filter + 1] * 64);
 
     let sample = -1;
     for (let offset = 2; offset < 16; ++offset) {
       let data = ram[blockAddress + offset];
-      let index = ((shift << 8) + data) << 1;
-      let value;
+      let nibble = (data & 0x0f) << 12;
+      if (nibble & 0x8000) nibble |= 0xffff0000;
+      let value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
+      value = Math.max(-0x8000, Math.min(0x7fff, value));
+      s1 = s0; s0 = value;
+      buffer[++sample] = value / 0x8000;
 
-      value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 0];
-      s1 = s0; s0 = buffer[++sample] = value;
-      value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 1];
-      s1 = s0; s0 = buffer[++sample] = value;
+      nibble = (data & 0xf0) << 8;
+      if (nibble & 0x8000) nibble |= 0xffff0000;
+      value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
+      value = Math.max(-0x8000, Math.min(0x7fff, value));
+      s1 = s0; s0 = value;
+      buffer[++sample] = value / 0x8000;
     }
 
     if ((flags & 4) === 4) {
@@ -192,6 +200,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   const voice = {
     reverb: 0,
     capture: 0,
+    outputForModulation: 0.0,
 
     setId(voiceId) {
       id = voiceId;
@@ -200,10 +209,21 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       return voice;
     },
 
-    advance(ram, audio) {
-      if (!adsrState) return adsrState; // note: this is an optimisation that behave differently then the hardware does.
+    advance(ram, audio, previousVoiceOutput = 0.0) {
+      if (!adsrState) {
+        voice.outputForModulation = 0.0;
+        return adsrState; // note: this is an optimisation that behave differently then the hardware does.
+      }
 
-      pitchCounter += pitchStep;
+      // PMON scales this voice's pitch from the preceding voice's signed
+      // interpolated output, centered around a factor of 1.0.
+      let currentPitchStep = pitchStep;
+      if (pitchModulationEnabled && id > 0) {
+        const modulatorSample = Math.max(-0x8000, Math.min(0x7fff, (previousVoiceOutput * 0x8000) | 0));
+        const modulationFactor = modulatorSample + 0x8000;
+        currentPitchStep = (pitchStep * modulationFactor) >> 15;
+      }
+      pitchCounter += currentPitchStep;
 
       if (pitchCounter >= BLOCKSIZE) {
         pitchCounter -= BLOCKSIZE;
@@ -216,7 +236,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       const adsrVolume = mixADSR();
 
       $s1 = sample * adsrVolume;
-      const i = (pitchCounter >>> 3) & 0xff;
+      const i = (pitchCounter >>> 4) & 0xff;
 
       let out = ((gauss[255 - i] * $s4));
       out = out + ((gauss[511 - i] * $s3));
@@ -224,6 +244,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       out = out + ((gauss[i] * $s1));
 
       let s = out / 0x8000;
+      voice.outputForModulation = s;
       // if (out) console.log(out);
 
       audio[0] = (s * volumeLeft * mixSweep(sweepLeft))
@@ -255,8 +276,8 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       voice.reverb = enabled;
     },
 
-    modOn() {
-      // todo: pitch modulation
+    modOn(enabled) {
+      pitchModulationEnabled = enabled;
     },
 
     noiseOn() {
@@ -276,7 +297,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       switch (addr % 16) {
         case 0x0:
           if (data & 0x8000) {
-            sweepLeft = getEnvelope(data);
+            sweepLeft = getEnvelope(data, volumeLeft);
           }
           else {
             sweepLeft = [];
@@ -285,7 +306,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
           break;
         case 0x2:
           if (data & 0x8000) {
-            sweepRight = getEnvelope(data);
+            sweepRight = getEnvelope(data, volumeRight);
           }
           else {
             sweepRight = [];
@@ -328,22 +349,29 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
 
   const max = (a, b) => a > b ? a : b;
 
-  const getEnvelope = (data) => {
+  const getEnvelope = (data, volume) => {
     const mode = (data & (1 << 14)) ? 1 : 0;
     const direction = (data & (1 << 13)) ? 1 : 0;
     const rate = (data >> 0) & 127;
+    const phaseNegative = (data & (1 << 12)) !== 0;
 
-    return [mode, direction, rate, adsrLevel];
+    return {
+      mode,
+      direction,
+      rate,
+      level: Math.round(Math.abs(volume) * 0x7fffffff),
+      phaseNegative
+    };
   }
 
   const mixSweep = (sweep) => {
-    const { mode, direction, rate, level } = sweep;
+    if (sweep.mode === undefined) return 1.0;
 
-    if (mode === undefined) return 1.0;
+    sweep.level += adsrStep(sweep.direction, sweep.mode, sweep.rate, sweep.level);
+    sweep.level = Math.max(0, Math.min(0x7fffffff, sweep.level));
 
-    sweep[3] += adsrStep(direction, mode, rate, level);
-
-    return (sweep[3] >>> 16) / 0x8000;
+    const volume = (sweep.level >>> 16) / 0x8000;
+    return sweep.phaseNegative ? -volume : volume;
   }
 
   for (let i = 0; i < 140; ++i) {

@@ -51,8 +51,11 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     let audio = [0.0, 0.0];
     let reverbLeft = 0.0, reverbRight = 0.0;
+    let previousVoiceOutput = 0.0;
     for (let voice of voices) {
-      if (!voice.advance(memory, audio)) continue;
+      const active = voice.advance(memory, audio, previousVoiceOutput);
+      previousVoiceOutput = voice.outputForModulation;
+      if (!active) continue;
 
       l += audio[0];
       r += audio[1];
@@ -140,7 +143,7 @@ mdlr('enge:psx:spu', ({ include }) => {
     },
 
     getVolume: data => {
-      return Math.abs((data << 17) >> 16) / 0x8000;
+      return ((data << 17) >> 17) / 0x4000;
     },
 
     getInt16: addr => {
@@ -200,13 +203,11 @@ mdlr('enge:psx:spu', ({ include }) => {
         }
           break
         case 0x1d90: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue;
-          voices[i].modOn()
+          voices[i].modOn((data & (1 << i)) !== 0);
         }
           break
         case 0x1d92: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue;
-          voices[16 + i].modOn()
+          voices[16 + i].modOn((data & (1 << i)) !== 0);
         }
           break
         case 0x1d94: for (let i = 0; i < 16; ++i) {
