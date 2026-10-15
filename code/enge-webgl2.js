@@ -8,8 +8,8 @@ mdlr('enge:webgl2', ({ include }) => {
     clipL: 0, clipT: 0, clipR: 0, clipB: 0,
   };
 
-  const sbgr2rgba = new Uint32Array(65536);
-  const transfer = new Uint32Array(4096 * 2048);
+  // staging for native-resolution (1024x512) VRAM uploads and readbacks
+  const transfer = new Uint32Array(1024 * 512);
   const view = new Uint8Array(transfer.buffer);
   const vertexBuffer = createVertexBuffer();
 
@@ -17,12 +17,6 @@ mdlr('enge:webgl2', ({ include }) => {
   const ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
   ambilight.imageSmoothingEnabled = false;
 
-  for (let i = 0; i < 65536; ++i) {
-    sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
-    sbgr2rgba[i] |= ((i >>> 5) & 0x1f) << 11;      // g
-    sbgr2rgba[i] |= ((i >>> 10) & 0x1f) << 19;      // b
-    sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
-  }
 
   let gl = null;
   try {
@@ -250,12 +244,9 @@ mdlr('enge:webgl2', ({ include }) => {
         this.programDisplay = createProgramDisplay(this.displayBuffer);
         this.renderBuffer = gl.createBuffer();
         this.programRenderer = createProgramRenderer(this.renderBuffer);
+        this.programUpload = createProgramUpload();
 
-        // copy texture data
-        gl_bindTexture(TEXTURE_2D, vram);
-        transfer.fill(0);
-        gl_texSubImage2D(TEXTURE_2D, 0, 0, 0, 4096, 2048, RGBA, UNSIGNED_BYTE, view);
-
+        // textures are created zeroed, so vram starts out black
         flushDepth();
       }
       else {
@@ -265,13 +256,24 @@ mdlr('enge:webgl2', ({ include }) => {
 
     loadImage(x, y, w, h, buffer) {
       flushVertexBuffer();
-      // blit from vram -> cache
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, (x + w), (y + h), COLOR_BUFFER_BIT, NEAREST);
 
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl.readPixels(x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      // reads wrap around the right and bottom VRAM edges; each piece is
+      // read into its place in rows of w pixels
+      gl.pixelStorei(gl.PACK_ROW_LENGTH, w);
+      for (const [sx, sy, vx, vy, pw, ph] of wrappedPieces(x, y, w, h)) {
+        // blit from vram -> cache (4x -> native)
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
+        gl_blitFramebuffer(4 * vx, 4 * vy, 4 * (vx + pw), 4 * (vy + ph), vx, vy, vx + pw, vy + ph, COLOR_BUFFER_BIT, NEAREST);
+
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+        gl.pixelStorei(gl.PACK_SKIP_PIXELS, sx);
+        gl.pixelStorei(gl.PACK_SKIP_ROWS, sy);
+        gl.readPixels(vx, vy, pw, ph, RGBA, UNSIGNED_BYTE, view);
+      }
+      gl.pixelStorei(gl.PACK_SKIP_PIXELS, 0);
+      gl.pixelStorei(gl.PACK_SKIP_ROWS, 0);
+      gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
 
       const size = w * h;
       for (let i = 0; i < size; ++i) {
@@ -312,11 +314,6 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
       gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
-      // blit from vramShadow -> cache
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), dx, dy, (dx + w), (dy + h), COLOR_BUFFER_BIT, NEAREST);
-
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
       gl_bindFramebuffer(READ_FRAMEBUFFER, null);
 
@@ -327,26 +324,48 @@ mdlr('enge:webgl2', ({ include }) => {
     storeImage(img) {
       this.seenRender = true;
       flushVertexBuffer();
-      for (let i = 0, l = img.pixelCount; i < l; ++i) {
-        const sbgr = img.buffer[i] >>> 0;
-        transfer[i] = sbgr2rgba[sbgr];
-      }
 
       const { x, y, w, h } = img;
-      // copy texture data
-      gl_bindTexture(TEXTURE_2D, cache);
-      gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      const pieces = wrappedPieces(x, y, w, h);
+
+      // upload the raw 16-bit words to the staging texture at their VRAM
+      // position; uploads wrap around the right and bottom VRAM edges, each
+      // piece taken from its place in the caller's rows of w words
+      gl_bindTexture(TEXTURE_2D, upload);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w);
+      for (const [sx, sy, vx, vy, pw, ph] of pieces) {
+        gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, sx);
+        gl.pixelStorei(gl.UNPACK_SKIP_ROWS, sy);
+        gl_texSubImage2D(TEXTURE_2D, 0, vx, vy, pw, ph, gl.RED_INTEGER, gl.UNSIGNED_SHORT, img.buffer);
+      }
+      gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+      gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+
+      // convert to RGBA while drawing them into vram at 4x, then copy to
+      // vramShadow
+      const program = this.programUpload;
+      gl.useProgram(program);
+      gl.bindVertexArray(program.vao);
+      gl_disable(BLEND);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      for (const [, , vx, vy, pw, ph] of pieces) {
+        gl.scissor(4 * vx, 4 * vy, 4 * pw, 4 * ph);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+      gl_disable(gl.SCISSOR_TEST);
       gl_bindTexture(TEXTURE_2D, null);
 
-      // blit from cache -> vram
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
-
-      // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+      for (const [, , vx, vy, pw, ph] of pieces) {
+        const X1 = 4 * vx, Y1 = 4 * vy, X2 = 4 * (vx + pw), Y2 = 4 * (vy + ph);
+        gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+      }
 
       gl_bindFramebuffer(FRAMEBUFFER, null);
     }
@@ -642,6 +661,19 @@ mdlr('enge:webgl2', ({ include }) => {
     return (data[0] & 0xff000000) | (data[index] & mask);
   }
 
+  // split a native rectangle that may run past the right/bottom VRAM edge
+  // into the up to four pieces it wraps into:
+  // [offset x, offset y in the rectangle, vram x, vram y, width, height]
+  function wrappedPieces(x, y, w, h) {
+    const w1 = Math.min(w, 1024 - x), w2 = w - w1;
+    const h1 = Math.min(h, 512 - y), h2 = h - h1;
+    const pieces = [[0, 0, x, y, w1, h1]];
+    if (w2 > 0) pieces.push([w1, 0, 0, y, w2, h1]);
+    if (h2 > 0) pieces.push([0, h1, x, 0, w1, h2]);
+    if (w2 > 0 && h2 > 0) pieces.push([w1, h1, 0, 0, w2, h2]);
+    return pieces;
+  }
+
   // fill a native-coordinate rectangle of vram and vramShadow with a 15-bit
   // colour (0x00bbggrr, bit 15 clear) using scissored clears at 4x scale;
   // both are written, so the shadow stays in sync for the dirty-cell tracking
@@ -853,6 +885,16 @@ mdlr('enge:webgl2', ({ include }) => {
     return program;
   }
 
+  // converts uploaded 16-bit VRAM words to RGBA; draws a single triangle
+  // from gl_VertexID, so its VAO has no attributes
+  const createProgramUpload = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramUpload');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_source'), 0);
+    program.vao = gl.createVertexArray();
+    return program;
+  }
+
   const createAndBindTexture = () => {
     const texture = gl.createTexture();
     gl_bindTexture(TEXTURE_2D, texture);
@@ -893,9 +935,13 @@ mdlr('enge:webgl2', ({ include }) => {
   gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
   gl_bindFramebuffer(FRAMEBUFFER, null);
 
-  // create texture
+  // native-resolution staging texture for readbacks
   const cache = createAndBindTexture();
-  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+  gl_texImage2D(TEXTURE_2D, 0, RGBA, 1024, 512, 0, RGBA, UNSIGNED_BYTE, null);
+
+  // native-resolution staging texture for uploads, raw 16-bit VRAM words
+  const upload = createAndBindTexture();
+  gl_texImage2D(TEXTURE_2D, 0, gl.R16UI, 1024, 512, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, null);
 
   const fb_cache = gl_createFramebuffer();
   gl_bindFramebuffer(FRAMEBUFFER, fb_cache);

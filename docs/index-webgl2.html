@@ -331,6 +331,34 @@
     }
   </script>
 
+  <script id="vramUploadVertex" type="x-shader/x-vertex">#version 300 es
+    // one triangle covering the viewport; the scissor selects the rectangle
+    void main() {
+      vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+      gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+    }
+  </script>
+
+  <script id="vramUpload" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+    precision highp int;
+    precision highp usampler2D;
+
+    // raw 15-bit VRAM words at native resolution, same coordinates as VRAM
+    uniform usampler2D u_source;
+
+    out vec4 outColor;
+
+    void main() {
+      uint c = texelFetch(u_source, ivec2(gl_FragCoord.xy) >> 2, 0).r;
+      outColor = vec4(
+        float((c & 31u) << 3) / 255.0,
+        float(((c >> 5) & 31u) << 3) / 255.0,
+        float(((c >> 10) & 31u) << 3) / 255.0,
+        (c & 0x8000u) != 0u ? 1.0 : 0.0);
+    }
+  </script>
+
   <script id="vertex" type="x-shader/x-vertex">#version 300 es
     precision highp float;
   
