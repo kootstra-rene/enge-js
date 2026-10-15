@@ -593,6 +593,9 @@ mdlr('enge:psx:cdr', () => {
         break;
       case 0x03: {
         playIndex = 0;
+        // Setloc/Play can jump to another track. Refresh currTrack before the
+        // AutoPause check so it uses the destination track's end sector.
+        selectTrack(currLoc);
         if ((mode & 0x02) && loc >= currTrack.end) {
           stopReading();
           scheduleAsync(0x200, 0x99);
