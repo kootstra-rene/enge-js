@@ -213,11 +213,12 @@ mdlr('enge:webgl2', ({ include }) => {
   // todo: refactor to completely move this class
   class WebGLRenderer {
     buffers = [
+      createVertexBuffer(),     // 0-3: semi-transparent, per blend mode
       createVertexBuffer(),
       createVertexBuffer(),
       createVertexBuffer(),
-      createVertexBuffer(),
-      createVertexBuffer(true),
+      createVertexBuffer(true), // 4: opaque, filled backwards (front to back)
+      createVertexBuffer(),     // 5: opaque in submission order (check mask)
     ];
 
     constructor() {
@@ -244,6 +245,9 @@ mdlr('enge:webgl2', ({ include }) => {
         this.programDisplay = createProgramDisplay(this.displayBuffer);
         this.renderBuffer = gl.createBuffer();
         this.programRenderer = createProgramRenderer(this.renderBuffer);
+        this.programRendererCheckMask = createProgramRenderer(this.renderBuffer, ['CHECK_MASK']);
+        this.programMaskDepth = createProgramMaskDepth();
+        this.programCopy = createProgramCopy();
         this.programUpload = createProgramUpload();
 
         // textures are created zeroed, so vram starts out black
@@ -303,6 +307,10 @@ mdlr('enge:webgl2', ({ include }) => {
     moveImage(sx, sy, dx, dy, w, h) {
       this.seenRender = true;
       flushVertexBuffer();
+      invalidateMaskDepth();
+
+      const mask = (gpu.status >>> 11) & 3;
+      if (mask) return this.moveImageMasked(sx, sy, dx, dy, w, h, mask);
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
@@ -321,9 +329,50 @@ mdlr('enge:webgl2', ({ include }) => {
 
     }
 
+    // GP0(80h) with GP0(E6h) mask bits: set mask forces bit 15 on every
+    // copied pixel, check mask keeps destination pixels that have it. Drawn
+    // with a shader from vramShadow (synced over both areas), so overlapping
+    // copies read the source as it was before the copy, like the blit path.
+    // Clipped at the VRAM edge like the blits.
+    moveImageMasked(sx, sy, dx, dy, w, h, mask) {
+      w = Math.min(w, 1024 - sx, 1024 - dx);
+      h = Math.min(h, 512 - sy, 512 - dy);
+      if (w <= 0 || h <= 0) return;
+
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      syncRegion(sx, sy, w, h);
+      syncRegion(dx, dy, w, h);
+
+      const program = this.programCopy;
+      gl.useProgram(program);
+      gl.uniform2i(program.offset, 4 * (sx - dx), 4 * (sy - dy));
+      gl.uniform1i(program.setMask, mask & 1);
+      gl.uniform1i(program.checkMask, (mask >> 1) & 1);
+      gl.bindVertexArray(program.vao);
+      gl_disable(BLEND);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      gl.scissor(4 * dx, 4 * dy, 4 * w, 4 * h);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl_disable(gl.SCISSOR_TEST);
+      gl_bindTexture(TEXTURE_2D, null);
+
+      // blit from vram -> vramShadow
+      const X1 = 4 * dx, Y1 = 4 * dy, X2 = 4 * (dx + w), Y2 = 4 * (dy + h);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+    }
+
     storeImage(img) {
       this.seenRender = true;
       flushVertexBuffer();
+      invalidateMaskDepth();
 
       const { x, y, w, h } = img;
       const pieces = wrappedPieces(x, y, w, h);
@@ -344,10 +393,24 @@ mdlr('enge:webgl2', ({ include }) => {
       gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
 
+      // GP0(E6h): set mask forces bit 15, check mask keeps pixels that have
+      // it; the check reads vramShadow, so bring the target area up to date
+      const mask = (gpu.status >>> 11) & 3;
+      if (mask & 2) {
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+        for (const [, , vx, vy, pw, ph] of pieces) syncRegion(vx, vy, pw, ph);
+      }
+
       // convert to RGBA while drawing them into vram at 4x, then copy to
       // vramShadow
       const program = this.programUpload;
       gl.useProgram(program);
+      gl.uniform1i(program.setMask, mask & 1);
+      gl.uniform1i(program.checkMask, (mask >> 1) & 1);
+      gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl.activeTexture(gl.TEXTURE0);
       gl.bindVertexArray(program.vao);
       gl_disable(BLEND);
       gl.viewport(0, 0, 4096, 2048);
@@ -359,6 +422,9 @@ mdlr('enge:webgl2', ({ include }) => {
       }
       gl_disable(gl.SCISSOR_TEST);
       gl_bindTexture(TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE0);
 
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
@@ -550,6 +616,7 @@ mdlr('enge:webgl2', ({ include }) => {
 
     fillRectangle(data) {
       flushVertexBuffer();
+      invalidateMaskDepth();
 
       var x = (data[1] << 16) >>> 16;
       var y = (data[1] << 0) >>> 16;
@@ -703,6 +770,7 @@ mdlr('enge:webgl2', ({ include }) => {
     gl_bindFramebuffer(FRAMEBUFFER, null);
 
     primitiveId = 1;
+    maskDepthValid = false;
     gl_disable(gl.DEPTH_TEST);
   }
 
@@ -711,10 +779,12 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_enable(gl.DEPTH_TEST);
       gl.depthMask(true);
       gl.depthFunc(gl.GREATER);
-      renderer.setTransparencyMode(mode, renderer.programRenderer); // also binds the program
+      const program = ($maskMode & 2) ? renderer.programRendererCheckMask : renderer.programRenderer;
+      renderer.setTransparencyMode(mode, program); // also binds the program
+      gl.uniform1i(program.setMask, $maskMode & 1);
       gl.viewport(0, 0, 4096, 2048); // texture dimensions
 
-      gl.bindVertexArray(renderer.programRenderer.vao);
+      gl.bindVertexArray(program.vao);
       gl.bindBuffer(gl.ARRAY_BUFFER, renderer.renderBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, vertexBuffer.base(), vertexBuffer.bytes());
 
@@ -755,12 +825,24 @@ mdlr('enge:webgl2', ({ include }) => {
     if (!samePacket) commitPacketArea();
   }
   const getVertexBuffer = (renderer, data) => {
-    const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
+    updateMaskMode();
+
+    let mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
 
     if (mode !== 4 && mode !== $mode) {
       flushVertexBuffer();
       $mode = mode;
     }
+    if ($maskMode & 2) {
+      // check mask: an earlier pixel with bit 15 must block later ones, so
+      // draw strictly in submission order: opaque primitives forwards, and a
+      // flush whenever the stream switches between opaque and semi-transparent
+      if (mode === 4) mode = 5;
+      if (mode !== $lastMode) flushVertexBuffer();
+      ensureMaskDepth();
+    }
+    $lastMode = mode;
+
     const buffer = renderer.buffers[mode];
     // callers add at most 6 vertices (a rectangle or a line)
     if (!buffer.canHold(6)) flushVertexBuffer();
@@ -769,7 +851,71 @@ mdlr('enge:webgl2', ({ include }) => {
 
   const flushVertexBuffer = () => {
     flushBuffer(renderer.buffers[4], 4);
+    flushBuffer(renderer.buffers[5], 4);
     flushBuffer(renderer.buffers[$mode], $mode);
+  }
+
+  // ---- GP0(E6h) mask bits for drawing ----
+  //
+  // set mask (bit 0) is a shader uniform forcing alpha (VRAM bit 15) to 1.
+  // check mask (bit 1) uses the depth buffer: pixels with bit 15 set get
+  // depth 1.0, above every primitive id, so the GREATER test rejects any
+  // later fragment there. Existing bit-15 pixels are marked by a depth pass
+  // over the draw area (ensureMaskDepth); pixels drawn with bit 15 while
+  // check mask is on mark themselves (CHECK_MASK shader variant). The marks
+  // are rebuilt whenever depth is cleared or VRAM changes underneath.
+  let $maskMode = 0;
+  let $lastMode = 4;
+  let maskDepthValid = false;
+
+  const updateMaskMode = () => {
+    const mask = (gpu.status >>> 11) & 3;
+    if (mask === $maskMode) return;
+    flushVertexBuffer();
+    // leaving check mask: drop the depth marks so masked pixels can be drawn
+    if (($maskMode & 2) && !(mask & 2)) flushDepth();
+    $maskMode = mask;
+  }
+
+  // vram changed outside primitive drawing (upload, copy, fill)
+  const invalidateMaskDepth = () => {
+    maskDepthValid = false;
+  }
+
+  const ensureMaskDepth = () => {
+    if (maskDepthValid) return;
+    flushVertexBuffer();
+    flushDepth();
+
+    const l = $gpu.clipL, t = $gpu.clipT;
+    const w = $gpu.clipR - l + 1, h = $gpu.clipB - t + 1;
+    if (w > 0 && h > 0) {
+      // the pass reads vramShadow, so bring the draw area up to date
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      syncRegion(l, t, w, h);
+
+      const program = renderer.programMaskDepth;
+      gl.useProgram(program);
+      gl.bindVertexArray(program.vao);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      gl.scissor(4 * l, 4 * t, 4 * w, 4 * h);
+      gl_enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.ALWAYS);
+      gl.depthMask(true);
+      gl.colorMask(false, false, false, false);
+      gl_disable(BLEND);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.colorMask(true, true, true, true);
+      gl_disable(gl.DEPTH_TEST);
+      gl_disable(gl.SCISSOR_TEST);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+    }
+    maskDepthValid = true;
   }
 
   const getDisplayArrays = ({ x, y, w, h }) => {
@@ -869,9 +1015,10 @@ mdlr('enge:webgl2', ({ include }) => {
     return program;
   }
 
-  const createProgramRenderer = (renderBuffer) => {
-    const program = createProgramFromScripts(gl, 'pixel', 'videoram');
+  const createProgramRenderer = (renderBuffer, defines = []) => {
+    const program = createProgramFromScripts(gl, 'pixel', 'videoram', defines);
     gl.useProgram(program);
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
 
     createVertexArray(program, renderBuffer, [
       ['a_position', 3, gl.SHORT, false, 0],
@@ -891,6 +1038,30 @@ mdlr('enge:webgl2', ({ include }) => {
     const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramUpload');
     gl.useProgram(program);
     gl.uniform1i(gl_getUniformLocation(program, 'u_source'), 0);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_dest'), 1);
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.checkMask = gl_getUniformLocation(program, 'u_checkMask');
+    program.vao = gl.createVertexArray();
+    return program;
+  }
+
+  // VRAM -> VRAM copy honouring the mask bits
+  const createProgramCopy = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramCopy');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_vram'), 0);
+    program.offset = gl_getUniformLocation(program, 'u_offset');
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.checkMask = gl_getUniformLocation(program, 'u_checkMask');
+    program.vao = gl.createVertexArray();
+    return program;
+  }
+
+  // marks VRAM pixels with bit 15 set in the depth buffer (check mask)
+  const createProgramMaskDepth = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramMaskDepth');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_vram'), 0);
     program.vao = gl.createVertexArray();
     return program;
   }
@@ -1024,7 +1195,7 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    *     script tag.
    * @return {!WebGLShader} A shader.
    */
-  function createShaderFromScript(gl, scriptId, opt_shaderType) {
+  function createShaderFromScript(gl, scriptId, opt_shaderType, defines = []) {
     // look up the script tag by id.
     var shaderScript = document.getElementById(scriptId);
     if (!shaderScript) {
@@ -1033,6 +1204,12 @@ mdlr('enge:webgl2:utils', ({ include }) => {
 
     // extract the contents of the script tag.
     var shaderSource = shaderScript.text;
+
+    // #define lines go right after the #version line, which must come first
+    if (defines.length) {
+      const eol = shaderSource.indexOf('\n');
+      shaderSource = shaderSource.slice(0, eol + 1) + defines.map(d => `#define ${d}\n`).join('') + shaderSource.slice(eol + 1);
+    }
 
     // If we didn't pass in a type, use the 'type' from
     // the script tag.
@@ -1057,9 +1234,9 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    * @param {string} fragmentShaderId The id of the fragment shader script tag.
    * @return {!WebGLProgram} A program
    */
-  function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId) {
+  function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId, defines = []) {
     var vertexShader = createShaderFromScript(gl, vertexShaderId, gl.VERTEX_SHADER);
-    var fragmentShader = createShaderFromScript(gl, fragmentShaderId, gl.FRAGMENT_SHADER);
+    var fragmentShader = createShaderFromScript(gl, fragmentShaderId, gl.FRAGMENT_SHADER, defines);
     return createProgram(gl, vertexShader, fragmentShader);
   }
 
