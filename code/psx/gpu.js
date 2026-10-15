@@ -45,7 +45,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       data[0] |= 0x80000000;
       cb();
 
-      nextPrimitive();
+      nextPrimitive(true);
       data[0] &= ~0x02000000;
       cb();
     }

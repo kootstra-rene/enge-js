@@ -68,6 +68,151 @@ mdlr('enge:webgl2', ({ include }) => {
     return false;
   }
 
+  // ---- lazy vram -> vramShadow synchronisation ----
+  //
+  // Primitives sample vramShadow because WebGL does not allow sampling the
+  // texture that is being rendered to. Instead of copying whole draw/display
+  // areas eagerly, VRAM is split into 32x32 cells and drawing marks the cells
+  // it touches dirty. Before a textured primitive is queued, the cells its
+  // texture (and CLUT) cover are checked; if any are dirty, the queued
+  // vertices are flushed and only those cells are copied.
+  //
+  // Invariant: for every clean cell vramShadow equals vram. storeImage,
+  // moveImage and fillRectangle keep it by writing both textures.
+  //
+  // A packet's own output is committed to the grid when the next packet
+  // starts (nextPrimitive), so the two passes of a semi-transparent textured
+  // primitive, or the two triangles of a quad, never sync against each other.
+  const CELL_SHIFT = 5;
+  const CELL_SIZE = 1 << CELL_SHIFT;
+  const GRID_W = 1024 >> CELL_SHIFT;
+  const GRID_H = 512 >> CELL_SHIFT;
+  const dirtyCells = new Uint8Array(GRID_W * GRID_H);
+  let dirtyCount = 0;
+
+  // bounding box (native, inclusive) drawn by the current packet
+  let pktL = 1024, pktT = 512, pktR = -1, pktB = -1;
+
+  const touchArea = (x1, y1, x2, y2, x3 = x2, y3 = y2, x4 = x3, y4 = y3) => {
+    let l = Math.min(x1, x2, x3, x4), r = Math.max(x1, x2, x3, x4);
+    let t = Math.min(y1, y2, y3, y4), b = Math.max(y1, y2, y3, y4);
+    // drawing is clipped to the draw area, which lies inside VRAM
+    if (l < $gpu.clipL) l = $gpu.clipL;
+    if (t < $gpu.clipT) t = $gpu.clipT;
+    if (r > $gpu.clipR) r = $gpu.clipR;
+    if (b > $gpu.clipB) b = $gpu.clipB;
+    if (r < l || b < t) return;
+    if (l < pktL) pktL = l;
+    if (t < pktT) pktT = t;
+    if (r > pktR) pktR = r;
+    if (b > pktB) pktB = b;
+  }
+
+  const commitPacketArea = () => {
+    if (pktR < pktL || pktB < pktT) return;
+    const cl = Math.max(0, pktL) >> CELL_SHIFT, cr = Math.min(1023, pktR) >> CELL_SHIFT;
+    const ct = Math.max(0, pktT) >> CELL_SHIFT, cb = Math.min(511, pktB) >> CELL_SHIFT;
+    for (let cy = ct; cy <= cb; ++cy) {
+      for (let cx = cl; cx <= cr; ++cx) {
+        const i = cy * GRID_W + cx;
+        if (!dirtyCells[i]) {
+          dirtyCells[i] = 1;
+          ++dirtyCount;
+        }
+      }
+    }
+    pktL = 1024; pktT = 512; pktR = -1; pktB = -1;
+  }
+
+  // region in native coords, x may run past 1023 (wraps), y must not
+  const regionDirty = (x, y, w, h) => {
+    const cx0 = x >> CELL_SHIFT, cx1 = (x + w - 1) >> CELL_SHIFT;
+    const cy0 = y >> CELL_SHIFT, cy1 = (y + h - 1) >> CELL_SHIFT;
+    for (let cy = cy0; cy <= cy1; ++cy) {
+      const row = (cy & (GRID_H - 1)) * GRID_W;
+      for (let cx = cx0; cx <= cx1; ++cx) {
+        if (dirtyCells[row + (cx & (GRID_W - 1))]) return true;
+      }
+    }
+    return false;
+  }
+
+  // copy grid cells [c0, c1) of grid row gy from vram to vramShadow;
+  // expects fb_vram bound for read and fb_vramShadow for draw
+  const blitCells = (c0, c1, gy) => {
+    const X1 = 4 * CELL_SIZE * c0, X2 = 4 * CELL_SIZE * c1;
+    const Y1 = 4 * CELL_SIZE * gy, Y2 = Y1 + 4 * CELL_SIZE;
+    gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+  }
+
+  // copy the dirty cells overlapping a region and mark them clean; adjacent
+  // dirty cells in a grid row are copied with one blit
+  const syncRegion = (x, y, w, h) => {
+    const cx0 = x >> CELL_SHIFT, cx1 = (x + w - 1) >> CELL_SHIFT;
+    const cy0 = y >> CELL_SHIFT, cy1 = (y + h - 1) >> CELL_SHIFT;
+
+    for (let cy = cy0; cy <= cy1; ++cy) {
+      const gy = cy & (GRID_H - 1);
+      const row = gy * GRID_W;
+      let runStart = -1, runEnd = -1;
+
+      for (let cx = cx0; cx <= cx1; ++cx) {
+        const gx = cx & (GRID_W - 1);
+        // a run cannot continue across the horizontal wrap
+        if (gx === 0 && runStart >= 0) {
+          blitCells(runStart, runEnd + 1, gy);
+          runStart = -1;
+        }
+        if (dirtyCells[row + gx]) {
+          dirtyCells[row + gx] = 0;
+          --dirtyCount;
+          if (runStart < 0) runStart = gx;
+          runEnd = gx;
+        }
+        else if (runStart >= 0) {
+          blitCells(runStart, runEnd + 1, gy);
+          runStart = -1;
+        }
+      }
+      if (runStart >= 0) blitCells(runStart, runEnd + 1, gy);
+    }
+  }
+
+  // u/v bounds are the texel coordinates the primitive interpolates between,
+  // anything outside 0..255 (wrapping) or an active texture window means the
+  // whole page can be sampled
+  const syncTextureSource = (cl, u0, u1, v0, v1) => {
+    if (!dirtyCount) return;
+
+    const status = gpu.status;
+    if (u0 < 0 || u1 > 255 || (gpu.twin & 0x000000ff)) { u0 = 0; u1 = 255; }
+    if (v0 < 0 || v1 > 255 || (gpu.twin & 0x0000ff00)) { v0 = 0; v1 = 255; }
+
+    const mode = (status >>> 7) & 3;
+    const shift = mode === 0 ? 2 : mode === 1 ? 1 : 0;
+    const px = (status & 15) << 6;
+    const py = ((status >>> 4) & 1) << 8;
+    const tx = px + (u0 >> shift), tw = (u1 >> shift) - (u0 >> shift) + 1;
+    const ty = py + v0, th = v1 - v0 + 1;
+
+    const indexed = mode < 2;
+    const cx = (cl & 63) << 4, cy = (cl >>> 6) & 511, cw = mode === 0 ? 16 : 256;
+
+    const pageDirty = regionDirty(tx, ty, tw, th);
+    const clutDirty = indexed && regionDirty(cx, cy, cw, 1);
+    if (!pageDirty && !clutDirty) return;
+
+    // queued primitives may be what wrote the dirty cells
+    flushVertexBuffer();
+
+    gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+    if (pageDirty) syncRegion(tx, ty, tw, th);
+    if (clutDirty) syncRegion(cx, cy, cw, 1);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+    gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+  }
+
 
   // todo: refactor to completely move this class
   class WebGLRenderer {
@@ -264,6 +409,8 @@ mdlr('enge:webgl2', ({ include }) => {
       c1 = getColor(data, c1);
       c2 = getColor(data, c2);
 
+      touchArea(x1, y1, x2, y2, x1 + 1, y1 + 1, x2 + 1, y2 + 1);
+
       // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
@@ -322,16 +469,24 @@ mdlr('enge:webgl2', ({ include }) => {
       c2 = getColor(data, c2);
       c3 = getColor(data, c3);
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
-      const vertexBuffer = getVertexBuffer(renderer, data);
-
-      const buffer = vertexBuffer;
       const u1 = ((data[uv1] >>> 0) & 255) + gpu.quadU;
       const v1 = ((data[uv1] >>> 8) & 255) + gpu.quadV;
       const u2 = ((data[uv2] >>> 0) & 255) + gpu.quadU;
       const v2 = ((data[uv2] >>> 8) & 255) + gpu.quadV;
       const u3 = ((data[uv3] >>> 0) & 255) + gpu.quadU;
       const v3 = ((data[uv3] >>> 8) & 255) + gpu.quadV;
+
+      if (data[0] & 0x04000000) {
+        syncTextureSource(cl,
+          Math.min(u1, u2, u3), Math.max(u1, u2, u3),
+          Math.min(v1, v2, v3), Math.max(v1, v2, v3));
+      }
+      touchArea(x1, y1, x2, y2, x3, y3);
+
+      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
+      const vertexBuffer = getVertexBuffer(renderer, data);
+
+      const buffer = vertexBuffer;
 
       buffer.addVertex(x1, y1, u1, v1, c1, cl);
       buffer.addVertex(x2, y2, u2, v2, c2, cl);
@@ -352,9 +507,6 @@ mdlr('enge:webgl2', ({ include }) => {
       if (outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
       if (largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
-      const vertexBuffer = getVertexBuffer(renderer, data);
-
       var tl = tx + 0;
       var tr = tx + w;
       if (gpu.txflip) {
@@ -368,6 +520,18 @@ mdlr('enge:webgl2', ({ include }) => {
         tt = ty + 1;
         tb = ty + 1 - h;
       }
+
+      if (data[0] & 0x04000000) {
+        // texels sampled: unflipped tx .. tx+w-1, flipped tx-w+1 .. tx;
+        // both are min(tl, tr) .. max(tl, tr) - 1
+        syncTextureSource(cl,
+          Math.min(tl, tr), Math.max(tl, tr) - 1,
+          Math.min(tt, tb), Math.max(tt, tb) - 1);
+      }
+      touchArea(x, y, x + w, y + h);
+
+      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
+      const vertexBuffer = getVertexBuffer(renderer, data);
 
       var buffer = vertexBuffer;
       buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
@@ -423,7 +587,6 @@ mdlr('enge:webgl2', ({ include }) => {
     updateDrawArea() {
       if ($gpu.daM) {
         flushVertexBuffer();
-        copyVramToShadowVram(true);
         flushDepth();
         $gpu.daM = false;
 
@@ -440,8 +603,6 @@ mdlr('enge:webgl2', ({ include }) => {
     }
 
     setDrawAreaTL(x, y) {
-      $gpu.daLold = $gpu.daL;
-      $gpu.daTold = $gpu.daT;
       $gpu.daL = x;
       $gpu.daT = y;
 
@@ -449,8 +610,6 @@ mdlr('enge:webgl2', ({ include }) => {
     }
 
     setDrawAreaBR(x, y) {
-      $gpu.daRold = $gpu.daR;
-      $gpu.daBold = $gpu.daB;
       $gpu.daR = x;
       $gpu.daB = y;
 
@@ -465,7 +624,6 @@ mdlr('enge:webgl2', ({ include }) => {
       if (this.seenRender) {
         flushVertexBuffer();
         flushDepth();
-        copyVramToShadowVram(false, true);
 
         ++this.fpsRenderCounter;
         this.seenRender = false;
@@ -527,31 +685,6 @@ mdlr('enge:webgl2', ({ include }) => {
     gl_disable(gl.DEPTH_TEST);
   }
 
-  function copyVramToShadowVram(old = false, display = false) {
-    if (!display) {
-      const X1 = 4 * (old ? $gpu.daLold : $gpu.daL);
-      const Y1 = 4 * (old ? $gpu.daTold : $gpu.daT);
-      const X2 = 4 * (old ? $gpu.daRold : $gpu.daR + 1);
-      const Y2 = 4 * (old ? $gpu.daBold : $gpu.daB + 1);
-      // blit from vram -> vramShadow
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
-      gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
-    }
-    else {
-      const { x, y, w, h } = gpu.getDisplayArea();
-      // blit from vram -> vramShadow
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
-    }
-    gl_bindFramebuffer(FRAMEBUFFER, null);
-  }
-
   function flushBuffer(vertexBuffer, mode) {
     if (vertexBuffer.size()) {
       gl_enable(gl.DEPTH_TEST);
@@ -590,8 +723,11 @@ mdlr('enge:webgl2', ({ include }) => {
 
   // only called by primitives
   let $mode = 4;
-  const nextPrimitive = () => {
+  // samePacket is set for the second pass of a semi-transparent textured
+  // primitive; it needs a new depth id but is still the same packet
+  const nextPrimitive = (samePacket = false) => {
     ++primitiveId;
+    if (!samePacket) commitPacketArea();
   }
   const getVertexBuffer = (renderer, data) => {
     const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
