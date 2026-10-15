@@ -266,9 +266,7 @@ mdlr('enge:webgl2', ({ include }) => {
       flushVertexBuffer();
       // blit from vram -> cache
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
       gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, (x + w), (y + h), COLOR_BUFFER_BIT, NEAREST);
 
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
@@ -305,23 +303,17 @@ mdlr('enge:webgl2', ({ include }) => {
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
       gl_blitFramebuffer(4 * sx, 4 * sy, 4 * (sx + w), 4 * (sy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vramShadow -> vram
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vramShadow -> cache
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
       gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), dx, dy, (dx + w), (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
@@ -347,16 +339,12 @@ mdlr('enge:webgl2', ({ include }) => {
 
       // blit from cache -> vram
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
       gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
       gl_bindFramebuffer(FRAMEBUFFER, null);
@@ -567,16 +555,12 @@ mdlr('enge:webgl2', ({ include }) => {
 
       // blit from cache -> vram
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
       gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
 
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
@@ -675,8 +659,6 @@ mdlr('enge:webgl2', ({ include }) => {
   function flushDepth() {
     gl_enable(gl.DEPTH_TEST);
     gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
-    gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
-    gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0);
     gl.clearDepth(0.0);
     gl.clear(gl.DEPTH_BUFFER_BIT);
     gl_bindFramebuffer(FRAMEBUFFER, null);
@@ -699,8 +681,6 @@ mdlr('enge:webgl2', ({ include }) => {
       gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, vertexBuffer.base(), vertexBuffer.bytes());
 
       gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
-      gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
-      gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0)
 
       // clip to the draw area (inclusive, native coords) at 4x vram scale;
       // scissor must be off again before any blit or clear
@@ -869,6 +849,8 @@ mdlr('enge:webgl2', ({ include }) => {
   gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
   const vramDepth = createDepthComponent(4096, 2048);
 
+  // attachments are framebuffer state and never change, so they are made
+  // once here; everything else only binds the framebuffers
   const fb_vram = gl_createFramebuffer();
   gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
   gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
@@ -890,6 +872,9 @@ mdlr('enge:webgl2', ({ include }) => {
   gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
 
   const fb_cache = gl_createFramebuffer();
+  gl_bindFramebuffer(FRAMEBUFFER, fb_cache);
+  gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, cache, 0);
+  gl_bindFramebuffer(FRAMEBUFFER, null);
 
 
   window.primitiveId = 0;
