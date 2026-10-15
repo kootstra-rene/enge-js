@@ -9,7 +9,8 @@ mdlr('enge:webgl2', ({ include }) => {
   };
 
   const sbgr2rgba = new Uint32Array(65536);
-  const transfer = new Uint32Array(4096 * 2048);
+  // staging for native-resolution (1024x512) VRAM uploads and readbacks
+  const transfer = new Uint32Array(1024 * 512);
   const view = new Uint8Array(transfer.buffer);
   const vertexBuffer = createVertexBuffer();
 
@@ -251,11 +252,7 @@ mdlr('enge:webgl2', ({ include }) => {
         this.renderBuffer = gl.createBuffer();
         this.programRenderer = createProgramRenderer(this.renderBuffer);
 
-        // copy texture data
-        gl_bindTexture(TEXTURE_2D, vram);
-        transfer.fill(0);
-        gl_texSubImage2D(TEXTURE_2D, 0, 0, 0, 4096, 2048, RGBA, UNSIGNED_BYTE, view);
-
+        // textures are created zeroed, so vram starts out black
         flushDepth();
       }
       else {
@@ -265,13 +262,21 @@ mdlr('enge:webgl2', ({ include }) => {
 
     loadImage(x, y, w, h, buffer) {
       flushVertexBuffer();
-      // blit from vram -> cache
+
+      // clipped at the right/bottom VRAM edge; pixels beyond it read as 0
+      const cw = Math.min(w, 1024 - x), ch = Math.min(h, 512 - y);
+      if (cw < w || ch < h) transfer.fill(0, 0, w * h);
+
+      // blit from vram -> cache (4x -> native)
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, (x + w), (y + h), COLOR_BUFFER_BIT, NEAREST);
+      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), x, y, (x + cw), (y + ch), COLOR_BUFFER_BIT, NEAREST);
 
+      // read rows of cw pixels into rows of w pixels
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl.readPixels(x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      gl.pixelStorei(gl.PACK_ROW_LENGTH, w);
+      gl.readPixels(x, y, cw, ch, RGBA, UNSIGNED_BYTE, view);
+      gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
 
       const size = w * h;
       for (let i = 0; i < size; ++i) {
@@ -312,11 +317,6 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
       gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
-      // blit from vramShadow -> cache
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), dx, dy, (dx + w), (dy + h), COLOR_BUFFER_BIT, NEAREST);
-
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
       gl_bindFramebuffer(READ_FRAMEBUFFER, null);
 
@@ -333,20 +333,26 @@ mdlr('enge:webgl2', ({ include }) => {
       }
 
       const { x, y, w, h } = img;
-      // copy texture data
+      // clipped at the right/bottom VRAM edge, as before (the old 4096-wide
+      // cache texture took the overflow and the 4x blit clipped it)
+      const cw = Math.min(w, 1024 - x), ch = Math.min(h, 512 - y);
+
+      // upload rows of w pixels, cw of them each, into the native-size cache
       gl_bindTexture(TEXTURE_2D, cache);
-      gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w);
+      gl_texSubImage2D(TEXTURE_2D, 0, x, y, cw, ch, RGBA, UNSIGNED_BYTE, view);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
       gl_bindTexture(TEXTURE_2D, null);
 
       // blit from cache -> vram
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+      gl_blitFramebuffer(x, y, (x + cw), (y + ch), 4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), 4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), COLOR_BUFFER_BIT, NEAREST);
 
       gl_bindFramebuffer(FRAMEBUFFER, null);
     }
@@ -893,9 +899,9 @@ mdlr('enge:webgl2', ({ include }) => {
   gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
   gl_bindFramebuffer(FRAMEBUFFER, null);
 
-  // create texture
+  // native-resolution staging texture for uploads and readbacks
   const cache = createAndBindTexture();
-  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+  gl_texImage2D(TEXTURE_2D, 0, RGBA, 1024, 512, 0, RGBA, UNSIGNED_BYTE, null);
 
   const fb_cache = gl_createFramebuffer();
   gl_bindFramebuffer(FRAMEBUFFER, fb_cache);
