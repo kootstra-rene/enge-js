@@ -8,7 +8,6 @@ mdlr('enge:webgl2', ({ include }) => {
     clipL: 0, clipT: 0, clipR: 0, clipB: 0,
   };
 
-  const sbgr2rgba = new Uint32Array(65536);
   // staging for native-resolution (1024x512) VRAM uploads and readbacks
   const transfer = new Uint32Array(1024 * 512);
   const view = new Uint8Array(transfer.buffer);
@@ -18,12 +17,6 @@ mdlr('enge:webgl2', ({ include }) => {
   const ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
   ambilight.imageSmoothingEnabled = false;
 
-  for (let i = 0; i < 65536; ++i) {
-    sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
-    sbgr2rgba[i] |= ((i >>> 5) & 0x1f) << 11;      // g
-    sbgr2rgba[i] |= ((i >>> 10) & 0x1f) << 19;      // b
-    sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
-  }
 
   let gl = null;
   try {
@@ -251,6 +244,7 @@ mdlr('enge:webgl2', ({ include }) => {
         this.programDisplay = createProgramDisplay(this.displayBuffer);
         this.renderBuffer = gl.createBuffer();
         this.programRenderer = createProgramRenderer(this.renderBuffer);
+        this.programUpload = createProgramUpload();
 
         // textures are created zeroed, so vram starts out black
         flushDepth();
@@ -327,27 +321,32 @@ mdlr('enge:webgl2', ({ include }) => {
     storeImage(img) {
       this.seenRender = true;
       flushVertexBuffer();
-      for (let i = 0, l = img.pixelCount; i < l; ++i) {
-        const sbgr = img.buffer[i] >>> 0;
-        transfer[i] = sbgr2rgba[sbgr];
-      }
 
       const { x, y, w, h } = img;
-      // clipped at the right/bottom VRAM edge, as before (the old 4096-wide
-      // cache texture took the overflow and the 4x blit clipped it)
+      // clipped at the right/bottom VRAM edge, as before
       const cw = Math.min(w, 1024 - x), ch = Math.min(h, 512 - y);
 
-      // upload rows of w pixels, cw of them each, into the native-size cache
-      gl_bindTexture(TEXTURE_2D, cache);
+      // upload the raw 16-bit words (rows of w, cw of them each) to the
+      // staging texture at their VRAM position
+      gl_bindTexture(TEXTURE_2D, upload);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
       gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w);
-      gl_texSubImage2D(TEXTURE_2D, 0, x, y, cw, ch, RGBA, UNSIGNED_BYTE, view);
+      gl_texSubImage2D(TEXTURE_2D, 0, x, y, cw, ch, gl.RED_INTEGER, gl.UNSIGNED_SHORT, img.buffer);
       gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
-      gl_bindTexture(TEXTURE_2D, null);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
 
-      // blit from cache -> vram
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+      // convert to RGBA while drawing them into vram at 4x
+      const program = this.programUpload;
+      gl.useProgram(program);
+      gl.bindVertexArray(program.vao);
+      gl_disable(BLEND);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      gl.scissor(4 * x, 4 * y, 4 * cw, 4 * ch);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_blitFramebuffer(x, y, (x + cw), (y + ch), 4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), COLOR_BUFFER_BIT, NEAREST);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl_disable(gl.SCISSOR_TEST);
+      gl_bindTexture(TEXTURE_2D, null);
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
@@ -859,6 +858,16 @@ mdlr('enge:webgl2', ({ include }) => {
     return program;
   }
 
+  // converts uploaded 16-bit VRAM words to RGBA; draws a single triangle
+  // from gl_VertexID, so its VAO has no attributes
+  const createProgramUpload = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramUpload');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_source'), 0);
+    program.vao = gl.createVertexArray();
+    return program;
+  }
+
   const createAndBindTexture = () => {
     const texture = gl.createTexture();
     gl_bindTexture(TEXTURE_2D, texture);
@@ -899,9 +908,13 @@ mdlr('enge:webgl2', ({ include }) => {
   gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
   gl_bindFramebuffer(FRAMEBUFFER, null);
 
-  // native-resolution staging texture for uploads and readbacks
+  // native-resolution staging texture for readbacks
   const cache = createAndBindTexture();
   gl_texImage2D(TEXTURE_2D, 0, RGBA, 1024, 512, 0, RGBA, UNSIGNED_BYTE, null);
+
+  // native-resolution staging texture for uploads, raw 16-bit VRAM words
+  const upload = createAndBindTexture();
+  gl_texImage2D(TEXTURE_2D, 0, gl.R16UI, 1024, 512, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, null);
 
   const fb_cache = gl_createFramebuffer();
   gl_bindFramebuffer(FRAMEBUFFER, fb_cache);
