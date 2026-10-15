@@ -709,8 +709,15 @@ mdlr('enge:webgl2', ({ include }) => {
   let $mode = 4;
   // samePacket is set for the second pass of a semi-transparent textured
   // primitive; it needs a new depth id but is still the same packet
+  // primitive ids are vertex shorts used as depth; before one would exceed
+  // 32767, draw what is queued and restart at 1 with a cleared depth buffer
+  // (everything with an older id is then already in vram, so order holds)
+  const MAX_PRIMITIVE_ID = 32767;
   const nextPrimitive = (samePacket = false) => {
-    ++primitiveId;
+    if (++primitiveId > MAX_PRIMITIVE_ID) {
+      flushVertexBuffer();
+      flushDepth();
+    }
     if (!samePacket) commitPacketArea();
   }
   const getVertexBuffer = (renderer, data) => {
