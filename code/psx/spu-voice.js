@@ -297,7 +297,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       switch (addr % 16) {
         case 0x0:
           if (data & 0x8000) {
-            sweepLeft = getEnvelope(data);
+            sweepLeft = getEnvelope(data, volumeLeft);
           }
           else {
             sweepLeft = [];
@@ -306,7 +306,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
           break;
         case 0x2:
           if (data & 0x8000) {
-            sweepRight = getEnvelope(data);
+            sweepRight = getEnvelope(data, volumeRight);
           }
           else {
             sweepRight = [];
@@ -349,22 +349,29 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
 
   const max = (a, b) => a > b ? a : b;
 
-  const getEnvelope = (data) => {
+  const getEnvelope = (data, volume) => {
     const mode = (data & (1 << 14)) ? 1 : 0;
     const direction = (data & (1 << 13)) ? 1 : 0;
     const rate = (data >> 0) & 127;
+    const phaseNegative = (data & (1 << 12)) !== 0;
 
-    return [mode, direction, rate, adsrLevel];
+    return {
+      mode,
+      direction,
+      rate,
+      level: Math.round(Math.abs(volume) * 0x7fffffff),
+      phaseNegative
+    };
   }
 
   const mixSweep = (sweep) => {
-    const { mode, direction, rate, level } = sweep;
+    if (sweep.mode === undefined) return 1.0;
 
-    if (mode === undefined) return 1.0;
+    sweep.level += adsrStep(sweep.direction, sweep.mode, sweep.rate, sweep.level);
+    sweep.level = Math.max(0, Math.min(0x7fffffff, sweep.level));
 
-    sweep[3] += adsrStep(direction, mode, rate, level);
-
-    return (sweep[3] >>> 16) / 0x8000;
+    const volume = (sweep.level >>> 16) / 0x8000;
+    return sweep.phaseNegative ? -volume : volume;
   }
 
   for (let i = 0; i < 140; ++i) {

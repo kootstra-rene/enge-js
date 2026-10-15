@@ -143,7 +143,7 @@ mdlr('enge:psx:spu', ({ include }) => {
     },
 
     getVolume: data => {
-      return Math.abs((data << 17) >> 16) / 0x8000;
+      return ((data << 17) >> 17) / 0x4000;
     },
 
     getInt16: addr => {
