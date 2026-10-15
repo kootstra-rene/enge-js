@@ -318,10 +318,12 @@ mdlr('enge:webgl', ({ include }) => {
     constructor(canvas) {
       this.gl = null;
       this.programDisplay = null;
-      this.vertexBuffer = new Uint32Array(18 * 1024 >> 2); // // 18.0 Kb, 768 vertices, 256 triangles
+      this.vertexBuffer = new Uint32Array(1024 * 1024 >> 2); // 1 MiB, about 43k vertices
 
       this.drawOffsetX = 0;
       this.drawOffsetY = 0;
+
+      this.clutInfoCache = new Map();
 
       this.displaymode = 2;
       this.vram = new Uint16Array(512 * 1024);
@@ -369,13 +371,17 @@ mdlr('enge:webgl', ({ include }) => {
         alert("Error: Your browser does not appear to support WebGL.");
       }
     }
-    // todo: cache results as this is called per textured primitive.
-    //       do not ever remove one of the more powerful optimisations
+    // Cache palette STP classification while the CPU-side VRAM mirror is unchanged.
     getClutInfo(cl, tm) {
+      if (tm === 2) return 3;
+
+      const key = (tm << 16) | (cl & 0xffff);
+      const cached = this.clutInfoCache.get(key);
+      if (cached !== undefined) return cached;
+
       var cx = ((cl >>> 0) & 0x03f) * 16;
       var cy = ((cl >>> 6) & 0x1ff);
 
-      if (tm === 2) return 3;
       if (tm === 1) var len = 256;
       if (tm === 0) var len = 16;
 
@@ -393,6 +399,7 @@ mdlr('enge:webgl', ({ include }) => {
           }
         }
       }
+      this.clutInfoCache.set(key, info);
       return info;
     }
     outsideDrawArea(x1, y1, x2, y2, x3, y3) {
@@ -544,6 +551,7 @@ mdlr('enge:webgl', ({ include }) => {
 
     setVramState(buffer) {
       this.vram.set(buffer);
+      this.clutInfoCache.clear();
       this.storeImageInTexture({ x: 0, y: 0, w: 1024, h: 512, pixelCount: 1024 * 512, buffer: this.vram });
     }
 
@@ -610,6 +618,7 @@ mdlr('enge:webgl', ({ include }) => {
           vram[offsetY + ((x++) % 1024)] = data[o++];
         }
       }
+      this.clutInfoCache.clear();
 
       this.storeImageInTexture(img);
     }
@@ -872,7 +881,11 @@ mdlr('enge:webgl', ({ include }) => {
       }
     }
     getVertexBuffer(cnt, pid) {
-      var select = (((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4) | (gpu.tp << 4);
+      // 4-bit and 8-bit textures share the packed-VRAM path; 16-bit and
+      // reserved texture depth share the direct-colour path. Keep either pair
+      // in one batch because the shader already carries depth per vertex.
+      var textureSource = gpu.tp < 2 ? 0 : 2;
+      var select = (((pid || 0) & 0x02000000) ? ((gpu.status >> 5) & 3) : 4) | (textureSource << 4);
 
       if (!this.vertexBuffer.canHold(cnt)) {
         this.flushVertexBuffer(true);
@@ -1113,6 +1126,7 @@ mdlr('enge:webgl', ({ include }) => {
           this.vram[offsetY + ((x + i) % 1024)] = clrState.c;
         }
       }
+      this.clutInfoCache.clear();
 
       gl.bindTexture(gl.TEXTURE_2D, this.tex8vram);
 
