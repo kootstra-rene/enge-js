@@ -225,6 +225,8 @@
     precision highp int;
 
     uniform sampler2D u_texture;
+    // GP0(E6h) bit 0: force VRAM bit 15 on every pixel drawn
+    uniform bool u_setMask;
 
     in vec2 v_vramCoord;
     in vec3 v_color;
@@ -330,6 +332,15 @@
           }
         }
       }
+
+      if (u_setMask) outColor.a = 1.0;
+
+#ifdef CHECK_MASK
+      // GP0(E6h) bit 1: pixels with bit 15 set must not be drawn over. They
+      // are marked with depth 1.0, which no primitive id reaches, so the
+      // GREATER depth test rejects later fragments there
+      gl_FragDepth = outColor.a >= 0.5 ? 1.0 : gl_FragCoord.z;
+#endif
     }
   </script>
 
@@ -358,6 +369,22 @@
         float(((c >> 5) & 31u) << 3) / 255.0,
         float(((c >> 10) & 31u) << 3) / 255.0,
         (c & 0x8000u) != 0u ? 1.0 : 0.0);
+    }
+  </script>
+
+  <script id="vramMaskDepth" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+
+    // vramShadow, in sync with vram for the scissored area
+    uniform sampler2D u_vram;
+
+    out vec4 outColor;
+
+    // depth 1.0 where VRAM bit 15 is set, untouched elsewhere
+    void main() {
+      if (texelFetch(u_vram, ivec2(gl_FragCoord.xy), 0).a < 0.5) discard;
+      gl_FragDepth = 1.0;
+      outColor = vec4(0.0);
     }
   </script>
 
