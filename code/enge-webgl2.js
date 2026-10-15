@@ -3,6 +3,9 @@ mdlr('enge:webgl2', ({ include }) => {
   const { createVertexBuffer, createProgramFromScripts } = include('enge:webgl2:utils');
 
   const $gpu = {
+    // draw area that applies to the vertices currently queued; the da* fields
+    // can already hold a newer area that only takes effect in updateDrawArea()
+    clipL: 0, clipT: 0, clipR: 0, clipB: 0,
   };
 
   const sbgr2rgba = new Uint32Array(65536);
@@ -423,8 +426,10 @@ mdlr('enge:webgl2', ({ include }) => {
         flushDepth();
         $gpu.daM = false;
 
-        gl.useProgram(this.programRenderer);
-        gl.uniform4i(this.programRenderer.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
+        $gpu.clipL = $gpu.daL;
+        $gpu.clipT = $gpu.daT;
+        $gpu.clipR = $gpu.daR;
+        $gpu.clipB = $gpu.daB;
       }
     }
 
@@ -563,9 +568,19 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
       gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0)
 
+      // clip to the draw area (inclusive, native coords) at 4x vram scale;
+      // scissor must be off again before any blit or clear
+      gl_enable(gl.SCISSOR_TEST);
+      gl.scissor(
+        4 * $gpu.clipL,
+        4 * $gpu.clipT,
+        4 * Math.max(0, $gpu.clipR - $gpu.clipL + 1),
+        4 * Math.max(0, $gpu.clipB - $gpu.clipT + 1));
+
       gl_bindTexture(TEXTURE_2D, vramShadow);
       gl.drawArrays(gl.TRIANGLES, 0, vertexBuffer.size());
 
+      gl_disable(gl.SCISSOR_TEST);
       gl_bindFramebuffer(FRAMEBUFFER, null);
       vertexBuffer.reset();
       gl_disable(gl.DEPTH_TEST);
@@ -665,8 +680,6 @@ mdlr('enge:webgl2', ({ include }) => {
   const createProgramRenderer = (renderBuffer) => {
     const program = createProgramFromScripts(gl, 'pixel', 'videoram');
     gl.useProgram(program);
-
-    program.drawArea = gl_getUniformLocation(program, "u_draw");
 
     let pos;
 
