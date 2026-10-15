@@ -545,26 +545,14 @@ mdlr('enge:webgl2', ({ include }) => {
       w = ((w & 0x3ff) + 15) & ~15;
       h = (h & 0x1ff);
 
-      transfer.fill(c, 0, w * h);
-
-      // copy texture data
-      gl_bindTexture(TEXTURE_2D, cache);
-      gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
-      gl_bindTexture(TEXTURE_2D, null);
-
-      // blit from cache -> vram
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
-
-      // blit from vram -> vramShadow
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
-
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
-      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
-      gl_bindFramebuffer(FRAMEBUFFER, null);
+      // fills wrap around the right and bottom edges of VRAM, so split into
+      // up to four rectangles
+      const w1 = Math.min(w, 1024 - x), w2 = w - w1;
+      const h1 = Math.min(h, 512 - y), h2 = h - h1;
+      clearRect(c, x, y, w1, h1);
+      clearRect(c, 0, y, w2, h1);
+      clearRect(c, x, 0, w1, h2);
+      clearRect(c, 0, 0, w2, h2);
     }
 
     updateDrawArea() {
@@ -653,6 +641,27 @@ mdlr('enge:webgl2', ({ include }) => {
   function getColor(data, index = 0, forceFlat = false) {
     const mask = forceFlat || (data[0] & 0x10000000) ? 0x00f8f8f8 : 0x00ffffff;
     return (data[0] & 0xff000000) | (data[index] & mask);
+  }
+
+  // fill a native-coordinate rectangle of vram and vramShadow with a 15-bit
+  // colour (0x00bbggrr, bit 15 clear) using scissored clears at 4x scale;
+  // both are written, so the shadow stays in sync for the dirty-cell tracking
+  const fillColor = new Float32Array(4);
+  function clearRect(c, x, y, w, h) {
+    if (w <= 0 || h <= 0) return;
+    fillColor[0] = ((c >>> 0) & 0xff) / 255;
+    fillColor[1] = ((c >>> 8) & 0xff) / 255;
+    fillColor[2] = ((c >>> 16) & 0xff) / 255;
+    fillColor[3] = 0;
+
+    gl_enable(gl.SCISSOR_TEST);
+    gl.scissor(4 * x, 4 * y, 4 * w, 4 * h);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+    gl.clearBufferfv(gl.COLOR, 0, fillColor);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+    gl.clearBufferfv(gl.COLOR, 0, fillColor);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+    gl_disable(gl.SCISSOR_TEST);
   }
 
   function flushDepth() {
