@@ -756,8 +756,8 @@ mdlr('enge:webgl2', ({ include }) => {
     const program = renderer.programDisplay;
 
     if ((canvas.width !== region.w * settings.quality) || (canvas.height !== region.h * settings.quality)) {
-      canvas.width = ambilight.canvas.width = region.w * settings.quality;
-      canvas.height = ambilight.canvas.height = region.h * settings.quality;
+      canvas.width = region.w * settings.quality;
+      canvas.height = region.h * settings.quality;
     }
     gl.viewport(0, 0, canvas.width, canvas.height);
 
@@ -781,9 +781,27 @@ mdlr('enge:webgl2', ({ include }) => {
 
     vertexBuffer.reset();
 
-    if (canvas.width && canvas.height) {
-      ambilight.drawImage(canvas, 0, 0);
+    updateAmbilight();
+  }
+
+  // the ambilight is a full-size copy of the display behind it; when it is
+  // switched off the copy is skipped, the canvas hidden and its memory freed
+  const updateAmbilight = () => {
+    const target = ambilight.canvas;
+    const enabled = settings.ambilight !== false;
+    if (target.hidden === enabled) target.hidden = !enabled;
+
+    if (!enabled) {
+      if (target.width || target.height) target.width = target.height = 0;
+      return;
     }
+    if (!canvas.width || !canvas.height) return;
+    if (target.width !== canvas.width || target.height !== canvas.height) {
+      target.width = canvas.width;
+      target.height = canvas.height;
+      ambilight.imageSmoothingEnabled = false; // resizing resets context state
+    }
+    ambilight.drawImage(canvas, 0, 0);
   }
 
   const vertexStride = 24;
