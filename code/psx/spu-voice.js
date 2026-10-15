@@ -229,7 +229,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       const adsrVolume = mixADSR();
 
       $s1 = sample * adsrVolume;
-      const i = (pitchCounter >>> 3) & 0xff;
+      const i = (pitchCounter >>> 4) & 0xff;
 
       let out = ((gauss[255 - i] * $s4));
       out = out + ((gauss[511 - i] * $s3));
