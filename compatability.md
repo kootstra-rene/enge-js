@@ -90,6 +90,7 @@ Most games in this [list](https://github.com/stenzek/duckstation/wiki/Difficult-
 | SCUS-94230 | SaGa Frontier | US | 🟢 Playable | 2026-10-12 | |
 | SLUS-00933 | SaGa Frontier 2 | US | 🟢 Playable | 2026-10-12 | |
 | SLUS-00895 | Shadow Man | US | 🟢 Playable | 2026-10-12 | |
+| SLUS-00545 | Shadow Master | US | 🟢 Playable | 2026-10-15 | |
 | SLUS-00707 | Silent Hill | US | 🟢 Playable | 2022-01-21 | When launching a new game and passing the cutscene, a strange effect appears on the player and other objects, including a white transparent square. Aside from lag spikes, it is playable. |
 | SLUS-00113 | SimCity 2000 | US | 🟢 Playable | 2026-10-12 | |
 | SLUS-00936 | South Park | US | 🟢 Playable | 2026-10-08 | |
