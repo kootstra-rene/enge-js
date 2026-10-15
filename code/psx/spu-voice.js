@@ -153,22 +153,29 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     const shiftFilter = ram[blockAddress + 0];
     const flags = ram[blockAddress + 1];
 
-    const shift = (shiftFilter & 0x0f) >>> 0;
+    const shiftValue = shiftFilter & 0x0f;
+    const shift = shiftValue > 12 ? 9 : shiftValue;
     const filter = (shiftFilter & 0xf0) >>> 3;
 
-    const k0 = xa2flt[filter + 0];
-    const k1 = xa2flt[filter + 1];
+    const k0 = Math.round(xa2flt[filter + 0] * 64);
+    const k1 = Math.round(xa2flt[filter + 1] * 64);
 
     let sample = -1;
     for (let offset = 2; offset < 16; ++offset) {
       let data = ram[blockAddress + offset];
-      let index = ((shift << 8) + data) << 1;
-      let value;
+      let nibble = (data & 0x0f) << 12;
+      if (nibble & 0x8000) nibble |= 0xffff0000;
+      let value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
+      value = Math.max(-0x8000, Math.min(0x7fff, value));
+      s1 = s0; s0 = value;
+      buffer[++sample] = value / 0x8000;
 
-      value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 0];
-      s1 = s0; s0 = buffer[++sample] = value;
-      value = (s0 * k0) + (s1 * k1) + xa2pcm[index + 1];
-      s1 = s0; s0 = buffer[++sample] = value;
+      nibble = (data & 0xf0) << 8;
+      if (nibble & 0x8000) nibble |= 0xffff0000;
+      value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
+      value = Math.max(-0x8000, Math.min(0x7fff, value));
+      s1 = s0; s0 = value;
+      buffer[++sample] = value / 0x8000;
     }
 
     if ((flags & 4) === 4) {
