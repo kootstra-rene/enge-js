@@ -277,10 +277,12 @@
 
     void main() {
       // draw-area clipping is done with gl.scissor in flushBuffer()
+      // alpha is VRAM bit 15: 0 for untextured pixels, the texel's bit 15
+      // for textured ones (blending always keeps the source alpha)
       bool transparentPrimitive = 2u == (packetId & 2u);
 
       if (0x00u == (packetId & 0x04u)) {
-        outColor = vec4(v_color, transparentPrimitive ? 1.0 : 0.0);
+        outColor = vec4(v_color, 0.0);
       }
       else {
         vec4 tc;
@@ -310,7 +312,7 @@
               discard;
             }
             else {
-              outColor = vec4(tc.rgb * v_color, 1.0);
+              outColor = vec4(tc.rgb * v_color, 0.0);
             }
           }
         }
