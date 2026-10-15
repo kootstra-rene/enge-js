@@ -45,6 +45,7 @@ Double clicking the emulator page will stop/resume the emulator.
 I have started a [compatibility list](./compatability.md). So feel free to update it.
 
 # Release notes
+- **2026-10-16:** Made the [WebGL2 renderer](https://kootstra-rene.github.io/enge-js/index-webgl2.html) more correct and lighter on the GPU: overlapping primitives now draw in a consistent order, effects that sample freshly drawn VRAM now see up-to-date pixels, and much less VRAM is copied. Off-screen primitives are skipped and draw-area clipping uses the GPU scissor. Shadow Master is now marked as playable.
 - **2026-10-14:** Various bug fixes to audio and graphics that increase game compatibility
 - **2026-10-12:** Added an experimental [WebGPU renderer](https://kootstra-rene.github.io/enge-js/index-webgpu.html), then improved its performance. Also improved GPU/MDEC handling and PSX-style texture sampling, added WebGL renderer options and a WebGL2 TV-effect toggle, added CD image conversion and disc-swap tools, and updated compatibility metrics.
 - **2026-10-11:** Improved compatibility across multiple games. Added the Node.js local server and improved cloud controls, save-state storage, and CD/audio handling.
