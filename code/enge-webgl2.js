@@ -247,6 +247,7 @@ mdlr('enge:webgl2', ({ include }) => {
         this.programRenderer = createProgramRenderer(this.renderBuffer);
         this.programRendererCheckMask = createProgramRenderer(this.renderBuffer, ['CHECK_MASK']);
         this.programMaskDepth = createProgramMaskDepth();
+        this.programCopy = createProgramCopy();
         this.programUpload = createProgramUpload();
 
         // textures are created zeroed, so vram starts out black
@@ -308,6 +309,9 @@ mdlr('enge:webgl2', ({ include }) => {
       flushVertexBuffer();
       invalidateMaskDepth();
 
+      const mask = (gpu.status >>> 11) & 3;
+      if (mask) return this.moveImageMasked(sx, sy, dx, dy, w, h, mask);
+
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
@@ -323,6 +327,46 @@ mdlr('enge:webgl2', ({ include }) => {
 
       gl.activeTexture(gl.TEXTURE0 + 0);
 
+    }
+
+    // GP0(80h) with GP0(E6h) mask bits: set mask forces bit 15 on every
+    // copied pixel, check mask keeps destination pixels that have it. Drawn
+    // with a shader from vramShadow (synced over both areas), so overlapping
+    // copies read the source as it was before the copy, like the blit path.
+    // Clipped at the VRAM edge like the blits.
+    moveImageMasked(sx, sy, dx, dy, w, h, mask) {
+      w = Math.min(w, 1024 - sx, 1024 - dx);
+      h = Math.min(h, 512 - sy, 512 - dy);
+      if (w <= 0 || h <= 0) return;
+
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      syncRegion(sx, sy, w, h);
+      syncRegion(dx, dy, w, h);
+
+      const program = this.programCopy;
+      gl.useProgram(program);
+      gl.uniform2i(program.offset, 4 * (sx - dx), 4 * (sy - dy));
+      gl.uniform1i(program.setMask, mask & 1);
+      gl.uniform1i(program.checkMask, (mask >> 1) & 1);
+      gl.bindVertexArray(program.vao);
+      gl_disable(BLEND);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      gl.scissor(4 * dx, 4 * dy, 4 * w, 4 * h);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl_disable(gl.SCISSOR_TEST);
+      gl_bindTexture(TEXTURE_2D, null);
+
+      // blit from vram -> vramShadow
+      const X1 = 4 * dx, Y1 = 4 * dy, X2 = 4 * (dx + w), Y2 = 4 * (dy + h);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
     }
 
     storeImage(img) {
@@ -349,10 +393,24 @@ mdlr('enge:webgl2', ({ include }) => {
       gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
 
+      // GP0(E6h): set mask forces bit 15, check mask keeps pixels that have
+      // it; the check reads vramShadow, so bring the target area up to date
+      const mask = (gpu.status >>> 11) & 3;
+      if (mask & 2) {
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+        for (const [, , vx, vy, pw, ph] of pieces) syncRegion(vx, vy, pw, ph);
+      }
+
       // convert to RGBA while drawing them into vram at 4x, then copy to
       // vramShadow
       const program = this.programUpload;
       gl.useProgram(program);
+      gl.uniform1i(program.setMask, mask & 1);
+      gl.uniform1i(program.checkMask, (mask >> 1) & 1);
+      gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl.activeTexture(gl.TEXTURE0);
       gl.bindVertexArray(program.vao);
       gl_disable(BLEND);
       gl.viewport(0, 0, 4096, 2048);
@@ -364,6 +422,9 @@ mdlr('enge:webgl2', ({ include }) => {
       }
       gl_disable(gl.SCISSOR_TEST);
       gl_bindTexture(TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE0);
 
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
@@ -977,6 +1038,21 @@ mdlr('enge:webgl2', ({ include }) => {
     const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramUpload');
     gl.useProgram(program);
     gl.uniform1i(gl_getUniformLocation(program, 'u_source'), 0);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_dest'), 1);
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.checkMask = gl_getUniformLocation(program, 'u_checkMask');
+    program.vao = gl.createVertexArray();
+    return program;
+  }
+
+  // VRAM -> VRAM copy honouring the mask bits
+  const createProgramCopy = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramCopy');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_vram'), 0);
+    program.offset = gl_getUniformLocation(program, 'u_offset');
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.checkMask = gl_getUniformLocation(program, 'u_checkMask');
     program.vao = gl.createVertexArray();
     return program;
   }

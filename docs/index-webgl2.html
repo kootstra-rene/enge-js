@@ -359,16 +359,46 @@
 
     // raw 15-bit VRAM words at native resolution, same coordinates as VRAM
     uniform usampler2D u_source;
+    // vramShadow, in sync with vram for the uploaded area (check mask)
+    uniform sampler2D u_dest;
+    // GP0(E6h) mask bits
+    uniform bool u_setMask;
+    uniform bool u_checkMask;
 
     out vec4 outColor;
 
     void main() {
+      if (u_checkMask && texelFetch(u_dest, ivec2(gl_FragCoord.xy), 0).a >= 0.5) discard;
       uint c = texelFetch(u_source, ivec2(gl_FragCoord.xy) >> 2, 0).r;
+      if (u_setMask) c |= 0x8000u;
       outColor = vec4(
         float((c & 31u) << 3) / 255.0,
         float(((c >> 5) & 31u) << 3) / 255.0,
         float(((c >> 10) & 31u) << 3) / 255.0,
         (c & 0x8000u) != 0u ? 1.0 : 0.0);
+    }
+  </script>
+
+  <script id="vramCopy" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+    precision highp int;
+
+    // vramShadow, in sync with vram for the source and destination areas
+    uniform sampler2D u_vram;
+    // (source - destination) at 4x
+    uniform ivec2 u_offset;
+    // GP0(E6h) mask bits
+    uniform bool u_setMask;
+    uniform bool u_checkMask;
+
+    out vec4 outColor;
+
+    // VRAM -> VRAM copy that honours the mask bits
+    void main() {
+      ivec2 p = ivec2(gl_FragCoord.xy);
+      if (u_checkMask && texelFetch(u_vram, p, 0).a >= 0.5) discard;
+      outColor = texelFetch(u_vram, p + u_offset, 0);
+      if (u_setMask) outColor.a = 1.0;
     }
   </script>
 
