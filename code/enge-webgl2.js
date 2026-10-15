@@ -58,8 +58,9 @@ mdlr('enge:webgl2', ({ include }) => {
     return false;
   }
 
+  // conservative: only rejects primitives whose vertices are all beyond one
+  // edge of the draw area; partially visible ones are clipped by the scissor
   const outsideDrawArea = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
-    return false;
     if ((x1 < $gpu.daL) && (x2 < $gpu.daL) && (x3 < $gpu.daL) && (x4 < $gpu.daL)) return true;
     if ((x1 > $gpu.daR) && (x2 > $gpu.daR) && (x3 > $gpu.daR) && (x4 > $gpu.daR)) return true;
     if ((y1 < $gpu.daT) && (y2 < $gpu.daT) && (y3 < $gpu.daT) && (y4 < $gpu.daT)) return true;
