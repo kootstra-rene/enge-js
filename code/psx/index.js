@@ -1117,6 +1117,28 @@ mdlr('enge:psx:index', ({ include }) => {
         localStorage.setItem('config', JSON.stringify(settings));
         updateTvEffect();
       });
+
+      const ambilight = document.createElement('button');
+      ambilight.id = 'ambilight-toggle';
+      ambilight.type = 'button';
+      const ambilightRow = document.createElement('li');
+      ambilightRow.append(ambilight);
+      controlMenu?.querySelector('.control-menu-list')?.append(ambilightRow);
+      const updateAmbilight = () => {
+        const enabled = settings.ambilight !== false;
+        ambilight.textContent = `Ambilight: ${enabled ? 'On' : 'Off'}`;
+        ambilight.setAttribute('aria-pressed', String(enabled));
+        // the renderer applies this on the next frame; hide it now as well so
+        // the change shows while paused
+        const canvas = document.getElementById('ambilight');
+        if (canvas) canvas.hidden = !enabled;
+      };
+      updateAmbilight();
+      ambilight.addEventListener('click', () => {
+        settings.ambilight = settings.ambilight === false;
+        localStorage.setItem('config', JSON.stringify(settings));
+        updateAmbilight();
+      });
     }
     const controllerMode = document.createElement('button');
     controllerMode.id = 'controller-mode';
