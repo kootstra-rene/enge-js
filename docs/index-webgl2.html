@@ -198,7 +198,10 @@
       gl_Position = vec4(a_position, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
-      gl_Position.z = (a_position.z / 32768.0);
+      // primitive id k -> window depth exactly k / 65535, i.e. depth value k
+      // in the 16-bit buffer; id / 32768 put every id on a .5 rounding
+      // boundary so neighbouring ids could get equal depth
+      gl_Position.z = (a_position.z * 2.0 / 65535.0) - 1.0;
 
       v_vramCoord = a_texcoord; // texture is 4096x2048
       v_pixelCoord = a_position.xy;
@@ -222,7 +225,6 @@
     precision highp int;
 
     uniform sampler2D u_texture;
-    uniform ivec4 u_draw;
 
     in vec2 v_vramCoord;
     in vec3 v_color;
@@ -274,61 +276,58 @@
     }
 
     void main() {
+      // draw-area clipping is done with gl.scissor in flushBuffer()
       bool transparentPrimitive = 2u == (packetId & 2u);
-      ivec2 texel = ivec2(v_pixelCoord).xy;
 
-      if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
-        if (0x00u == (packetId & 0x04u)) {
-          outColor = vec4(v_color, transparentPrimitive ? 1.0 : 0.0);
-        }
-        else {
-          vec4 tc;
+      if (0x00u == (packetId & 0x04u)) {
+        outColor = vec4(v_color, transparentPrimitive ? 1.0 : 0.0);
+      }
+      else {
+        vec4 tc;
 
-          int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
-          int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
+        int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
+        int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
 
-          if (v_textureMode == 0u) tc = vram4bit(tx, ty);
-          if (v_textureMode == 1u) tc = vram8bit(tx, ty);
-          if (v_textureMode == 2u) tc = vram16Bit(tx, ty);
-          if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
+        if (v_textureMode == 0u) tc = vram4bit(tx, ty);
+        if (v_textureMode == 1u) tc = vram8bit(tx, ty);
+        if (v_textureMode == 2u) tc = vram16Bit(tx, ty);
+        if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
 
-          if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
+        if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 
-          bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
-          if (isTransparentPolygonOrRectangle) {
-            if (transparentPrimitive) {
-              if (tc.a <= 0.0) {
-                discard;
-              }
-              else {
-                outColor = vec4(tc.rgb * v_color, 1.0);
-              }
+        bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
+        if (isTransparentPolygonOrRectangle) {
+          if (transparentPrimitive) {
+            if (tc.a <= 0.0) {
+              discard;
             }
             else {
-              if (tc.a > 0.0) {
-                discard;
-              }
-              else {
-                outColor = vec4(tc.rgb * v_color, 1.0);
-              }
+              outColor = vec4(tc.rgb * v_color, 1.0);
             }
           }
           else {
-            if (transparentPrimitive) {
-              if (tc.a <= 0.0) {
-                discard;
-              }
-              else {
-                outColor = vec4(tc.rgb * v_color, 1.0);
-              }
+            if (tc.a > 0.0) {
+              discard;
             }
             else {
-              outColor = vec4(tc.rgb * v_color, tc.a);
+              outColor = vec4(tc.rgb * v_color, 1.0);
             }
           }
         }
+        else {
+          if (transparentPrimitive) {
+            if (tc.a <= 0.0) {
+              discard;
+            }
+            else {
+              outColor = vec4(tc.rgb * v_color, 1.0);
+            }
+          }
+          else {
+            outColor = vec4(tc.rgb * v_color, tc.a);
+          }
+        }
       }
-      else discard;
     }
   </script>
 
