@@ -83,10 +83,10 @@ fn word(x:u32,y:u32)->u32 {let c=pixel(x,y);let rgb=vec3u(clamp(round(c.rgb*32.0
  return rgb.r|(rgb.g<<5u)|(rgb.b<<10u)|select(0u,32768u,c.a>=0.5);}
 @fragment fn fragment(i:Vertex)->@location(0) vec4f {
  let depth=i.mode&7u; if(depth==3u){return vec4f(i.color,params.x);}
- var uv=vec2u(vec2i(floor(i.uv)));if(depth!=2u && any(i.window.xy!=vec2u(0u))){
- // Preserve the working WebGL1 modulo window behaviour in this initial backend.
- uv=uv%(vec2u(256u)-i.window.xy);}
- let t=i.page+i.window.zw+uv;var c:vec4f;
+ var uv=vec2u(vec2i(floor(i.uv+vec2f(0.001))))&vec2u(255u);
+ // PS1 texture windows replace only the coordinate bits selected by the mask.
+ uv=(uv&~i.window.xy)|(i.window.zw&i.window.xy);
+ let t=i.page+uv;var c:vec4f;
  if(depth==2u){c=pixel(t.x,t.y);}else {
  var index:u32;if(depth==0u){let packed=word(t.x/4u,t.y);index=(packed>>((t.x&3u)*4u))&15u;}
  else {let packed=word(t.x/2u,t.y);index=(packed>>((t.x&1u)*8u))&255u;}
