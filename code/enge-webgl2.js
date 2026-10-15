@@ -545,8 +545,14 @@ mdlr('enge:webgl2', ({ include }) => {
       w = ((w & 0x3ff) + 15) & ~15;
       h = (h & 0x1ff);
 
-      // clipped at the right/bottom edge of VRAM, as the old upload+blit was
-      clearRect(c, x, y, Math.min(w, 1024 - x), Math.min(h, 512 - y));
+      // fills wrap around the right and bottom edges of VRAM, so split into
+      // up to four rectangles
+      const w1 = Math.min(w, 1024 - x), w2 = w - w1;
+      const h1 = Math.min(h, 512 - y), h2 = h - h1;
+      clearRect(c, x, y, w1, h1);
+      clearRect(c, 0, y, w2, h1);
+      clearRect(c, x, 0, w1, h2);
+      clearRect(c, 0, 0, w2, h2);
     }
 
     updateDrawArea() {
