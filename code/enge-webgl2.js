@@ -824,10 +824,10 @@ mdlr('enge:webgl2', ({ include }) => {
     createVertexArray(program, renderBuffer, [
       ['a_position', 3, gl.SHORT, false, 0],
       ['a_texcoord', 2, gl.SHORT, false, 6],
-      ['a_color', 4, UNSIGNED_BYTE, true, 10],
-      ['a_twin', 4, UNSIGNED_BYTE, false, 14],
-      ['a_clut', 1, gl.SHORT, false, 18],
-      ['a_tmode', 1, gl.BYTE, false, 20],
+      ['a_color', 4, UNSIGNED_BYTE, true, 12],
+      ['a_twin', 4, UNSIGNED_BYTE, false, 16],
+      ['a_clut', 1, gl.SHORT, false, 20],
+      ['a_tmode', 1, gl.BYTE, false, 22],
     ]);
 
     return program;
@@ -1002,8 +1002,16 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    * @returns vertex-buffer
    */
   function createVertexBuffer(reverse = false) {
+    // vertex layout (24 bytes, every field naturally aligned):
+    //    0 x  i16    2 y  i16    4 primitive id  i16    6 u  i16    8 v  i16
+    //   10 (unused)  12 colour u32   16 texture window u32
+    //   20 clut u16  22 texture mode/page u8   23 (unused)
+    // typed-array stores are about twice as fast as DataView calls; WebGL and
+    // typed arrays both use the platform byte order
     const buffer = new Uint8Array(1024 * 1024);
-    const view = new DataView(buffer.buffer);
+    const i16 = new Int16Array(buffer.buffer);
+    const u16 = new Uint16Array(buffer.buffer);
+    const u32 = new Uint32Array(buffer.buffer);
 
     const bytesPerVertex = 24;
     let index = 0;
@@ -1011,15 +1019,16 @@ mdlr('enge:webgl2:utils', ({ include }) => {
       if (reverse) {
         index -= bytesPerVertex;
       }
-      view.setInt16(index + 0, x, true);
-      view.setInt16(index + 2, y, true);
-      view.setInt16(index + 4, primitiveId, true);
-      view.setInt16(index + 6, u, true);
-      view.setInt16(index + 8, v, true);
-      view.setUint32(index + 10, c, true);
-      view.setUint32(index + 14, gpu.twin, true);
-      view.setUint16(index + 18, cl >>> 0, true);
-      view.setUint8(index + 20, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
+      const h = index >> 1, w = index >> 2;
+      i16[h + 0] = x;
+      i16[h + 1] = y;
+      i16[h + 2] = primitiveId;
+      i16[h + 3] = u;
+      i16[h + 4] = v;
+      u32[w + 3] = c;
+      u32[w + 4] = gpu.twin;
+      u16[h + 10] = cl;
+      buffer[index + 22] = ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2);
       if (!reverse) {
         index += bytesPerVertex;
       }
