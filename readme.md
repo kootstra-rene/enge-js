@@ -6,17 +6,17 @@ You have the emscriptem based ones but that is not pure JavaScript and also thos
 All the code resides in the docs folder so that, when pushing to GitHub, the emulator gets automatically deployed to GitHub pages. Keep in mind it is a hobby project and does not have tests nor is it very structured. When I will find the time some parts will be rewritten using TDD and more ES6 style coding.
 
 # How to run
-Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). You can also try the experimental [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) and [WebGPU](https://kootstra-rene.github.io/enge-js/index-webgpu.html) versions. Note you'll need Chrome for running this emulator and read the rest of this readme before you do. On a Mac use Safari instead of Chrome and give the permission to play audio on the site.
+Just go to [the latest release](https://kootstra-rene.github.io/enge-js/). You can also try the experimental [WebGL2](https://kootstra-rene.github.io/enge-js/index-webgl2.html) and [WebGPU](https://kootstra-rene.github.io/enge-js/index-webgpu.html) versions. 
 
 ## Loading the BIOS
 When the emulator is running and no BIOS has been loaded the eNGE logo will be pulsating with a red color.
-You can load the BIOS by dragging and dropping a PSX BIOS file (SCHP1001) on the emulator page. If all went well the eNGE logo stops pulsating. If you press F5 or everythime you start the emulator again it will use the previous loaded BIOS.
+You can load the BIOS by dragging and dropping a PSX BIOS file (SCHP1001) on the emulator page. If all went well the eNGE logo stops pulsating. The BIOS is saved in local storage so every time you reload the page again it will use the previously loaded BIOS. Experimental compatibility has also been added for [OpenBIOS](https://libreboot.org/docs/install/playstation.html).
 
 ## Loading a demo
 Same as with the BIOS drag and drop the .psx-exe file on the emulator page and it will automatically start running
 
 ## Loading a cdrom
-Same as with the BIOS drag and drop the .bin file on the emulator page and it will automatically start running. Only raw .iso and .bin files are supported currently. The emulator will try to build it's own table of contents a.k.a track information and as such a lot of games have cd audio but it could not work in all cases.
+Same as with the BIOS drag and drop all the .bin and .cue files on the emulator page and it will automatically start running.  The emulator will attempt to build it's own table of contents a.k.a track information if only a single .bin is provided. 
 
 ## Hosting locally
 
@@ -28,27 +28,24 @@ node server.js
 
 The default URL is `http://<your-lan-ip>:8000/`. The server prints the detected LAN address when it starts. See [SERVER.md](./SERVER.md) for command-line options, catalog generation, range requests, and cloud endpoints.
 
-## Improving quality
+## Improving Graphics Quality
+
 Click the Qx button to cycle through Q1, Q2, and Q4, with Q4 as the highest quality. The red border indicates that you need to reload the emulator for the change to take effect.
 
 ## Controls
 
 Keyboard: circle = D, cross = X, square = S, triangle = E, R1 = R, R2 = T, L1 = W, L2 = Q, start = Enter, select = Space, D-pad directions = arrow keys (also left stick), right stick up/left/down/right = I/J/K/L.
 
-When using the gamepad just connect it, press a button on the gamepad and the border around the gamepad/keyboardicon should become blueish and you are ready to go.
+When using a gamepad just connect it, press a button on the gamepad and the border around the gamepad/keyboardicon should become blueish and you are ready to go. 
 
-## Handy info
-Double clicking the emulator page will stop/resume the emulator. This can be handy when the sound is really crappy.
-
-## Memory Card
-Only one memory card is supported at this time. You can load it the same as the BIOS or CD
+Double clicking the emulator page will stop/resume the emulator. 
 
 # Which games run
 
 I have started a [compatibility list](./compatability.md). So feel free to update it.
 
 # Release notes
-
+- **2026-10-14:** Various bug fixes to audio and graphics that increase game compatibility
 - **2026-10-12:** Added an experimental [WebGPU renderer](https://kootstra-rene.github.io/enge-js/index-webgpu.html), then improved its performance. Also improved GPU/MDEC handling and PSX-style texture sampling, added WebGL renderer options and a WebGL2 TV-effect toggle, added CD image conversion and disc-swap tools, and updated compatibility metrics.
 - **2026-10-11:** Improved compatibility across multiple games. Added the Node.js local server and improved cloud controls, save-state storage, and CD/audio handling.
 - **2026-10-10:** Improved Crash Bash startup compatibility and updated compatibility results for multiple games.
