@@ -198,7 +198,10 @@
       gl_Position = vec4(a_position, 1.0);
       gl_Position.x = (gl_Position.x - 512.0) / +512.0;
       gl_Position.y = (gl_Position.y - 256.0) / +256.0;
-      gl_Position.z = (a_position.z / 32768.0);
+      // primitive id k -> window depth exactly k / 65535, i.e. depth value k
+      // in the 16-bit buffer; id / 32768 put every id on a .5 rounding
+      // boundary so neighbouring ids could get equal depth
+      gl_Position.z = (a_position.z * 2.0 / 65535.0) - 1.0;
 
       v_vramCoord = a_texcoord; // texture is 4096x2048
       v_pixelCoord = a_position.xy;
