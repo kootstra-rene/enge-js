@@ -16,6 +16,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   let adsrReleaseRate = 0;
   let sweepLeft = [];
   let sweepRight = [];
+  let pitchModulationEnabled = false;
 
   let pitchStep = 0;
   let pitchCounter = BLOCKSIZE;
@@ -192,6 +193,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   const voice = {
     reverb: 0,
     capture: 0,
+    outputForModulation: 0.0,
 
     setId(voiceId) {
       id = voiceId;
@@ -200,10 +202,21 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       return voice;
     },
 
-    advance(ram, audio) {
-      if (!adsrState) return adsrState; // note: this is an optimisation that behave differently then the hardware does.
+    advance(ram, audio, previousVoiceOutput = 0.0) {
+      if (!adsrState) {
+        voice.outputForModulation = 0.0;
+        return adsrState; // note: this is an optimisation that behave differently then the hardware does.
+      }
 
-      pitchCounter += pitchStep;
+      // PMON scales this voice's pitch from the preceding voice's signed
+      // interpolated output, centered around a factor of 1.0.
+      let currentPitchStep = pitchStep;
+      if (pitchModulationEnabled && id > 0) {
+        const modulatorSample = Math.max(-0x8000, Math.min(0x7fff, (previousVoiceOutput * 0x8000) | 0));
+        const modulationFactor = modulatorSample + 0x8000;
+        currentPitchStep = (pitchStep * modulationFactor) >> 15;
+      }
+      pitchCounter += currentPitchStep;
 
       if (pitchCounter >= BLOCKSIZE) {
         pitchCounter -= BLOCKSIZE;
@@ -224,6 +237,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       out = out + ((gauss[i] * $s1));
 
       let s = out / 0x8000;
+      voice.outputForModulation = s;
       // if (out) console.log(out);
 
       audio[0] = (s * volumeLeft * mixSweep(sweepLeft))
@@ -255,8 +269,8 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       voice.reverb = enabled;
     },
 
-    modOn() {
-      // todo: pitch modulation
+    modOn(enabled) {
+      pitchModulationEnabled = enabled;
     },
 
     noiseOn() {
