@@ -257,19 +257,22 @@ mdlr('enge:webgl2', ({ include }) => {
     loadImage(x, y, w, h, buffer) {
       flushVertexBuffer();
 
-      // clipped at the right/bottom VRAM edge; pixels beyond it read as 0
-      const cw = Math.min(w, 1024 - x), ch = Math.min(h, 512 - y);
-      if (cw < w || ch < h) transfer.fill(0, 0, w * h);
-
-      // blit from vram -> cache (4x -> native)
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), x, y, (x + cw), (y + ch), COLOR_BUFFER_BIT, NEAREST);
-
-      // read rows of cw pixels into rows of w pixels
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+      // reads wrap around the right and bottom VRAM edges; each piece is
+      // read into its place in rows of w pixels
       gl.pixelStorei(gl.PACK_ROW_LENGTH, w);
-      gl.readPixels(x, y, cw, ch, RGBA, UNSIGNED_BYTE, view);
+      for (const [sx, sy, vx, vy, pw, ph] of wrappedPieces(x, y, w, h)) {
+        // blit from vram -> cache (4x -> native)
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
+        gl_blitFramebuffer(4 * vx, 4 * vy, 4 * (vx + pw), 4 * (vy + ph), vx, vy, vx + pw, vy + ph, COLOR_BUFFER_BIT, NEAREST);
+
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+        gl.pixelStorei(gl.PACK_SKIP_PIXELS, sx);
+        gl.pixelStorei(gl.PACK_SKIP_ROWS, sy);
+        gl.readPixels(vx, vy, pw, ph, RGBA, UNSIGNED_BYTE, view);
+      }
+      gl.pixelStorei(gl.PACK_SKIP_PIXELS, 0);
+      gl.pixelStorei(gl.PACK_SKIP_ROWS, 0);
       gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
 
       const size = w * h;
@@ -323,35 +326,46 @@ mdlr('enge:webgl2', ({ include }) => {
       flushVertexBuffer();
 
       const { x, y, w, h } = img;
-      // clipped at the right/bottom VRAM edge, as before
-      const cw = Math.min(w, 1024 - x), ch = Math.min(h, 512 - y);
+      const pieces = wrappedPieces(x, y, w, h);
 
-      // upload the raw 16-bit words (rows of w, cw of them each) to the
-      // staging texture at their VRAM position
+      // upload the raw 16-bit words to the staging texture at their VRAM
+      // position; uploads wrap around the right and bottom VRAM edges, each
+      // piece taken from its place in the caller's rows of w words
       gl_bindTexture(TEXTURE_2D, upload);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
       gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w);
-      gl_texSubImage2D(TEXTURE_2D, 0, x, y, cw, ch, gl.RED_INTEGER, gl.UNSIGNED_SHORT, img.buffer);
+      for (const [sx, sy, vx, vy, pw, ph] of pieces) {
+        gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, sx);
+        gl.pixelStorei(gl.UNPACK_SKIP_ROWS, sy);
+        gl_texSubImage2D(TEXTURE_2D, 0, vx, vy, pw, ph, gl.RED_INTEGER, gl.UNSIGNED_SHORT, img.buffer);
+      }
+      gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+      gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
       gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
 
-      // convert to RGBA while drawing them into vram at 4x
+      // convert to RGBA while drawing them into vram at 4x, then copy to
+      // vramShadow
       const program = this.programUpload;
       gl.useProgram(program);
       gl.bindVertexArray(program.vao);
       gl_disable(BLEND);
       gl.viewport(0, 0, 4096, 2048);
       gl_enable(gl.SCISSOR_TEST);
-      gl.scissor(4 * x, 4 * y, 4 * cw, 4 * ch);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      for (const [, , vx, vy, pw, ph] of pieces) {
+        gl.scissor(4 * vx, 4 * vy, 4 * pw, 4 * ph);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
       gl_disable(gl.SCISSOR_TEST);
       gl_bindTexture(TEXTURE_2D, null);
 
-      // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), 4 * x, 4 * y, 4 * (x + cw), 4 * (y + ch), COLOR_BUFFER_BIT, NEAREST);
+      for (const [, , vx, vy, pw, ph] of pieces) {
+        const X1 = 4 * vx, Y1 = 4 * vy, X2 = 4 * (vx + pw), Y2 = 4 * (vy + ph);
+        gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+      }
 
       gl_bindFramebuffer(FRAMEBUFFER, null);
     }
@@ -645,6 +659,19 @@ mdlr('enge:webgl2', ({ include }) => {
   function getColor(data, index = 0, forceFlat = false) {
     const mask = forceFlat || (data[0] & 0x10000000) ? 0x00f8f8f8 : 0x00ffffff;
     return (data[0] & 0xff000000) | (data[index] & mask);
+  }
+
+  // split a native rectangle that may run past the right/bottom VRAM edge
+  // into the up to four pieces it wraps into:
+  // [offset x, offset y in the rectangle, vram x, vram y, width, height]
+  function wrappedPieces(x, y, w, h) {
+    const w1 = Math.min(w, 1024 - x), w2 = w - w1;
+    const h1 = Math.min(h, 512 - y), h2 = h - h1;
+    const pieces = [[0, 0, x, y, w1, h1]];
+    if (w2 > 0) pieces.push([w1, 0, 0, y, w2, h1]);
+    if (h2 > 0) pieces.push([0, h1, x, 0, w1, h2]);
+    if (w2 > 0 && h2 > 0) pieces.push([w1, h1, 0, 0, w2, h2]);
+    return pieces;
   }
 
   // fill a native-coordinate rectangle of vram and vramShadow with a 15-bit
