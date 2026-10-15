@@ -398,7 +398,6 @@ mdlr('enge:webgl2', ({ include }) => {
 
       touchArea(x1, y1, x2, y2, x1 + 1, y1 + 1, x2 + 1, y2 + 1);
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var w = Math.abs(x1 - x2);
@@ -470,7 +469,6 @@ mdlr('enge:webgl2', ({ include }) => {
       }
       touchArea(x1, y1, x2, y2, x3, y3);
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       const buffer = vertexBuffer;
@@ -517,7 +515,6 @@ mdlr('enge:webgl2', ({ include }) => {
       }
       touchArea(x, y, x + w, y + h);
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var buffer = vertexBuffer;
@@ -723,7 +720,10 @@ mdlr('enge:webgl2', ({ include }) => {
       flushVertexBuffer();
       $mode = mode;
     }
-    return renderer.buffers[mode];
+    const buffer = renderer.buffers[mode];
+    // callers add at most 6 vertices (a rectangle or a line)
+    if (!buffer.canHold(6)) flushVertexBuffer();
+    return buffer;
   }
 
   const flushVertexBuffer = () => {
@@ -1020,6 +1020,11 @@ mdlr('enge:webgl2:utils', ({ include }) => {
 
     buffer.reset = () => {
       index = reverse ? buffer.length : 0;
+    }
+
+    buffer.canHold = vertices => {
+      const free = reverse ? index : buffer.length - index;
+      return free >= vertices * bytesPerVertex;
     }
 
     buffer.size = () => {
