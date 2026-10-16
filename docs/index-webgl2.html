@@ -238,7 +238,7 @@
     // indices and stay native)
     uniform bool u_fullResTextures;
     // texture filter for polygons and for sprites (rectangles):
-    // 0 nearest, 1 bilinear, 2 sharp bilinear, 3 xBR
+    // 0 nearest, 1 bilinear, 2 sharp bilinear, 3 xBR, 4 MMPX
     uniform int u_textureFilter;
     uniform int u_spriteFilter;
 
@@ -506,6 +506,99 @@
       return texcol;
     }
 
+    // MMPX
+    // by Morgan McGuire and Mara Gagiu
+    // https://casual-effects.com/research/McGuire2021PixelArt/
+    // License: MIT
+    // adapted for slang by hunterk
+    //
+    // Adapted for enge-js from libretro slang-shaders
+    // edge-smoothing/scalenx/shaders/mmpx.slang: texels are fetched through
+    // the texture window and CLUT and clamped to the primitive's UV limits,
+    // and compared as whole texels, so transparent 0000h differs from opaque
+    // black. Each texel is split into the 2x2 MMPX output and the quadrant
+    // under the sample is used; a transparent result is not drawn.
+    float mmpxLuma(vec4 c) { return dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)); }
+    bool mSame(vec4 a, vec4 b) { return a == b; }
+    bool mNot(vec4 a, vec4 b) { return a != b; }
+    bool mAll2(vec4 b, vec4 a0, vec4 a1) { return b == a0 && b == a1; }
+    bool mAll3(vec4 b, vec4 a0, vec4 a1, vec4 a2) { return b == a0 && b == a1 && b == a2; }
+    bool mAll4(vec4 b, vec4 a0, vec4 a1, vec4 a2, vec4 a3) { return b == a0 && b == a1 && b == a2 && b == a3; }
+    bool mAny3(vec4 b, vec4 a0, vec4 a1, vec4 a2) { return b == a0 || b == a1 || b == a2; }
+    bool mNone2(vec4 b, vec4 a0, vec4 a1) { return b != a0 && b != a1; }
+    bool mNone4(vec4 b, vec4 a0, vec4 a1, vec4 a2, vec4 a3) { return b != a0 && b != a1 && b != a2 && b != a3; }
+
+    vec4 mmpxTexel() {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? 4.0 : 1.0;
+      vec2 uv = v_vramCoord * s;
+      ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
+      ivec2 q = ivec2(floor(uv));
+#define src(dx, dy) fetchTexel(clamp(q + ivec2(dx, dy), lo, hi), sub)
+
+      // current texel and the central 3x3 grid
+      vec4 E = src(0, 0);
+      vec4 A = src(-1, -1), B = src(0, -1), C = src(1, -1);
+      vec4 D = src(-1,  0),                 F = src(1,  0);
+      vec4 G = src(-1,  1), H = src(0,  1), I = src(1,  1);
+
+      // default to nearest
+      vec4 J = E, K = E, L = E, M = E;
+
+      // constant 3x3 centres stay nearest
+      if (!(E == A && E == B && E == C && E == D && E == F && E == G && E == H && E == I)) {
+        // tips of the diamond pattern
+        vec4 P = src(0, -2), Q = src(-2, 0), R = src(2, 0), S = src(0, 2);
+
+        float Bl = mmpxLuma(B), Dl = mmpxLuma(D), El = mmpxLuma(E), Fl = mmpxLuma(F), Hl = mmpxLuma(H);
+
+        // round some corners and fill in 1:1 slopes, but preserve sharp right angles
+        if ((mSame(D,B) && mNot(D,H) && mNot(D,F)) && ((El>=Dl) || mSame(E,A)) && mAny3(E,A,C,G) && ((El<Dl) || mNot(A,D) || mNot(E,P) || mNot(E,Q))) J=D;
+        if ((mSame(B,F) && mNot(B,D) && mNot(B,H)) && ((El>=Bl) || mSame(E,C)) && mAny3(E,A,C,I) && ((El<Bl) || mNot(C,B) || mNot(E,P) || mNot(E,R))) K=B;
+        if ((mSame(H,D) && mNot(H,F) && mNot(H,B)) && ((El>=Hl) || mSame(E,G)) && mAny3(E,A,G,I) && ((El<Hl) || mNot(G,H) || mNot(E,S) || mNot(E,Q))) L=H;
+        if ((mSame(F,H) && mNot(F,B) && mNot(F,D)) && ((El>=Fl) || mSame(E,I)) && mAny3(E,C,G,I) && ((El<Fl) || mNot(I,H) || mNot(E,R) || mNot(E,S))) M=F;
+
+        // clean up disconnected line intersections
+        if ((mNot(E,F) && mAll4(E,C,I,D,Q) && mAll2(F,B,H)) && mNot(F,src(3, 0))) K=M=F;
+        if ((mNot(E,D) && mAll4(E,A,G,F,R) && mAll2(D,B,H)) && mNot(D,src(-3, 0))) J=L=D;
+        if ((mNot(E,H) && mAll4(E,G,I,B,P) && mAll2(H,D,F)) && mNot(H,src(0, 3))) L=M=H;
+        if ((mNot(E,B) && mAll4(E,A,C,H,S) && mAll2(B,D,F)) && mNot(B,src(0, -3))) J=K=B;
+
+        // remove tips of bright triangles on dark backgrounds
+        if ((Bl<El) && mAll4(E,G,H,I,S) && mNone4(E,A,D,C,F)) J=K=B;
+        if ((Hl<El) && mAll4(E,A,B,C,P) && mNone4(E,D,G,I,F)) L=M=H;
+        if ((Fl<El) && mAll4(E,A,D,G,Q) && mNone4(E,B,C,I,H)) K=M=F;
+        if ((Dl<El) && mAll4(E,C,F,I,R) && mNone4(E,B,A,G,H)) J=L=D;
+
+        // 2:1 and 1:2 slopes of constant colour
+        if (mNot(H,B)) {
+          if (mNot(H,A) && mNot(H,E) && mNot(H,C)) {
+            if (mAll3(H,G,F,R) && mNone2(H,D,src(2, -1))) L=M;
+            if (mAll3(H,I,D,Q) && mNone2(H,F,src(-2, -1))) M=L;
+          }
+          if (mNot(B,I) && mNot(B,G) && mNot(B,E)) {
+            if (mAll3(B,A,F,R) && mNone2(B,D,src(2, 1))) J=K;
+            if (mAll3(B,C,D,Q) && mNone2(B,F,src(-2, 1))) K=J;
+          }
+        }
+        if (mNot(F,D)) {
+          if (mNot(D,I) && mNot(D,E) && mNot(D,C)) {
+            if (mAll3(D,A,H,S) && mNone2(D,B,src(1, 2))) J=L;
+            if (mAll3(D,G,B,P) && mNone2(D,H,src(1, -2))) L=J;
+          }
+          if (mNot(F,E) && mNot(F,A) && mNot(F,G)) {
+            if (mAll3(F,C,H,S) && mNone2(F,B,src(-1, 2))) K=M;
+            if (mAll3(F,I,B,P) && mNone2(F,H,src(-1, -2))) M=K;
+          }
+        }
+      }
+#undef src
+
+      // which of the 4 output pixels of this texel the sample falls in
+      vec2 a = fract(uv);
+      return (a.x < 0.5) ? (a.y < 0.5 ? J : L) : (a.y < 0.5 ? K : M);
+    }
+
     void main() {
       // draw-area clipping is done with gl.scissor in flushBuffer()
       // alpha is VRAM bit 15: 0 for untextured pixels, the texel's bit 15
@@ -522,7 +615,11 @@
         vec4 tc;
         int texFilter = (v_flags & 1u) != 0u ? u_spriteFilter : u_textureFilter;
 
-        if (texFilter == 3) {
+        if (texFilter == 4) {
+          tc = mmpxTexel();
+          if (tc == vec4(0.0)) discard;
+        }
+        else if (texFilter == 3) {
           float ialpha;
           float scale = v_textureMode >= 2u && u_fullResTextures ? 4.0 : 1.0;
           float delta1 = clamp(max(texelsPerPixel.x, texelsPerPixel.y) * scale, 1.0 / 16.0, 1.0);
