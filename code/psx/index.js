@@ -1139,6 +1139,24 @@ mdlr('enge:psx:index', ({ include }) => {
         localStorage.setItem('config', JSON.stringify(settings));
         updateAmbilight();
       });
+
+      const fullRes = document.createElement('button');
+      fullRes.id = 'full-res-textures';
+      fullRes.type = 'button';
+      const fullResRow = document.createElement('li');
+      fullResRow.append(fullRes);
+      controlMenu?.querySelector('.control-menu-list')?.append(fullResRow);
+      const updateFullRes = () => {
+        const enabled = settings.fullResTextures !== false;
+        fullRes.textContent = `Full-res textures: ${enabled ? 'On' : 'Off'}`;
+        fullRes.setAttribute('aria-pressed', String(enabled));
+      };
+      updateFullRes();
+      fullRes.addEventListener('click', () => {
+        settings.fullResTextures = settings.fullResTextures === false;
+        localStorage.setItem('config', JSON.stringify(settings));
+        updateFullRes();
+      });
     }
     const controllerMode = document.createElement('button');
     controllerMode.id = 'controller-mode';

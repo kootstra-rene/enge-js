@@ -227,6 +227,10 @@
     uniform sampler2D u_texture;
     // GP0(E6h) bit 0: force VRAM bit 15 on every pixel drawn
     uniform bool u_setMask;
+    // sample 15-bit textures at the 4x resolution they were rendered at, so
+    // render-to-texture effects keep their detail (palette textures hold
+    // indices and stay native)
+    uniform bool u_fullResTextures;
 
     in vec2 v_vramCoord;
     in vec3 v_color;
@@ -251,6 +255,17 @@
     vec4 vram16Bit(int tx, int ty) {
       ivec2 coord = ivec2(v_texturePage) + ivec2(4,4) * ivec2(tx, ty);
       return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+    }
+
+    // direct texels at full (4x) resolution: texel t, sub-texel s (0..3)
+    vec4 vram16BitFull(ivec2 t, ivec2 s) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(4,4) * t + s;
+      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+    }
+
+    ivec2 textureWindow(ivec2 t) {
+      return ivec2(((t.x & 255) & ~twin.x) | (twin.z & twin.x),
+                   ((t.y & 255) & ~twin.y) | (twin.a & twin.y));
     }
 
     vec4 vram8bit(int tx, int ty) {
@@ -289,13 +304,21 @@
       else {
         vec4 tc;
 
-        int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
-        int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
+        if (v_textureMode >= 2u && u_fullResTextures) {
+          // texel and 4x sub-texel from the interpolated coordinate; the
+          // texture window applies to the texel
+          ivec2 q = ivec2(floor(v_vramCoord * 4.0));
+          tc = vram16BitFull(textureWindow(q >> 2), q & 3);
+        }
+        else {
+          int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
+          int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
 
-        if (v_textureMode == 0u) tc = vram4bit(tx, ty);
-        if (v_textureMode == 1u) tc = vram8bit(tx, ty);
-        if (v_textureMode == 2u) tc = vram16Bit(tx, ty);
-        if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
+          if (v_textureMode == 0u) tc = vram4bit(tx, ty);
+          if (v_textureMode == 1u) tc = vram8bit(tx, ty);
+          if (v_textureMode == 2u) tc = vram16Bit(tx, ty);
+          if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
+        }
 
         if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 

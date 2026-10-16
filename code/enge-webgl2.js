@@ -790,6 +790,7 @@ mdlr('enge:webgl2', ({ include }) => {
       const program = ($maskMode & 2) ? renderer.programRendererCheckMask : renderer.programRenderer;
       renderer.setTransparencyMode(mode, program); // also binds the program
       gl.uniform1i(program.setMask, $maskMode & 1);
+      gl.uniform1i(program.fullResTextures, settings.fullResTextures !== false ? 1 : 0);
       gl.viewport(0, 0, 4096, 2048); // texture dimensions
 
       gl.bindVertexArray(program.vao);
@@ -1032,6 +1033,7 @@ mdlr('enge:webgl2', ({ include }) => {
     const program = createProgramFromScripts(gl, 'pixel', 'videoram', defines);
     gl.useProgram(program);
     program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.fullResTextures = gl_getUniformLocation(program, 'u_fullResTextures');
 
     createVertexArray(program, renderBuffer, [
       ['a_position', 3, gl.FLOAT, false, 0],
