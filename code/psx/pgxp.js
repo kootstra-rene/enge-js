@@ -1,6 +1,6 @@
 mdlr('enge:psx:pgxp', ({ include }) => {
 
-  // PGXP (precision geometry): carries the quarter-pixel fraction of GTE
+  // PGXP (precision geometry): carries the 1/16-pixel fraction of GTE
   // screen coordinates (SXY) from the GTE, through CPU registers and memory,
   // to the GPU, so polygons can be drawn at sub-pixel positions instead of
   // snapping to whole pixels.
@@ -13,9 +13,10 @@ mdlr('enge:psx:pgxp', ({ include }) => {
   // therefore just falls back to the normal integer position: a shadow can
   // be missing, but never wrong.
   //
-  // frac byte: bits 0-1 x fraction (low halfword), bits 2-3 y fraction (high
-  // halfword), bit 4 = x valid, bit 5 = y valid. The halves are tracked
-  // separately so packed screen words can be split and recombined.
+  // frac (16 bits): bits 0-3 x fraction in sixteenths (low halfword), bits 4-7
+  // y fraction (high halfword), bit 8 = x valid, bit 9 = y valid. The halves
+  // are tracked separately so packed screen words can be split and recombined.
+  // Sixteenths give half-pixel accuracy at the 8x render scale.
   //
   // Memory-type instructions (LW/SW, LH/LHU/SH, LWC2/SWC2, MFC2/MTC2, moves)
   // are tracked whenever PGXP is on. ?pgxp=cpu also tracks the ALU
@@ -28,11 +29,11 @@ mdlr('enge:psx:pgxp', ({ include }) => {
   // are precise, and why the others are not (see noteVertex)
   const debug = enabled && params.has('debug-pgxp');
 
-  const VX = 0x10, VY = 0x20, VALID = VX | VY;
-  const lowF = (f) => f & (0x03 | VX);                                // x half
-  const highF = (f) => f & (0x0c | VY);                               // y half
-  const toHigh = (f) => (f & VX) ? (((f & 3) << 2) | VY) : 0;          // x half moved to the y half
-  const toLow = (f) => (f & VY) ? (((f >> 2) & 3) | VX) : 0;           // y half moved to the x half
+  const VX = 0x100, VY = 0x200, VALID = VX | VY;
+  const lowF = (f) => f & (0x0f | VX);                                // x half
+  const highF = (f) => f & (0xf0 | VY);                               // y half
+  const toHigh = (f) => (f & VX) ? (((f & 15) << 4) | VY) : 0;         // x half moved to the y half
+  const toLow = (f) => (f & VY) ? (((f >> 4) & 15) | VX) : 0;          // y half moved to the x half
   const isSxy = (reg) => reg >= 0x0c && reg <= 0x0f;
 
   // ALU kinds used by the recompiler in CPU mode (rec.js PGXP_ALU)
@@ -41,9 +42,9 @@ mdlr('enge:psx:pgxp', ({ include }) => {
   const SHADOW_WORDS = RAM_WORDS + (0x400 >>> 2);
 
   const memRaw = new Int32Array(SHADOW_WORDS);
-  const memFrac = new Uint8Array(SHADOW_WORDS);
+  const memFrac = new Uint16Array(SHADOW_WORDS);
   const gprRaw = new Int32Array(32);
-  const gprFrac = new Uint8Array(32);
+  const gprFrac = new Uint16Array(32);
 
   // addr is the masked (& 0x01ffffff) address the recompiler passes to
   // memRead32/memWrite32: RAM (and its mirrors) maps to the RAM shadow,
@@ -194,7 +195,7 @@ mdlr('enge:psx:pgxp', ({ include }) => {
       let r, f;
       switch (kind) {
         case ADDU: r = (a + b) | 0; f = eitherHalf(fa, fb); break;
-        case SUBU: r = (a - b) | 0; f = eitherHalf(fa, 0) & ~((fb & VX ? 0x03 | VX : 0) | (fb & VY ? 0x0c | VY : 0)); break;
+        case SUBU: r = (a - b) | 0; f = eitherHalf(fa, 0) & ~((fb & VX ? 0x0f | VX : 0) | (fb & VY ? 0xf0 | VY : 0)); break;
         case OR: r = a | b;
           f = ((b & 0xffff) === 0 ? lowF(fa) : (a & 0xffff) === 0 ? lowF(fb) : 0) |
             ((b >>> 16) === 0 ? highF(fa) : (a >>> 16) === 0 ? highF(fb) : 0);

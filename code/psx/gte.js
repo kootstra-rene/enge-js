@@ -31,9 +31,9 @@ mdlr('enge:psx:gte', ({ include }) => {
 
   const sx = new Int32Array(3);
   const sy = new Int32Array(3);
-  // PGXP: quarter-pixel fraction of SX/SY, kept alongside the FIFO.
-  // bits 0-1: x fraction, bits 2-3: y fraction, so that
-  // (sx * 4 + fx) >> 2 === sx always holds.
+  // PGXP: 1/16-pixel fraction of SX/SY, kept alongside the FIFO.
+  // bits 0-3: x fraction, bits 4-7: y fraction, so that
+  // (sx * 16 + fx) >> 4 === sx always holds.
   const sxyFrac = new Uint8Array(3);
   const sz = new Int32Array(4);
 
@@ -376,11 +376,11 @@ mdlr('enge:psx:gte', ({ include }) => {
     sx[2] = lim(Math.floor(mx * (1.0 / 65536.0)), -0x400, 14, 0x3ff, 14);
     sy[2] = lim(Math.floor(my * (1.0 / 65536.0)), -0x400, 13, 0x3ff, 13);
 
-    // same value in quarter pixels; clamped so that (x4 >> 2) === sx[2]
-    const x4 = clampQuarter(Math.floor(mx * (1.0 / 16384.0)));
-    const y4 = clampQuarter(Math.floor(my * (1.0 / 16384.0)));
+    // same value in sixteenths of a pixel; clamped so that (x16 >> 4) === sx[2]
+    const x16 = clampSixteenth(Math.floor(mx * (1.0 / 4096.0)));
+    const y16 = clampSixteenth(Math.floor(my * (1.0 / 4096.0)));
     sxyFrac[0] = sxyFrac[1]; sxyFrac[1] = sxyFrac[2];
-    sxyFrac[2] = (x4 & 3) | ((y4 & 3) << 2);
+    sxyFrac[2] = (x16 & 15) | ((y16 & 15) << 4);
 
     if (last) {
       // MAC0 = n*DQA + DQB, IR0 = MAC0/1000h
@@ -389,7 +389,7 @@ mdlr('enge:psx:gte', ({ include }) => {
     }
   };
 
-  const clampQuarter = v => v < -0x1000 ? -0x1000 : v > 0xfff ? 0xfff : v;
+  const clampSixteenth = v => v < -0x4000 ? -0x4000 : v > 0x3fff ? 0x3fff : v;
 
   const sqr = () => {
     // [MAC1,MAC2,MAC3] = [IR1*IR1,IR2*IR2,IR3*IR3] SAR (sf*12)
@@ -543,14 +543,14 @@ mdlr('enge:psx:gte', ({ include }) => {
     // integer value (LWC2/MTC2 of a value that carries a fraction)
     setFrac: (regId, frac) => {
       switch (regId) {
-        case 0x0c: sxyFrac[0] = frac & 15; break;
-        case 0x0d: sxyFrac[1] = frac & 15; break;
+        case 0x0c: sxyFrac[0] = frac & 0xff; break;
+        case 0x0d: sxyFrac[1] = frac & 0xff; break;
         case 0x0e:
-        case 0x0f: sxyFrac[2] = frac & 15; break;
+        case 0x0f: sxyFrac[2] = frac & 0xff; break;
       }
     },
 
-    // PGXP: quarter-pixel fraction for SXY0..SXY2 / SXYP (0 for other registers)
+    // PGXP: 1/16-pixel fraction for SXY0..SXY2 / SXYP (0 for other registers)
     frac: (regId) => {
       switch (regId) {
         case 0x0c: return sxyFrac[0];
