@@ -184,6 +184,8 @@
     in vec4 a_twin;
     in float a_tmode;
     in float a_clut;
+    in float a_flags;
+    in vec4 a_uvLimits;
 
     out vec2 v_vramCoord;
     out vec3 v_color;
@@ -193,6 +195,8 @@
     flat out uint packetId;
     flat out ivec2 clut;
     flat out ivec4 twin;
+    flat out uint v_flags;
+    flat out vec4 v_uvLimits;
 
     void main() {
       gl_Position = vec4(a_position, 1.0);
@@ -217,6 +221,8 @@
       float cy = mod(floor(a_clut / 64.0), 512.0);
       clut = ivec2(int(cx), int(cy));
       twin = ivec4(a_twin);
+      v_flags = uint(a_flags);
+      v_uvLimits = a_uvLimits;
     }
   </script>
 
@@ -231,6 +237,10 @@
     // render-to-texture effects keep their detail (palette textures hold
     // indices and stay native)
     uniform bool u_fullResTextures;
+    // texture filter for polygons and for sprites (rectangles):
+    // 0 nearest, 1 bilinear, 2 sharp bilinear
+    uniform int u_textureFilter;
+    uniform int u_spriteFilter;
 
     in vec2 v_vramCoord;
     in vec3 v_color;
@@ -240,6 +250,8 @@
     flat in uint packetId;
     flat in ivec2 clut;
     flat in ivec4 twin;
+    flat in uint v_flags;
+    flat in vec4 v_uvLimits;
 
     out vec4 outColor;
 
@@ -292,6 +304,56 @@
       return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
     }
 
+    // one texel through texture window, depth and CLUT; in 4x sub-texel
+    // units for direct textures at full resolution
+    vec4 fetchTexel(ivec2 q, bool sub) {
+      if (sub) return vram16BitFull(textureWindow(q >> 2), q & 3);
+      ivec2 t = textureWindow(q);
+      if (v_textureMode == 0u) return vram4bit(t.x, t.y);
+      if (v_textureMode == 1u) return vram8bit(t.x, t.y);
+      return vram16Bit(t.x, t.y);
+    }
+
+    // Bilinear (filter 1) or sharp bilinear (filter 2) with binary alpha, as
+    // DuckStation's BinAlpha filters: transparent texels (0000h) are left out
+    // and the colour renormalised, coverage below one half is transparent.
+    // Samples are clamped to the primitive's texels (v_uvLimits). Returns the
+    // colour with a = semi-transparency (bit 15), coverage in ialpha.
+    vec4 filteredTexel(int texFilter, out float ialpha) {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? 4.0 : 1.0;
+      vec2 c = v_vramCoord * s;
+      vec2 lo = v_uvLimits.xy * s, hi = v_uvLimits.zw * s + (s - 1.0);
+
+      vec2 offset = fract(c) - 0.5;
+      vec2 dir = sign(offset);
+      ivec2 q00 = ivec2(floor(clamp(c, lo, hi)));
+      ivec2 q11 = ivec2(floor(clamp(c + dir, lo, hi)));
+      vec4 s00 = fetchTexel(q00, sub);
+      vec4 s10 = fetchTexel(ivec2(q11.x, q00.y), sub);
+      vec4 s01 = fetchTexel(ivec2(q00.x, q11.y), sub);
+      vec4 s11 = fetchTexel(q11, sub);
+
+      float a00 = s00 == vec4(0.0) ? 0.0 : 1.0;
+      float a10 = s10 == vec4(0.0) ? 0.0 : 1.0;
+      float a01 = s01 == vec4(0.0) ? 0.0 : 1.0;
+      float a11 = s11 == vec4(0.0) ? 0.0 : 1.0;
+
+      vec2 weights = abs(offset);
+      if (texFilter == 2) {
+        // keep the middle of each texel sharp; blend over one output pixel
+        // (a quarter texel at 4x, one sub-texel at full resolution)
+        float width = sub ? 1.0 : 0.25;
+        weights = clamp((weights - (0.5 - width * 0.5)) / width, 0.0, 1.0);
+      }
+
+      vec4 texcol = mix(mix(s00, s10, weights.x), mix(s01, s11, weights.x), weights.y);
+      ialpha = mix(mix(a00, a10, weights.x), mix(a01, a11, weights.x), weights.y);
+      if (ialpha > 0.0) texcol.rgb /= ialpha;
+      texcol.a = texcol.a >= 0.5 ? 1.0 : 0.0;
+      return texcol;
+    }
+
     void main() {
       // draw-area clipping is done with gl.scissor in flushBuffer()
       // alpha is VRAM bit 15: 0 for untextured pixels, the texel's bit 15
@@ -303,8 +365,14 @@
       }
       else {
         vec4 tc;
+        int texFilter = (v_flags & 1u) != 0u ? u_spriteFilter : u_textureFilter;
 
-        if (v_textureMode >= 2u && u_fullResTextures) {
+        if (texFilter != 0) {
+          float ialpha;
+          tc = filteredTexel(texFilter, ialpha);
+          if (ialpha < 0.5) discard;
+        }
+        else if (v_textureMode >= 2u && u_fullResTextures) {
           // texel and 4x sub-texel from the interpolated coordinate; the
           // texture window applies to the texel
           ivec2 q = ivec2(floor(v_vramCoord * 4.0));
@@ -320,7 +388,7 @@
           if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
         }
 
-        if (tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
+        if (texFilter == 0 && tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
 
         bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
         if (isTransparentPolygonOrRectangle) {

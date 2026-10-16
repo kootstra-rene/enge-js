@@ -1157,6 +1157,24 @@ mdlr('enge:psx:index', ({ include }) => {
         localStorage.setItem('config', JSON.stringify(settings));
         updateFullRes();
       });
+
+      // texture filters cycle Nearest -> Bilinear -> Sharp bilinear
+      const filterNames = ['Nearest', 'Bilinear', 'Sharp bilinear'];
+      for (const [key, label] of [['textureFilter', 'Texture filter'], ['spriteFilter', 'Sprite filter']]) {
+        const button = document.createElement('button');
+        button.id = key === 'textureFilter' ? 'texture-filter' : 'sprite-filter';
+        button.type = 'button';
+        const row = document.createElement('li');
+        row.append(button);
+        controlMenu?.querySelector('.control-menu-list')?.append(row);
+        const update = () => { button.textContent = `${label}: ${filterNames[settings[key] | 0] ?? filterNames[0]}`; };
+        update();
+        button.addEventListener('click', () => {
+          settings[key] = ((settings[key] | 0) + 1) % filterNames.length;
+          localStorage.setItem('config', JSON.stringify(settings));
+          update();
+        });
+      }
     }
     const controllerMode = document.createElement('button');
     controllerMode.id = 'controller-mode';
