@@ -815,6 +815,8 @@
     uniform int       u_mode;
     uniform int       u_scale;
     uniform bool      u_tv_effect;
+    // 24-bit (FMV) display filter: 0 off, 1 smooth, 2 xBR
+    uniform int       u_fmvFilter;
   
     in vec2 v_texcoord;
     in vec2 v_vramCoord;
@@ -888,6 +890,160 @@
       }
     }
 
+    vec4 xbrDf(vec4 a, vec4 b) { return abs(a - b); }
+    vec4 xbrDiff(vec4 a, vec4 b) { return vec4(notEqual(a, b)); }
+    vec4 xbrEq(vec4 a, vec4 b) { return step(xbrDf(a, b), vec4(15.0)); }
+    vec4 xbrNeq(vec4 a, vec4 b) { return vec4(1.0) - xbrEq(a, b); }
+    vec4 xbrWd(vec4 a, vec4 b, vec4 c, vec4 d, vec4 e, vec4 f, vec4 g, vec4 h) {
+      return xbrDf(a, b) + xbrDf(a, c) + xbrDf(d, e) + xbrDf(d, f) + 4.0 * xbrDf(g, h);
+    }
+
+    // ---- 24-bit display filters (FMV) ----
+
+    // decoded 24-bit pixel p (relative to the display start), clamped to the
+    // display area; same decode and scale as vram24Bit()
+    vec3 fmv24(ivec2 p) {
+      p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
+      int tx = u_disp.x + ((p.x * 3) >> 1);
+      int ty = ((u_disp.y + p.y) & 511) * u_scale;
+      int sbgr1 = getSBGRfromRGBA(texelFetch(u_texture, ivec2((tx & 1023) * u_scale, ty), 0));
+      int sbgr2 = getSBGRfromRGBA(texelFetch(u_texture, ivec2(((tx + 1) & 1023) * u_scale, ty), 0));
+      ivec3 c = (p.x & 1) == 1
+        ? ivec3((sbgr1 >> 8) & 255, sbgr2 & 255, (sbgr2 >> 8) & 255)
+        : ivec3(sbgr1 & 255, (sbgr1 >> 8) & 255, sbgr2 & 255);
+      return vec3(c) / 256.0;
+    }
+
+    // position in 24-bit pixels, pixel centres at +0.5
+    vec2 fmvPos() {
+      return v_vramCoord - vec2(u_disp.xy);
+    }
+
+    // Smooth: bicubic over 4x4 decoded pixels, with Catmull-Rom (sharp) for
+    // luma and a cubic B-spline (soft) for chroma. MDEC stores chroma at half
+    // resolution in 8x8 blocks, so the softer chroma kernel hides the colour
+    // blocking while edges keep their detail.
+    vec4 catmullRom(float t) {
+      float t2 = t * t, t3 = t2 * t;
+      return vec4(-0.5 * t3 + t2 - 0.5 * t,
+                   1.5 * t3 - 2.5 * t2 + 1.0,
+                  -1.5 * t3 + 2.0 * t2 + 0.5 * t,
+                   0.5 * t3 - 0.5 * t2);
+    }
+    vec4 bSpline(float t) {
+      float t2 = t * t, t3 = t2 * t, u = 1.0 - t;
+      return vec4(u * u * u, 3.0 * t3 - 6.0 * t2 + 4.0, -3.0 * t3 + 3.0 * t2 + 3.0 * t + 1.0, t3) / 6.0;
+    }
+    vec4 fmvSmooth() {
+      vec2 t = fmvPos() - 0.5;
+      ivec2 i = ivec2(floor(t));
+      vec2 f = t - floor(t);
+      vec4 lx = catmullRom(f.x), ly = catmullRom(f.y);
+      vec4 cx = bSpline(f.x), cy = bSpline(f.y);
+      const vec3 Y = vec3(0.299, 0.587, 0.114);
+      float luma = 0.0;
+      vec3 chroma = vec3(0.0);
+      for (int y = 0; y < 4; ++y) {
+        for (int x = 0; x < 4; ++x) {
+          vec3 c = fmv24(i + ivec2(x - 1, y - 1));
+          float l = dot(c, Y);
+          luma += lx[x] * ly[y] * l;
+          chroma += cx[x] * cy[y] * (c - l);
+        }
+      }
+      return vec4(clamp(vec3(luma) + chroma, 0.0, 1.0), 1.0);
+    }
+
+    // xBR-lv2 (Hyllian, MIT; licence with the texture filters above) on the
+    // decoded 24-bit pixels. The blend width follows the display scale.
+    float fmvLuma(vec3 c) { return dot(c, vec3(14.352, 28.176, 5.472)); }
+    vec4 fmvXbr() {
+      vec2 pos = fmvPos();
+      ivec2 q = ivec2(floor(pos));
+      vec2 fp = fract(pos);
+      float delta1 = clamp(abs(dFdx(pos.x)), 1.0 / 16.0, 1.0);
+
+#define XT(dx, dy) fmv24(q + ivec2(dx, dy))
+      vec3 A1 = XT(-1, -2), B1 = XT(0, -2), C1 = XT(1, -2);
+      vec3 A  = XT(-1, -1), B  = XT(0, -1), C  = XT(1, -1);
+      vec3 D  = XT(-1,  0), E  = XT(0,  0), F  = XT(1,  0);
+      vec3 G  = XT(-1,  1), H  = XT(0,  1), I  = XT(1,  1);
+      vec3 G5 = XT(-1,  2), H5 = XT(0,  2), I5 = XT(1,  2);
+      vec3 A0 = XT(-2, -1), D0 = XT(-2, 0), G0 = XT(-2, 1);
+      vec3 C4 = XT( 2, -1), F4 = XT( 2, 0), I4 = XT( 2, 1);
+#undef XT
+
+      vec4 b  = vec4(fmvLuma(B), fmvLuma(D), fmvLuma(H), fmvLuma(F));
+      vec4 c  = vec4(fmvLuma(C), fmvLuma(A), fmvLuma(G), fmvLuma(I));
+      vec4 d  = b.yzwx;
+      vec4 e  = vec4(fmvLuma(E));
+      vec4 f  = b.wxyz;
+      vec4 g  = c.zwxy;
+      vec4 h  = b.zwxy;
+      vec4 i  = c.wxyz;
+      vec4 i4 = vec4(fmvLuma(I4), fmvLuma(C1), fmvLuma(A0), fmvLuma(G5));
+      vec4 i5 = vec4(fmvLuma(I5), fmvLuma(C4), fmvLuma(A1), fmvLuma(G0));
+      vec4 h5 = vec4(fmvLuma(H5), fmvLuma(F4), fmvLuma(B1), fmvLuma(D0));
+      vec4 f4 = h5.yzwx;
+
+      const vec4 Ao = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bo = vec4( 1.0,  1.0, -1.0, -1.0);
+      const vec4 Co = vec4( 1.5,  0.5, -0.5,  0.5);
+      const vec4 Ax = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bx = vec4( 0.5,  2.0, -0.5, -2.0);
+      const vec4 Cx = vec4( 1.0,  1.0, -0.5,  0.0);
+      const vec4 Ay = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 By = vec4( 2.0,  0.5, -2.0, -0.5);
+      const vec4 Cy = vec4( 2.0,  0.0, -1.0,  0.5);
+      const vec4 Ci = vec4(0.25);
+
+      vec4 delta   = vec4(delta1);
+      vec4 delta_l = vec4(0.5 * delta1, delta1, 0.5 * delta1, delta1);
+      vec4 delta_u = delta_l.yxwz;
+
+      vec4 fx   = Ao * fp.y + Bo * fp.x;
+      vec4 fx_l = Ax * fp.y + Bx * fp.x;
+      vec4 fx_u = Ay * fp.y + By * fp.x;
+
+      vec4 irlv0 = xbrDiff(e, f) * xbrDiff(e, h);
+      vec4 irlv1 = irlv0 * (xbrNeq(f, b) * xbrNeq(f, c) + xbrNeq(h, d) * xbrNeq(h, g)
+        + xbrEq(e, i) * (xbrNeq(f, f4) * xbrNeq(f, i4) + xbrNeq(h, h5) * xbrNeq(h, i5))
+        + xbrEq(e, g) + xbrEq(e, c));
+      vec4 irlv2l = xbrDiff(e, g) * xbrDiff(d, g);
+      vec4 irlv2u = xbrDiff(e, c) * xbrDiff(b, c);
+
+      vec4 fx45i = clamp((fx   + delta   - Co - Ci) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx45  = clamp((fx   + delta   - Co     ) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx30  = clamp((fx_l + delta_l - Cx     ) / (2.0 * delta_l), 0.0, 1.0);
+      vec4 fx60  = clamp((fx_u + delta_u - Cy     ) / (2.0 * delta_u), 0.0, 1.0);
+
+      vec4 wd1 = xbrWd(e, c,  g, i, h5, f4, h, f);
+      vec4 wd2 = xbrWd(h, d, i5, f, i4,  b, e, i);
+
+      vec4 edri  = step(wd1, wd2) * irlv0;
+      vec4 edr   = step(wd1 + vec4(0.1), wd2) * step(vec4(0.5), irlv1);
+      vec4 edr_l = step(2.0 * xbrDf(f, g), xbrDf(h, c)) * irlv2l * edr;
+      vec4 edr_u = step(2.0 * xbrDf(h, c), xbrDf(f, g)) * irlv2u * edr;
+
+      fx45  = edr   * fx45;
+      fx30  = edr_l * fx30;
+      fx60  = edr_u * fx60;
+      fx45i = edri  * fx45i;
+
+      vec4 px = step(xbrDf(e, f), xbrDf(e, h));
+      vec4 maximos = max(max(fx30, fx60), max(fx45, fx45i));
+
+      vec3 res1 = E;
+      res1 = mix(res1, mix(H, F, px.x), maximos.x);
+      res1 = mix(res1, mix(B, D, px.z), maximos.z);
+      vec3 res2 = E;
+      res2 = mix(res2, mix(F, B, px.y), maximos.y);
+      res2 = mix(res2, mix(D, H, px.w), maximos.w);
+
+      vec3 d1 = abs(E - res1), d2 = abs(E - res2);
+      return vec4(mix(res1, res2, step(d1.r + d1.g + d1.b, d2.r + d2.g + d2.b)), 1.0);
+    }
+
     vec4 vram16Bit() {
       return texelFetch(u_texture, ivec2(v_texcoord), 0);
     }
@@ -936,7 +1092,7 @@
       switch (u_mode) {
         case 7: outColor = gpuState(); return;
 
-        case 1: color = vram24Bit(); break;
+        case 1: color = u_fmvFilter == 1 ? fmvSmooth() : u_fmvFilter == 2 ? fmvXbr() : vram24Bit(); break;
         case 0: color = vram16Bit(); break;
         case 6: color = vram16Bit(); break;
         case 2: color = vram8bit(); break;
