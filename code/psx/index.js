@@ -1175,6 +1175,22 @@ mdlr('enge:psx:index', ({ include }) => {
           update();
         });
       }
+
+      // 24-bit display (FMV) filter cycles Off -> Smooth -> xBR
+      const fmvNames = ['Off', 'Smooth', 'xBR'];
+      const fmvButton = document.createElement('button');
+      fmvButton.id = 'fmv-filter';
+      fmvButton.type = 'button';
+      const fmvRow = document.createElement('li');
+      fmvRow.append(fmvButton);
+      controlMenu?.querySelector('.control-menu-list')?.append(fmvRow);
+      const updateFmv = () => { fmvButton.textContent = `FMV filter: ${fmvNames[settings.fmvFilter | 0] ?? fmvNames[0]}`; };
+      updateFmv();
+      fmvButton.addEventListener('click', () => {
+        settings.fmvFilter = ((settings.fmvFilter | 0) + 1) % fmvNames.length;
+        localStorage.setItem('config', JSON.stringify(settings));
+        updateFmv();
+      });
     }
     const controllerMode = document.createElement('button');
     controllerMode.id = 'controller-mode';

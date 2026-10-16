@@ -1004,6 +1004,7 @@ mdlr('enge:webgl2', ({ include }) => {
     gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
     gl.uniform1i(program.mode, mode);
     gl.uniform1i(program.tvEffect, settings.tvEffect ? 1 : 0);
+    gl.uniform1i(program.fmvFilter, settings.fmvFilter | 0);
     gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
 
     gl_bindFramebuffer(FRAMEBUFFER, null);
@@ -1071,6 +1072,7 @@ mdlr('enge:webgl2', ({ include }) => {
     program.displayArea = gl_getUniformLocation(program, "u_disp");
     program.mode = gl_getUniformLocation(program, "u_mode");
     program.tvEffect = gl_getUniformLocation(program, "u_tv_effect");
+    program.fmvFilter = gl_getUniformLocation(program, "u_fmvFilter");
     program.drawArea = gl_getUniformLocation(program, "u_draw");
 
     createVertexArray(program, displayBuffer, [
