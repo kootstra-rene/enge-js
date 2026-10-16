@@ -2,6 +2,11 @@ mdlr('enge:webgl2', ({ include }) => {
 
   const { createVertexBuffer, createProgramFromScripts } = include('enge:webgl2:utils');
 
+  // VRAM render scale: VRAM is rendered at scale x native resolution
+  // (1024 x 512), scale is a power of two
+  let scale = 4, scaleShift = 2;
+  let vramWidth = 1024 * scale, vramHeight = 512 * scale;
+
   const $gpu = {
     // draw area that applies to the vertices currently queued; the da* fields
     // can already hold a newer area that only takes effect in updateDrawArea()
@@ -164,8 +169,8 @@ mdlr('enge:webgl2', ({ include }) => {
   // copy grid cells [c0, c1) of grid row gy from vram to vramShadow;
   // expects fb_vram bound for read and fb_vramShadow for draw
   const blitCells = (c0, c1, gy) => {
-    const X1 = 4 * CELL_SIZE * c0, X2 = 4 * CELL_SIZE * c1;
-    const Y1 = 4 * CELL_SIZE * gy, Y2 = Y1 + 4 * CELL_SIZE;
+    const X1 = scale * CELL_SIZE * c0, X2 = scale * CELL_SIZE * c1;
+    const Y1 = scale * CELL_SIZE * gy, Y2 = Y1 + scale * CELL_SIZE;
     gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
   }
 
@@ -277,6 +282,7 @@ mdlr('enge:webgl2', ({ include }) => {
         this.programMaskDepth = createProgramMaskDepth();
         this.programCopy = createProgramCopy();
         this.programUpload = createProgramUpload();
+        applyScaleUniforms(this);
 
         // textures are created zeroed, so vram starts out black
         flushDepth();
@@ -296,7 +302,7 @@ mdlr('enge:webgl2', ({ include }) => {
         // blit from vram -> cache (4x -> native)
         gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
         gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-        gl_blitFramebuffer(4 * vx, 4 * vy, 4 * (vx + pw), 4 * (vy + ph), vx, vy, vx + pw, vy + ph, COLOR_BUFFER_BIT, NEAREST);
+        gl_blitFramebuffer(scale * vx, scale * vy, scale * (vx + pw), scale * (vy + ph), vx, vy, vx + pw, vy + ph, COLOR_BUFFER_BIT, NEAREST);
 
         gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
         gl.pixelStorei(gl.PACK_SKIP_PIXELS, sx);
@@ -343,12 +349,12 @@ mdlr('enge:webgl2', ({ include }) => {
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_blitFramebuffer(4 * sx, 4 * sy, 4 * (sx + w), 4 * (sy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
+      gl_blitFramebuffer(scale * sx, scale * sy, scale * (sx + w), scale * (sy + h), scale * dx, scale * dy, scale * (dx + w), scale * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
       // blit from vramShadow -> vram
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
+      gl_blitFramebuffer(scale * dx, scale * dy, scale * (dx + w), scale * (dy + h), scale * dx, scale * dy, scale * (dx + w), scale * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
       gl_bindFramebuffer(READ_FRAMEBUFFER, null);
@@ -374,14 +380,14 @@ mdlr('enge:webgl2', ({ include }) => {
 
       const program = this.programCopy;
       gl.useProgram(program);
-      gl.uniform2i(program.offset, 4 * (sx - dx), 4 * (sy - dy));
+      gl.uniform2i(program.offset, scale * (sx - dx), scale * (sy - dy));
       gl.uniform1i(program.setMask, mask & 1);
       gl.uniform1i(program.checkMask, (mask >> 1) & 1);
       gl.bindVertexArray(program.vao);
       gl_disable(BLEND);
-      gl.viewport(0, 0, 4096, 2048);
+      gl.viewport(0, 0, vramWidth, vramHeight);
       gl_enable(gl.SCISSOR_TEST);
-      gl.scissor(4 * dx, 4 * dy, 4 * w, 4 * h);
+      gl.scissor(scale * dx, scale * dy, scale * w, scale * h);
       gl_bindTexture(TEXTURE_2D, vramShadow);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -389,7 +395,7 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_bindTexture(TEXTURE_2D, null);
 
       // blit from vram -> vramShadow
-      const X1 = 4 * dx, Y1 = 4 * dy, X2 = 4 * (dx + w), Y2 = 4 * (dy + h);
+      const X1 = scale * dx, Y1 = scale * dy, X2 = scale * (dx + w), Y2 = scale * (dy + h);
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
       gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
@@ -441,10 +447,10 @@ mdlr('enge:webgl2', ({ include }) => {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindVertexArray(program.vao);
       gl_disable(BLEND);
-      gl.viewport(0, 0, 4096, 2048);
+      gl.viewport(0, 0, vramWidth, vramHeight);
       gl_enable(gl.SCISSOR_TEST);
       for (const [, , vx, vy, pw, ph] of pieces) {
-        gl.scissor(4 * vx, 4 * vy, 4 * pw, 4 * ph);
+        gl.scissor(scale * vx, scale * vy, scale * pw, scale * ph);
         gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       }
@@ -457,7 +463,7 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
       for (const [, , vx, vy, pw, ph] of pieces) {
-        const X1 = 4 * vx, Y1 = 4 * vy, X2 = 4 * (vx + pw), Y2 = 4 * (vy + ph);
+        const X1 = scale * vx, Y1 = scale * vy, X2 = scale * (vx + pw), Y2 = scale * (vy + ph);
         gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
       }
 
@@ -731,6 +737,8 @@ mdlr('enge:webgl2', ({ include }) => {
       else return;
 
 
+      if (desiredScale() !== scale) changeRenderScale(desiredScale());
+
       this.setTransparencyMode(4, this.programDisplay);
 
       const area = gpu.getDisplayArea();
@@ -759,6 +767,11 @@ mdlr('enge:webgl2', ({ include }) => {
           showDisplay(this, (gpu.status >> 21) & 0b101, area);
           break;
       }
+    }
+
+    // VRAM render scale (4 or 8)
+    getScale() {
+      return scale;
     }
 
     setMode(mode) {
@@ -797,7 +810,7 @@ mdlr('enge:webgl2', ({ include }) => {
     fillColor[3] = 0;
 
     gl_enable(gl.SCISSOR_TEST);
-    gl.scissor(4 * x, 4 * y, 4 * w, 4 * h);
+    gl.scissor(scale * x, scale * y, scale * w, scale * h);
     gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
     gl.clearBufferfv(gl.COLOR, 0, fillColor);
     gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
@@ -829,7 +842,7 @@ mdlr('enge:webgl2', ({ include }) => {
       gl.uniform1i(program.fullResTextures, settings.fullResTextures !== false ? 1 : 0);
       gl.uniform1i(program.textureFilter, settings.textureFilter | 0);
       gl.uniform1i(program.spriteFilter, settings.spriteFilter | 0);
-      gl.viewport(0, 0, 4096, 2048); // texture dimensions
+      gl.viewport(0, 0, vramWidth, vramHeight); // texture dimensions
 
       gl.bindVertexArray(program.vao);
       gl.bindBuffer(gl.ARRAY_BUFFER, renderer.renderBuffer);
@@ -841,10 +854,10 @@ mdlr('enge:webgl2', ({ include }) => {
       // scissor must be off again before any blit or clear
       gl_enable(gl.SCISSOR_TEST);
       gl.scissor(
-        4 * $gpu.clipL,
-        4 * $gpu.clipT,
-        4 * Math.max(0, $gpu.clipR - $gpu.clipL + 1),
-        4 * Math.max(0, $gpu.clipB - $gpu.clipT + 1));
+        scale * $gpu.clipL,
+        scale * $gpu.clipT,
+        scale * Math.max(0, $gpu.clipR - $gpu.clipL + 1),
+        scale * Math.max(0, $gpu.clipB - $gpu.clipT + 1));
 
       gl_bindTexture(TEXTURE_2D, vramShadow);
       gl.drawArrays(gl.TRIANGLES, 0, vertexBuffer.size());
@@ -946,9 +959,9 @@ mdlr('enge:webgl2', ({ include }) => {
       gl.useProgram(program);
       gl.bindVertexArray(program.vao);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl.viewport(0, 0, 4096, 2048);
+      gl.viewport(0, 0, vramWidth, vramHeight);
       gl_enable(gl.SCISSOR_TEST);
-      gl.scissor(4 * l, 4 * t, 4 * w, 4 * h);
+      gl.scissor(scale * l, scale * t, scale * w, scale * h);
       gl_enable(gl.DEPTH_TEST);
       gl.depthFunc(gl.ALWAYS);
       gl.depthMask(true);
@@ -1103,6 +1116,17 @@ mdlr('enge:webgl2', ({ include }) => {
     return program;
   }
 
+  // the render scale as seen by the shaders
+  const applyScaleUniforms = renderer => {
+    for (const program of [renderer.programRenderer, renderer.programRendererCheckMask, renderer.programUpload, renderer.programDisplay]) {
+      gl.useProgram(program);
+      const s = gl_getUniformLocation(program, 'u_scale');
+      const shift = gl_getUniformLocation(program, 'u_scaleShift');
+      if (s) gl.uniform1i(s, scale);
+      if (shift) gl.uniform1i(shift, scaleShift);
+    }
+  }
+
   // VRAM -> VRAM copy honouring the mask bits
   const createProgramCopy = () => {
     const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramCopy');
@@ -1141,28 +1165,106 @@ mdlr('enge:webgl2', ({ include }) => {
     return texture;
   }
 
-  // create texture
-  const vram = createAndBindTexture();
-  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
-  const vramDepth = createDepthComponent(4096, 2048);
+  // ---- VRAM textures and the render scale ----
+  //
+  // VRAM is rendered at 4x, or at 8x (8192x4096) for quality 8 when the GPU
+  // supports textures, renderbuffers and viewports that large. 8x needs about
+  // 320 MB of GPU memory (two RGBA8 textures and a 16-bit depth buffer) against
+  // 80 MB at 4x. If the GPU refuses the allocation, 8x is not offered again.
+  const maxViewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+  let allow8x = gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 8192 &&
+    gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) >= 8192 &&
+    maxViewport[0] >= 8192 && maxViewport[1] >= 4096;
+  const desiredScale = () => (allow8x && settings.quality >= 8) ? 8 : 4;
+  // maxQuality is not saved with the settings: it belongs to this GPU
+  const setMaxQuality = max => {
+    Object.defineProperty(settings, 'maxQuality', { value: max, writable: true, enumerable: false, configurable: true });
+    if (settings.quality > max) settings.quality = max;
+    settings.updateQuality?.();
+  }
+  const disallow8x = () => {
+    allow8x = false;
+    setMaxQuality(4);
+  }
+  setMaxQuality(allow8x ? 8 : 4);
 
-  // attachments are framebuffer state and never change, so they are made
-  // once here; everything else only binds the framebuffers
+  let vram, vramDepth, vramShadow;
+  // attachments are framebuffer state: they only change when the render
+  // scale does; everything else only binds the framebuffers
   const fb_vram = gl_createFramebuffer();
-  gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
-  gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
-  gl_bindTexture(TEXTURE_2D, vramDepth);
-  gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0)
-  gl_bindFramebuffer(FRAMEBUFFER, null);
-
-  // create texture
-  const vramShadow = createAndBindTexture();
-  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
-
   const fb_vramShadow = gl_createFramebuffer();
-  gl_bindFramebuffer(FRAMEBUFFER, fb_vramShadow);
-  gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
-  gl_bindFramebuffer(FRAMEBUFFER, null);
+
+  // VRAM, depth and shadow textures at render scale n, or null when the GPU
+  // cannot provide them (nothing is left allocated then)
+  const createVramTextures = n => {
+    for (let i = 0; i < 16 && gl.getError() !== gl.NO_ERROR; ++i) { }
+    const w = 1024 * n, h = 512 * n;
+    const color = createAndBindTexture();
+    gl_texImage2D(TEXTURE_2D, 0, RGBA, w, h, 0, RGBA, UNSIGNED_BYTE, null);
+    const depth = createDepthComponent(w, h);
+    const shadow = createAndBindTexture();
+    gl_texImage2D(TEXTURE_2D, 0, RGBA, w, h, 0, RGBA, UNSIGNED_BYTE, null);
+    gl_bindTexture(TEXTURE_2D, null);
+
+    const fb = gl_createFramebuffer();
+    gl_bindFramebuffer(FRAMEBUFFER, fb);
+    gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, color, 0);
+    gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, depth, 0);
+    let ok = gl.checkFramebufferStatus(FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, null, 0);
+    gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, shadow, 0);
+    ok = ok && gl.checkFramebufferStatus(FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE && gl.getError() === gl.NO_ERROR;
+    gl_bindFramebuffer(FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fb);
+    if (ok) return { color, depth, shadow };
+    gl.deleteTexture(color); gl.deleteTexture(depth); gl.deleteTexture(shadow);
+    return null;
+  }
+
+  const attachVramTextures = (t, n) => {
+    vram = t.color; vramDepth = t.depth; vramShadow = t.shadow;
+    gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
+    gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vram, 0);
+    gl_framebufferTexture2D(FRAMEBUFFER, gl.DEPTH_ATTACHMENT, TEXTURE_2D, vramDepth, 0);
+    gl_bindFramebuffer(FRAMEBUFFER, fb_vramShadow);
+    gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
+    gl_bindFramebuffer(FRAMEBUFFER, null);
+    scale = n;
+    scaleShift = Math.log2(n);
+    vramWidth = 1024 * n;
+    vramHeight = 512 * n;
+  }
+
+  {
+    let n = desiredScale(), t = createVramTextures(n);
+    if (!t && n !== 4) { disallow8x(); n = 4; t = createVramTextures(4); }
+    attachVramTextures(t, n);
+  }
+
+  // switch the render scale at runtime: the current VRAM (and shadow) is
+  // scaled into new textures, so nothing drawn is lost
+  const changeRenderScale = n => {
+    flushVertexBuffer();
+    const t = createVramTextures(n);
+    if (!t) { if (n === 8) disallow8x(); return; }
+
+    const tmp = gl_createFramebuffer();
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, tmp);
+    for (const [src, dst] of [[fb_vram, t.color], [fb_vramShadow, t.shadow]]) {
+      gl_framebufferTexture2D(DRAW_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, dst, 0);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, src);
+      gl_blitFramebuffer(0, 0, vramWidth, vramHeight, 0, 0, 1024 * n, 512 * n, COLOR_BUFFER_BIT, NEAREST);
+    }
+    gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+    gl.deleteFramebuffer(tmp);
+
+    const old = [vram, vramDepth, vramShadow];
+    attachVramTextures(t, n);
+    old.forEach(texture => gl.deleteTexture(texture));
+    applyScaleUniforms(window.renderer);
+    flushDepth(); // the new depth buffer starts cleared (and mask depth is rebuilt)
+  }
 
   // native-resolution staging texture for readbacks
   const cache = createAndBindTexture();
