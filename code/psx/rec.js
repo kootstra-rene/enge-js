@@ -36,6 +36,34 @@ mdlr('enge:psx:rec', ({ include }) => {
     return state.reg(nr);
   };
 
+  // PGXP hooks are only generated when the pgxp module is loaded and enabled
+  // (?pgxp in the URL); otherwise the compiled code is unchanged.
+  const pgxpOn = () => typeof pgxp !== 'undefined' && pgxp.enabled;
+  // ?pgxp=cpu: ALU instructions carry fractions too (see PGXP_ALU below)
+  const pgxpCpu = () => pgxpOn() && pgxp.cpu;
+  // ?debug-pgxp: stores also report their kind and instruction address
+  const pgxpDebug = () => pgxpOn() && pgxp.debug;
+  // word containing a masked address, like wordOf() in pgxp.js
+  const pgxpWord = (a) => `(${a} < 0x00800000 ? map[(${a} & 0x001fffff) >>> 2] : map[${a} >>> 2])`;
+  const pgxpNote = (kind, a) => pgxpDebug() ? `\npgxp.noteStore(${kind}, ${a}, 0x${hex(state.pc)});` : '';
+  // store through a temporary address so the debug note can use it
+  const pgxpStore = (kind, store) => {
+    if (!pgxpDebug()) return null;
+    const a = `_pa${state.loadSeq++}`;
+    return `const ${a} = ${getOF(state.opcode)};\n` + store(a) + pgxpNote(kind, a);
+  };
+  // same mapping as shadowIndex() in pgxp.js, inlined into compiled code
+  const pgxpIndex = (a) => `((${a} < 0x00800000 ? (${a} & 0x001fffff) : (0x00200000 | (${a} & 0x3ff))) >>> 2)`;
+
+  // PGXP: `addu rd, rs, zero` / `or rd, rs, zero` (and the mirrored forms)
+  // are register moves; carry the sub-pixel fraction along with the value.
+  const pgxpMove = (rec) => {
+    if (!pgxpOn() || pgxpCpu() || !rec.rd) return '';
+    if (rec.rt === 0) return `\npgxp.move(${rec.rd}, ${rec.rs});`;
+    if (rec.rs === 0) return `\npgxp.move(${rec.rd}, ${rec.rt});`;
+    return '';
+  };
+
   const createFunction = (pc, code, jumps) => {
     const lines = [
       "  return function $" + hex(pc).toUpperCase() + "(psx) { ++calls;\n    " + code.replace(/[\r\n]/g, '\n    ') + "\n  }"
@@ -105,6 +133,8 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '09': (rec, opc) => {
       const code = setReg(rec.rt, ((opc << 16) >> 16) + ' + ' + getRS());
+      // addiu rt, rs, 0 is a register move
+      if (pgxpOn() && !pgxpCpu() && rec.rt && !(opc & 0xffff)) return code + `\npgxp.move(${rec.rt}, ${rec.rs});`;
       return code;
     },
 
@@ -144,6 +174,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '21': (rec, opc) => {
+      if (pgxpOn()) return pgxpHalfLoad(rec, opc, a => `(memRead16(${a}) << 16) >> 16`);
       const code = setLoad(rec.rt, '(memRead16 (' + getOF(opc) + ') << 16) >> 16');
       return code;
     },
@@ -154,6 +185,14 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '23': (rec, opc) => {
+      if (pgxpOn()) {
+        // inline fast path: only call into pgxp when the word has a fraction
+        const a = `_pa${state.loadSeq++}`;
+        const code = `const ${a} = ${getOF(opc)};\n` + setLoad(rec.rt, `memRead32(${a})`);
+        const value = state.newLoad ? state.newLoad.tmp : null;
+        if (!value) return code;
+        return code + `\nif (pgxpMemFrac[${pgxpIndex(a)}] !== 0) pgxp.lw(${rec.rt}, ${a}, ${value});`;
+      }
       const code = setLoad(rec.rt, 'memRead32(' + getOF(opc) + ')');
       return code;
     },
@@ -164,6 +203,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '25': (rec, opc) => {
+      if (pgxpOn()) return pgxpHalfLoad(rec, opc, a => `memRead16(${a}) & 0xffff`);
       const code = setLoad(rec.rt, 'memRead16(' + getOF(opc) + ') & 0xffff');
       return code;
     },
@@ -174,36 +214,65 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '28': (rec, opc) => {
+      const debug = pgxpStore(1, a => `memWrite8(${a}, ${getRT()});`);
+      if (debug) return debug;
       const code = setReg(0, 'memWrite8(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
 
     '29': (rec, opc) => {
+      if (pgxpOn()) {
+        // the word before the store is needed to keep the other half's fraction
+        const a = `_pa${state.loadSeq++}`, c = `_pc${state.loadSeq}`, w = `_pw${state.loadSeq}`;
+        return `const ${a} = ${getOF(opc)};\n` +
+          `const ${c} = (pgxpGprFrac[${rec.rt}] | pgxpMemFrac[${pgxpIndex(a)}]) !== 0, ${w} = ${c} ? ${pgxpWord(a)} : 0;\n` +
+          `memWrite16(${a}, ${getRT()});\n` +
+          `if (${c}) pgxp.sh(${rec.rt}, ${a}, ${getRT()}, ${w});` + pgxpNote(2, a);
+      }
+      const debug = pgxpStore(2, a => `memWrite16(${a}, ${getRT()});`);
+      if (debug) return debug;
       const code = setReg(0, 'memWrite16(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
 
     '2A': (rec, opc) => {
+      const debug = pgxpStore(5, a => `cpu.swl(${rec.rt}, ${a});`);
+      if (debug) return debug;
       const code = setReg(0, 'cpu.swl(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
 
     '2B': (rec, opc) => {
+      if (pgxpOn()) {
+        // inline fast path: only call into pgxp when rt carries a fraction
+        const a = `_pa${state.loadSeq++}`;
+        if (!rec.rt) return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, 0);` + pgxpNote(3, a);
+        return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, ${getRT()});\n` +
+          `if (pgxpGprFrac[${rec.rt}] !== 0) pgxp.sw(${rec.rt}, ${a}, ${getRT()});` + pgxpNote(3, a);
+      }
       const code = setReg(0, `memWrite32(${getOF(opc)}, ${getRT()})`);
       return code;
     },
 
     '2E': (rec, opc) => {
+      const debug = pgxpStore(5, a => `cpu.swr(${rec.rt}, ${a});`);
+      if (debug) return debug;
       const code = setReg(0, 'cpu.swr(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
 
     '32': (rec, opc) => {
+      if (pgxpOn() && rec.rt >= 0x0c && rec.rt <= 0x0f) {
+        const a = `_pa${state.loadSeq++}`, v = `_pv${state.loadSeq}`;
+        return `const ${a} = ${getOF(opc)}, ${v} = memRead32(${a});\ngte.set(${rec.rt}, ${v});\n` +
+          `if (pgxpMemFrac[${pgxpIndex(a)}] !== 0) pgxp.lwc2(${rec.rt}, ${a}, ${v});`;
+      }
       const code = setReg(0, 'gte.set(' + rec.rt + ', memRead32(' + getOF(opc) + '))');
       return code;
     },
 
     '3A': (rec, opc) => {
+      if (pgxpOn()) return (pgxpDebug() ? `pgxp.pc = 0x${hex(rec.pc)};\n` : '') + setReg(0, `pgxp.swc2(${rec.rt}, ${getOF(opc)})`);
       const code = setReg(0, 'memWrite32(' + getOF(opc) + ', gte.get(' + rec.rt + '))');
       return code;
     },
@@ -318,7 +387,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '61': (rec, opc) => {
       const code = setReg(rec.rd, getRS() + ' + ' + getRT());
-      return code;
+      return code + pgxpMove(rec);
     },
 
     '62': (rec, opc) => {
@@ -338,7 +407,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '65': (rec, opc) => {
       const code = setReg(rec.rd, getRS() + ' | ' + getRT());
-      return code;
+      return code + pgxpMove(rec);
     },
 
     '66': (rec, opc) => {
@@ -411,6 +480,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     'C0': (rec, opc) => {
+      if (pgxpOn()) return setLoad(rec.rt, `pgxp.mfc2(${rec.rt}, ${rec.rd})`);
       const code = setLoad(rec.rt, 'gte.get(' + rec.rd + ')');
       return code;
     },
@@ -422,6 +492,9 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     'C4': (rec, opc) => {
       const code = setReg(0, 'gte.set(' + rec.rd + ', ' + getRT() + ')');
+      if (pgxpOn() && rec.rd >= 0x0c && rec.rd <= 0x0f && rec.rt) {
+        return code + `\nif (pgxpGprFrac[${rec.rt}] !== 0) pgxp.mtc2(${rec.rd}, ${rec.rt}, ${getRT()});`;
+      }
       return code;
     },
 
@@ -439,6 +512,42 @@ mdlr('enge:psx:rec', ({ include }) => {
       abort('invalid instruction');
     }
   }
+  // PGXP: LH/LHU through a temporary address; the fraction of that half of
+  // the word becomes the x half of rt (after the load delay, like LW)
+  function pgxpHalfLoad(rec, opc, load) {
+    const a = `_pa${state.loadSeq++}`;
+    const code = `const ${a} = ${getOF(opc)};\n` + setLoad(rec.rt, load(a));
+    const value = state.newLoad ? state.newLoad.tmp : null;
+    if (!value) return code;
+    return code + `\nif (pgxpMemFrac[${pgxpIndex(a)}] !== 0) pgxp.lh(${rec.rt}, ${a}, ${value});`;
+  }
+
+  // PGXP CPU mode (?pgxp=cpu): before these ALU instructions, if a source
+  // register carries a fraction, pgxp.alu() computes the result's fraction.
+  // [kind (see pgxp.js), operand form]
+  //   r: rd = rs op rt   i: rt = rs op simm16   u: rt = rs op uimm16   s: rd = rt op sa
+  const PGXP_ALU = {
+    '08': [5, 'i'], '09': [5, 'i'], '0C': [7, 'u'], '0D': [6, 'u'],
+    '40': [8, 's'], '42': [9, 's'], '43': [10, 's'],
+    '60': [1, 'r'], '61': [1, 'r'], '62': [2, 'r'], '63': [2, 'r'], '64': [4, 'r'], '65': [3, 'r'],
+  };
+  for (const [key, [kind, form]] of Object.entries(PGXP_ALU)) {
+    const base = rec[key];
+    rec[key] = (st, opc) => {
+      const code = base(st, opc);
+      if (!pgxpCpu() || opc === 0) return code;
+      const R = (r) => st.reg(r);
+      let pre = '';
+      switch (form) {
+        case 'r': if (st.rd) pre = `if ((pgxpGprFrac[${st.rs}] | pgxpGprFrac[${st.rt}]) !== 0) pgxp.alu(${kind}, ${st.rd}, ${st.rs}, ${st.rt}, ${R(st.rs)}, ${R(st.rt)}, 0);`; break;
+        case 'i': if (st.rt) pre = `if (pgxpGprFrac[${st.rs}] !== 0) pgxp.alu(${kind}, ${st.rt}, ${st.rs}, 0, ${R(st.rs)}, 0, ${(opc << 16) >> 16});`; break;
+        case 'u': if (st.rt) pre = `if (pgxpGprFrac[${st.rs}] !== 0) pgxp.alu(${kind}, ${st.rt}, ${st.rs}, 0, ${R(st.rs)}, 0, ${opc & 0xffff});`; break;
+        case 's': if (st.rd) pre = `if (pgxpGprFrac[${st.rt}] !== 0) pgxp.alu(${kind}, ${st.rd}, 0, ${st.rt}, 0, ${R(st.rt)}, ${(opc >> 6) & 0x1f});`; break;
+      }
+      return pre ? pre + '\n' + code : code;
+    };
+  }
+
   rec.D1 = rec.D0;
   rec.D2 = rec.D0;
   rec.D3 = rec.D0;
@@ -478,6 +587,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     state.wreg = 0;
     state.newLoad = null;
+    state.opcode = opcode;
     lines.push(recmap[opc](state, opcode));
 
     // MIPS-I load delay: commit the previous instruction's pending load now

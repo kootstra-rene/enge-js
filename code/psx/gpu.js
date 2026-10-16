@@ -10,6 +10,19 @@ mdlr('enge:psx:gpu', ({ include }) => {
   const handlers = [];
 
   const dmaBuffer = new Int32Array(4096);
+  // PGXP: per-word sub-pixel fraction for the polygon packet in dmaBuffer
+  // (see pgxp.js). Renderers read it through gpu.pgxpFrac, which is only set
+  // while a polygon packet with at least one precise vertex is being drawn.
+  const dmaFrac = new Uint8Array(4096);
+  const pgxpOn = () => typeof pgxp !== 'undefined' && pgxp.enabled;
+
+  // ?debug-pgxp: calls cb(wordIndex, word) for each vertex word of polygon packet
+  // 0x20..0x3f. Layout: [cmd/color0, xy0, (uv0), (color1), xy1, (uv1), ...]
+  const notePolygonVertices = (packetId, cb, data) => {
+    const per = 1 + ((packetId & 0x04) ? 1 : 0) + ((packetId & 0x10) ? 1 : 0);
+    const count = (packetId & 0x08) ? 4 : 3;
+    for (let v = 0; v < count; ++v) cb(1 + v * per, data[1 + v * per]);
+  };
 
   // The psx gives the first pixel of a span the start u/v without interpolation, gpus sample at the pixel
   // center. For flipped 2d sprites drawn as quads that samples one texel too far, compensate by adding one
@@ -103,6 +116,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     drawAreaY2: 0,
     heights: [1, 2, 1, 2],
     hline: 0,
+    pgxpFrac: null,
     img: { w: 0, h: 0, x: 0, y: 0, index: 0, pixelCount: 0, buffer: new Uint16Array(1024 * 512) },
     info: new Uint32Array(16),
     maxheights: [240, 480, 256, 512],
@@ -270,6 +284,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
         if (dmaIndex === gpu.packetSize) {
           var packetId = dmaBuffer[0] >>> 24;
+          if (packetId >= 0x20 && packetId < 0x40 && pgxpOn() && pgxp.debug) pgxp.noteDirect((packetId & 0x08) ? 4 : 3);
           nextPrimitive();
           handlers[packetId].call(gpu, dmaBuffer);
           dmaIndex = 0;
@@ -782,14 +797,22 @@ mdlr('enge:psx:gpu', ({ include }) => {
             gpu.updated = true;
           }
           else {
+            // polygons (0x20..0x3f) may carry PGXP sub-pixel vertex positions
+            const precise = (packetId >= 0x20) && (packetId < 0x40) && pgxpOn();
+            const packetAddr = addr;
+            let anyFrac = 0;
             for (var i = 0; i < packetSizes[packetId]; ++i) {
               data[i] = ram.getInt32(addr, true);
+              if (precise) anyFrac |= (dmaFrac[i] = pgxp.fracAt(addr, data[i]));
               addr += 4; --nitem;
               ++words;
             }
             if (nitem < 0) return words;
+            if (precise && pgxp.debug) notePolygonVertices(packetId, (i, word) => pgxp.noteVertex(packetAddr + 4 * i, word, dmaFrac[i]), data);
             nextPrimitive();
+            gpu.pgxpFrac = anyFrac ? dmaFrac : null;
             handlers[packetId].call(gpu, data, 0);
+            gpu.pgxpFrac = null;
             gpu.updated = true;
           }
         }
