@@ -238,7 +238,7 @@
     // indices and stay native)
     uniform bool u_fullResTextures;
     // texture filter for polygons and for sprites (rectangles):
-    // 0 nearest, 1 bilinear, 2 sharp bilinear
+    // 0 nearest, 1 bilinear, 2 sharp bilinear, 3 xBR
     uniform int u_textureFilter;
     uniform int u_spriteFilter;
 
@@ -354,11 +354,166 @@
       return texcol;
     }
 
+
+    /*
+       Hyllian's xBR-lv2 Shader
+
+       Copyright (C) 2011-2016 Hyllian - sergiogdb@gmail.com
+
+       Permission is hereby granted, free of charge, to any person obtaining a copy
+       of this software and associated documentation files (the "Software"), to deal
+       in the Software without restriction, including without limitation the rights
+       to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+       copies of the Software, and to permit persons to whom the Software is
+       furnished to do so, subject to the following conditions:
+
+       The above copyright notice and this permission notice shall be included in
+       all copies or substantial portions of the Software.
+
+       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+       IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+       FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+       AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+       LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+       OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+       THE SOFTWARE.
+
+       Incorporates some of the ideas from SABR shader. Thanks to Joshua Street.
+
+       Adapted for enge-js from libretro glsl-shaders xbr/shaders/xbr-lv2.glsl
+       (CORNER_C, SMOOTH_TIPS, default parameters): texels are fetched through
+       the texture window and CLUT and clamped to the primitive's UV limits;
+       the blend width follows the actual magnification instead of a fixed
+       XBR_SCALE; transparent texels (0000h) count as a distinct colour for
+       edge detection and their coverage is blended alongside the colour.
+    */
+    float xbrLuma(vec4 t) {
+      return t == vec4(0.0) ? -1000.0 : dot(t.rgb, vec3(14.352, 28.176, 5.472));
+    }
+    vec4 xbrDf(vec4 a, vec4 b) { return abs(a - b); }
+    vec4 xbrDiff(vec4 a, vec4 b) { return vec4(notEqual(a, b)); }
+    vec4 xbrEq(vec4 a, vec4 b) { return step(xbrDf(a, b), vec4(15.0)); }
+    vec4 xbrNeq(vec4 a, vec4 b) { return vec4(1.0) - xbrEq(a, b); }
+    vec4 xbrWd(vec4 a, vec4 b, vec4 c, vec4 d, vec4 e, vec4 f, vec4 g, vec4 h) {
+      return xbrDf(a, b) + xbrDf(a, c) + xbrDf(d, e) + xbrDf(d, f) + 4.0 * xbrDf(g, h);
+    }
+    // texel as colour with coverage in w (transparent texels are all zero)
+    vec4 xbrCov(vec4 t) { return t == vec4(0.0) ? vec4(0.0) : vec4(t.rgb, 1.0); }
+
+    // xBR at the current sub-texel position; delta1 is the width of one output
+    // pixel in texels. Returns the colour with a = bit 15, coverage in ialpha.
+    vec4 xbrTexel(float delta1, out float ialpha) {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? 4.0 : 1.0;
+      vec2 uv = v_vramCoord * s;
+      ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
+      ivec2 q = ivec2(floor(uv));
+      vec2 fp = fract(uv);
+
+#define XT(dx, dy) fetchTexel(clamp(q + ivec2(dx, dy), lo, hi), sub)
+      vec4 A1 = XT(-1, -2), B1 = XT(0, -2), C1 = XT(1, -2);
+      vec4 A  = XT(-1, -1), B  = XT(0, -1), C  = XT(1, -1);
+      vec4 D  = XT(-1,  0), E  = XT(0,  0), F  = XT(1,  0);
+      vec4 G  = XT(-1,  1), H  = XT(0,  1), I  = XT(1,  1);
+      vec4 G5 = XT(-1,  2), H5 = XT(0,  2), I5 = XT(1,  2);
+      vec4 A0 = XT(-2, -1), D0 = XT(-2, 0), G0 = XT(-2, 1);
+      vec4 C4 = XT( 2, -1), F4 = XT( 2, 0), I4 = XT( 2, 1);
+#undef XT
+
+      vec4 b  = vec4(xbrLuma(B), xbrLuma(D), xbrLuma(H), xbrLuma(F));
+      vec4 c  = vec4(xbrLuma(C), xbrLuma(A), xbrLuma(G), xbrLuma(I));
+      vec4 d  = b.yzwx;
+      vec4 e  = vec4(xbrLuma(E));
+      vec4 f  = b.wxyz;
+      vec4 g  = c.zwxy;
+      vec4 h  = b.zwxy;
+      vec4 i  = c.wxyz;
+      vec4 i4 = vec4(xbrLuma(I4), xbrLuma(C1), xbrLuma(A0), xbrLuma(G5));
+      vec4 i5 = vec4(xbrLuma(I5), xbrLuma(C4), xbrLuma(A1), xbrLuma(G0));
+      vec4 h5 = vec4(xbrLuma(H5), xbrLuma(F4), xbrLuma(B1), xbrLuma(D0));
+      vec4 f4 = h5.yzwx;
+
+      const vec4 Ao = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bo = vec4( 1.0,  1.0, -1.0, -1.0);
+      const vec4 Co = vec4( 1.5,  0.5, -0.5,  0.5);
+      const vec4 Ax = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bx = vec4( 0.5,  2.0, -0.5, -2.0);
+      const vec4 Cx = vec4( 1.0,  1.0, -0.5,  0.0);
+      const vec4 Ay = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 By = vec4( 2.0,  0.5, -2.0, -0.5);
+      const vec4 Cy = vec4( 2.0,  0.0, -1.0,  0.5);
+      const vec4 Ci = vec4(0.25);
+
+      vec4 delta   = vec4(delta1);
+      vec4 delta_l = vec4(0.5 * delta1, delta1, 0.5 * delta1, delta1);
+      vec4 delta_u = delta_l.yxwz;
+
+      // these inequations define the line below which interpolation occurs
+      vec4 fx   = Ao * fp.y + Bo * fp.x;
+      vec4 fx_l = Ax * fp.y + Bx * fp.x;
+      vec4 fx_u = Ay * fp.y + By * fp.x;
+
+      vec4 irlv0 = xbrDiff(e, f) * xbrDiff(e, h);
+      vec4 irlv1 = irlv0 * (xbrNeq(f, b) * xbrNeq(f, c) + xbrNeq(h, d) * xbrNeq(h, g)
+        + xbrEq(e, i) * (xbrNeq(f, f4) * xbrNeq(f, i4) + xbrNeq(h, h5) * xbrNeq(h, i5))
+        + xbrEq(e, g) + xbrEq(e, c));
+      vec4 irlv2l = xbrDiff(e, g) * xbrDiff(d, g);
+      vec4 irlv2u = xbrDiff(e, c) * xbrDiff(b, c);
+
+      vec4 fx45i = clamp((fx   + delta   - Co - Ci) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx45  = clamp((fx   + delta   - Co     ) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx30  = clamp((fx_l + delta_l - Cx     ) / (2.0 * delta_l), 0.0, 1.0);
+      vec4 fx60  = clamp((fx_u + delta_u - Cy     ) / (2.0 * delta_u), 0.0, 1.0);
+
+      vec4 wd1 = xbrWd(e, c,  g, i, h5, f4, h, f);
+      vec4 wd2 = xbrWd(h, d, i5, f, i4,  b, e, i);
+
+      vec4 edri  = step(wd1, wd2) * irlv0;
+      vec4 edr   = step(wd1 + vec4(0.1), wd2) * step(vec4(0.5), irlv1);
+      vec4 edr_l = step(2.0 * xbrDf(f, g), xbrDf(h, c)) * irlv2l * edr;
+      vec4 edr_u = step(2.0 * xbrDf(h, c), xbrDf(f, g)) * irlv2u * edr;
+
+      fx45  = edr   * fx45;
+      fx30  = edr_l * fx30;
+      fx60  = edr_u * fx60;
+      fx45i = edri  * fx45i;
+
+      vec4 px = step(xbrDf(e, f), xbrDf(e, h));
+      vec4 maximos = max(max(fx30, fx60), max(fx45, fx45i));
+
+      // blend colour + coverage (w) and bit 15 with the same weights
+      vec4 cE = xbrCov(E), cF = xbrCov(F), cH = xbrCov(H), cB = xbrCov(B), cD = xbrCov(D);
+      vec4 res1 = cE;
+      res1 = mix(res1, mix(cH, cF, px.x), maximos.x);
+      res1 = mix(res1, mix(cB, cD, px.z), maximos.z);
+      vec4 res2 = cE;
+      res2 = mix(res2, mix(cF, cB, px.y), maximos.y);
+      res2 = mix(res2, mix(cD, cH, px.w), maximos.w);
+      float s1 = E.a;
+      s1 = mix(s1, mix(H.a, F.a, px.x), maximos.x);
+      s1 = mix(s1, mix(B.a, D.a, px.z), maximos.z);
+      float s2 = E.a;
+      s2 = mix(s2, mix(F.a, B.a, px.y), maximos.y);
+      s2 = mix(s2, mix(D.a, H.a, px.w), maximos.w);
+
+      vec3 d1 = abs(cE.rgb - res1.rgb), d2 = abs(cE.rgb - res2.rgb);
+      float pick = step(d1.r + d1.g + d1.b, d2.r + d2.g + d2.b);
+      vec4 res = mix(res1, res2, pick);
+      float stp = mix(s1, s2, pick);
+
+      ialpha = res.w;
+      vec4 texcol = vec4(ialpha > 0.0 ? res.rgb / ialpha : res.rgb, stp >= 0.5 ? 1.0 : 0.0);
+      return texcol;
+    }
+
     void main() {
       // draw-area clipping is done with gl.scissor in flushBuffer()
       // alpha is VRAM bit 15: 0 for untextured pixels, the texel's bit 15
       // for textured ones (blending always keeps the source alpha)
       bool transparentPrimitive = 2u == (packetId & 2u);
+      // texels per output pixel, for xBR; derivatives must be taken in
+      // uniform control flow
+      vec2 texelsPerPixel = fwidth(v_vramCoord);
 
       if (0x00u == (packetId & 0x04u)) {
         outColor = vec4(v_color, 0.0);
@@ -367,7 +522,14 @@
         vec4 tc;
         int texFilter = (v_flags & 1u) != 0u ? u_spriteFilter : u_textureFilter;
 
-        if (texFilter != 0) {
+        if (texFilter == 3) {
+          float ialpha;
+          float scale = v_textureMode >= 2u && u_fullResTextures ? 4.0 : 1.0;
+          float delta1 = clamp(max(texelsPerPixel.x, texelsPerPixel.y) * scale, 1.0 / 16.0, 1.0);
+          tc = xbrTexel(delta1, ialpha);
+          if (ialpha < 0.5) discard;
+        }
+        else if (texFilter != 0) {
           float ialpha;
           tc = filteredTexel(texFilter, ialpha);
           if (ialpha < 0.5) discard;

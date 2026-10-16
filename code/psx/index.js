@@ -1158,8 +1158,8 @@ mdlr('enge:psx:index', ({ include }) => {
         updateFullRes();
       });
 
-      // texture filters cycle Nearest -> Bilinear -> Sharp bilinear
-      const filterNames = ['Nearest', 'Bilinear', 'Sharp bilinear'];
+      // texture filters cycle Nearest -> Bilinear -> Sharp bilinear -> xBR
+      const filterNames = ['Nearest', 'Bilinear', 'Sharp bilinear', 'xBR'];
       for (const [key, label] of [['textureFilter', 'Texture filter'], ['spriteFilter', 'Sprite filter']]) {
         const button = document.createElement('button');
         button.id = key === 'textureFilter' ? 'texture-filter' : 'sprite-filter';
