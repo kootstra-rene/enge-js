@@ -28,7 +28,7 @@ mdlr('enge:utils', ({ include }) => {
 
   const settings = (() => {
 		const object = JSON.parse(localStorage.getItem('config') || '{}');
-		const defaults = { quality: 1, overscan: 0.00, tvEffect: true, ambilight: true };
+		const defaults = { quality: 1, overscan: 0.00, tvEffect: true, ambilight: true, fullResTextures: true, textureFilter: 0, spriteFilter: 0 };
 
 		return Object.assign(defaults, object);
 	})();

@@ -64,6 +64,34 @@ mdlr('enge:webgl2', ({ include }) => {
     return false;
   }
 
+  // ---- texture filtering support ----
+  //
+  // Filtered sampling reads neighbouring texels, so it is clamped to the
+  // texels the primitive itself covers (its UV limits), as DuckStation does,
+  // to keep neighbouring images in a texture atlas from bleeding in.
+  const VERTEX_SPRITE = 1; // vertex flag: rectangle (GP0 60h-7Fh)
+  const uvLimits = new Int16Array(4);
+
+  // texel range of a textured polygon packet, over all 3 or 4 vertices; the
+  // upper bound is made inclusive (max - 1 unless the range is one texel)
+  const polygonUVLimits = data => {
+    const id = data[0] >>> 24;
+    const per = (id & 0x10) ? 3 : 2, count = (id & 0x08) ? 4 : 3;
+    let umin = 0x7fff, vmin = 0x7fff, umax = -0x8000, vmax = -0x8000;
+    for (let k = 0; k < count; ++k) {
+      const word = data[2 + k * per];
+      const u = (word & 255) + gpu.quadU, v = ((word >>> 8) & 255) + gpu.quadV;
+      if (u < umin) umin = u;
+      if (u > umax) umax = u;
+      if (v < vmin) vmin = v;
+      if (v > vmax) vmax = v;
+    }
+    uvLimits[0] = umin;
+    uvLimits[1] = vmin;
+    uvLimits[2] = umax !== umin ? umax - 1 : umax;
+    uvLimits[3] = vmax !== vmin ? vmax - 1 : vmax;
+  }
+
   // ---- lazy vram -> vramShadow synchronisation ----
   //
   // Primitives sample vramShadow because WebGL does not allow sampling the
@@ -486,6 +514,7 @@ mdlr('enge:webgl2', ({ include }) => {
       touchArea(x1, y1, x2, y2, x1 + 1, y1 + 1, x2 + 1, y2 + 1);
 
       const vertexBuffer = getVertexBuffer(renderer, data);
+      vertexBuffer.setPrimitive(0, 0, 0, 0, 0);
 
       var w = Math.abs(x1 - x2);
       var h = Math.abs(y1 - y2);
@@ -567,6 +596,11 @@ mdlr('enge:webgl2', ({ include }) => {
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       const buffer = vertexBuffer;
+      if (data[0] & 0x04000000) {
+        polygonUVLimits(data);
+        buffer.setPrimitive(0, uvLimits[0], uvLimits[1], uvLimits[2], uvLimits[3]);
+      }
+      else buffer.setPrimitive(0, 0, 0, 0, 0);
 
       buffer.addVertex(x1, y1, u1, v1, c1, cl);
       buffer.addVertex(x2, y2, u2, v2, c2, cl);
@@ -613,6 +647,8 @@ mdlr('enge:webgl2', ({ include }) => {
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var buffer = vertexBuffer;
+      buffer.setPrimitive(VERTEX_SPRITE,
+        Math.min(tl, tr), Math.min(tt, tb), Math.max(tl, tr) - 1, Math.max(tt, tb) - 1);
       buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
       buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
       buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
@@ -790,6 +826,9 @@ mdlr('enge:webgl2', ({ include }) => {
       const program = ($maskMode & 2) ? renderer.programRendererCheckMask : renderer.programRenderer;
       renderer.setTransparencyMode(mode, program); // also binds the program
       gl.uniform1i(program.setMask, $maskMode & 1);
+      gl.uniform1i(program.fullResTextures, settings.fullResTextures !== false ? 1 : 0);
+      gl.uniform1i(program.textureFilter, settings.textureFilter | 0);
+      gl.uniform1i(program.spriteFilter, settings.spriteFilter | 0);
       gl.viewport(0, 0, 4096, 2048); // texture dimensions
 
       gl.bindVertexArray(program.vao);
@@ -993,9 +1032,10 @@ mdlr('enge:webgl2', ({ include }) => {
   // Vertex layout, shared by both programs (see createVertexBuffer):
   //   0 position x, y, z (float32; x/y may be sub-pixel with PGXP, z = primitiveId)
   //  12 texcoord u, v (int16)   16 color (4 x u8)   20 twin (4 x u8)
-  //  24 clut (u16)              26 tmode (u8)
+  //  24 clut (u16)              26 tmode (u8)       27 flags (u8, bit 0 = sprite)
+  //  28 uv limits umin, vmin, umax, vmax (int16, inclusive texel range)
   // Positions are floats so sub-pixel vertices need no shader change.
-  const vertexStride = 28;
+  const vertexStride = 36;
 
   // attribute layout lives in a VAO per program, bound to that program's own
   // vertex buffer; attributes the linker optimised out (location -1) are skipped
@@ -1032,6 +1072,9 @@ mdlr('enge:webgl2', ({ include }) => {
     const program = createProgramFromScripts(gl, 'pixel', 'videoram', defines);
     gl.useProgram(program);
     program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.fullResTextures = gl_getUniformLocation(program, 'u_fullResTextures');
+    program.textureFilter = gl_getUniformLocation(program, 'u_textureFilter');
+    program.spriteFilter = gl_getUniformLocation(program, 'u_spriteFilter');
 
     createVertexArray(program, renderBuffer, [
       ['a_position', 3, gl.FLOAT, false, 0],
@@ -1040,6 +1083,8 @@ mdlr('enge:webgl2', ({ include }) => {
       ['a_twin', 4, UNSIGNED_BYTE, false, 20],
       ['a_clut', 1, gl.SHORT, false, 24],
       ['a_tmode', 1, gl.BYTE, false, 26],
+      ['a_flags', 1, UNSIGNED_BYTE, false, 27],
+      ['a_uvLimits', 4, gl.SHORT, false, 28],
     ]);
 
     return program;
@@ -1261,7 +1306,7 @@ mdlr('enge:webgl2:utils', ({ include }) => {
   function createVertexBuffer(reverse = false) {
     // typed-array stores are about twice as fast as DataView calls; WebGL and
     // typed arrays both use the platform byte order
-    const bytesPerVertex = 28;
+    const bytesPerVertex = 36;
     // same vertex capacity as the former 1MB buffer of 24-byte vertices
     const buffer = new Uint8Array(bytesPerVertex * 43690);
     const i16 = new Int16Array(buffer.buffer);
@@ -1270,6 +1315,11 @@ mdlr('enge:webgl2:utils', ({ include }) => {
     const f32 = new Float32Array(buffer.buffer);
 
     let index = 0;
+    // flags and UV limits of the primitive being added (see setPrimitive)
+    let flags = 0, umin = 0, vmin = 0, umax = 0, vmax = 0;
+    buffer.setPrimitive = (f, u0, v0, u1, v1) => {
+      flags = f; umin = u0; vmin = v0; umax = u1; vmax = v1;
+    }
     buffer.addVertex = (x, y, u, v, c = 0x00808080, cl) => {
       if (reverse) {
         index -= bytesPerVertex;
@@ -1284,6 +1334,11 @@ mdlr('enge:webgl2:utils', ({ include }) => {
       u32[w + 5] = gpu.twin;
       u16[h + 12] = cl;
       buffer[index + 26] = ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2);
+      buffer[index + 27] = flags;
+      i16[h + 14] = umin;
+      i16[h + 15] = vmin;
+      i16[h + 16] = umax;
+      i16[h + 17] = vmax;
       if (!reverse) {
         index += bytesPerVertex;
       }

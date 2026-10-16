@@ -1139,6 +1139,42 @@ mdlr('enge:psx:index', ({ include }) => {
         localStorage.setItem('config', JSON.stringify(settings));
         updateAmbilight();
       });
+
+      const fullRes = document.createElement('button');
+      fullRes.id = 'full-res-textures';
+      fullRes.type = 'button';
+      const fullResRow = document.createElement('li');
+      fullResRow.append(fullRes);
+      controlMenu?.querySelector('.control-menu-list')?.append(fullResRow);
+      const updateFullRes = () => {
+        const enabled = settings.fullResTextures !== false;
+        fullRes.textContent = `Full-res textures: ${enabled ? 'On' : 'Off'}`;
+        fullRes.setAttribute('aria-pressed', String(enabled));
+      };
+      updateFullRes();
+      fullRes.addEventListener('click', () => {
+        settings.fullResTextures = settings.fullResTextures === false;
+        localStorage.setItem('config', JSON.stringify(settings));
+        updateFullRes();
+      });
+
+      // texture filters cycle Nearest -> Bilinear -> Sharp bilinear -> xBR -> MMPX
+      const filterNames = ['Nearest', 'Bilinear', 'Sharp bilinear', 'xBR', 'MMPX'];
+      for (const [key, label] of [['textureFilter', 'Texture filter'], ['spriteFilter', 'Sprite filter']]) {
+        const button = document.createElement('button');
+        button.id = key === 'textureFilter' ? 'texture-filter' : 'sprite-filter';
+        button.type = 'button';
+        const row = document.createElement('li');
+        row.append(button);
+        controlMenu?.querySelector('.control-menu-list')?.append(row);
+        const update = () => { button.textContent = `${label}: ${filterNames[settings[key] | 0] ?? filterNames[0]}`; };
+        update();
+        button.addEventListener('click', () => {
+          settings[key] = ((settings[key] | 0) + 1) % filterNames.length;
+          localStorage.setItem('config', JSON.stringify(settings));
+          update();
+        });
+      }
     }
     const controllerMode = document.createElement('button');
     controllerMode.id = 'controller-mode';
