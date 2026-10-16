@@ -243,7 +243,7 @@
     // indices and stay native)
     uniform bool u_fullResTextures;
     // texture filter for polygons and for sprites (rectangles):
-    // 0 nearest, 1 bilinear, 2 sharp bilinear, 3 xBR, 4 MMPX
+    // 0 nearest, 1 bilinear, 2 sharp bilinear, 3 xBR, 4 MMPX, 5 bicubic
     uniform int u_textureFilter;
     uniform int u_spriteFilter;
 
@@ -364,6 +364,56 @@
       return texcol;
     }
 
+    // Bicubic (filter 5): Catmull-Rom over 4x4 texels, clamped to the primitive's
+    // texels like the bilinear filters. Colour is weighted by coverage so
+    // transparent texels (0000h) don't darken edges, then clamped to the range
+    // of the 2x2 nearest opaque texels to remove Catmull-Rom's ringing.
+    // Coverage and bit 15 come from the 2x2 nearest texels, as in bilinear, so
+    // sprite outlines match the bilinear filter.
+    vec4 catmullRom(float t) {
+      float t2 = t * t, t3 = t2 * t;
+      return vec4(-0.5 * t3 + t2 - 0.5 * t,
+                   1.5 * t3 - 2.5 * t2 + 1.0,
+                  -1.5 * t3 + 2.0 * t2 + 0.5 * t,
+                   0.5 * t3 - 0.5 * t2);
+    }
+    vec4 bicubicTexel(out float ialpha) {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? float(u_scale) : 1.0;
+      vec2 c = v_vramCoord * s;
+      ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
+
+      vec2 t = c - 0.5;
+      ivec2 i = ivec2(floor(t));
+      vec2 f = t - floor(t);
+      vec4 wx = catmullRom(f.x), wy = catmullRom(f.y);
+
+      vec3 sum = vec3(0.0);
+      float wsum = 0.0;
+      vec3 cmin = vec3(1.0), cmax = vec3(0.0);
+      vec4 near = vec4(0.0);   // 2x2 bilinear: colour (premultiplied), coverage
+      float nearStp = 0.0;
+      for (int y = 0; y < 4; ++y) {
+        for (int x = 0; x < 4; ++x) {
+          vec4 texel = fetchTexel(clamp(i + ivec2(x - 1, y - 1), lo, hi), sub);
+          float cov = texel == vec4(0.0) ? 0.0 : 1.0;
+          float w = wx[x] * wy[y];
+          sum += w * cov * texel.rgb;
+          wsum += w * cov;
+          if ((x == 1 || x == 2) && (y == 1 || y == 2)) {
+            float bw = (x == 1 ? 1.0 - f.x : f.x) * (y == 1 ? 1.0 - f.y : f.y);
+            near += bw * vec4(cov * texel.rgb, cov);
+            nearStp += bw * texel.a;
+            if (cov > 0.0) { cmin = min(cmin, texel.rgb); cmax = max(cmax, texel.rgb); }
+          }
+        }
+      }
+
+      ialpha = near.w;
+      vec3 rgb = wsum > 0.25 ? sum / wsum : (near.w > 0.0 ? near.rgb / near.w : vec3(0.0));
+      if (near.w > 0.0) rgb = clamp(rgb, cmin, cmax);
+      return vec4(rgb, nearStp >= 0.5 ? 1.0 : 0.0);
+    }
 
     /*
        Hyllian's xBR-lv2 Shader
@@ -628,6 +678,11 @@
         if (texFilter == 4) {
           tc = mmpxTexel();
           if (tc == vec4(0.0)) discard;
+        }
+        else if (texFilter == 5) {
+          float ialpha;
+          tc = bicubicTexel(ialpha);
+          if (ialpha < 0.5) discard;
         }
         else if (texFilter == 3) {
           float ialpha;
