@@ -8,8 +8,8 @@ mdlr('enge:webgl2', ({ include }) => {
     clipL: 0, clipT: 0, clipR: 0, clipB: 0,
   };
 
-  const sbgr2rgba = new Uint32Array(65536);
-  const transfer = new Uint32Array(4096 * 2048);
+  // staging for native-resolution (1024x512) VRAM uploads and readbacks
+  const transfer = new Uint32Array(1024 * 512);
   const view = new Uint8Array(transfer.buffer);
   const vertexBuffer = createVertexBuffer();
 
@@ -17,19 +17,15 @@ mdlr('enge:webgl2', ({ include }) => {
   const ambilight = document.querySelector('#ambilight').getContext('2d', { alpha: false });
   ambilight.imageSmoothingEnabled = false;
 
-  for (let i = 0; i < 65536; ++i) {
-    sbgr2rgba[i] = ((i >>> 0) & 0x1f) << 3;      // r
-    sbgr2rgba[i] |= ((i >>> 5) & 0x1f) << 11;      // g
-    sbgr2rgba[i] |= ((i >>> 10) & 0x1f) << 19;      // b
-    sbgr2rgba[i] |= ((i >>> 15) & 0x01) ? 0xff000000 : 0; // a
-  }
 
   let gl = null;
   try {
     gl = canvas.getContext("webgl2", {
       alpha: false,
       antialias: false,
-      preserveDrawingBuffer: true,
+      // nothing reads the canvas after the frame is handed to the compositor:
+      // the ambilight copy is taken in the same task, right after drawing
+      preserveDrawingBuffer: false,
       premultipliedAlpha: false,
       depth: false,
       stencil: false,
@@ -217,11 +213,12 @@ mdlr('enge:webgl2', ({ include }) => {
   // todo: refactor to completely move this class
   class WebGLRenderer {
     buffers = [
+      createVertexBuffer(),     // 0-3: semi-transparent, per blend mode
       createVertexBuffer(),
       createVertexBuffer(),
       createVertexBuffer(),
-      createVertexBuffer(),
-      createVertexBuffer(true),
+      createVertexBuffer(true), // 4: opaque, filled backwards (front to back)
+      createVertexBuffer(),     // 5: opaque in submission order (check mask)
     ];
 
     constructor() {
@@ -248,12 +245,12 @@ mdlr('enge:webgl2', ({ include }) => {
         this.programDisplay = createProgramDisplay(this.displayBuffer);
         this.renderBuffer = gl.createBuffer();
         this.programRenderer = createProgramRenderer(this.renderBuffer);
+        this.programRendererCheckMask = createProgramRenderer(this.renderBuffer, ['CHECK_MASK']);
+        this.programMaskDepth = createProgramMaskDepth();
+        this.programCopy = createProgramCopy();
+        this.programUpload = createProgramUpload();
 
-        // copy texture data
-        gl_bindTexture(TEXTURE_2D, vram);
-        transfer.fill(0);
-        gl_texSubImage2D(TEXTURE_2D, 0, 0, 0, 4096, 2048, RGBA, UNSIGNED_BYTE, view);
-
+        // textures are created zeroed, so vram starts out black
         flushDepth();
       }
       else {
@@ -263,13 +260,24 @@ mdlr('enge:webgl2', ({ include }) => {
 
     loadImage(x, y, w, h, buffer) {
       flushVertexBuffer();
-      // blit from vram -> cache
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), x, y, (x + w), (y + h), COLOR_BUFFER_BIT, NEAREST);
 
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl.readPixels(x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      // reads wrap around the right and bottom VRAM edges; each piece is
+      // read into its place in rows of w pixels
+      gl.pixelStorei(gl.PACK_ROW_LENGTH, w);
+      for (const [sx, sy, vx, vy, pw, ph] of wrappedPieces(x, y, w, h)) {
+        // blit from vram -> cache (4x -> native)
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
+        gl_blitFramebuffer(4 * vx, 4 * vy, 4 * (vx + pw), 4 * (vy + ph), vx, vy, vx + pw, vy + ph, COLOR_BUFFER_BIT, NEAREST);
+
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
+        gl.pixelStorei(gl.PACK_SKIP_PIXELS, sx);
+        gl.pixelStorei(gl.PACK_SKIP_ROWS, sy);
+        gl.readPixels(vx, vy, pw, ph, RGBA, UNSIGNED_BYTE, view);
+      }
+      gl.pixelStorei(gl.PACK_SKIP_PIXELS, 0);
+      gl.pixelStorei(gl.PACK_SKIP_ROWS, 0);
+      gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
 
       const size = w * h;
       for (let i = 0; i < size; ++i) {
@@ -299,6 +307,10 @@ mdlr('enge:webgl2', ({ include }) => {
     moveImage(sx, sy, dx, dy, w, h) {
       this.seenRender = true;
       flushVertexBuffer();
+      invalidateMaskDepth();
+
+      const mask = (gpu.status >>> 11) & 3;
+      if (mask) return this.moveImageMasked(sx, sy, dx, dy, w, h, mask);
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
@@ -310,11 +322,6 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
       gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), 4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), COLOR_BUFFER_BIT, NEAREST);
 
-      // blit from vramShadow -> cache
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vramShadow);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_cache);
-      gl_blitFramebuffer(4 * dx, 4 * dy, 4 * (dx + w), 4 * (dy + h), dx, dy, (dx + w), (dy + h), COLOR_BUFFER_BIT, NEAREST);
-
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
       gl_bindFramebuffer(READ_FRAMEBUFFER, null);
 
@@ -322,29 +329,109 @@ mdlr('enge:webgl2', ({ include }) => {
 
     }
 
+    // GP0(80h) with GP0(E6h) mask bits: set mask forces bit 15 on every
+    // copied pixel, check mask keeps destination pixels that have it. Drawn
+    // with a shader from vramShadow (synced over both areas), so overlapping
+    // copies read the source as it was before the copy, like the blit path.
+    // Clipped at the VRAM edge like the blits.
+    moveImageMasked(sx, sy, dx, dy, w, h, mask) {
+      w = Math.min(w, 1024 - sx, 1024 - dx);
+      h = Math.min(h, 512 - sy, 512 - dy);
+      if (w <= 0 || h <= 0) return;
+
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      syncRegion(sx, sy, w, h);
+      syncRegion(dx, dy, w, h);
+
+      const program = this.programCopy;
+      gl.useProgram(program);
+      gl.uniform2i(program.offset, 4 * (sx - dx), 4 * (sy - dy));
+      gl.uniform1i(program.setMask, mask & 1);
+      gl.uniform1i(program.checkMask, (mask >> 1) & 1);
+      gl.bindVertexArray(program.vao);
+      gl_disable(BLEND);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      gl.scissor(4 * dx, 4 * dy, 4 * w, 4 * h);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl_disable(gl.SCISSOR_TEST);
+      gl_bindTexture(TEXTURE_2D, null);
+
+      // blit from vram -> vramShadow
+      const X1 = 4 * dx, Y1 = 4 * dy, X2 = 4 * (dx + w), Y2 = 4 * (dy + h);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+    }
+
     storeImage(img) {
       this.seenRender = true;
       flushVertexBuffer();
-      for (let i = 0, l = img.pixelCount; i < l; ++i) {
-        const sbgr = img.buffer[i] >>> 0;
-        transfer[i] = sbgr2rgba[sbgr];
-      }
+      invalidateMaskDepth();
 
       const { x, y, w, h } = img;
-      // copy texture data
-      gl_bindTexture(TEXTURE_2D, cache);
-      gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
+      const pieces = wrappedPieces(x, y, w, h);
+
+      // upload the raw 16-bit words to the staging texture at their VRAM
+      // position; uploads wrap around the right and bottom VRAM edges, each
+      // piece taken from its place in the caller's rows of w words
+      gl_bindTexture(TEXTURE_2D, upload);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w);
+      for (const [sx, sy, vx, vy, pw, ph] of pieces) {
+        gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, sx);
+        gl.pixelStorei(gl.UNPACK_SKIP_ROWS, sy);
+        gl_texSubImage2D(TEXTURE_2D, 0, vx, vy, pw, ph, gl.RED_INTEGER, gl.UNSIGNED_SHORT, img.buffer);
+      }
+      gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+      gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+
+      // GP0(E6h): set mask forces bit 15, check mask keeps pixels that have
+      // it; the check reads vramShadow, so bring the target area up to date
+      const mask = (gpu.status >>> 11) & 3;
+      if (mask & 2) {
+        gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+        for (const [, , vx, vy, pw, ph] of pieces) syncRegion(vx, vy, pw, ph);
+      }
+
+      // convert to RGBA while drawing them into vram at 4x, then copy to
+      // vramShadow
+      const program = this.programUpload;
+      gl.useProgram(program);
+      gl.uniform1i(program.setMask, mask & 1);
+      gl.uniform1i(program.checkMask, (mask >> 1) & 1);
+      gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindVertexArray(program.vao);
+      gl_disable(BLEND);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      for (const [, , vx, vy, pw, ph] of pieces) {
+        gl.scissor(4 * vx, 4 * vy, 4 * pw, 4 * ph);
+        gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+      gl_disable(gl.SCISSOR_TEST);
       gl_bindTexture(TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE0);
 
-      // blit from cache -> vram
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
-
-      // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
+      for (const [, , vx, vy, pw, ph] of pieces) {
+        const X1 = 4 * vx, Y1 = 4 * vy, X2 = 4 * (vx + pw), Y2 = 4 * (vy + ph);
+        gl_blitFramebuffer(X1, Y1, X2, Y2, X1, Y1, X2, Y2, COLOR_BUFFER_BIT, NEAREST);
+      }
 
       gl_bindFramebuffer(FRAMEBUFFER, null);
     }
@@ -398,7 +485,6 @@ mdlr('enge:webgl2', ({ include }) => {
 
       touchArea(x1, y1, x2, y2, x1 + 1, y1 + 1, x2 + 1, y2 + 1);
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var w = Math.abs(x1 - x2);
@@ -470,7 +556,6 @@ mdlr('enge:webgl2', ({ include }) => {
       }
       touchArea(x1, y1, x2, y2, x3, y3);
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       const buffer = vertexBuffer;
@@ -517,7 +602,6 @@ mdlr('enge:webgl2', ({ include }) => {
       }
       touchArea(x, y, x + w, y + h);
 
-      // if (!vertexBuffer.canHold(6)) flushVertexBuffer();
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var buffer = vertexBuffer;
@@ -532,6 +616,7 @@ mdlr('enge:webgl2', ({ include }) => {
 
     fillRectangle(data) {
       flushVertexBuffer();
+      invalidateMaskDepth();
 
       var x = (data[1] << 16) >>> 16;
       var y = (data[1] << 0) >>> 16;
@@ -545,26 +630,14 @@ mdlr('enge:webgl2', ({ include }) => {
       w = ((w & 0x3ff) + 15) & ~15;
       h = (h & 0x1ff);
 
-      transfer.fill(c, 0, w * h);
-
-      // copy texture data
-      gl_bindTexture(TEXTURE_2D, cache);
-      gl_texSubImage2D(TEXTURE_2D, 0, x, y, w, h, RGBA, UNSIGNED_BYTE, view);
-      gl_bindTexture(TEXTURE_2D, null);
-
-      // blit from cache -> vram
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_cache);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
-      gl_blitFramebuffer(x, y, (x + w), (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
-
-      // blit from vram -> vramShadow
-      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-      gl_blitFramebuffer(4 * x, 4 * y, 4 * (x + w), 4 * (y + h), 4 * x, 4 * y, 4 * (x + w), 4 * (y + h), COLOR_BUFFER_BIT, NEAREST);
-
-      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
-      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
-      gl_bindFramebuffer(FRAMEBUFFER, null);
+      // fills wrap around the right and bottom edges of VRAM, so split into
+      // up to four rectangles
+      const w1 = Math.min(w, 1024 - x), w2 = w - w1;
+      const h1 = Math.min(h, 512 - y), h2 = h - h1;
+      clearRect(c, x, y, w1, h1);
+      clearRect(c, 0, y, w2, h1);
+      clearRect(c, x, 0, w1, h2);
+      clearRect(c, 0, 0, w2, h2);
     }
 
     updateDrawArea() {
@@ -655,6 +728,40 @@ mdlr('enge:webgl2', ({ include }) => {
     return (data[0] & 0xff000000) | (data[index] & mask);
   }
 
+  // split a native rectangle that may run past the right/bottom VRAM edge
+  // into the up to four pieces it wraps into:
+  // [offset x, offset y in the rectangle, vram x, vram y, width, height]
+  function wrappedPieces(x, y, w, h) {
+    const w1 = Math.min(w, 1024 - x), w2 = w - w1;
+    const h1 = Math.min(h, 512 - y), h2 = h - h1;
+    const pieces = [[0, 0, x, y, w1, h1]];
+    if (w2 > 0) pieces.push([w1, 0, 0, y, w2, h1]);
+    if (h2 > 0) pieces.push([0, h1, x, 0, w1, h2]);
+    if (w2 > 0 && h2 > 0) pieces.push([w1, h1, 0, 0, w2, h2]);
+    return pieces;
+  }
+
+  // fill a native-coordinate rectangle of vram and vramShadow with a 15-bit
+  // colour (0x00bbggrr, bit 15 clear) using scissored clears at 4x scale;
+  // both are written, so the shadow stays in sync for the dirty-cell tracking
+  const fillColor = new Float32Array(4);
+  function clearRect(c, x, y, w, h) {
+    if (w <= 0 || h <= 0) return;
+    fillColor[0] = ((c >>> 0) & 0xff) / 255;
+    fillColor[1] = ((c >>> 8) & 0xff) / 255;
+    fillColor[2] = ((c >>> 16) & 0xff) / 255;
+    fillColor[3] = 0;
+
+    gl_enable(gl.SCISSOR_TEST);
+    gl.scissor(4 * x, 4 * y, 4 * w, 4 * h);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+    gl.clearBufferfv(gl.COLOR, 0, fillColor);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+    gl.clearBufferfv(gl.COLOR, 0, fillColor);
+    gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+    gl_disable(gl.SCISSOR_TEST);
+  }
+
   function flushDepth() {
     gl_enable(gl.DEPTH_TEST);
     gl_bindFramebuffer(FRAMEBUFFER, fb_vram);
@@ -663,6 +770,7 @@ mdlr('enge:webgl2', ({ include }) => {
     gl_bindFramebuffer(FRAMEBUFFER, null);
 
     primitiveId = 1;
+    maskDepthValid = false;
     gl_disable(gl.DEPTH_TEST);
   }
 
@@ -671,10 +779,12 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_enable(gl.DEPTH_TEST);
       gl.depthMask(true);
       gl.depthFunc(gl.GREATER);
-      renderer.setTransparencyMode(mode, renderer.programRenderer); // also binds the program
+      const program = ($maskMode & 2) ? renderer.programRendererCheckMask : renderer.programRenderer;
+      renderer.setTransparencyMode(mode, program); // also binds the program
+      gl.uniform1i(program.setMask, $maskMode & 1);
       gl.viewport(0, 0, 4096, 2048); // texture dimensions
 
-      gl.bindVertexArray(renderer.programRenderer.vao);
+      gl.bindVertexArray(program.vao);
       gl.bindBuffer(gl.ARRAY_BUFFER, renderer.renderBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, vertexBuffer, gl.STREAM_DRAW, vertexBuffer.base(), vertexBuffer.bytes());
 
@@ -703,23 +813,109 @@ mdlr('enge:webgl2', ({ include }) => {
   let $mode = 4;
   // samePacket is set for the second pass of a semi-transparent textured
   // primitive; it needs a new depth id but is still the same packet
+  // primitive ids are vertex shorts used as depth; before one would exceed
+  // 32767, draw what is queued and restart at 1 with a cleared depth buffer
+  // (everything with an older id is then already in vram, so order holds)
+  const MAX_PRIMITIVE_ID = 32767;
   const nextPrimitive = (samePacket = false) => {
-    ++primitiveId;
+    if (++primitiveId > MAX_PRIMITIVE_ID) {
+      flushVertexBuffer();
+      flushDepth();
+    }
     if (!samePacket) commitPacketArea();
   }
   const getVertexBuffer = (renderer, data) => {
-    const mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
+    updateMaskMode();
+
+    let mode = (data[0] & 0x02000000) ? ((gpu.status >> 5) & 3) : 4;
 
     if (mode !== 4 && mode !== $mode) {
       flushVertexBuffer();
       $mode = mode;
     }
-    return renderer.buffers[mode];
+    if ($maskMode & 2) {
+      // check mask: an earlier pixel with bit 15 must block later ones, so
+      // draw strictly in submission order: opaque primitives forwards, and a
+      // flush whenever the stream switches between opaque and semi-transparent
+      if (mode === 4) mode = 5;
+      if (mode !== $lastMode) flushVertexBuffer();
+      ensureMaskDepth();
+    }
+    $lastMode = mode;
+
+    const buffer = renderer.buffers[mode];
+    // callers add at most 6 vertices (a rectangle or a line)
+    if (!buffer.canHold(6)) flushVertexBuffer();
+    return buffer;
   }
 
   const flushVertexBuffer = () => {
     flushBuffer(renderer.buffers[4], 4);
+    flushBuffer(renderer.buffers[5], 4);
     flushBuffer(renderer.buffers[$mode], $mode);
+  }
+
+  // ---- GP0(E6h) mask bits for drawing ----
+  //
+  // set mask (bit 0) is a shader uniform forcing alpha (VRAM bit 15) to 1.
+  // check mask (bit 1) uses the depth buffer: pixels with bit 15 set get
+  // depth 1.0, above every primitive id, so the GREATER test rejects any
+  // later fragment there. Existing bit-15 pixels are marked by a depth pass
+  // over the draw area (ensureMaskDepth); pixels drawn with bit 15 while
+  // check mask is on mark themselves (CHECK_MASK shader variant). The marks
+  // are rebuilt whenever depth is cleared or VRAM changes underneath.
+  let $maskMode = 0;
+  let $lastMode = 4;
+  let maskDepthValid = false;
+
+  const updateMaskMode = () => {
+    const mask = (gpu.status >>> 11) & 3;
+    if (mask === $maskMode) return;
+    flushVertexBuffer();
+    // leaving check mask: drop the depth marks so masked pixels can be drawn
+    if (($maskMode & 2) && !(mask & 2)) flushDepth();
+    $maskMode = mask;
+  }
+
+  // vram changed outside primitive drawing (upload, copy, fill)
+  const invalidateMaskDepth = () => {
+    maskDepthValid = false;
+  }
+
+  const ensureMaskDepth = () => {
+    if (maskDepthValid) return;
+    flushVertexBuffer();
+    flushDepth();
+
+    const l = $gpu.clipL, t = $gpu.clipT;
+    const w = $gpu.clipR - l + 1, h = $gpu.clipB - t + 1;
+    if (w > 0 && h > 0) {
+      // the pass reads vramShadow, so bring the draw area up to date
+      gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
+      syncRegion(l, t, w, h);
+
+      const program = renderer.programMaskDepth;
+      gl.useProgram(program);
+      gl.bindVertexArray(program.vao);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vram);
+      gl.viewport(0, 0, 4096, 2048);
+      gl_enable(gl.SCISSOR_TEST);
+      gl.scissor(4 * l, 4 * t, 4 * w, 4 * h);
+      gl_enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.ALWAYS);
+      gl.depthMask(true);
+      gl.colorMask(false, false, false, false);
+      gl_disable(BLEND);
+      gl_bindTexture(TEXTURE_2D, vramShadow);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.colorMask(true, true, true, true);
+      gl_disable(gl.DEPTH_TEST);
+      gl_disable(gl.SCISSOR_TEST);
+      gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
+      gl_bindFramebuffer(READ_FRAMEBUFFER, null);
+    }
+    maskDepthValid = true;
   }
 
   const getDisplayArrays = ({ x, y, w, h }) => {
@@ -738,8 +934,8 @@ mdlr('enge:webgl2', ({ include }) => {
     const program = renderer.programDisplay;
 
     if ((canvas.width !== region.w * settings.quality) || (canvas.height !== region.h * settings.quality)) {
-      canvas.width = ambilight.canvas.width = region.w * settings.quality;
-      canvas.height = ambilight.canvas.height = region.h * settings.quality;
+      canvas.width = region.w * settings.quality;
+      canvas.height = region.h * settings.quality;
     }
     gl.viewport(0, 0, canvas.width, canvas.height);
 
@@ -763,9 +959,27 @@ mdlr('enge:webgl2', ({ include }) => {
 
     vertexBuffer.reset();
 
-    if (canvas.width && canvas.height) {
-      ambilight.drawImage(canvas, 0, 0);
+    updateAmbilight();
+  }
+
+  // the ambilight is a full-size copy of the display behind it; when it is
+  // switched off the copy is skipped, the canvas hidden and its memory freed
+  const updateAmbilight = () => {
+    const target = ambilight.canvas;
+    const enabled = settings.ambilight !== false;
+    if (target.hidden === enabled) target.hidden = !enabled;
+
+    if (!enabled) {
+      if (target.width || target.height) target.width = target.height = 0;
+      return;
     }
+    if (!canvas.width || !canvas.height) return;
+    if (target.width !== canvas.width || target.height !== canvas.height) {
+      target.width = canvas.width;
+      target.height = canvas.height;
+      ambilight.imageSmoothingEnabled = false; // resizing resets context state
+    }
+    ambilight.drawImage(canvas, 0, 0);
   }
 
   const vertexStride = 24;
@@ -801,19 +1015,54 @@ mdlr('enge:webgl2', ({ include }) => {
     return program;
   }
 
-  const createProgramRenderer = (renderBuffer) => {
-    const program = createProgramFromScripts(gl, 'pixel', 'videoram');
+  const createProgramRenderer = (renderBuffer, defines = []) => {
+    const program = createProgramFromScripts(gl, 'pixel', 'videoram', defines);
     gl.useProgram(program);
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
 
     createVertexArray(program, renderBuffer, [
       ['a_position', 3, gl.SHORT, false, 0],
       ['a_texcoord', 2, gl.SHORT, false, 6],
-      ['a_color', 4, UNSIGNED_BYTE, true, 10],
-      ['a_twin', 4, UNSIGNED_BYTE, false, 14],
-      ['a_clut', 1, gl.SHORT, false, 18],
-      ['a_tmode', 1, gl.BYTE, false, 20],
+      ['a_color', 4, UNSIGNED_BYTE, true, 12],
+      ['a_twin', 4, UNSIGNED_BYTE, false, 16],
+      ['a_clut', 1, gl.SHORT, false, 20],
+      ['a_tmode', 1, gl.BYTE, false, 22],
     ]);
 
+    return program;
+  }
+
+  // converts uploaded 16-bit VRAM words to RGBA; draws a single triangle
+  // from gl_VertexID, so its VAO has no attributes
+  const createProgramUpload = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramUpload');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_source'), 0);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_dest'), 1);
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.checkMask = gl_getUniformLocation(program, 'u_checkMask');
+    program.vao = gl.createVertexArray();
+    return program;
+  }
+
+  // VRAM -> VRAM copy honouring the mask bits
+  const createProgramCopy = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramCopy');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_vram'), 0);
+    program.offset = gl_getUniformLocation(program, 'u_offset');
+    program.setMask = gl_getUniformLocation(program, 'u_setMask');
+    program.checkMask = gl_getUniformLocation(program, 'u_checkMask');
+    program.vao = gl.createVertexArray();
+    return program;
+  }
+
+  // marks VRAM pixels with bit 15 set in the depth buffer (check mask)
+  const createProgramMaskDepth = () => {
+    const program = createProgramFromScripts(gl, 'vramUploadVertex', 'vramMaskDepth');
+    gl.useProgram(program);
+    gl.uniform1i(gl_getUniformLocation(program, 'u_vram'), 0);
+    program.vao = gl.createVertexArray();
     return program;
   }
 
@@ -857,9 +1106,13 @@ mdlr('enge:webgl2', ({ include }) => {
   gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, vramShadow, 0);
   gl_bindFramebuffer(FRAMEBUFFER, null);
 
-  // create texture
+  // native-resolution staging texture for readbacks
   const cache = createAndBindTexture();
-  gl_texImage2D(TEXTURE_2D, 0, RGBA, 4096, 2048, 0, RGBA, UNSIGNED_BYTE, null);
+  gl_texImage2D(TEXTURE_2D, 0, RGBA, 1024, 512, 0, RGBA, UNSIGNED_BYTE, null);
+
+  // native-resolution staging texture for uploads, raw 16-bit VRAM words
+  const upload = createAndBindTexture();
+  gl_texImage2D(TEXTURE_2D, 0, gl.R16UI, 1024, 512, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, null);
 
   const fb_cache = gl_createFramebuffer();
   gl_bindFramebuffer(FRAMEBUFFER, fb_cache);
@@ -942,7 +1195,7 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    *     script tag.
    * @return {!WebGLShader} A shader.
    */
-  function createShaderFromScript(gl, scriptId, opt_shaderType) {
+  function createShaderFromScript(gl, scriptId, opt_shaderType, defines = []) {
     // look up the script tag by id.
     var shaderScript = document.getElementById(scriptId);
     if (!shaderScript) {
@@ -951,6 +1204,12 @@ mdlr('enge:webgl2:utils', ({ include }) => {
 
     // extract the contents of the script tag.
     var shaderSource = shaderScript.text;
+
+    // #define lines go right after the #version line, which must come first
+    if (defines.length) {
+      const eol = shaderSource.indexOf('\n');
+      shaderSource = shaderSource.slice(0, eol + 1) + defines.map(d => `#define ${d}\n`).join('') + shaderSource.slice(eol + 1);
+    }
 
     // If we didn't pass in a type, use the 'type' from
     // the script tag.
@@ -975,9 +1234,9 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    * @param {string} fragmentShaderId The id of the fragment shader script tag.
    * @return {!WebGLProgram} A program
    */
-  function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId) {
+  function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId, defines = []) {
     var vertexShader = createShaderFromScript(gl, vertexShaderId, gl.VERTEX_SHADER);
-    var fragmentShader = createShaderFromScript(gl, fragmentShaderId, gl.FRAGMENT_SHADER);
+    var fragmentShader = createShaderFromScript(gl, fragmentShaderId, gl.FRAGMENT_SHADER, defines);
     return createProgram(gl, vertexShader, fragmentShader);
   }
 
@@ -986,8 +1245,16 @@ mdlr('enge:webgl2:utils', ({ include }) => {
    * @returns vertex-buffer
    */
   function createVertexBuffer(reverse = false) {
+    // vertex layout (24 bytes, every field naturally aligned):
+    //    0 x  i16    2 y  i16    4 primitive id  i16    6 u  i16    8 v  i16
+    //   10 (unused)  12 colour u32   16 texture window u32
+    //   20 clut u16  22 texture mode/page u8   23 (unused)
+    // typed-array stores are about twice as fast as DataView calls; WebGL and
+    // typed arrays both use the platform byte order
     const buffer = new Uint8Array(1024 * 1024);
-    const view = new DataView(buffer.buffer);
+    const i16 = new Int16Array(buffer.buffer);
+    const u16 = new Uint16Array(buffer.buffer);
+    const u32 = new Uint32Array(buffer.buffer);
 
     const bytesPerVertex = 24;
     let index = 0;
@@ -995,15 +1262,16 @@ mdlr('enge:webgl2:utils', ({ include }) => {
       if (reverse) {
         index -= bytesPerVertex;
       }
-      view.setInt16(index + 0, x, true);
-      view.setInt16(index + 2, y, true);
-      view.setInt16(index + 4, primitiveId, true);
-      view.setInt16(index + 6, u, true);
-      view.setInt16(index + 8, v, true);
-      view.setUint32(index + 10, c, true);
-      view.setUint32(index + 14, gpu.twin, true);
-      view.setUint16(index + 18, cl >>> 0, true);
-      view.setUint8(index + 20, ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2), true);
+      const h = index >> 1, w = index >> 2;
+      i16[h + 0] = x;
+      i16[h + 1] = y;
+      i16[h + 2] = primitiveId;
+      i16[h + 3] = u;
+      i16[h + 4] = v;
+      u32[w + 3] = c;
+      u32[w + 4] = gpu.twin;
+      u16[h + 10] = cl;
+      buffer[index + 22] = ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2);
       if (!reverse) {
         index += bytesPerVertex;
       }
@@ -1011,6 +1279,11 @@ mdlr('enge:webgl2:utils', ({ include }) => {
 
     buffer.reset = () => {
       index = reverse ? buffer.length : 0;
+    }
+
+    buffer.canHold = vertices => {
+      const free = reverse ? index : buffer.length - index;
+      return free >= vertices * bytesPerVertex;
     }
 
     buffer.size = () => {
