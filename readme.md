@@ -30,7 +30,7 @@ The default URL is `http://<your-lan-ip>:8000/`. The server prints the detected 
 
 ## Improving Graphics Quality
 
-Click the Qx button to cycle through Q1, Q2, and Q4, with Q4 as the highest quality. The red border indicates that you need to reload the emulator for the change to take effect.
+Click the Qx button to cycle through Q1, Q2, and Q4, with Q4 as the highest quality. With the WebGL2 renderer, Q8 is added when the GPU can render VRAM at 8192 × 4096; it switches the internal render resolution live and needs about 320 MB of GPU memory. The red border indicates that you need to reload the emulator for the change to take effect.
 
 ## Controls
 

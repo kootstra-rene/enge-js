@@ -20,11 +20,11 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
   const SXY2 = 14;
   const DATA = 0x00100000;
-  const VALID = 0x30; // x and y half valid
+  const VALID = 0x300; // x and y half valid
 
   // RTPS result used throughout: SX2 = 100.25, SY2 = 50.75
   const SXY_WORD = (50 << 16) | 100;
-  const SXY_FRAC = 1 | (3 << 2);
+  const SXY_FRAC = 4 | (12 << 4); // .25 = 4/16, .75 = 12/16
 
   // OFX/OFY carry the fraction; H = 0 makes the projection term zero, so
   // SX2 = OFX / 10000h and SY2 = OFY / 10000h.
@@ -92,10 +92,30 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
   describe('GTE', () => {
 
-    it('should keep the quarter-pixel fraction of SX2/SY2', async () => {
+    it('should keep the 1/16-pixel fraction of SX2/SY2', async () => {
       projectPoint();
       expect(gte.get(SXY2) >>> 0).to.eql(SXY_WORD);
       expect(gte.frac(SXY2)).to.eql(SXY_FRAC);
+    });
+
+    it('should keep sixteenths of a pixel (half a pixel at the 8x render scale)', async () => {
+      for (let r = 0; r < 64; ++r) gte.set(r, 0);
+      gte.set(0x27, 1000);
+      gte.set(0x38, (100 << 16) + 0x1000);     // OFX = 100.0625
+      gte.set(0x39, (50 << 16) + 0xf000);      // OFY = 50.9375
+      gte.command(0x00080001);
+      expect(gte.get(SXY2) >>> 0).to.eql(SXY_WORD);
+      expect(gte.frac(SXY2)).to.eql(1 | (15 << 4));
+    });
+
+    it('should round negative coordinates down, with the fraction above them', async () => {
+      for (let r = 0; r < 64; ++r) gte.set(r, 0);
+      gte.set(0x27, 1000);
+      gte.set(0x38, -(100 << 16) - 0x4000);    // OFX = -100.25 = -101 + 12/16
+      gte.set(0x39, (50 << 16) + 0x8000);      // OFY = 50.5
+      gte.command(0x00080001);
+      expect(gte.get(SXY2) >>> 0).to.eql(((50 << 16) | (-101 & 0xffff)) >>> 0);
+      expect(gte.frac(SXY2)).to.eql(12 | (8 << 4));
     });
 
     it('should shift the fraction through the SXY FIFO', async () => {
@@ -227,7 +247,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
       map[(DATA + 0x40) >>> 2] = 0;
       runProgram([MFC2(T1, SXY2), NOP, SH(T1, T0, 0), JR_RA, NOP]);
       expect(map[(DATA + 0x40) >>> 2]).to.eql(100);
-      expect(fracAt(DATA + 0x40)).to.eql(1 | 0x10); // x .25, x valid only
+      expect(fracAt(DATA + 0x40)).to.eql(4 | 0x100); // x .25, x valid only
     });
 
     it('should load a fraction into the GTE with LWC2', async () => {
@@ -250,7 +270,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
       cpu.gpr[T0] = DATA + 0x60;
       runProgram([SWC2(SXY2, T0, 0), LH(T2, T0, 2), NOP, SW(T2, T0, 4), JR_RA, NOP]);
       // y (50.75) loaded into the low half of t2 and stored as a word: x fraction .75
-      expect(fracAt(DATA + 0x64)).to.eql(3 | 0x10);
+      expect(fracAt(DATA + 0x64)).to.eql(12 | 0x100);
     });
 
   });
@@ -330,7 +350,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
       // x + x: both have an x fraction, so the x half is dropped; y stays
       const r = run([ANDI(T2, T1, 0xffff), ADDU(T4, T1, T2)], 0xb0);
       expect(r.word).to.eql(SXY_WORD + 100);
-      expect(r.frac).to.eql((SXY_FRAC & 0x0c) | 0x20);
+      expect(r.frac).to.eql((SXY_FRAC & 0xf0) | 0x200);
     });
 
     it('should drop the fraction for a mask that cuts the coordinate', async () => {

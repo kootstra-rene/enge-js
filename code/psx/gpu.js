@@ -13,7 +13,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
   // PGXP: per-word sub-pixel fraction for the polygon packet in dmaBuffer
   // (see pgxp.js). Renderers read it through gpu.pgxpFrac, which is only set
   // while a polygon packet with at least one precise vertex is being drawn.
-  const dmaFrac = new Uint8Array(4096);
+  const dmaFrac = new Uint16Array(4096);
   const pgxpOn = () => typeof pgxp !== 'undefined' && pgxp.enabled;
 
   // ?debug-pgxp: calls cb(wordIndex, word) for each vertex word of polygon packet

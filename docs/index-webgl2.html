@@ -194,6 +194,8 @@
     flat out ivec2 v_texturePage;
     flat out uint packetId;
     flat out ivec2 clut;
+    // VRAM render scale (4 or 8)
+    uniform int u_scale;
     flat out ivec4 twin;
     flat out uint v_flags;
     flat out vec4 v_uvLimits;
@@ -213,7 +215,7 @@
       v_textureMode = uint(mod(a_tmode, 4.0));
       float tpx = mod(floor(a_tmode / 4.0), 16.0);
       float tpy = mod(floor(a_tmode / 64.0), 2.0);
-      v_texturePage = ivec2(int(tpx * 256.0), tpy * 1024.0);
+      v_texturePage = ivec2(int(tpx) * 64 * u_scale, int(tpy) * 256 * u_scale);
       packetId = uint(a_color.a * 255.0);
       v_color = 4u == (packetId & 4u) ? 0u == (packetId & 1u) ? a_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0) : a_color.rgb;
 
@@ -231,6 +233,9 @@
     precision highp int;
 
     uniform sampler2D u_texture;
+    // VRAM render scale (4 or 8) and its log2
+    uniform int u_scale;
+    uniform int u_scaleShift;
     // GP0(E6h) bit 0: force VRAM bit 15 on every pixel drawn
     uniform bool u_setMask;
     // sample 15-bit textures at the 4x resolution they were rendered at, so
@@ -264,15 +269,20 @@
       return sbgr;
     }
 
-    vec4 vram16Bit(int tx, int ty) {
-      ivec2 coord = ivec2(v_texturePage) + ivec2(4,4) * ivec2(tx, ty);
-      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+    // wrap a scaled VRAM coordinate around the VRAM texture
+    ivec2 wrapVram(ivec2 coord) {
+      return ivec2(coord.x % (1024 << u_scaleShift), coord.y % (512 << u_scaleShift));
     }
 
-    // direct texels at full (4x) resolution: texel t, sub-texel s (0..3)
+    vec4 vram16Bit(int tx, int ty) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale) * ivec2(tx, ty);
+      return texelFetch(u_texture, wrapVram(coord), 0);
+    }
+
+    // direct texels at full resolution: texel t, sub-texel s (0..scale-1)
     vec4 vram16BitFull(ivec2 t, ivec2 s) {
-      ivec2 coord = ivec2(v_texturePage) + ivec2(4,4) * t + s;
-      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale) * t + s;
+      return texelFetch(u_texture, wrapVram(coord), 0);
     }
 
     ivec2 textureWindow(ivec2 t) {
@@ -281,33 +291,33 @@
     }
 
     vec4 vram8bit(int tx, int ty) {
-      ivec2 coord = ivec2(v_texturePage) + ivec2(2,4) * ivec2(tx, ty);
-      vec4 color = texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale >> 1, u_scale) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_texture, wrapVram(coord), 0);
       int sbgr = getSBGRfromRGBA(color);
 
       int bit = int(tx) & 1;
       int clutIndex = (sbgr >> (bit * 8)) & 0xff;
 
-      coord = ivec2(4,4) * (clut + ivec2(clutIndex, 0));
-      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+      coord = ivec2(u_scale) * (clut + ivec2(clutIndex, 0));
+      return texelFetch(u_texture, wrapVram(coord), 0);
     }
 
     vec4 vram4bit(int tx, int ty) {
-      ivec2 coord = ivec2(v_texturePage) + ivec2(1,4) * ivec2(tx, ty);
-      vec4 color = texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale >> 2, u_scale) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_texture, wrapVram(coord), 0);
       int sbgr = getSBGRfromRGBA(color);
 
       int bit = int(tx) & 3;
       int clutIndex = (sbgr >> (bit * 4)) & 0xf;
 
-      coord = ivec2(4,4) * (clut + ivec2(clutIndex, 0));
-      return texelFetch(u_texture, ivec2(coord.x % 4096, coord.y % 2048), 0);
+      coord = ivec2(u_scale) * (clut + ivec2(clutIndex, 0));
+      return texelFetch(u_texture, wrapVram(coord), 0);
     }
 
     // one texel through texture window, depth and CLUT; in 4x sub-texel
     // units for direct textures at full resolution
     vec4 fetchTexel(ivec2 q, bool sub) {
-      if (sub) return vram16BitFull(textureWindow(q >> 2), q & 3);
+      if (sub) return vram16BitFull(textureWindow(q >> u_scaleShift), q & (u_scale - 1));
       ivec2 t = textureWindow(q);
       if (v_textureMode == 0u) return vram4bit(t.x, t.y);
       if (v_textureMode == 1u) return vram8bit(t.x, t.y);
@@ -321,7 +331,7 @@
     // colour with a = semi-transparency (bit 15), coverage in ialpha.
     vec4 filteredTexel(int texFilter, out float ialpha) {
       bool sub = v_textureMode >= 2u && u_fullResTextures;
-      float s = sub ? 4.0 : 1.0;
+      float s = sub ? float(u_scale) : 1.0;
       vec2 c = v_vramCoord * s;
       vec2 lo = v_uvLimits.xy * s, hi = v_uvLimits.zw * s + (s - 1.0);
 
@@ -342,8 +352,8 @@
       vec2 weights = abs(offset);
       if (texFilter == 2) {
         // keep the middle of each texel sharp; blend over one output pixel
-        // (a quarter texel at 4x, one sub-texel at full resolution)
-        float width = sub ? 1.0 : 0.25;
+        // (1/scale texel, one sub-texel at full resolution)
+        float width = sub ? 1.0 : 1.0 / float(u_scale);
         weights = clamp((weights - (0.5 - width * 0.5)) / width, 0.0, 1.0);
       }
 
@@ -404,7 +414,7 @@
     // pixel in texels. Returns the colour with a = bit 15, coverage in ialpha.
     vec4 xbrTexel(float delta1, out float ialpha) {
       bool sub = v_textureMode >= 2u && u_fullResTextures;
-      float s = sub ? 4.0 : 1.0;
+      float s = sub ? float(u_scale) : 1.0;
       vec2 uv = v_vramCoord * s;
       ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
       ivec2 q = ivec2(floor(uv));
@@ -530,7 +540,7 @@
 
     vec4 mmpxTexel() {
       bool sub = v_textureMode >= 2u && u_fullResTextures;
-      float s = sub ? 4.0 : 1.0;
+      float s = sub ? float(u_scale) : 1.0;
       vec2 uv = v_vramCoord * s;
       ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
       ivec2 q = ivec2(floor(uv));
@@ -621,7 +631,7 @@
         }
         else if (texFilter == 3) {
           float ialpha;
-          float scale = v_textureMode >= 2u && u_fullResTextures ? 4.0 : 1.0;
+          float scale = v_textureMode >= 2u && u_fullResTextures ? float(u_scale) : 1.0;
           float delta1 = clamp(max(texelsPerPixel.x, texelsPerPixel.y) * scale, 1.0 / 16.0, 1.0);
           tc = xbrTexel(delta1, ialpha);
           if (ialpha < 0.5) discard;
@@ -634,8 +644,8 @@
         else if (v_textureMode >= 2u && u_fullResTextures) {
           // texel and 4x sub-texel from the interpolated coordinate; the
           // texture window applies to the texel
-          ivec2 q = ivec2(floor(v_vramCoord * 4.0));
-          tc = vram16BitFull(textureWindow(q >> 2), q & 3);
+          ivec2 q = ivec2(floor(v_vramCoord * float(u_scale)));
+          tc = vram16BitFull(textureWindow(q >> u_scaleShift), q & (u_scale - 1));
         }
         else {
           int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
@@ -709,6 +719,8 @@
 
     // raw 15-bit VRAM words at native resolution, same coordinates as VRAM
     uniform usampler2D u_source;
+    // log2 of the VRAM render scale
+    uniform int u_scaleShift;
     // vramShadow, in sync with vram for the uploaded area (check mask)
     uniform sampler2D u_dest;
     // GP0(E6h) mask bits
@@ -719,7 +731,7 @@
 
     void main() {
       if (u_checkMask && texelFetch(u_dest, ivec2(gl_FragCoord.xy), 0).a >= 0.5) discard;
-      uint c = texelFetch(u_source, ivec2(gl_FragCoord.xy) >> 2, 0).r;
+      uint c = texelFetch(u_source, ivec2(gl_FragCoord.xy) >> u_scaleShift, 0).r;
       if (u_setMask) c |= 0x8000u;
       outColor = vec4(
         float((c & 31u) << 3) / 255.0,
@@ -778,6 +790,8 @@
     out vec2 v_texcoord;
     out vec2 v_vramCoord;
     out vec4 v_color;
+    // VRAM render scale (4 or 8)
+    uniform int u_scale;
     out vec2 v_pixelCoord;
   
     void main() {
@@ -786,7 +800,7 @@
       gl_Position.y = (gl_Position.y - 256.0) / -256.0;
       v_vramCoord = a_texcoord; 
       v_pixelCoord = a_position;
-      v_texcoord = a_texcoord * vec2(4.0, 4.0); // texture is 4096x2048 iso 1024x512
+      v_texcoord = a_texcoord * float(u_scale); // VRAM texture is 1024x512 times the render scale
       v_color = a_color;
     }
   </script>
@@ -799,6 +813,7 @@
     uniform ivec4     u_disp;
     uniform ivec4     u_draw;
     uniform int       u_mode;
+    uniform int       u_scale;
     uniform bool      u_tv_effect;
   
     in vec2 v_texcoord;
@@ -852,9 +867,9 @@
       float tx = float(u_disp.x) + floor(float(ds.x) * 1.5);
       float ty = floor(v_texcoord.y);
   
-      vec4 c1 = texelFetch(u_texture, ivec2(4.0 * tx + 0.0, ty), 0);
+      vec4 c1 = texelFetch(u_texture, ivec2(float(u_scale) * tx, ty), 0);
       int  sbgr1 = getSBGRfromRGBA(c1);
-      vec4 c2 = texelFetch(u_texture, ivec2(4.0 * tx + 4.0, ty), 0);
+      vec4 c2 = texelFetch(u_texture, ivec2(float(u_scale) * (tx + 1.0), ty), 0);
       int  sbgr2 = getSBGRfromRGBA(c2);
   
       if ((ds.x & 1) == 1) {

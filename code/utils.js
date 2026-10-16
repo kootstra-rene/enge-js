@@ -37,12 +37,14 @@ mdlr('enge:utils', ({ include }) => {
 	settings.updateQuality = quality => {
 		const elem = document.getElementById('quality');
 		const select = document.getElementById('quality-select');
+		// the renderer sets maxQuality: 8 when it can render VRAM at 8x
+		const max = settings.maxQuality || 4;
 		if (quality === true) {
 			settings.quality <<= 1;
-			if (settings.quality > 4) settings.quality = 1;
+			if (settings.quality > max) settings.quality = 1;
 		}
 		else if (quality !== undefined) {
-			settings.quality = Number(quality) || 1;
+			settings.quality = Math.min(Number(quality) || 1, max);
 		}
 		if (quality !== undefined) {
 			localStorage.setItem('config', JSON.stringify(settings));
