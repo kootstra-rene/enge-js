@@ -1158,8 +1158,10 @@ mdlr('enge:psx:index', ({ include }) => {
         updateFullRes();
       });
 
-      // texture filters cycle Nearest -> Bilinear -> Sharp bilinear -> xBR -> MMPX
-      const filterNames = ['Nearest', 'Bilinear', 'Sharp bilinear', 'xBR', 'MMPX'];
+      // texture filters cycle Nearest -> Bilinear -> Sharp bilinear -> Bicubic
+      // -> xBR -> MMPX; the stored values keep their numbers (bicubic is 5)
+      const filterNames = ['Nearest', 'Bilinear', 'Sharp bilinear', 'xBR', 'MMPX', 'Bicubic'];
+      const filterOrder = [0, 1, 2, 5, 3, 4];
       for (const [key, label] of [['textureFilter', 'Texture filter'], ['spriteFilter', 'Sprite filter']]) {
         const button = document.createElement('button');
         button.id = key === 'textureFilter' ? 'texture-filter' : 'sprite-filter';
@@ -1170,7 +1172,8 @@ mdlr('enge:psx:index', ({ include }) => {
         const update = () => { button.textContent = `${label}: ${filterNames[settings[key] | 0] ?? filterNames[0]}`; };
         update();
         button.addEventListener('click', () => {
-          settings[key] = ((settings[key] | 0) + 1) % filterNames.length;
+          const at = filterOrder.indexOf(settings[key] | 0);
+          settings[key] = filterOrder[(at + 1) % filterOrder.length];
           localStorage.setItem('config', JSON.stringify(settings));
           update();
         });
