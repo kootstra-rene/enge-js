@@ -1140,6 +1140,24 @@ mdlr('enge:psx:index', ({ include }) => {
         updateAmbilight();
       });
     }
+    if (new URLSearchParams(window.location.search).has('debug-game')) {
+      // debug: record GP0/GP1 traffic of a few frames for offline replay
+      const traceButton = document.createElement('button');
+      traceButton.id = 'gpu-trace';
+      traceButton.type = 'button';
+      traceButton.textContent = 'Record GPU trace (3 frames)';
+      const traceRow = document.createElement('li');
+      traceRow.append(traceButton);
+      controlMenu?.querySelector('.control-menu-list')?.append(traceRow);
+      traceButton.addEventListener('click', () => {
+        const started = gpu.recordTrace(3, bytes => {
+          downloadFile(bytes, `enge-gpu-trace-${Date.now()}.bin`, 'application/octet-stream');
+          traceButton.textContent = 'Record GPU trace (3 frames)';
+          updateStateButton(traceButton, 'Trace downloaded');
+        });
+        if (started) traceButton.textContent = 'Recording...';
+      });
+    }
     const controllerMode = document.createElement('button');
     controllerMode.id = 'controller-mode';
     controllerMode.type = 'button';

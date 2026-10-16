@@ -89,6 +89,17 @@ mdlr('enge:psx:gpu', ({ include }) => {
   let dmaIndex = 0;
   let allowTextureDisable = 0; // GP1(09h)
 
+  // ---- GPU trace (debug): records GP0/GP1 traffic for offline replay ----
+  // A trace is a VRAM snapshot plus GPU state, followed by every GP0 word,
+  // GP1 word and vblank for a number of frames, whichever path delivered
+  // them (CPU writes, linked-list DMA, block DMA), so it can be fed back
+  // through wr32r1810/wr32r1814 later. Records are [tag, value] u32 pairs:
+  // 1 = GP0 word, 2 = GP1 word, 3 = vblank.
+  let trace = null;          // array of u32 while recording
+  let traceRequest = null;   // { frames, done } until recording starts
+  let traceFrames = 0;
+  const TRACE_GP0 = 1, TRACE_GP1 = 2, TRACE_VBLANK = 3;
+
   let gpu = {
     dispB: 256,
     dispL: 0,
@@ -189,6 +200,13 @@ mdlr('enge:psx:gpu', ({ include }) => {
       }
       if (gpu.hline === vblankbegin) {
         renderer.onVBlankBegin();
+        if (trace) {
+          trace.push(TRACE_VBLANK, 0);
+          if (++traceFrames >= traceRequest.frames) finishTrace();
+        }
+        else if (traceRequest && dmaIndex === 0 && (gpu.status & 0x10000000)) {
+          beginTrace();
+        }
       }
       if (gpu.hline === vblankend) {
         renderer.onVBlankEnd();
@@ -244,6 +262,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     wr32r1810: data => {
+      if (trace) trace.push(TRACE_GP0, data >>> 0);
       if (debugGame && debugGpuCommandCount < 64) {
         console.debug('[GPU] GP0', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
         debugGpuCommandCount++;
@@ -285,6 +304,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     wr32r1814: data => {
+      if (trace) trace.push(TRACE_GP1, data >>> 0);
       if (debugGame && debugGpuCommandCount < 128) {
         console.debug('[GPU] GP1', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
         debugGpuCommandCount++;
@@ -716,6 +736,12 @@ mdlr('enge:psx:gpu', ({ include }) => {
       var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
       gpu.transferTotal -= transferSize;
 
+      if (trace) {
+        for (let i = 0, a = addr; i < transferSize; i += 2, a += 4) {
+          trace.push(TRACE_GP0, (map16[(a & 0x001fffff) >>> 1] | (map16[((a + 2) & 0x001fffff) >>> 1] << 16)) >>> 0);
+        }
+      }
+
       const img = gpu.img;
       while (--transferSize >= 0) {
         const data = map16[(addr & 0x001fffff) >>> 1];
@@ -768,15 +794,19 @@ mdlr('enge:psx:gpu', ({ include }) => {
             return words;
           }
           else if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
-            let i = 0;
+            let i = 0, terminator;
             for (; i < 4096; ++i) {
               const value = ram.getInt32(addr, true);
               addr += 4; --nitem; ++words;
 
-              if (isPolyLineTerminator(packetId, i, value)) break;
+              if (isPolyLineTerminator(packetId, i, value)) { terminator = value; break; }
               data[i] = value;
             }
             if (nitem < 0) return words;
+            if (trace) {
+              for (let k = 0; k < i; ++k) trace.push(TRACE_GP0, data[k] >>> 0);
+              trace.push(TRACE_GP0, (terminator ?? 0x55555555) >>> 0);
+            }
             nextPrimitive();
             handlers[packetId].call(gpu, data, i);
             gpu.updated = true;
@@ -788,6 +818,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
               ++words;
             }
             if (nitem < 0) return words;
+            if (trace) for (let k = 0; k < packetSizes[packetId]; ++k) trace.push(TRACE_GP0, data[k] >>> 0);
             nextPrimitive();
             handlers[packetId].call(gpu, data, 0);
             gpu.updated = true;
@@ -919,6 +950,48 @@ mdlr('enge:psx:gpu', ({ include }) => {
   gpu.pckt7D = gpu.pckt7C;
   gpu.pckt7E = gpu.pckt7C;
   gpu.pckt7F = gpu.pckt7C;
+
+  // snapshot taken between packets, right after a vblank
+  const beginTrace = () => {
+    const vram = renderer.getVramState();
+    traceRequest.header = {
+      version: 1,
+      frame: gpu.frame,
+      status: gpu.status >>> 0,
+      info: Array.from(gpu.info),
+      txflip: gpu.txflip, tyflip: gpu.tyflip,
+      allowTextureDisable,
+      disp: { x: gpu.dispX, y: gpu.dispY, l: gpu.dispL, r: gpu.dispR, t: gpu.dispT, b: gpu.dispB },
+    };
+    traceRequest.vram = vram;
+    trace = [];
+    traceFrames = 0;
+  }
+
+  // file: 'ENGT', u32 header length, JSON header (padded to 4 bytes),
+  // 1024x512 u16 VRAM, then [tag, value] u32 records
+  const finishTrace = () => {
+    const json = new TextEncoder().encode(JSON.stringify(traceRequest.header));
+    const jsonLength = (json.length + 3) & ~3;
+    const out = new Uint8Array(8 + jsonLength + 1024 * 512 * 2 + trace.length * 4);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, 0x54474e45, true); // 'ENGT'
+    view.setUint32(4, jsonLength, true);
+    out.set(json, 8);
+    out.set(new Uint8Array(traceRequest.vram.buffer), 8 + jsonLength);
+    new Uint32Array(out.buffer, 8 + jsonLength + 1024 * 512 * 2).set(trace);
+    const { done } = traceRequest;
+    trace = null;
+    traceRequest = null;
+    done(out);
+  }
+
+  // debug: record the next `frames` frames; `done` receives the file bytes
+  gpu.recordTrace = (frames, done) => {
+    if (trace || traceRequest) return false;
+    traceRequest = { frames, done };
+    return true;
+  }
 
   for (let i = 0; i < 256; ++i) {
     var packetHandlerName = 'pckt' + hex(i, 2).toUpperCase();
