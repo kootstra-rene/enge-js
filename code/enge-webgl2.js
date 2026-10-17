@@ -76,6 +76,9 @@ mdlr('enge:webgl2', ({ include }) => {
   // to keep neighbouring images in a texture atlas from bleeding in.
   const VERTEX_SPRITE = 1; // vertex flag: rectangle (GP0 60h-7Fh)
   const uvLimits = new Int16Array(4);
+  // texture filters in use: picks the shader variant and whether polygons
+  // need UV limits; latched at vblank so a frame's batches agree
+  let filtersActive = !!((settings.textureFilter | 0) | (settings.spriteFilter | 0));
 
   // texel range of a textured polygon packet, over all 3 or 4 vertices; the
   // upper bound is made inclusive (max - 1 unless the range is one texel)
@@ -275,10 +278,15 @@ mdlr('enge:webgl2', ({ include }) => {
         gl.clearDepth(0.0);
 
         this.displayBuffer = gl.createBuffer();
-        this.programDisplay = createProgramDisplay(this.displayBuffer);
+        // display shader variants by FMV filter (0 off, 1 smooth, 2 xBR)
+        this.displayPrograms = new Map();
+        this.programDisplay = getDisplayProgram(this, settings.fmvFilter | 0);
         this.renderBuffer = gl.createBuffer();
-        this.programRenderer = createProgramRenderer(this.renderBuffer);
-        this.programRendererCheckMask = createProgramRenderer(this.renderBuffer, ['CHECK_MASK']);
+        // pixel shader variants by check mask and the filters in use (see
+        // getRendererProgram); the unfiltered ones are made up front
+        this.rendererPrograms = new Map();
+        this.programRenderer = getRendererProgram(this, false, 0, 0);
+        this.programRendererCheckMask = getRendererProgram(this, true, 0, 0);
         this.programMaskDepth = createProgramMaskDepth();
         this.programCopy = createProgramCopy();
         this.programUpload = createProgramUpload();
@@ -602,7 +610,7 @@ mdlr('enge:webgl2', ({ include }) => {
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       const buffer = vertexBuffer;
-      if (data[0] & 0x04000000) {
+      if (filtersActive && (data[0] & 0x04000000)) {
         polygonUVLimits(data);
         buffer.setPrimitive(0, uvLimits[0], uvLimits[1], uvLimits[2], uvLimits[3]);
       }
@@ -738,7 +746,9 @@ mdlr('enge:webgl2', ({ include }) => {
 
 
       if (desiredScale() !== scale) changeRenderScale(desiredScale());
+      filtersActive = !!((settings.textureFilter | 0) | (settings.spriteFilter | 0));
 
+      this.programDisplay = getDisplayProgram(this, settings.fmvFilter | 0);
       this.setTransparencyMode(4, this.programDisplay);
 
       const area = gpu.getDisplayArea();
@@ -836,12 +846,20 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_enable(gl.DEPTH_TEST);
       gl.depthMask(true);
       gl.depthFunc(gl.GREATER);
-      const program = ($maskMode & 2) ? renderer.programRendererCheckMask : renderer.programRenderer;
+      const textureFilter = filtersActive ? settings.textureFilter | 0 : 0;
+      const spriteFilter = filtersActive ? settings.spriteFilter | 0 : 0;
+      const program = getRendererProgram(renderer, ($maskMode & 2) !== 0, textureFilter, spriteFilter);
       renderer.setTransparencyMode(mode, program); // also binds the program
-      gl.uniform1i(program.setMask, $maskMode & 1);
-      gl.uniform1i(program.fullResTextures, settings.fullResTextures !== false ? 1 : 0);
-      gl.uniform1i(program.textureFilter, settings.textureFilter | 0);
-      gl.uniform1i(program.spriteFilter, settings.spriteFilter | 0);
+      // uniforms are program state: only set them when they change
+      const fullRes = settings.fullResTextures !== false ? 1 : 0, setMask = $maskMode & 1;
+      const state = (setMask << 0) | (fullRes << 1) | (textureFilter << 2) | (spriteFilter << 5);
+      if (program.uniformState !== state) {
+        program.uniformState = state;
+        gl.uniform1i(program.setMask, setMask);
+        gl.uniform1i(program.fullResTextures, fullRes);
+        gl.uniform1i(program.textureFilter, textureFilter);
+        gl.uniform1i(program.spriteFilter, spriteFilter);
+      }
       gl.viewport(0, 0, vramWidth, vramHeight); // texture dimensions
 
       gl.bindVertexArray(program.vao);
@@ -1004,7 +1022,6 @@ mdlr('enge:webgl2', ({ include }) => {
     gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
     gl.uniform1i(program.mode, mode);
     gl.uniform1i(program.tvEffect, settings.tvEffect ? 1 : 0);
-    gl.uniform1i(program.fmvFilter, settings.fmvFilter | 0);
     gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
 
     gl_bindFramebuffer(FRAMEBUFFER, null);
@@ -1065,14 +1082,24 @@ mdlr('enge:webgl2', ({ include }) => {
     }
     gl.bindVertexArray(null);
   }
-  const createProgramDisplay = (displayBuffer) => {
-    const program = createProgramFromScripts(gl, 'vertex', 'displayScreen');
+  const getDisplayProgram = (renderer, fmvFilter) => {
+    let program = renderer.displayPrograms.get(fmvFilter);
+    if (!program) {
+      const define = [null, 'FMV_SMOOTH', 'FMV_XBR'][fmvFilter];
+      program = createProgramDisplay(renderer.displayBuffer, define ? [define] : []);
+      renderer.displayPrograms.set(fmvFilter, program);
+      setScaleUniforms(program);
+    }
+    return program;
+  }
+
+  const createProgramDisplay = (displayBuffer, defines = []) => {
+    const program = createProgramFromScripts(gl, 'vertex', 'displayScreen', defines);
     gl.useProgram(program);
 
     program.displayArea = gl_getUniformLocation(program, "u_disp");
     program.mode = gl_getUniformLocation(program, "u_mode");
     program.tvEffect = gl_getUniformLocation(program, "u_tv_effect");
-    program.fmvFilter = gl_getUniformLocation(program, "u_fmvFilter");
     program.drawArea = gl_getUniformLocation(program, "u_draw");
 
     createVertexArray(program, displayBuffer, [
@@ -1080,6 +1107,29 @@ mdlr('enge:webgl2', ({ include }) => {
       ['a_texcoord', 2, gl.SHORT, false, 12],
     ]);
 
+    return program;
+  }
+
+  // pixel shader variant for the render scale, check mask and the
+  // texture/sprite filters: each
+  // filter's code is only compiled in when one of the two settings uses it,
+  // since a shader holding every filter is slower even for nearest.
+  // Variants are compiled on first use and kept.
+  const filterDefine = f => [null, 'FILTER_BILINEAR', 'FILTER_BILINEAR', 'FILTER_XBR', 'FILTER_MMPX', 'FILTER_BICUBIC'][f] || null;
+  const getRendererProgram = (renderer, checkMask, textureFilter, spriteFilter) => {
+    const key = (checkMask ? 1 : 0) | (textureFilter << 1) | (spriteFilter << 4) | (scaleShift << 7);
+    let program = renderer.rendererPrograms.get(key);
+    if (!program) {
+      const defines = new Set([`VRAM_SCALE_SHIFT ${scaleShift}`]);
+      if (checkMask) defines.add('CHECK_MASK');
+      for (const f of [textureFilter, spriteFilter]) {
+        const d = filterDefine(f);
+        if (d) defines.add('TEXTURE_FILTERS').add(d);
+      }
+      program = createProgramRenderer(renderer.renderBuffer, [...defines]);
+      renderer.rendererPrograms.set(key, program);
+      setScaleUniforms(program);
+    }
     return program;
   }
 
@@ -1119,14 +1169,17 @@ mdlr('enge:webgl2', ({ include }) => {
   }
 
   // the render scale as seen by the shaders
+  const setScaleUniforms = program => {
+    gl.useProgram(program);
+    const s = gl_getUniformLocation(program, 'u_scale');
+    const shift = gl_getUniformLocation(program, 'u_scaleShift');
+    if (s) gl.uniform1i(s, scale);
+    if (shift) gl.uniform1i(shift, scaleShift);
+  }
   const applyScaleUniforms = renderer => {
-    for (const program of [renderer.programRenderer, renderer.programRendererCheckMask, renderer.programUpload, renderer.programDisplay]) {
-      gl.useProgram(program);
-      const s = gl_getUniformLocation(program, 'u_scale');
-      const shift = gl_getUniformLocation(program, 'u_scaleShift');
-      if (s) gl.uniform1i(s, scale);
-      if (shift) gl.uniform1i(shift, scaleShift);
-    }
+    for (const program of renderer.rendererPrograms.values()) setScaleUniforms(program);
+    setScaleUniforms(renderer.programUpload);
+    for (const program of renderer.displayPrograms.values()) setScaleUniforms(program);
   }
 
   // VRAM -> VRAM copy honouring the mask bits
