@@ -3,95 +3,15 @@ mdlr('enge:psx:spu', ({ include }) => {
   const reverb = include('enge:psx:spu-reverb');
 
   // Audio output: the SPU produces samples at 44100 Hz. They are collected in
-  // small chunks and posted to an AudioWorklet, which queues them, resamples
-  // to the context rate when that differs, and plays them out. This replaces
-  // writing into a looping AudioBuffer after start(), which only works in
-  // Chromium (Firefox copies the buffer when the source starts).
+  // small chunks and posted to an AudioWorklet (enge:psx:spu-worklet, built
+  // to docs/spu-worklet.js), which queues them, resamples to the context rate
+  // when that differs, and plays them out. This replaces writing into a
+  // looping AudioBuffer after start(), which only works in Chromium (Firefox
+  // copies the buffer when the source starts).
   const SAMPLE_RATE = 44100;
   const CHUNK_FRAMES = 512;                           // ~11.6 ms per message
   const MAX_PENDING_CHUNKS = (SAMPLE_RATE * 0.25 / CHUNK_FRAMES) >> 0;
-
-  const processorSource = `
-class EngeSpuOutput extends AudioWorkletProcessor {
-  constructor(options) {
-    super();
-    const inputRate = options.processorOptions.inputRate;
-    this.step = inputRate / sampleRate;
-    this.prebuffer = (inputRate * 0.05) | 0;          // start after 50 ms queued
-    this.maxQueued = (inputRate * 0.20) | 0;          // drop beyond 200 ms
-    this.reset();
-    this.port.onmessage = ({ data }) => {
-      if (data.clear) {
-        this.reset();
-        return;
-      }
-      this.queue.push(data);
-      this.queued += data.left.length;
-      while (this.queued > this.maxQueued && this.queue.length > 1) {
-        const dropped = this.queue.shift();
-        this.queued -= dropped.left.length - this.offset;
-        this.offset = 0;
-      }
-    };
-  }
-
-  reset() {
-    this.queue = [];
-    this.offset = 0;
-    this.queued = 0;
-    this.playing = false;
-    this.frac = 0;
-    this.curL = this.curR = 0;
-    this.nextL = this.nextR = 0;
-  }
-
-  pull() {
-    const chunk = this.queue[0];
-    this.nextL = chunk.left[this.offset];
-    this.nextR = chunk.right[this.offset];
-    if (++this.offset === chunk.left.length) {
-      this.queue.shift();
-      this.offset = 0;
-    }
-    --this.queued;
-  }
-
-  process(inputs, outputs) {
-    const out = outputs[0];
-    const outL = out[0];
-    const outR = out[1] || out[0];
-    const frames = outL.length;
-
-    if (!this.playing) {
-      if (this.queued < this.prebuffer) return true;  // outputs are zeroed
-      this.playing = true;
-      this.frac = 0;
-      this.pull();
-      this.curL = this.nextL; this.curR = this.nextR;
-      this.pull();
-    }
-
-    for (let i = 0; i < frames; ++i) {
-      const f = this.frac;
-      outL[i] = this.curL + (this.nextL - this.curL) * f;
-      outR[i] = this.curR + (this.nextR - this.curR) * f;
-      this.frac += this.step;
-      while (this.frac >= 1.0) {
-        this.frac -= 1.0;
-        this.curL = this.nextL; this.curR = this.nextR;
-        if (this.queued === 0) {
-          // underrun: go quiet and wait for the prebuffer to fill again
-          this.reset();
-          return true;
-        }
-        this.pull();
-      }
-    }
-    return true;
-  }
-}
-registerProcessor('enge-spu-output', EngeSpuOutput);
-`;
+  const WORKLET_URL = 'spu-worklet.js';
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
@@ -144,17 +64,7 @@ registerProcessor('enge-spu-output', EngeSpuOutput);
       window.addEventListener(type, resume, { capture: true });
     }
 
-    // Blob URLs are refused when the page has an opaque origin (file://,
-    // sandboxed frames: "blob:null/..."), so fall back to a data: URL.
-    const loadProcessor = () => {
-      const blobUrl = URL.createObjectURL(new Blob([processorSource], { type: 'application/javascript' }));
-      return context.audioWorklet.addModule(blobUrl)
-        .finally(() => URL.revokeObjectURL(blobUrl))
-        .catch(() => context.audioWorklet.addModule(
-          'data:application/javascript;charset=utf-8,' + encodeURIComponent(processorSource)));
-    };
-
-    loadProcessor().then(() => {
+    context.audioWorklet.addModule(WORKLET_URL).then(() => {
       const node = new AudioWorkletNode(context, 'enge-spu-output', {
         numberOfInputs: 0,
         numberOfOutputs: 1,
