@@ -835,6 +835,154 @@
     }
   </script>
 
+  <script id="superXbr" type="x-shader/x-fragment">#version 300 es
+    /*
+       Super-xBR, adapted from libretro's glsl-shaders xbr/shaders/super-xbr
+       (pass0, pass1, pass2; MODE 0, default parameters)
+
+       Copyright (c) 2015 Hyllian - sergiogdb@gmail.com
+
+       Permission is hereby granted, free of charge, to any person obtaining a copy
+       of this software and associated documentation files (the "Software"), to deal
+       in the Software without restriction, including without limitation the rights
+       to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+       copies of the Software, and to permit persons to whom the Software is
+       furnished to do so, subject to the following conditions:
+
+       The above copyright notice and this permission notice shall be included in
+       all copies or substantial portions of the Software.
+
+       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+       IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+       FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+       AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+       LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+       OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+       THE SOFTWARE.
+    */
+    precision highp float;
+    precision highp int;
+
+    // One doubling is three passes over textures in display order (texel
+    // (x, y) is display pixel (x, y)):
+    //   1 diagonal:   one pixel per source pixel, the new value at its
+    //                 lower-right corner, from the 4x4 source pixels around it
+    //   2 orthogonal: 2x size; even/even pixels are the source, odd/odd the
+    //                 diagonal pass, the rest are interpolated from that lattice
+    //   3 realign:    2x size; the doubled image is a quarter source pixel off,
+    //                 so each pixel is re-interpolated at its upper-left corner
+    // Pass 0 copies the native 15-bit display area out of the scaled VRAM.
+    uniform sampler2D u_source;   // input of the pass (VRAM for pass 0)
+    uniform sampler2D u_original; // pass 2: the image passes 1 and 2 double
+    uniform int       u_pass;
+    uniform ivec4     u_disp;     // pass 0: display area (x0, y0, x1, y1)
+    uniform int       u_scale;    // VRAM render scale
+
+    out vec4 outColor;
+
+    vec3 src(ivec2 p) { return texelFetch(u_source, clamp(p, ivec2(0), textureSize(u_source, 0) - 1), 0).rgb; }
+    vec3 org(ivec2 p) { return texelFetch(u_original, clamp(p, ivec2(0), textureSize(u_original, 0) - 1), 0).rgb; }
+    // pass 2 lattice: (2x, 2y) is the original, (2x+1, 2y+1) the diagonal pass
+    vec3 lat(ivec2 p) { return (p.x & 1) == 0 ? org(p >> 1) : src(p >> 1); }
+
+    float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+    float df(float a, float b) { return abs(a - b); }
+
+    float d_wd(vec3 wa, vec3 wb, float b0, float b1, float c0, float c1, float c2, float d0, float d1, float d2, float d3, float e1, float e2, float e3, float f2, float f3) {
+      return wa.x * (df(c1, c2) + df(c1, c0) + df(e2, e1) + df(e2, e3)) + wa.y * (df(d2, d3) + df(d0, d1))
+           + wa.z * (df(d1, d3) + df(d0, d2)) + wb.x * df(d1, d2) + wb.y * (df(c0, c2) + df(e1, e3)) + wb.z * (df(b0, b1) + df(f2, f3));
+    }
+    float hv_wd(vec3 wa, vec3 wb, float i1, float i2, float i3, float i4, float e1, float e2, float e3, float e4) {
+      return wb.x * (df(i1, i2) + df(i3, i4)) + wa.x * (df(i1, e1) + df(i2, e2) + df(i3, e3) + df(i4, e4))
+           + wa.z * (df(i1, e2) + df(i3, e4) + df(e1, i2) + df(e3, i4));
+    }
+
+    /*
+                                  P1
+         |P0|B |C |P1|         C     F4
+         |D |E |F |F4|      B     F     I4
+         |G |H |I |I4|   P0    E  A  I     P3
+         |P2|H5|I5|P3|      D     H     I5
+                               G     H5
+                                  P2
+       A, the new pixel, is interpolated from the 16 around it, in the
+       stronger of the two diagonal and of the two orthogonal directions.
+    */
+    vec3 superXbr(vec3 P0, vec3 P1, vec3 P2, vec3 P3, vec3 B, vec3 C, vec3 D, vec3 E,
+                  vec3 F, vec3 G, vec3 H, vec3 I, vec3 F4, vec3 I4, vec3 H5, vec3 I5,
+                  vec3 wa, vec3 wb, float weight1, float weight2) {
+      float b = luma(B), c = luma(C), d = luma(D), e = luma(E);
+      float f = luma(F), g = luma(G), h = luma(H), i = luma(I);
+      float i4 = luma(I4), p0 = luma(P0), i5 = luma(I5), p1 = luma(P1);
+      float h5 = luma(H5), p2 = luma(P2), f4 = luma(F4), p3 = luma(P3);
+
+      // edgeness in the diagonal and in the horizontal/vertical directions
+      float d_edge = d_wd(wa, wb, d, b, g, e, c, p2, h, f, p1, h5, i, f4, i5, i4)
+                   - d_wd(wa, wb, c, f4, b, f, i4, p0, e, i, p3, d, h, i5, g, h5);
+      float hv_edge = hv_wd(wa, wb, f, i, e, h, c, i5, b, h5) - hv_wd(wa, wb, e, f, h, i, d, f4, g, i4);
+      float edge_strength = smoothstep(0.0, 0.6 + 0.000001, abs(d_edge));
+
+      // two-tap filters in four directions
+      vec4 w1 = vec4(-weight1, weight1 + 0.5, weight1 + 0.5, -weight1);
+      vec4 w2 = vec4(-weight2, weight2 + 0.25, weight2 + 0.25, -weight2);
+      vec3 c1 = mat4x3(P2, H, F, P1) * w1;
+      vec3 c2 = mat4x3(P0, E, I, P3) * w1;
+      vec3 c3 = mat4x3(D + G, E + H, F + I, F4 + I4) * w2;
+      vec3 c4 = mat4x3(C + B, F + E, I + H, I5 + H5) * w2;
+
+      // blend the strongest diagonal and orthogonal directions
+      vec3 color = mix(mix(c1, c2, step(0.0, d_edge)), mix(c3, c4, step(0.0, hv_edge)), 1.0 - edge_strength);
+
+      // anti-ringing: stay within the four nearest pixels
+      return clamp(color, min(min(E, F), min(H, I)), max(max(E, F), max(H, I)));
+    }
+
+    // diagonal passes (1 and 3): the 4x4 block whose top-left is base - 1
+    vec3 diagonal(ivec2 base, vec3 wa, vec3 wb) {
+#define S(dx, dy) src(base + ivec2(dx, dy))
+      return superXbr(S(-1, -1), S(2, -1), S(-1, 2), S(2, 2), S(0, -1), S(1, -1), S(-1, 0), S(0, 0),
+                      S(1, 0), S(-1, 1), S(0, 1), S(1, 1), S(2, 0), S(2, 1), S(0, 2), S(1, 2),
+                      wa, wb, 1.29633 / 10.0, 1.75068 / 10.0 / 2.0);
+#undef S
+    }
+
+    void main() {
+      ivec2 p = ivec2(gl_FragCoord.xy);
+
+      if (u_pass == 0) {
+        p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
+        ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511);
+        outColor = vec4(texelFetch(u_source, v * u_scale + (u_scale >> 1), 0).rgb, 1.0);
+        return;
+      }
+      if (u_pass == 1) {
+        outColor = vec4(diagonal(p, vec3(2.0, 1.0, -1.0), vec3(4.0, -1.0, 1.0)), 1.0);
+        return;
+      }
+      if (u_pass == 3) {
+        outColor = vec4(diagonal(p - 1, vec3(1.0, 0.0, 2.0), vec3(3.0, -2.0, 1.0)), 1.0);
+        return;
+      }
+
+      // pass 2: lattice pixels are copied, the others interpolated along
+      // the diamond of lattice pixels around them (g1, g2 its two axes)
+      bool ex = (p.x & 1) == 0, ey = (p.y & 1) == 0;
+      if (ex == ey) {
+        outColor = vec4(lat(p), 1.0);
+        return;
+      }
+      ivec2 g1 = ex ? ivec2(0, 1) : ivec2(1, 0);
+      ivec2 g2 = g1.yx;
+      vec3 color = superXbr(
+        lat(p - 3 * g1),      lat(p - 3 * g2),      lat(p + 3 * g2),      lat(p + 3 * g1),
+        lat(p - 2 * g1 - g2), lat(p - g1 - 2 * g2), lat(p - 2 * g1 + g2), lat(p - g1),
+        lat(p - g2),          lat(p - g1 + 2 * g2), lat(p + g2),          lat(p + g1),
+        lat(p + g1 - 2 * g2), lat(p + 2 * g1 - g2), lat(p + g1 + 2 * g2), lat(p + 2 * g1 + g2),
+        vec3(8.0, 0.0, 0.0), vec3(0.0), 1.75068 / 10.0, 1.29633 / 10.0 / 2.0);
+      outColor = vec4(color, 1.0);
+    }
+  </script>
+
   <script id="vertex" type="x-shader/x-vertex">#version 300 es
     precision highp float;
   
@@ -872,6 +1020,11 @@
     uniform bool      u_tv_effect;
     // 24-bit (FMV) display filter: 0 off, 1 smooth, 2 xBR
     uniform int       u_fmvFilter;
+    // 15-bit screen filter: 0 off, 1 xBR, 2 Super-xBR (the renderer sets it
+    // only at quality 1, where the display shows native pixels)
+    uniform int       u_screenFilter;
+    // Super-xBR result for the whole display area (programSuperXbr)
+    uniform sampler2D u_screen;
   
     in vec2 v_texcoord;
     in vec2 v_vramCoord;
@@ -1009,16 +1162,35 @@
       return vec4(clamp(vec3(luma) + chroma, 0.0, 1.0), 1.0);
     }
 
+    // ---- 15-bit screen filters ----
+
+    // native 15-bit display pixel p (relative to the display start), clamped
+    // to the display area; the centre texel of its block in the scaled VRAM,
+    // the same texel vram16Bit() shows at quality 1
+    vec3 screen16(ivec2 p) {
+      p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
+      ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511);
+      return texelFetch(u_texture, v * u_scale + (u_scale >> 1), 0).rgb;
+    }
+
+    // Super-xBR: the multi-pass result covers the display area exactly
+    vec4 screenSuperXbr() {
+      vec2 size = vec2(u_disp.zw - u_disp.xy + ivec2(1));
+      return vec4(texture(u_screen, fmvPos() / size).rgb, 1.0);
+    }
+
     // xBR-lv2 (Hyllian, MIT; licence with the texture filters above) on the
-    // decoded 24-bit pixels. The blend width follows the display scale.
+    // display pixels: decoded 24-bit (FMV filter) or native 15-bit (screen
+    // filter). The blend width follows the display scale.
     float fmvLuma(vec3 c) { return dot(c, vec3(14.352, 28.176, 5.472)); }
-    vec4 fmvXbr() {
+    vec3 displayPixel(ivec2 p, bool fmv) { return fmv ? fmv24(p) : screen16(p); }
+    vec4 displayXbr(bool fmv) {
       vec2 pos = fmvPos();
       ivec2 q = ivec2(floor(pos));
       vec2 fp = fract(pos);
       float delta1 = clamp(abs(dFdx(pos.x)), 1.0 / 16.0, 1.0);
 
-#define XT(dx, dy) fmv24(q + ivec2(dx, dy))
+#define XT(dx, dy) displayPixel(q + ivec2(dx, dy), fmv)
       vec3 A1 = XT(-1, -2), B1 = XT(0, -2), C1 = XT(1, -2);
       vec3 A  = XT(-1, -1), B  = XT(0, -1), C  = XT(1, -1);
       vec3 D  = XT(-1,  0), E  = XT(0,  0), F  = XT(1,  0);
@@ -1147,8 +1319,8 @@
       switch (u_mode) {
         case 7: outColor = gpuState(); return;
 
-        case 1: color = u_fmvFilter == 1 ? fmvSmooth() : u_fmvFilter == 2 ? fmvXbr() : vram24Bit(); break;
-        case 0: color = vram16Bit(); break;
+        case 1: color = u_fmvFilter == 1 ? fmvSmooth() : u_fmvFilter == 2 ? displayXbr(true) : vram24Bit(); break;
+        case 0: color = u_screenFilter == 1 ? displayXbr(false) : u_screenFilter == 2 ? screenSuperXbr() : vram16Bit(); break;
         case 6: color = vram16Bit(); break;
         case 2: color = vram8bit(); break;
         case 3: color = vram4bit(); break;
