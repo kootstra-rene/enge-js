@@ -144,9 +144,17 @@ registerProcessor('enge-spu-output', EngeSpuOutput);
       window.addEventListener(type, resume, { capture: true });
     }
 
-    const url = URL.createObjectURL(new Blob([processorSource], { type: 'application/javascript' }));
-    context.audioWorklet.addModule(url).then(() => {
-      URL.revokeObjectURL(url);
+    // Blob URLs are refused when the page has an opaque origin (file://,
+    // sandboxed frames: "blob:null/..."), so fall back to a data: URL.
+    const loadProcessor = () => {
+      const blobUrl = URL.createObjectURL(new Blob([processorSource], { type: 'application/javascript' }));
+      return context.audioWorklet.addModule(blobUrl)
+        .finally(() => URL.revokeObjectURL(blobUrl))
+        .catch(() => context.audioWorklet.addModule(
+          'data:application/javascript;charset=utf-8,' + encodeURIComponent(processorSource)));
+    };
+
+    loadProcessor().then(() => {
       const node = new AudioWorkletNode(context, 'enge-spu-output', {
         numberOfInputs: 0,
         numberOfOutputs: 1,
@@ -160,7 +168,6 @@ registerProcessor('enge-spu-output', EngeSpuOutput);
       }
       pendingChunks = [];
     }).catch(error => {
-      URL.revokeObjectURL(url);
       console.error('spu: unable to start audio worklet', error);
     });
   }
