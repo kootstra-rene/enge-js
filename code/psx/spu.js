@@ -1,17 +1,17 @@
 mdlr('enge:psx:spu', ({ include }) => {
 
   const reverb = include('enge:psx:spu-reverb');
+  const worklet = include('enge:psx:spu-worklet');
 
   // Audio output: the SPU produces samples at 44100 Hz. They are collected in
-  // small chunks and posted to an AudioWorklet (enge:psx:spu-worklet, built
-  // to docs/spu-worklet.js), which queues them, resamples to the context rate
-  // when that differs, and plays them out. This replaces writing into a
+  // small chunks and posted to an AudioWorklet (enge:psx:spu-worklet), which
+  // queues them, resamples to the context rate when that differs, and plays
+  // them out. This replaces writing into a
   // looping AudioBuffer after start(), which only works in Chromium (Firefox
   // copies the buffer when the source starts).
   const SAMPLE_RATE = 44100;
   const CHUNK_FRAMES = 512;                           // ~11.6 ms per message
   const MAX_PENDING_CHUNKS = (SAMPLE_RATE * 0.25 / CHUNK_FRAMES) >> 0;
-  const WORKLET_URL = 'spu-worklet.js';
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
@@ -64,8 +64,8 @@ mdlr('enge:psx:spu', ({ include }) => {
       window.addEventListener(type, resume, { capture: true });
     }
 
-    context.audioWorklet.addModule(WORKLET_URL).then(() => {
-      const node = new AudioWorkletNode(context, 'enge-spu-output', {
+    context.audioWorklet.addModule(worklet.url()).then(() => {
+      const node = new AudioWorkletNode(context, worklet.name, {
         numberOfInputs: 0,
         numberOfOutputs: 1,
         outputChannelCount: [2],
