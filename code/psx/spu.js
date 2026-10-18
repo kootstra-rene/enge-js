@@ -1,8 +1,17 @@
 mdlr('enge:psx:spu', ({ include }) => {
 
   const reverb = include('enge:psx:spu-reverb');
+  const worklet = include('enge:psx:spu-worklet');
 
-  const frameCount = (1.0 * 44100) >> 1;
+  // Audio output: the SPU produces samples at 44100 Hz. They are collected in
+  // small chunks and posted to an AudioWorklet (enge:psx:spu-worklet), which
+  // queues them, resamples to the context rate when that differs, and plays
+  // them out. This replaces writing into a
+  // looping AudioBuffer after start(), which only works in Chromium (Firefox
+  // copies the buffer when the source starts).
+  const SAMPLE_RATE = 44100;
+  const CHUNK_FRAMES = 512;                           // ~11.6 ms per message
+  const MAX_PENDING_CHUNKS = (SAMPLE_RATE * 0.25 / CHUNK_FRAMES) >> 0;
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
@@ -10,27 +19,67 @@ mdlr('enge:psx:spu', ({ include }) => {
 
   const regs = new Map;
 
+  let outputPort = null;
+  let pendingChunks = [];
+
+  const newChunk = () => {
+    left = new Float32Array(CHUNK_FRAMES);
+    right = new Float32Array(CHUNK_FRAMES);
+    writeIndex = 0;
+  }
+
+  const flushChunk = () => {
+    const message = { left, right };
+    if (outputPort) {
+      outputPort.postMessage(message, [left.buffer, right.buffer]);
+    } else {
+      pendingChunks.push(message);
+      if (pendingChunks.length > MAX_PENDING_CHUNKS) pendingChunks.shift();
+    }
+    newChunk();
+  }
+
   const init = () => {
-    const context = new AudioContext();
+    newChunk();
+
+    let context;
+    try {
+      context = new AudioContext({ sampleRate: SAMPLE_RATE, latencyHint: 'interactive' });
+    } catch (e) {
+      context = new AudioContext({ latencyHint: 'interactive' });
+    }
     const gainNode = context.createGain();
-    const buffer = context.createBuffer(2, frameCount, context.sampleRate);
-    const source = context.createBufferSource();
-
-    left = buffer.getChannelData(0);
-    left.fill(0);
-    right = buffer.getChannelData(1);
-    right.fill(0)
-
-    source.playbackRate.value = 44100 / context.sampleRate;
-    source.buffer = buffer;
-    source.loop = true;
-    source.connect(gainNode);
     gainNode.connect(context.destination);
-    source.start();
 
     spu.setVolume = (volume) => gainNode.gain.setValueAtTime(volume, context.currentTime);
-
     spu.setVolume(0.75);
+
+    // autoplay policy: the context may start suspended until a user gesture
+    const resume = () => {
+      if (context.state !== 'suspended') return;
+      context.resume().catch(() => { });
+    };
+    resume();
+    for (const type of ['pointerdown', 'keydown', 'touchend', 'drop']) {
+      window.addEventListener(type, resume, { capture: true });
+    }
+
+    context.audioWorklet.addModule(worklet.url()).then(() => {
+      const node = new AudioWorkletNode(context, worklet.name, {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: { inputRate: SAMPLE_RATE }
+      });
+      node.connect(gainNode);
+      outputPort = node.port;
+      for (const message of pendingChunks) {
+        outputPort.postMessage(message, [message.left.buffer, message.right.buffer]);
+      }
+      pendingChunks = [];
+    }).catch(error => {
+      console.error('spu: unable to start audio worklet', error);
+    });
   }
 
 
@@ -103,7 +152,7 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     left[writeIndex] = l;//Math.max(Math.min(l, 1.0), -1.0);
     right[writeIndex] = r;//Math.max(Math.min(r, 1.0), -1.0);
-    writeIndex = (writeIndex + 1) % frameCount;
+    if (++writeIndex === CHUNK_FRAMES) flushChunk();
 
     if (captureIndex === 0x000) {
       SPUSTAT &= ~0x0800;
@@ -117,7 +166,7 @@ mdlr('enge:psx:spu', ({ include }) => {
   let right = null;
   let ramOffset = 0;
   let irqOffset = 0;
-  let writeIndex = (44100 * 0.125) >> 0;
+  let writeIndex = 0;
   let totalSamples = 0;
 
   let SPUCNT = 0x0000;
@@ -136,9 +185,9 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     silence: () => {
       if (left && right) {
-        for (var i = 0; i < frameCount; ++i) {
-          left[i] = right[i] = 0.0;
-        }
+        writeIndex = 0;
+        pendingChunks = [];
+        outputPort?.postMessage({ clear: true });
       }
     },
 
