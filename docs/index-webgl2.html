@@ -233,9 +233,15 @@
     precision highp int;
 
     uniform sampler2D u_texture;
-    // VRAM render scale (4 or 8) and its log2
+    // VRAM render scale (4 or 8) and its log2: compiled in as constants
+    // (VRAM_SCALE_SHIFT), so the texel address maths folds
+#ifdef VRAM_SCALE_SHIFT
+#define u_scaleShift VRAM_SCALE_SHIFT
+#define u_scale (1 << VRAM_SCALE_SHIFT)
+#else
     uniform int u_scale;
     uniform int u_scaleShift;
+#endif
     // GP0(E6h) bit 0: force VRAM bit 15 on every pixel drawn
     uniform bool u_setMask;
     // sample 15-bit textures at the 4x resolution they were rendered at, so
@@ -269,9 +275,10 @@
       return sbgr;
     }
 
-    // wrap a scaled VRAM coordinate around the VRAM texture
+    // wrap a scaled VRAM coordinate around the VRAM texture; the size is a
+    // power of two, so a mask (a modulo by a uniform is an integer division)
     ivec2 wrapVram(ivec2 coord) {
-      return ivec2(coord.x % (1024 << u_scaleShift), coord.y % (512 << u_scaleShift));
+      return coord & ivec2((1024 << u_scaleShift) - 1, (512 << u_scaleShift) - 1);
     }
 
     vec4 vram16Bit(int tx, int ty) {
@@ -324,6 +331,13 @@
       return vram16Bit(t.x, t.y);
     }
 
+#ifdef TEXTURE_FILTERS
+    // Each filter is only compiled into the program variants that use it
+    // (FILTER_* defines, chosen from the settings), so the shader stays small:
+    // a large shader with every filter costs registers and speed even where
+    // its branches are not taken.
+
+#ifdef FILTER_BILINEAR
     // Bilinear (filter 1) or sharp bilinear (filter 2) with binary alpha, as
     // DuckStation's BinAlpha filters: transparent texels (0000h) are left out
     // and the colour renormalised, coverage below one half is transparent.
@@ -363,7 +377,9 @@
       texcol.a = texcol.a >= 0.5 ? 1.0 : 0.0;
       return texcol;
     }
+#endif
 
+#ifdef FILTER_BICUBIC
     // Bicubic (filter 5): Catmull-Rom over 4x4 texels, clamped to the primitive's
     // texels like the bilinear filters. Colour is weighted by coverage so
     // transparent texels (0000h) don't darken edges, then clamped to the range
@@ -414,7 +430,9 @@
       if (near.w > 0.0) rgb = clamp(rgb, cmin, cmax);
       return vec4(rgb, nearStp >= 0.5 ? 1.0 : 0.0);
     }
+#endif
 
+#ifdef FILTER_XBR
     /*
        Hyllian's xBR-lv2 Shader
 
@@ -565,7 +583,9 @@
       vec4 texcol = vec4(ialpha > 0.0 ? res.rgb / ialpha : res.rgb, stp >= 0.5 ? 1.0 : 0.0);
       return texcol;
     }
+#endif
 
+#ifdef FILTER_MMPX
     // MMPX
     // by Morgan McGuire and Mara Gagiu
     // https://casual-effects.com/research/McGuire2021PixelArt/
@@ -658,32 +678,44 @@
       vec2 a = fract(uv);
       return (a.x < 0.5) ? (a.y < 0.5 ? J : L) : (a.y < 0.5 ? K : M);
     }
+#endif
+
+#endif
 
     void main() {
       // draw-area clipping is done with gl.scissor in flushBuffer()
       // alpha is VRAM bit 15: 0 for untextured pixels, the texel's bit 15
       // for textured ones (blending always keeps the source alpha)
       bool transparentPrimitive = 2u == (packetId & 2u);
+#ifdef FILTER_XBR
       // texels per output pixel, for xBR; derivatives must be taken in
       // uniform control flow
       vec2 texelsPerPixel = fwidth(v_vramCoord);
+#endif
 
       if (0x00u == (packetId & 0x04u)) {
         outColor = vec4(v_color, 0.0);
       }
       else {
         vec4 tc;
+#ifdef TEXTURE_FILTERS
         int texFilter = (v_flags & 1u) != 0u ? u_spriteFilter : u_textureFilter;
 
-        if (texFilter == 4) {
+        if (false) { }
+#ifdef FILTER_MMPX
+        else if (texFilter == 4) {
           tc = mmpxTexel();
           if (tc == vec4(0.0)) discard;
         }
+#endif
+#ifdef FILTER_BICUBIC
         else if (texFilter == 5) {
           float ialpha;
           tc = bicubicTexel(ialpha);
           if (ialpha < 0.5) discard;
         }
+#endif
+#ifdef FILTER_XBR
         else if (texFilter == 3) {
           float ialpha;
           float scale = v_textureMode >= 2u && u_fullResTextures ? float(u_scale) : 1.0;
@@ -691,12 +723,19 @@
           tc = xbrTexel(delta1, ialpha);
           if (ialpha < 0.5) discard;
         }
-        else if (texFilter != 0) {
+#endif
+#ifdef FILTER_BILINEAR
+        else if (texFilter == 1 || texFilter == 2) {
           float ialpha;
           tc = filteredTexel(texFilter, ialpha);
           if (ialpha < 0.5) discard;
         }
-        else if (v_textureMode >= 2u && u_fullResTextures) {
+#endif
+        else
+#else
+        const int texFilter = 0;
+#endif
+        if (v_textureMode >= 2u && u_fullResTextures) {
           // texel and 4x sub-texel from the interpolated coordinate; the
           // texture window applies to the texel
           ivec2 q = ivec2(floor(v_vramCoord * float(u_scale)));
@@ -1026,18 +1065,18 @@
     uniform int       u_mode;
     uniform int       u_scale;
     uniform bool      u_tv_effect;
-    // 24-bit (FMV) display filter: 0 off, 1 smooth, 2 xBR
-    uniform int       u_fmvFilter;
-    // 15-bit screen filter: 0 off, 1 xBR, 2 Super-xBR, over the native
-    // display pixels. Above quality 1 (u_screenHybrid) only pixels whose VRAM
-    // block is one colour are filtered; blocks with render-scale detail
-    // (polygon edges, shading) keep the rendered pixels.
-    uniform int       u_screenFilter;
+#if defined(SCREEN_XBR) || defined(SCREEN_SUPER_XBR)
+    // above quality 1 (u_screenHybrid) the screen filter only applies to
+    // pixels whose VRAM block is one colour; blocks with render-scale detail
+    // (polygon edges, shading) keep the rendered pixels
     uniform bool      u_screenHybrid;
-    // Super-xBR result for the whole display area (programSuperXbr)
-    uniform sampler2D u_screen;
     // native display pixels, alpha 1 where the VRAM block is one colour
     uniform sampler2D u_screenMask;
+#endif
+#ifdef SCREEN_SUPER_XBR
+    // Super-xBR result for the whole display area (programSuperXbr)
+    uniform sampler2D u_screen;
+#endif
   
     in vec2 v_texcoord;
     in vec2 v_vramCoord;
@@ -1111,14 +1150,11 @@
       }
     }
 
-    vec4 xbrDf(vec4 a, vec4 b) { return abs(a - b); }
-    vec4 xbrDiff(vec4 a, vec4 b) { return vec4(notEqual(a, b)); }
-    vec4 xbrEq(vec4 a, vec4 b) { return step(xbrDf(a, b), vec4(15.0)); }
-    vec4 xbrNeq(vec4 a, vec4 b) { return vec4(1.0) - xbrEq(a, b); }
-    vec4 xbrWd(vec4 a, vec4 b, vec4 c, vec4 d, vec4 e, vec4 f, vec4 g, vec4 h) {
-      return xbrDf(a, b) + xbrDf(a, c) + xbrDf(d, e) + xbrDf(d, f) + 4.0 * xbrDf(g, h);
-    }
-
+    // FMV and screen filters are compiled into display program variants
+    // (FMV_SMOOTH, FMV_XBR, SCREEN_XBR, SCREEN_SUPER_XBR, with DISPLAY_FILTERS
+    // for any of them) only when selected, keeping the default display shader
+    // small
+#ifdef DISPLAY_FILTERS
     // ---- 24-bit display filters (FMV) ----
 
     // decoded 24-bit pixel p (relative to the display start), clamped to the
@@ -1140,6 +1176,19 @@
       return v_vramCoord - vec2(u_disp.xy);
     }
 
+    // ---- 15-bit screen filters ----
+
+    // native 15-bit display pixel p (relative to the display start), clamped
+    // to the display area; the centre texel of its block in the scaled VRAM,
+    // the same texel vram16Bit() shows at quality 1
+    vec3 screen16(ivec2 p) {
+      p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
+      ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511);
+      return texelFetch(u_texture, v * u_scale + (u_scale >> 1), 0).rgb;
+    }
+#endif
+
+#ifdef FMV_SMOOTH
     // Smooth: bicubic over 4x4 decoded pixels, with Catmull-Rom (sharp) for
     // luma and a cubic B-spline (soft) for chroma. MDEC stores chroma at half
     // resolution in 8x8 blocks, so the softer chroma kernel hides the colour
@@ -1174,26 +1223,21 @@
       }
       return vec4(clamp(vec3(luma) + chroma, 0.0, 1.0), 1.0);
     }
+#endif
 
-    // ---- 15-bit screen filters ----
-
-    // native 15-bit display pixel p (relative to the display start), clamped
-    // to the display area; the centre texel of its block in the scaled VRAM,
-    // the same texel vram16Bit() shows at quality 1
-    vec3 screen16(ivec2 p) {
-      p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
-      ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511);
-      return texelFetch(u_texture, v * u_scale + (u_scale >> 1), 0).rgb;
-    }
-
+#ifdef SCREEN_SUPER_XBR
     // Super-xBR: the multi-pass result covers the display area exactly
     vec4 screenSuperXbr() {
       vec2 size = vec2(u_disp.zw - u_disp.xy + ivec2(1));
       return vec4(texture(u_screen, fmvPos() / size).rgb, 1.0);
     }
+#endif
 
+#if defined(SCREEN_XBR) || defined(SCREEN_SUPER_XBR)
     vec4 vram16Bit();
+#ifdef SCREEN_XBR
     vec4 displayXbr(bool fmv);
+#endif
 
     // above quality 1: the filtered pixel where the block and its eight
     // neighbours are one colour each, the rendered pixel elsewhere. The
@@ -1210,10 +1254,23 @@
     }
 
     vec4 screenFiltered() {
-      vec4 filtered = u_screenFilter == 1 ? displayXbr(false) : screenSuperXbr();
+#ifdef SCREEN_XBR
+      vec4 filtered = displayXbr(false);
+#else
+      vec4 filtered = screenSuperXbr();
+#endif
       return u_screenHybrid ? screenHybrid(filtered) : filtered;
     }
+#endif
 
+#if defined(FMV_XBR) || defined(SCREEN_XBR)
+    vec4 xbrDf(vec4 a, vec4 b) { return abs(a - b); }
+    vec4 xbrDiff(vec4 a, vec4 b) { return vec4(notEqual(a, b)); }
+    vec4 xbrEq(vec4 a, vec4 b) { return step(xbrDf(a, b), vec4(15.0)); }
+    vec4 xbrNeq(vec4 a, vec4 b) { return vec4(1.0) - xbrEq(a, b); }
+    vec4 xbrWd(vec4 a, vec4 b, vec4 c, vec4 d, vec4 e, vec4 f, vec4 g, vec4 h) {
+      return xbrDf(a, b) + xbrDf(a, c) + xbrDf(d, e) + xbrDf(d, f) + 4.0 * xbrDf(g, h);
+    }
     // xBR-lv2 (Hyllian, MIT; licence with the texture filters above) on the
     // display pixels: decoded 24-bit (FMV filter) or native 15-bit (screen
     // filter). The blend width follows the display scale.
@@ -1305,6 +1362,7 @@
       vec3 d1 = abs(E - res1), d2 = abs(E - res2);
       return vec4(mix(res1, res2, step(d1.r + d1.g + d1.b, d2.r + d2.g + d2.b)), 1.0);
     }
+#endif
 
     vec4 vram16Bit() {
       return texelFetch(u_texture, ivec2(v_texcoord), 0);
@@ -1354,8 +1412,18 @@
       switch (u_mode) {
         case 7: outColor = gpuState(); return;
 
-        case 1: color = u_fmvFilter == 1 ? fmvSmooth() : u_fmvFilter == 2 ? displayXbr(true) : vram24Bit(); break;
-        case 0: color = u_screenFilter != 0 ? screenFiltered() : vram16Bit(); break;
+#if defined(FMV_SMOOTH)
+        case 1: color = fmvSmooth(); break;
+#elif defined(FMV_XBR)
+        case 1: color = displayXbr(true); break;
+#else
+        case 1: color = vram24Bit(); break;
+#endif
+#if defined(SCREEN_XBR) || defined(SCREEN_SUPER_XBR)
+        case 0: color = screenFiltered(); break;
+#else
+        case 0: color = vram16Bit(); break;
+#endif
         case 6: color = vram16Bit(); break;
         case 2: color = vram8bit(); break;
         case 3: color = vram4bit(); break;

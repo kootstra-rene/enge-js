@@ -14,7 +14,10 @@ mdlr('enge:psx:gpu', ({ include }) => {
   // (see pgxp.js). Renderers read it through gpu.pgxpFrac, which is only set
   // while a polygon packet with at least one precise vertex is being drawn.
   const dmaFrac = new Uint16Array(4096);
-  const pgxpOn = () => typeof pgxp !== 'undefined' && pgxp.enabled;
+  // looked up once, on first use (the pgxp module loads after this one):
+  // checking the global per packet was a measurable cost per primitive
+  let pgxpState = 0; // 0 not yet known, 1 off, 2 on
+  const pgxpOn = () => (pgxpState || (pgxpState = (typeof pgxp !== 'undefined' && pgxp.enabled) ? 2 : 1)) === 2;
 
   // ?debug-pgxp: calls cb(wordIndex, word) for each vertex word of polygon packet
   // 0x20..0x3f. Layout: [cmd/color0, xy0, (uv0), (color1), xy1, (uv1), ...]
@@ -284,7 +287,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
         if (dmaIndex === gpu.packetSize) {
           var packetId = dmaBuffer[0] >>> 24;
-          if (packetId >= 0x20 && packetId < 0x40 && pgxpOn() && pgxp.debug) pgxp.noteDirect((packetId & 0x08) ? 4 : 3);
+          if (pgxpState !== 1 && packetId >= 0x20 && packetId < 0x40 && pgxpOn() && pgxp.debug) pgxp.noteDirect((packetId & 0x08) ? 4 : 3);
           nextPrimitive();
           handlers[packetId].call(gpu, dmaBuffer);
           dmaIndex = 0;
