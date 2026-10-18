@@ -1195,19 +1195,19 @@ mdlr('enge:psx:index', ({ include }) => {
         updateFmv();
       });
 
-      // 15-bit screen filter cycles Off -> xBR -> Super-xBR; it scales the
-      // native-resolution picture, so it only applies at quality 1
+      // 15-bit screen filter cycles Off -> xBR -> Super-xBR; it upscales the
+      // native-resolution picture (above Q1 only native-resolution content)
       const screenNames = ['Off', 'xBR', 'Super-xBR'];
       const screenButton = document.createElement('button');
       screenButton.id = 'screen-filter';
       screenButton.type = 'button';
-      screenButton.title = 'Upscales the whole picture at quality 1 (Q1); off at higher quality';
+      screenButton.title = 'Upscales native-resolution content: the whole picture at Q1, sprites and 2D at higher quality';
       const screenRow = document.createElement('li');
       screenRow.append(screenButton);
       controlMenu?.querySelector('.control-menu-list')?.append(screenRow);
       const updateScreen = () => {
         const name = screenNames[settings.screenFilter | 0] ?? screenNames[0];
-        screenButton.textContent = `Screen filter (Q1): ${name}`;
+        screenButton.textContent = `Screen filter: ${name}`;
       };
       updateScreen();
       screenButton.addEventListener('click', () => {

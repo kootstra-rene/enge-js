@@ -871,7 +871,10 @@
     //                 diagonal pass, the rest are interpolated from that lattice
     //   3 realign:    2x size; the doubled image is a quarter source pixel off,
     //                 so each pixel is re-interpolated at its upper-left corner
-    // Pass 0 copies the native 15-bit display area out of the scaled VRAM.
+    // Pass 0 copies the native 15-bit display area out of the scaled VRAM,
+    // with alpha 1 where the pixel's u_scale x u_scale VRAM block is one
+    // colour (native-resolution content: sprites, 2D, uploads) and 0 where it
+    // holds finer detail (polygon edges, shading, textures at render scale).
     uniform sampler2D u_source;   // input of the pass (VRAM for pass 0)
     uniform sampler2D u_original; // pass 2: the image passes 1 and 2 double
     uniform int       u_pass;
@@ -951,8 +954,13 @@
 
       if (u_pass == 0) {
         p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
-        ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511);
-        outColor = vec4(texelFetch(u_source, v * u_scale + (u_scale >> 1), 0).rgb, 1.0);
+        ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511) * u_scale;
+        vec3 c = texelFetch(u_source, v + (u_scale >> 1), 0).rgb;
+        bool same = true;
+        for (int y = 0; y < u_scale; ++y)
+          for (int x = 0; x < u_scale; ++x)
+            same = same && texelFetch(u_source, v + ivec2(x, y), 0).rgb == c;
+        outColor = vec4(c, same ? 1.0 : 0.0);
         return;
       }
       if (u_pass == 1) {
@@ -1020,11 +1028,16 @@
     uniform bool      u_tv_effect;
     // 24-bit (FMV) display filter: 0 off, 1 smooth, 2 xBR
     uniform int       u_fmvFilter;
-    // 15-bit screen filter: 0 off, 1 xBR, 2 Super-xBR (the renderer sets it
-    // only at quality 1, where the display shows native pixels)
+    // 15-bit screen filter: 0 off, 1 xBR, 2 Super-xBR, over the native
+    // display pixels. Above quality 1 (u_screenHybrid) only pixels whose VRAM
+    // block is one colour are filtered; blocks with render-scale detail
+    // (polygon edges, shading) keep the rendered pixels.
     uniform int       u_screenFilter;
+    uniform bool      u_screenHybrid;
     // Super-xBR result for the whole display area (programSuperXbr)
     uniform sampler2D u_screen;
+    // native display pixels, alpha 1 where the VRAM block is one colour
+    uniform sampler2D u_screenMask;
   
     in vec2 v_texcoord;
     in vec2 v_vramCoord;
@@ -1179,6 +1192,28 @@
       return vec4(texture(u_screen, fmvPos() / size).rgb, 1.0);
     }
 
+    vec4 vram16Bit();
+    vec4 displayXbr(bool fmv);
+
+    // above quality 1: the filtered pixel where the block and its eight
+    // neighbours are one colour each, the rendered pixel elsewhere. The
+    // filters read the neighbouring native pixels, and next to a block with
+    // detail its native pixel (the block centre) does not represent it, so
+    // e.g. magnified textures would get stray colours at texel edges.
+    vec4 screenHybrid(vec4 filtered) {
+      ivec2 p = ivec2(floor(fmvPos()));
+      ivec2 last = u_disp.zw - u_disp.xy;
+      for (int y = -1; y <= 1; ++y)
+        for (int x = -1; x <= 1; ++x)
+          if (texelFetch(u_screenMask, clamp(p + ivec2(x, y), ivec2(0), last), 0).a < 0.5) return vram16Bit();
+      return filtered;
+    }
+
+    vec4 screenFiltered() {
+      vec4 filtered = u_screenFilter == 1 ? displayXbr(false) : screenSuperXbr();
+      return u_screenHybrid ? screenHybrid(filtered) : filtered;
+    }
+
     // xBR-lv2 (Hyllian, MIT; licence with the texture filters above) on the
     // display pixels: decoded 24-bit (FMV filter) or native 15-bit (screen
     // filter). The blend width follows the display scale.
@@ -1320,7 +1355,7 @@
         case 7: outColor = gpuState(); return;
 
         case 1: color = u_fmvFilter == 1 ? fmvSmooth() : u_fmvFilter == 2 ? displayXbr(true) : vram24Bit(); break;
-        case 0: color = u_screenFilter == 1 ? displayXbr(false) : u_screenFilter == 2 ? screenSuperXbr() : vram16Bit(); break;
+        case 0: color = u_screenFilter != 0 ? screenFiltered() : vram16Bit(); break;
         case 6: color = vram16Bit(); break;
         case 2: color = vram8bit(); break;
         case 3: color = vram4bit(); break;

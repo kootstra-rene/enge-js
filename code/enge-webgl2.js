@@ -993,51 +993,53 @@ mdlr('enge:webgl2', ({ include }) => {
 
   // ---- screen filter ----
   //
-  // At quality 1 the display shows one native pixel per VRAM block, so a 2D
-  // upscaler can work on the whole screen: xBR in the display shader, or
-  // Super-xBR in passes over offscreen textures (two doublings, 4x). The
-  // canvas is then drawn at 4x so the result is not lost to CSS scaling.
-  // At higher quality the display already shows the upscaled rendering and
-  // the screen filter is off.
-  const SCREEN_FILTER_SCALE = 4;
-  const screenFilterActive = displayMode => settings.quality === 1 && (settings.screenFilter | 0) > 0 && (displayMode === 0 || displayMode === 1);
+  // A 2D upscaler over the native display pixels: xBR in the display shader,
+  // or Super-xBR in passes over offscreen textures (one doubling per pass
+  // group). At quality 1 the whole picture is filtered and the canvas is
+  // drawn at 4x so the result is not lost to CSS scaling. Above quality 1
+  // the output is quality x native, and only pixels whose VRAM block is one
+  // colour (sprites, 2D, uploads) take the filtered result; blocks with
+  // render-scale detail (polygon edges, shading) keep the rendered pixels.
+  const SCREEN_FILTER_Q1_SCALE = 4;
+  const screenFilterActive = displayMode => (settings.screenFilter | 0) > 0 && (displayMode === 0 || displayMode === 1);
 
   const fb_screen = gl_createFramebuffer();
   let screenTextures = null;
 
-  // native (n), diagonal (d), 2x (a, b) and 4x (c, e) passes for a w x h area;
-  // a 4x result too large for this GPU stops at 2x
-  const ensureScreenTextures = (w, h) => {
-    if (screenTextures && screenTextures.w === w && screenTextures.h === h) return screenTextures;
+  // native pixels + block mask (n), first diagonal pass (d), and per
+  // doubling the orthogonal (o) and realign (r) results; the next
+  // doubling's diagonal pass reuses the previous o. Doublings that would
+  // exceed this GPU's texture or viewport limit are dropped (the result is
+  // then sampled bilinearly).
+  const ensureScreenTextures = (w, h, wanted) => {
+    const max = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), maxViewport[0], maxViewport[1]);
+    let levels = wanted;
+    while (levels > 1 && (Math.max(w, h) << levels) > max) --levels;
+    if (screenTextures && screenTextures.w === w && screenTextures.h === h && screenTextures.levels === levels) return screenTextures;
     if (screenTextures) for (const t of screenTextures.list) gl.deleteTexture(t);
-    const make = (tw, th, linear) => {
+    const make = (tw, th) => {
       const t = createAndBindTexture();
-      if (linear) {
-        gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      }
+      gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl_texImage2D(TEXTURE_2D, 0, RGBA, tw, th, 0, RGBA, UNSIGNED_BYTE, null);
       return t;
     };
-    const max = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), maxViewport[0], maxViewport[1]);
-    const levels = (4 * Math.max(w, h) <= max) ? 2 : 1;
     const n = make(w, h), d = make(w, h);
-    const a = make(2 * w, 2 * h), b = make(2 * w, 2 * h, levels === 1);
-    const list = [n, d, a, b];
-    let c = null, e = null;
-    if (levels === 2) {
-      c = make(4 * w, 4 * h);
-      e = make(4 * w, 4 * h, true);
-      list.push(c, e);
+    const list = [n, d], o = [], r = [];
+    for (let k = 1; k <= levels; ++k) {
+      o.push(make(w << k, h << k));
+      r.push(make(w << k, h << k));
     }
+    list.push(...o, ...r);
     gl_bindTexture(TEXTURE_2D, null);
-    return screenTextures = { w, h, levels, n, d, a, b, c, e, list };
+    return screenTextures = { w, h, levels, n, d, o, r, list };
   }
 
-  // Super-xBR over the display area; returns the texture holding the result
-  const runSuperXbr = (renderer, area) => {
+  // runs the screen filter passes for the display area; returns the native
+  // texture with the block mask and, for Super-xBR, the upscaled result
+  const runScreenFilter = (renderer, area, superXbr, levels) => {
     const w = area.w, h = area.h;
-    const t = ensureScreenTextures(w, h);
+    const t = ensureScreenTextures(w, h, levels);
     const program = renderer.programSuperXbr;
     gl.useProgram(program);
     gl.bindVertexArray(program.vao);
@@ -1054,15 +1056,20 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_bindTexture(TEXTURE_2D, source);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
-    // native pixels, then one or two doublings: diagonal, orthogonal, realign
+    // native pixels, then per doubling: diagonal, orthogonal, realign
     pass(0, t.n, w, h, vram);
-    pass(1, t.d, w, h, t.n);
-    pass(2, t.a, 2 * w, 2 * h, t.d, t.n);
-    pass(3, t.b, 2 * w, 2 * h, t.a);
-    if (t.levels === 2) {
-      pass(1, t.a, 2 * w, 2 * h, t.b);
-      pass(2, t.c, 4 * w, 4 * h, t.a, t.b);
-      pass(3, t.e, 4 * w, 4 * h, t.c);
+    let result = null;
+    if (superXbr) {
+      let input = t.n, diagonal = t.d;
+      for (let k = 0; k < t.levels; ++k) {
+        const iw = w << k, ih = h << k;
+        pass(1, diagonal, iw, ih, input);
+        pass(2, t.o[k], 2 * iw, 2 * ih, diagonal, input);
+        pass(3, t.r[k], 2 * iw, 2 * ih, t.o[k]);
+        input = t.r[k];
+        diagonal = t.o[k];
+      }
+      result = input;
     }
 
     gl_framebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, null, 0);
@@ -1071,16 +1078,17 @@ mdlr('enge:webgl2', ({ include }) => {
     gl_bindTexture(TEXTURE_2D, null);
     gl.activeTexture(gl.TEXTURE0);
     gl_bindTexture(TEXTURE_2D, null);
-    return t.levels === 2 ? t.e : t.b;
+    return { mask: t.n, result };
   }
 
   const showDisplay = (renderer, mode, region = { x: 0, y: 0, w: 1024, h: 512 }) => {
     const program = renderer.programDisplay;
     const area = gpu.getDisplayArea();
     const screenFilter = screenFilterActive(mode) ? (settings.screenFilter | 0) : 0;
-    const screenTexture = (screenFilter === 2 && mode === 0) ? runSuperXbr(renderer, area) : null;
-
-    const outScale = screenFilter ? SCREEN_FILTER_SCALE : settings.quality;
+    const hybrid = settings.quality > 1;
+    // output scale: quality, or 4x at quality 1; one doubling per factor 2
+    const outScale = (screenFilter && !hybrid) ? SCREEN_FILTER_Q1_SCALE : settings.quality;
+    const screen = (screenFilter && mode === 0) ? runScreenFilter(renderer, area, screenFilter === 2, Math.log2(outScale)) : null;
     if ((canvas.width !== region.w * outScale) || (canvas.height !== region.h * outScale)) {
       canvas.width = region.w * outScale;
       canvas.height = region.h * outScale;
@@ -1092,7 +1100,8 @@ mdlr('enge:webgl2', ({ include }) => {
     gl.uniform1i(program.mode, mode);
     gl.uniform1i(program.tvEffect, settings.tvEffect ? 1 : 0);
     gl.uniform1i(program.fmvFilter, settings.fmvFilter | 0);
-    gl.uniform1i(program.screenFilter, mode === 0 ? screenFilter : 0);
+    gl.uniform1i(program.screenFilter, screen ? screenFilter : 0);
+    gl.uniform1i(program.screenHybrid, hybrid ? 1 : 0);
     gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
 
     gl_bindFramebuffer(FRAMEBUFFER, null);
@@ -1101,15 +1110,21 @@ mdlr('enge:webgl2', ({ include }) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, renderer.displayBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, getDisplayArrays(region), gl.STREAM_DRAW);
 
-    gl.activeTexture(gl.TEXTURE1);
-    gl_bindTexture(TEXTURE_2D, screenTexture);
+    if (screen) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, screen.result);
+      gl.activeTexture(gl.TEXTURE2);
+      gl_bindTexture(TEXTURE_2D, screen.mask);
+    }
     gl.activeTexture(gl.TEXTURE0);
     gl_bindTexture(TEXTURE_2D, vram);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    if (screenTexture) {
+    if (screen) {
       gl.activeTexture(gl.TEXTURE1);
+      gl_bindTexture(TEXTURE_2D, null);
+      gl.activeTexture(gl.TEXTURE2);
       gl_bindTexture(TEXTURE_2D, null);
       gl.activeTexture(gl.TEXTURE0);
     }
@@ -1169,7 +1184,9 @@ mdlr('enge:webgl2', ({ include }) => {
     program.tvEffect = gl_getUniformLocation(program, "u_tv_effect");
     program.fmvFilter = gl_getUniformLocation(program, "u_fmvFilter");
     program.screenFilter = gl_getUniformLocation(program, "u_screenFilter");
+    program.screenHybrid = gl_getUniformLocation(program, "u_screenHybrid");
     gl.uniform1i(gl_getUniformLocation(program, "u_screen"), 1);
+    gl.uniform1i(gl_getUniformLocation(program, "u_screenMask"), 2);
     program.drawArea = gl_getUniformLocation(program, "u_draw");
 
     createVertexArray(program, displayBuffer, [
@@ -1238,7 +1255,8 @@ mdlr('enge:webgl2', ({ include }) => {
     return program;
   }
 
-  // Super-xBR screen filter passes; draws a single triangle from gl_VertexID
+  // screen filter passes (native pixels, Super-xBR); draws a single
+  // triangle from gl_VertexID
   const createProgramSuperXbr = () => {
     const program = createProgramFromScripts(gl, 'vramUploadVertex', 'superXbr');
     gl.useProgram(program);
