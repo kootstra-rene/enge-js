@@ -2,7 +2,96 @@ mdlr('enge:psx:spu', ({ include }) => {
 
   const reverb = include('enge:psx:spu-reverb');
 
-  const frameCount = (1.0 * 44100) >> 1;
+  // Audio output: the SPU produces samples at 44100 Hz. They are collected in
+  // small chunks and posted to an AudioWorklet, which queues them, resamples
+  // to the context rate when that differs, and plays them out. This replaces
+  // writing into a looping AudioBuffer after start(), which only works in
+  // Chromium (Firefox copies the buffer when the source starts).
+  const SAMPLE_RATE = 44100;
+  const CHUNK_FRAMES = 512;                           // ~11.6 ms per message
+  const MAX_PENDING_CHUNKS = (SAMPLE_RATE * 0.25 / CHUNK_FRAMES) >> 0;
+
+  const processorSource = `
+class EngeSpuOutput extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    const inputRate = options.processorOptions.inputRate;
+    this.step = inputRate / sampleRate;
+    this.prebuffer = (inputRate * 0.05) | 0;          // start after 50 ms queued
+    this.maxQueued = (inputRate * 0.20) | 0;          // drop beyond 200 ms
+    this.reset();
+    this.port.onmessage = ({ data }) => {
+      if (data.clear) {
+        this.reset();
+        return;
+      }
+      this.queue.push(data);
+      this.queued += data.left.length;
+      while (this.queued > this.maxQueued && this.queue.length > 1) {
+        const dropped = this.queue.shift();
+        this.queued -= dropped.left.length - this.offset;
+        this.offset = 0;
+      }
+    };
+  }
+
+  reset() {
+    this.queue = [];
+    this.offset = 0;
+    this.queued = 0;
+    this.playing = false;
+    this.frac = 0;
+    this.curL = this.curR = 0;
+    this.nextL = this.nextR = 0;
+  }
+
+  pull() {
+    const chunk = this.queue[0];
+    this.nextL = chunk.left[this.offset];
+    this.nextR = chunk.right[this.offset];
+    if (++this.offset === chunk.left.length) {
+      this.queue.shift();
+      this.offset = 0;
+    }
+    --this.queued;
+  }
+
+  process(inputs, outputs) {
+    const out = outputs[0];
+    const outL = out[0];
+    const outR = out[1] || out[0];
+    const frames = outL.length;
+
+    if (!this.playing) {
+      if (this.queued < this.prebuffer) return true;  // outputs are zeroed
+      this.playing = true;
+      this.frac = 0;
+      this.pull();
+      this.curL = this.nextL; this.curR = this.nextR;
+      this.pull();
+    }
+
+    for (let i = 0; i < frames; ++i) {
+      const f = this.frac;
+      outL[i] = this.curL + (this.nextL - this.curL) * f;
+      outR[i] = this.curR + (this.nextR - this.curR) * f;
+      this.frac += this.step;
+      while (this.frac >= 1.0) {
+        this.frac -= 1.0;
+        this.curL = this.nextL; this.curR = this.nextR;
+        if (this.queued === 0) {
+          // underrun: go quiet and wait for the prebuffer to fill again
+          this.reset();
+          return true;
+        }
+        this.pull();
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('enge-spu-output', EngeSpuOutput);
+`;
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
@@ -10,27 +99,70 @@ mdlr('enge:psx:spu', ({ include }) => {
 
   const regs = new Map;
 
+  let outputPort = null;
+  let pendingChunks = [];
+
+  const newChunk = () => {
+    left = new Float32Array(CHUNK_FRAMES);
+    right = new Float32Array(CHUNK_FRAMES);
+    writeIndex = 0;
+  }
+
+  const flushChunk = () => {
+    const message = { left, right };
+    if (outputPort) {
+      outputPort.postMessage(message, [left.buffer, right.buffer]);
+    } else {
+      pendingChunks.push(message);
+      if (pendingChunks.length > MAX_PENDING_CHUNKS) pendingChunks.shift();
+    }
+    newChunk();
+  }
+
   const init = () => {
-    const context = new AudioContext();
+    newChunk();
+
+    let context;
+    try {
+      context = new AudioContext({ sampleRate: SAMPLE_RATE, latencyHint: 'interactive' });
+    } catch (e) {
+      context = new AudioContext({ latencyHint: 'interactive' });
+    }
     const gainNode = context.createGain();
-    const buffer = context.createBuffer(2, frameCount, context.sampleRate);
-    const source = context.createBufferSource();
-
-    left = buffer.getChannelData(0);
-    left.fill(0);
-    right = buffer.getChannelData(1);
-    right.fill(0)
-
-    source.playbackRate.value = 44100 / context.sampleRate;
-    source.buffer = buffer;
-    source.loop = true;
-    source.connect(gainNode);
     gainNode.connect(context.destination);
-    source.start();
 
     spu.setVolume = (volume) => gainNode.gain.setValueAtTime(volume, context.currentTime);
-
     spu.setVolume(0.75);
+
+    // autoplay policy: the context may start suspended until a user gesture
+    const resume = () => {
+      if (context.state !== 'suspended') return;
+      context.resume().catch(() => { });
+    };
+    resume();
+    for (const type of ['pointerdown', 'keydown', 'touchend', 'drop']) {
+      window.addEventListener(type, resume, { capture: true });
+    }
+
+    const url = URL.createObjectURL(new Blob([processorSource], { type: 'application/javascript' }));
+    context.audioWorklet.addModule(url).then(() => {
+      URL.revokeObjectURL(url);
+      const node = new AudioWorkletNode(context, 'enge-spu-output', {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: { inputRate: SAMPLE_RATE }
+      });
+      node.connect(gainNode);
+      outputPort = node.port;
+      for (const message of pendingChunks) {
+        outputPort.postMessage(message, [message.left.buffer, message.right.buffer]);
+      }
+      pendingChunks = [];
+    }).catch(error => {
+      URL.revokeObjectURL(url);
+      console.error('spu: unable to start audio worklet', error);
+    });
   }
 
 
@@ -103,7 +235,7 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     left[writeIndex] = l;//Math.max(Math.min(l, 1.0), -1.0);
     right[writeIndex] = r;//Math.max(Math.min(r, 1.0), -1.0);
-    writeIndex = (writeIndex + 1) % frameCount;
+    if (++writeIndex === CHUNK_FRAMES) flushChunk();
 
     if (captureIndex === 0x000) {
       SPUSTAT &= ~0x0800;
@@ -117,7 +249,7 @@ mdlr('enge:psx:spu', ({ include }) => {
   let right = null;
   let ramOffset = 0;
   let irqOffset = 0;
-  let writeIndex = (44100 * 0.125) >> 0;
+  let writeIndex = 0;
   let totalSamples = 0;
 
   let SPUCNT = 0x0000;
@@ -136,9 +268,9 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     silence: () => {
       if (left && right) {
-        for (var i = 0; i < frameCount; ++i) {
-          left[i] = right[i] = 0.0;
-        }
+        writeIndex = 0;
+        pendingChunks = [];
+        outputPort?.postMessage({ clear: true });
       }
     },
 
