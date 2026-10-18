@@ -69,6 +69,13 @@ mdlr('enge:webgl2', ({ include }) => {
     return false;
   }
 
+  // PGXP triangle vertices: integer position plus the 1/16-pixel fraction
+  const addPreciseVertices = (buffer, frac, x1, y1, xy1, u1, v1, c1, x2, y2, xy2, u2, v2, c2, x3, y3, xy3, u3, v3, c3, cl) => {
+    buffer.addVertex(x1 + (frac[xy1] & 15) / 16, y1 + ((frac[xy1] >> 4) & 15) / 16, u1, v1, c1, cl);
+    buffer.addVertex(x2 + (frac[xy2] & 15) / 16, y2 + ((frac[xy2] >> 4) & 15) / 16, u2, v2, c2, cl);
+    buffer.addVertex(x3 + (frac[xy3] & 15) / 16, y3 + ((frac[xy3] >> 4) & 15) / 16, u3, v3, c3, cl);
+  }
+
   // ---- texture filtering support ----
   //
   // Filtered sampling reads neighbouring texels, so it is clamped to the
@@ -76,6 +83,11 @@ mdlr('enge:webgl2', ({ include }) => {
   // to keep neighbouring images in a texture atlas from bleeding in.
   const VERTEX_SPRITE = 1; // vertex flag: rectangle (GP0 60h-7Fh)
   const uvLimits = new Int16Array(4);
+  // texture filters in use: picks the shader variant and whether polygons
+  // need UV limits; latched at vblank so a frame's batches agree
+  // filter settings as latched at the last vblank (see latchFilters)
+  let textureFilter = settings.textureFilter | 0, spriteFilter = settings.spriteFilter | 0;
+  let filtersActive = !!(textureFilter | spriteFilter);
 
   // texel range of a textured polygon packet, over all 3 or 4 vertices; the
   // upper bound is made inclusive (max - 1 unless the range is one texel)
@@ -275,10 +287,16 @@ mdlr('enge:webgl2', ({ include }) => {
         gl.clearDepth(0.0);
 
         this.displayBuffer = gl.createBuffer();
-        this.programDisplay = createProgramDisplay(this.displayBuffer);
+        // display shader variants by FMV filter (0 off, 1 smooth, 2 xBR)
+        this.displayPrograms = new Map();
+        this.programDisplay = getDisplayProgram(this, settings.fmvFilter | 0);
         this.renderBuffer = gl.createBuffer();
-        this.programRenderer = createProgramRenderer(this.renderBuffer);
-        this.programRendererCheckMask = createProgramRenderer(this.renderBuffer, ['CHECK_MASK']);
+        // pixel shader variants by check mask and the filters in use (see
+        // getRendererProgram); the unfiltered ones are made up front
+        this.rendererPrograms = new Map();
+        for (const buffer of this.buffers) buffer.setStride(filtersActive ? 36 : 28);
+        this.programRenderer = getRendererProgram(this, false, 0, 0);
+        this.programRendererCheckMask = getRendererProgram(this, true, 0, 0);
         this.programMaskDepth = createProgramMaskDepth();
         this.programCopy = createProgramCopy();
         this.programUpload = createProgramUpload();
@@ -520,7 +538,7 @@ mdlr('enge:webgl2', ({ include }) => {
       touchArea(x1, y1, x2, y2, x1 + 1, y1 + 1, x2 + 1, y2 + 1);
 
       const vertexBuffer = getVertexBuffer(renderer, data);
-      vertexBuffer.setPrimitive(0, 0, 0, 0, 0);
+      if (filtersActive) vertexBuffer.setPrimitive(0, 0, 0, 0, 0);
 
       var w = Math.abs(x1 - x2);
       var h = Math.abs(y1 - y2);
@@ -563,20 +581,15 @@ mdlr('enge:webgl2', ({ include }) => {
       this.seenRender = true;
       this.updateDrawArea();
 
-      let x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
-      let y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
-      let x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
-      let y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
-      let x3 = $gpu.daX + ((data[xy3] << 21) >> 21);
-      let y3 = $gpu.daY + ((data[xy3] << 5) >> 21);
-
-      // PGXP: add the 1/16-pixel fraction carried from the GTE (polygons only)
-      const pgxpFrac = gpu.pgxpFrac;
-      if (pgxpFrac) {
-        x1 += (pgxpFrac[xy1] & 15) / 16; y1 += ((pgxpFrac[xy1] >> 4) & 15) / 16;
-        x2 += (pgxpFrac[xy2] & 15) / 16; y2 += ((pgxpFrac[xy2] >> 4) & 15) / 16;
-        x3 += (pgxpFrac[xy3] & 15) / 16; y3 += ((pgxpFrac[xy3] >> 4) & 15) / 16;
-      }
+      // integer (game) coordinates: culling and dirty tracking use these, as
+      // the hardware does; the PGXP fraction is only added to the vertices
+      // (keeping these small integers also avoids boxing doubles per call)
+      const x1 = $gpu.daX + ((data[xy1] << 21) >> 21);
+      const y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
+      const x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
+      const y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
+      const x3 = $gpu.daX + ((data[xy3] << 21) >> 21);
+      const y3 = $gpu.daY + ((data[xy3] << 5) >> 21);
 
       if (outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
       if (largePrimitive(x1, y1, x2, y2, x3, y3)) return;
@@ -602,12 +615,18 @@ mdlr('enge:webgl2', ({ include }) => {
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       const buffer = vertexBuffer;
-      if (data[0] & 0x04000000) {
+      if (filtersActive && (data[0] & 0x04000000)) {
         polygonUVLimits(data);
         buffer.setPrimitive(0, uvLimits[0], uvLimits[1], uvLimits[2], uvLimits[3]);
       }
-      else buffer.setPrimitive(0, 0, 0, 0, 0);
+      else if (filtersActive) buffer.setPrimitive(0, 0, 0, 0, 0);
 
+      // PGXP: add the 1/16-pixel fraction carried from the GTE (polygons only)
+      const pgxpFrac = gpu.pgxpFrac;
+      if (pgxpFrac) {
+        addPreciseVertices(buffer, pgxpFrac, x1, y1, xy1, u1, v1, c1, x2, y2, xy2, u2, v2, c2, x3, y3, xy3, u3, v3, c3, cl);
+        return;
+      }
       buffer.addVertex(x1, y1, u1, v1, c1, cl);
       buffer.addVertex(x2, y2, u2, v2, c2, cl);
       buffer.addVertex(x3, y3, u3, v3, c3, cl);
@@ -653,7 +672,7 @@ mdlr('enge:webgl2', ({ include }) => {
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var buffer = vertexBuffer;
-      buffer.setPrimitive(VERTEX_SPRITE,
+      if (filtersActive) buffer.setPrimitive(VERTEX_SPRITE,
         Math.min(tl, tr), Math.min(tt, tb), Math.max(tl, tr) - 1, Math.max(tt, tb) - 1);
       buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
       buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
@@ -738,7 +757,9 @@ mdlr('enge:webgl2', ({ include }) => {
 
 
       if (desiredScale() !== scale) changeRenderScale(desiredScale());
+      latchFilters(this);
 
+      this.programDisplay = getDisplayProgram(this, settings.fmvFilter | 0);
       this.setTransparencyMode(4, this.programDisplay);
 
       const area = gpu.getDisplayArea();
@@ -836,12 +857,18 @@ mdlr('enge:webgl2', ({ include }) => {
       gl_enable(gl.DEPTH_TEST);
       gl.depthMask(true);
       gl.depthFunc(gl.GREATER);
-      const program = ($maskMode & 2) ? renderer.programRendererCheckMask : renderer.programRenderer;
+      const program = getRendererProgram(renderer, ($maskMode & 2) !== 0, textureFilter, spriteFilter);
       renderer.setTransparencyMode(mode, program); // also binds the program
-      gl.uniform1i(program.setMask, $maskMode & 1);
-      gl.uniform1i(program.fullResTextures, settings.fullResTextures !== false ? 1 : 0);
-      gl.uniform1i(program.textureFilter, settings.textureFilter | 0);
-      gl.uniform1i(program.spriteFilter, settings.spriteFilter | 0);
+      // uniforms are program state: only set them when they change
+      const fullRes = settings.fullResTextures !== false ? 1 : 0, setMask = $maskMode & 1;
+      const state = (setMask << 0) | (fullRes << 1) | (textureFilter << 2) | (spriteFilter << 5);
+      if (program.uniformState !== state) {
+        program.uniformState = state;
+        gl.uniform1i(program.setMask, setMask);
+        gl.uniform1i(program.fullResTextures, fullRes);
+        gl.uniform1i(program.textureFilter, textureFilter);
+        gl.uniform1i(program.spriteFilter, spriteFilter);
+      }
       gl.viewport(0, 0, vramWidth, vramHeight); // texture dimensions
 
       gl.bindVertexArray(program.vao);
@@ -913,6 +940,22 @@ mdlr('enge:webgl2', ({ include }) => {
     flushBuffer(renderer.buffers[4], 4);
     flushBuffer(renderer.buffers[5], 4);
     flushBuffer(renderer.buffers[$mode], $mode);
+  }
+
+  // the filter settings take effect at vblank, so all batches of a frame
+  // use the same shader variant and vertex layout; whatever is still queued
+  // is drawn with the old ones first
+  const latchFilters = renderer => {
+    const tf = settings.textureFilter | 0, sf = settings.spriteFilter | 0;
+    if (tf === textureFilter && sf === spriteFilter) return;
+    for (let mode = 0; mode < 6; ++mode) flushBuffer(renderer.buffers[mode], Math.min(mode, 4));
+    textureFilter = tf;
+    spriteFilter = sf;
+    const active = !!(tf | sf);
+    if (active !== filtersActive) {
+      filtersActive = active;
+      for (const buffer of renderer.buffers) buffer.setStride(active ? 36 : 28);
+    }
   }
 
   // ---- GP0(E6h) mask bits for drawing ----
@@ -1004,7 +1047,6 @@ mdlr('enge:webgl2', ({ include }) => {
     gl.uniform4i(program.displayArea, area.x, area.y, area.x + area.w - 1, area.y + area.h - 1);
     gl.uniform1i(program.mode, mode);
     gl.uniform1i(program.tvEffect, settings.tvEffect ? 1 : 0);
-    gl.uniform1i(program.fmvFilter, settings.fmvFilter | 0);
     gl.uniform4i(program.drawArea, $gpu.daL, $gpu.daT, $gpu.daR, $gpu.daB);
 
     gl_bindFramebuffer(FRAMEBUFFER, null);
@@ -1053,7 +1095,7 @@ mdlr('enge:webgl2', ({ include }) => {
 
   // attribute layout lives in a VAO per program, bound to that program's own
   // vertex buffer; attributes the linker optimised out (location -1) are skipped
-  const createVertexArray = (program, buffer, attributes) => {
+  const createVertexArray = (program, buffer, attributes, stride = vertexStride) => {
     program.vao = gl.createVertexArray();
     gl.bindVertexArray(program.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -1061,18 +1103,28 @@ mdlr('enge:webgl2', ({ include }) => {
       const pos = gl_getAttribLocation(program, name);
       if (pos < 0) continue;
       gl_enableVertexAttribArray(pos);
-      gl_vertexAttribPointer(pos, size, type, normalized, vertexStride, offset);
+      gl_vertexAttribPointer(pos, size, type, normalized, stride, offset);
     }
     gl.bindVertexArray(null);
   }
-  const createProgramDisplay = (displayBuffer) => {
-    const program = createProgramFromScripts(gl, 'vertex', 'displayScreen');
+  const getDisplayProgram = (renderer, fmvFilter) => {
+    let program = renderer.displayPrograms.get(fmvFilter);
+    if (!program) {
+      const define = [null, 'FMV_SMOOTH', 'FMV_XBR'][fmvFilter];
+      program = createProgramDisplay(renderer.displayBuffer, define ? [define] : []);
+      renderer.displayPrograms.set(fmvFilter, program);
+      setScaleUniforms(program);
+    }
+    return program;
+  }
+
+  const createProgramDisplay = (displayBuffer, defines = []) => {
+    const program = createProgramFromScripts(gl, 'vertex', 'displayScreen', defines);
     gl.useProgram(program);
 
     program.displayArea = gl_getUniformLocation(program, "u_disp");
     program.mode = gl_getUniformLocation(program, "u_mode");
     program.tvEffect = gl_getUniformLocation(program, "u_tv_effect");
-    program.fmvFilter = gl_getUniformLocation(program, "u_fmvFilter");
     program.drawArea = gl_getUniformLocation(program, "u_draw");
 
     createVertexArray(program, displayBuffer, [
@@ -1083,8 +1135,34 @@ mdlr('enge:webgl2', ({ include }) => {
     return program;
   }
 
+  // pixel shader variant for the render scale, check mask and the
+  // texture/sprite filters: each
+  // filter's code is only compiled in when one of the two settings uses it,
+  // since a shader holding every filter is slower even for nearest.
+  // Variants are compiled on first use and kept.
+  const filterDefine = f => [null, 'FILTER_BILINEAR', 'FILTER_BILINEAR', 'FILTER_XBR', 'FILTER_MMPX', 'FILTER_BICUBIC'][f] || null;
+  const getRendererProgram = (renderer, checkMask, textureFilter, spriteFilter) => {
+    const key = (checkMask ? 1 : 0) | (textureFilter << 1) | (spriteFilter << 4) | (scaleShift << 7);
+    let program = renderer.rendererPrograms.get(key);
+    if (!program) {
+      const defines = new Set([`VRAM_SCALE_SHIFT ${scaleShift}`]);
+      if (checkMask) defines.add('CHECK_MASK');
+      for (const f of [textureFilter, spriteFilter]) {
+        const d = filterDefine(f);
+        if (d) defines.add('TEXTURE_FILTERS').add(d);
+      }
+      program = createProgramRenderer(renderer.renderBuffer, [...defines]);
+      renderer.rendererPrograms.set(key, program);
+      setScaleUniforms(program);
+    }
+    return program;
+  }
+
   const createProgramRenderer = (renderBuffer, defines = []) => {
     const program = createProgramFromScripts(gl, 'pixel', 'videoram', defines);
+    // filter variants read the 36-byte vertices with the filter data; the
+    // others the 28-byte ones (flags and UV limits then read as 0)
+    const full = defines.includes('TEXTURE_FILTERS');
     gl.useProgram(program);
     program.setMask = gl_getUniformLocation(program, 'u_setMask');
     program.fullResTextures = gl_getUniformLocation(program, 'u_fullResTextures');
@@ -1098,9 +1176,11 @@ mdlr('enge:webgl2', ({ include }) => {
       ['a_twin', 4, UNSIGNED_BYTE, false, 20],
       ['a_clut', 1, gl.SHORT, false, 24],
       ['a_tmode', 1, gl.BYTE, false, 26],
-      ['a_flags', 1, UNSIGNED_BYTE, false, 27],
-      ['a_uvLimits', 4, gl.SHORT, false, 28],
-    ]);
+      ...(full ? [
+        ['a_flags', 1, UNSIGNED_BYTE, false, 27],
+        ['a_uvLimits', 4, gl.SHORT, false, 28],
+      ] : []),
+    ], full ? 36 : 28);
 
     return program;
   }
@@ -1119,14 +1199,17 @@ mdlr('enge:webgl2', ({ include }) => {
   }
 
   // the render scale as seen by the shaders
+  const setScaleUniforms = program => {
+    gl.useProgram(program);
+    const s = gl_getUniformLocation(program, 'u_scale');
+    const shift = gl_getUniformLocation(program, 'u_scaleShift');
+    if (s) gl.uniform1i(s, scale);
+    if (shift) gl.uniform1i(shift, scaleShift);
+  }
   const applyScaleUniforms = renderer => {
-    for (const program of [renderer.programRenderer, renderer.programRendererCheckMask, renderer.programUpload, renderer.programDisplay]) {
-      gl.useProgram(program);
-      const s = gl_getUniformLocation(program, 'u_scale');
-      const shift = gl_getUniformLocation(program, 'u_scaleShift');
-      if (s) gl.uniform1i(s, scale);
-      if (shift) gl.uniform1i(shift, scaleShift);
-    }
+    for (const program of renderer.rendererPrograms.values()) setScaleUniforms(program);
+    setScaleUniforms(renderer.programUpload);
+    for (const program of renderer.displayPrograms.values()) setScaleUniforms(program);
   }
 
   // VRAM -> VRAM copy honouring the mask bits
@@ -1410,9 +1493,9 @@ mdlr('enge:webgl2:utils', ({ include }) => {
   function createVertexBuffer(reverse = false) {
     // typed-array stores are about twice as fast as DataView calls; WebGL and
     // typed arrays both use the platform byte order
-    const bytesPerVertex = 36;
-    // same vertex capacity as the former 1MB buffer of 24-byte vertices
-    const buffer = new Uint8Array(bytesPerVertex * 43690);
+    // 36 bytes with the filter data (sprite flag, UV limits), 28 without
+    let bytesPerVertex = 36;
+    const buffer = new Uint8Array(36 * 43690);
     const i16 = new Int16Array(buffer.buffer);
     const u16 = new Uint16Array(buffer.buffer);
     const u32 = new Uint32Array(buffer.buffer);
@@ -1438,14 +1521,23 @@ mdlr('enge:webgl2:utils', ({ include }) => {
       u32[w + 5] = gpu.twin;
       u16[h + 12] = cl;
       buffer[index + 26] = ((gpu.status >> 7) & 3) | ((gpu.status & 31) << 2);
-      buffer[index + 27] = flags;
-      i16[h + 14] = umin;
-      i16[h + 15] = vmin;
-      i16[h + 16] = umax;
-      i16[h + 17] = vmax;
+      // flags and UV limits are only read by the filter shaders
+      if (bytesPerVertex === 36) {
+        buffer[index + 27] = flags;
+        i16[h + 14] = umin;
+        i16[h + 15] = vmin;
+        i16[h + 16] = umax;
+        i16[h + 17] = vmax;
+      }
       if (!reverse) {
         index += bytesPerVertex;
       }
+    }
+
+    // vertex size: 36 with the filter data, 28 without; only while empty
+    buffer.setStride = n => {
+      bytesPerVertex = n;
+      buffer.reset();
     }
 
     buffer.reset = () => {
