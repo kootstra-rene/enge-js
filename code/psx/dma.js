@@ -27,7 +27,7 @@ mdlr('enge:psx:dma', ({ include }) => {
     const before = masterFlag();
     update();
     if (!before && masterFlag()) {
-      cpu.istat |= 0x0008;
+      cpu.raiseIrq(0x0008);
     }
   }
 

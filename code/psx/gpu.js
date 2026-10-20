@@ -220,7 +220,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
           ++gpu.internalFrame;
         }
         gpu.updated = false;
-        cpu.istat |= 0x0001;
+        cpu.raiseIrq(0x0001);
         gpu.hline = 0;
         ++gpu.frame;
         if (debugGame && (gpu.frame % 60) === 0) {

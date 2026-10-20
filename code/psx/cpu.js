@@ -31,11 +31,19 @@ mdlr('enge:psx:cpu', ({ include }) => {
       cpu.dv = 0;
     },
 
+    // Raise a pulsed IRQ. Devices can raise one outside an event callback (for
+    // example a DMA completing inside a register write), so request an
+    // interrupt check: otherwise it is only taken at the next scheduled event.
+    raiseIrq: (mask) => {
+      cpu.istat |= mask;
+      cpu.requestInterruptCheck();
+    },
+
     // I_STAT is edge triggered: a bit is only set when the device's IRQ line
     // goes from inactive to active. Pulsed IRQs set the line and release it.
     setIrqLine: (mask, active) => {
       if (active) {
-        if (!(cpu.irqLines & mask)) cpu.istat |= mask;
+        if (!(cpu.irqLines & mask)) cpu.raiseIrq(mask);
         cpu.irqLines |= mask;
       }
       else {
@@ -242,23 +250,28 @@ mdlr('enge:psx:cpu', ({ include }) => {
     if (cpu.dr !== 0) { gpr[cpu.dr] = cpu.dv; cpu.dr = 0; }
   };
 
-  const cpuInterrupt = (entry) => {
-    if ((cpu.sr & 1) === 1) {
-      let ip = cpu.cause & 0x300;
-      let im = cpu.sr & 0x300;
-      if ((ip & im) !== 0) {
-        flushDeferredLoad();
-        return cpuException((ip & im), entry.pc);
-      }
-      else
-        if ((cpu.sr & 0x400) === 0x400) {
-          if (cpu.istat & cpu.imask) {
-            flushDeferredLoad();
-            return cpuException(0x000, entry.pc);
-          }
-        }
+  // The GTE executes a COP2 command even when an interrupt is taken on it, yet
+  // EPC still points at that command. The BIOS exception handler knows this
+  // and skips it on return (EPC += 4), so it has to be executed here or it
+  // never runs at all.
+  const executeInterruptedGteCommand = (pc) => {
+    const opcode = map[pc >>> 2];
+    if ((opcode >>> 25) === 0x25) {
+      psx.clock += gte.cycles(opcode & 0x1ffffff);
+      gte.command(opcode & 0x1ffffff);
     }
-    return entry;
+  };
+
+  const cpuInterrupt = (entry) => {
+    if ((cpu.sr & 1) === 0) return entry;
+
+    const software = cpu.cause & cpu.sr & 0x300;
+    const hardware = (cpu.sr & 0x400) && (cpu.istat & cpu.imask);
+    if (!software && !hardware) return entry;
+
+    flushDeferredLoad();
+    executeInterruptedGteCommand(entry.pc);
+    return cpuException(0x00, entry.pc); // excode 0: interrupt
   }
 
   return { cpu, cpuException, cpuInterrupt }

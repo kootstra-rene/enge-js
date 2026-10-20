@@ -77,7 +77,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
 
   beforeEach(async () => {
     globalThis.psx = createScheduler();
-    globalThis.cpu = { istat: 0 };
+    globalThis.cpu = { istat: 0, raiseIrq(mask) { this.istat |= mask; } };
     globalThis.ram = new DataView(new ArrayBuffer(2 * 1024 * 1024));
     ({ gpu: globalThis.gpu } = include('enge:psx:gpu'));
     ({ dma } = include('enge:psx:dma'));

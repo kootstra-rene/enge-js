@@ -413,7 +413,7 @@ mdlr('enge:psx:spu', ({ include }) => {
       }
 
       if (irq) {
-        cpu.istat |= 0x200;
+        cpu.raiseIrq(0x0200);
         SPUSTAT |= 0x0040;
       }
     }
