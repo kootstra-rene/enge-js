@@ -16,10 +16,10 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
 
-  // b31 = b15 OR (b23 AND (b16-22 AND b24-30) != 0)
+  // Completion flags are gated when raised, then persist until acknowledged.
   const masterFlag = () => {
-    const pending = (dicr >> 16) & (dicr >> 24) & 0x7f;
-    return ((dicr & 0x8000) || ((dicr & 0x800000) && pending)) ? 1 : 0;
+    const flags = (dicr >> 24) & 0x7f;
+    return ((dicr & 0x8000) || ((dicr & 0x800000) && flags)) ? 1 : 0;
   }
 
   // IRQ3 is only raised on a 0->1 transition of b31
@@ -31,12 +31,10 @@ mdlr('enge:psx:dma', ({ include }) => {
     }
   }
 
-  // A completion flag is set only when its channel is enabled in b16-22; the
-  // master enable (b23) only gates b31, so it can be turned on afterwards.
   const completeIrq = channel => {
     const enable = 1 << (16 + channel);
 
-    if (dicr & enable) {
+    if ((dicr & 0x800000) && (dicr & enable)) {
       updateDicr(() => dicr |= enable << 8);
     }
   }
@@ -46,12 +44,9 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const rd32r10f4 = () => (dicr & 0x7fffffff) | (masterFlag() << 31);
 
-  // b0-5 and b15-23 r/w, b24-30 write 1 to acknowledge, b6-14 always 0.
-  // `lanes` selects the bytes a narrow store drives; the others are untouched.
-  const wr32r10f4 = (data, lanes = 0xffffffff) => {
-    const rw = 0x00ff803f & lanes;
-    const ack = data & 0x7f000000 & lanes;
-    updateDicr(() => dicr = (dicr & ~(ack | rw)) | (data & rw));
+  const wr32r10f4 = data => {
+    // b0-5 and b15-23 r/w, b24-30 write 1 to acknowledge, b6-14 always 0
+    updateDicr(() => dicr = (dicr & (~((data & 0x7f000000) | 0x00ff803f))) | (data & 0x00ff803f));
   };
 
   const wr32r1088 = ctrl => {
@@ -232,12 +227,17 @@ mdlr('enge:psx:dma', ({ include }) => {
     },
   };
 
-  // DICR merges the lanes that are not written, so acknowledging a flag with
-  // a byte store does not change the enables. The other registers take the
-  // store as a 32-bit write with the remaining lanes zero.
+  // A narrow store is a 32-bit write with the other lanes zero. Block control
+  // (channel BCR) is the only register that honours the byte enables and keeps
+  // the lanes that are not written (as in DuckStation). For DICR this means a
+  // byte store that acknowledges a flag also clears the enables.
   const narrowWrite = (addr, data, lanes, shift) => {
-    if ((addr & 0x3ffc) === 0x10f4) return wr32r10f4(data << shift, lanes);
-    dma.wr32(addr, (data << shift) & lanes);
+    const reg = addr & 0x3ffc;
+    let value = (data << shift) & lanes;
+    if ((reg & 0x0c) === 0x04 && reg < 0x10f0) {
+      value = (dma.rd32(reg) & ~lanes) | value;
+    }
+    dma.wr32(reg, value);
   };
 
   const $rd32 = new Map([

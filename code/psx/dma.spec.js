@@ -166,26 +166,18 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
     const FLAG6 = 1 << 30; // channel 6 IRQ flag
     const MASTER = 1 << 23;
 
-    it('should raise IRQ3 when a completed, enabled channel is unmasked', async () => {
+    it('should raise IRQ3 when a completed channel is enabled', async () => {
       dma.wr32(DICR, MASTER | EN6);
       runOtc(OTC);
       expect(dma.rd32(DICR) >>> 0).to.eql((0x80000000 | FLAG6 | MASTER | EN6) >>> 0);
       expect(cpu.istat).to.eql(0x08);
     });
 
-    it('should set the flag without the master enable, but not b31', async () => {
+    it('should not set the flag without the master enable', async () => {
       dma.wr32(DICR, EN6);
       runOtc(OTC);
-      expect(dma.rd32(DICR) >>> 0).to.eql((FLAG6 | EN6) >>> 0);
+      expect(dma.rd32(DICR) >>> 0).to.eql(EN6);
       expect(cpu.istat).to.eql(0);
-    });
-
-    it('should raise IRQ3 when the master enable is set after completion', async () => {
-      dma.wr32(DICR, EN6);
-      runOtc(OTC);
-      dma.wr32(DICR, MASTER | EN6);
-      expect(dma.rd32(DICR) >>> 31).to.eql(1);
-      expect(cpu.istat).to.eql(0x08);
     });
 
     it('should not set the flag for a channel that is not enabled', async () => {
@@ -195,28 +187,29 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
       expect(cpu.istat).to.eql(0);
     });
 
-    it('should clear b31 when the channel enable is turned off', async () => {
+    it('should keep b31 set when the channel enable is turned off', async () => {
       dma.wr32(DICR, MASTER | EN6);
       runOtc(OTC);
       dma.wr32(DICR, MASTER);
-      expect(dma.rd32(DICR) >>> 0).to.eql((FLAG6 | MASTER) >>> 0);
+      expect(dma.rd32(DICR) >>> 0).to.eql((0x80000000 | FLAG6 | MASTER) >>> 0);
     });
 
-    it('should acknowledge a flag with a byte store to 0x10f7', async () => {
-      dma.wr32(DICR, MASTER | EN6);
+    it('should acknowledge a flag with a byte store to 0x10f7, clearing the other lanes', async () => {
+      dma.wr32(DICR, MASTER | EN6 | 0x3f);
       runOtc(OTC);
       dma.wr08(0x10f7, 0x40);
-      expect(dma.rd32(DICR) >>> 0).to.eql(MASTER | EN6);
+      expect(dma.rd32(DICR) >>> 0).to.eql(0);
     });
 
-    it('should keep the enables on a halfword store to the low half', async () => {
+    it('should clear the enables on a halfword store to the low half', async () => {
       dma.wr32(DICR, MASTER | EN6);
       dma.wr16(0x10f4, 0x8000);
-      expect(dma.rd32(DICR) >>> 0).to.eql((0x80000000 | MASTER | EN6 | 0x8000) >>> 0);
+      expect(dma.rd32(DICR) >>> 0).to.eql((0x80000000 | 0x8000) >>> 0);
       expect(cpu.istat).to.eql(0x08);
     });
 
     it('should write the enables with a halfword store to 0x10f6', async () => {
+      dma.wr32(DICR, 0x3f);
       dma.wr16(0x10f6, 0x00c0);
       expect(dma.rd32(DICR) >>> 0).to.eql(MASTER | EN6);
     });
@@ -252,9 +245,18 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
       expect(dma.rd32(0x10f4) >>> 0).to.eql(0);
     });
 
-    it('should write the upper half of a channel register with a halfword store', async () => {
-      dma.wr16(MADR + 2, 0x0012);
-      expect(dma.rd32(MADR)).to.eql(0x00120000);
+    it('should clear the other lanes of MADR on a halfword store', async () => {
+      dma.wr32(MADR, 0x00123456);
+      dma.wr16(MADR + 2, 0x0078);
+      expect(dma.rd32(MADR)).to.eql(0x00780000);
+    });
+
+    it('should keep the other lanes of BCR on byte and halfword stores', async () => {
+      dma.wr32(BCR, 0x12345678);
+      dma.wr16(BCR + 2, 0xabcd);
+      expect(dma.rd32(BCR) >>> 0).to.eql(0xabcd5678);
+      dma.wr08(BCR + 1, 0xef);
+      expect(dma.rd32(BCR) >>> 0).to.eql(0xabcdef78);
     });
 
   });
