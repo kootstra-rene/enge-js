@@ -16,10 +16,10 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const [addEvent, setEvent, unsetEvent] = [psx.addEvent, psx.setEvent, psx.unsetEvent];
 
-  // Completion flags are gated when raised, then persist until acknowledged.
+  // b31 = b15 OR (b23 AND (b16-22 AND b24-30) != 0)
   const masterFlag = () => {
-    const flags = (dicr >> 24) & 0x7f;
-    return ((dicr & 0x8000) || ((dicr & 0x800000) && flags)) ? 1 : 0;
+    const pending = (dicr >> 16) & (dicr >> 24) & 0x7f;
+    return ((dicr & 0x8000) || ((dicr & 0x800000) && pending)) ? 1 : 0;
   }
 
   // IRQ3 is only raised on a 0->1 transition of b31
@@ -31,10 +31,12 @@ mdlr('enge:psx:dma', ({ include }) => {
     }
   }
 
+  // A completion flag is set only when its channel is enabled in b16-22; the
+  // master enable (b23) only gates b31, so it can be turned on afterwards.
   const completeIrq = channel => {
     const enable = 1 << (16 + channel);
 
-    if ((dicr & 0x800000) && (dicr & enable)) {
+    if (dicr & enable) {
       updateDicr(() => dicr |= enable << 8);
     }
   }
@@ -44,13 +46,12 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const rd32r10f4 = () => (dicr & 0x7fffffff) | (masterFlag() << 31);
 
-  const wr32r10f4 = data => {
-    // b0-5 and b15-23 r/w, b24-30 write 1 to acknowledge, b6-14 always 0
-    updateDicr(() => dicr = (dicr & (~((data & 0x7f000000) | 0x00ff803f))) | (data & 0x00ff803f));
-  };
-
-  const wr08r10f6 = data => {
-    wr32r10f4(((data & 0xff) << 16) | (dicr & 0x0000ffff));
+  // b0-5 and b15-23 r/w, b24-30 write 1 to acknowledge, b6-14 always 0.
+  // `lanes` selects the bytes a narrow store drives; the others are untouched.
+  const wr32r10f4 = (data, lanes = 0xffffffff) => {
+    const rw = 0x00ff803f & lanes;
+    const ack = data & 0x7f000000 & lanes;
+    updateDicr(() => dicr = (dicr & ~(ack | rw)) | (data & rw));
   };
 
   const wr32r1088 = ctrl => {
@@ -214,22 +215,29 @@ mdlr('enge:psx:dma', ({ include }) => {
       unsetEvent(self);
     },
 
-    rd08: addr => {
-      switch (addr & 0x3fff) {
-        case 0x10f6: return (dicr >> 16) & 0xff;
-        default: return dma.rd32(addr);
-      }
+    // Narrow accesses use the byte lanes of the aligned 32-bit register.
+    // Unmapped registers (channel 5, 0x10f8, 0x10fc) read as 0, writes are
+    // ignored.
+    rd08: addr => (dma.rd32(addr) >> ((addr & 3) << 3)) & 0xff,
+    rd16: addr => (dma.rd32(addr) >> ((addr & 2) << 3)) & 0xffff,
+    rd32: addr => {
+      const read = $rd32.get(addr & 0x3ffc);
+      return read ? read() : 0;
     },
-    rd16: addr => dma.rd32(addr),
-    rd32: addr => $rd32.get(addr & 0x3fff)(),
-    wr08: (addr, data) => {
-      switch (addr & 0x3fff) {
-        case 0x10f6: wr08r10f6(data); break;
-        default: return dma.wr32(addr, data);
-      }
+    wr08: (addr, data) => narrowWrite(addr, data & 0xff, 0xff << ((addr & 3) << 3), (addr & 3) << 3),
+    wr16: (addr, data) => narrowWrite(addr, data & 0xffff, 0xffff << ((addr & 2) << 3), (addr & 2) << 3),
+    wr32: (addr, data) => {
+      const write = $wr32.get(addr & 0x3ffc);
+      if (write) write(data);
     },
-    wr16: (addr, data) => dma.wr32(addr, data),
-    wr32: (addr, data) => $wr32.get(addr & 0x3fff)(data),
+  };
+
+  // DICR merges the lanes that are not written, so acknowledging a flag with
+  // a byte store does not change the enables. The other registers take the
+  // store as a 32-bit write with the remaining lanes zero.
+  const narrowWrite = (addr, data, lanes, shift) => {
+    if ((addr & 0x3ffc) === 0x10f4) return wr32r10f4(data << shift, lanes);
+    dma.wr32(addr, (data << shift) & lanes);
   };
 
   const $rd32 = new Map([

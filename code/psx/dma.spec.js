@@ -159,4 +159,104 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
 
   });
 
+  describe('DICR interrupt flags', () => {
+
+    const DICR = 0x10f4;
+    const EN6 = 1 << 22;   // channel 6 IRQ enable
+    const FLAG6 = 1 << 30; // channel 6 IRQ flag
+    const MASTER = 1 << 23;
+
+    it('should raise IRQ3 when a completed, enabled channel is unmasked', async () => {
+      dma.wr32(DICR, MASTER | EN6);
+      runOtc(OTC);
+      expect(dma.rd32(DICR) >>> 0).to.eql((0x80000000 | FLAG6 | MASTER | EN6) >>> 0);
+      expect(cpu.istat).to.eql(0x08);
+    });
+
+    it('should set the flag without the master enable, but not b31', async () => {
+      dma.wr32(DICR, EN6);
+      runOtc(OTC);
+      expect(dma.rd32(DICR) >>> 0).to.eql((FLAG6 | EN6) >>> 0);
+      expect(cpu.istat).to.eql(0);
+    });
+
+    it('should raise IRQ3 when the master enable is set after completion', async () => {
+      dma.wr32(DICR, EN6);
+      runOtc(OTC);
+      dma.wr32(DICR, MASTER | EN6);
+      expect(dma.rd32(DICR) >>> 31).to.eql(1);
+      expect(cpu.istat).to.eql(0x08);
+    });
+
+    it('should not set the flag for a channel that is not enabled', async () => {
+      dma.wr32(DICR, MASTER);
+      runOtc(OTC);
+      expect(dma.rd32(DICR) >>> 0).to.eql(MASTER);
+      expect(cpu.istat).to.eql(0);
+    });
+
+    it('should clear b31 when the channel enable is turned off', async () => {
+      dma.wr32(DICR, MASTER | EN6);
+      runOtc(OTC);
+      dma.wr32(DICR, MASTER);
+      expect(dma.rd32(DICR) >>> 0).to.eql((FLAG6 | MASTER) >>> 0);
+    });
+
+    it('should acknowledge a flag with a byte store to 0x10f7', async () => {
+      dma.wr32(DICR, MASTER | EN6);
+      runOtc(OTC);
+      dma.wr08(0x10f7, 0x40);
+      expect(dma.rd32(DICR) >>> 0).to.eql(MASTER | EN6);
+    });
+
+    it('should keep the enables on a halfword store to the low half', async () => {
+      dma.wr32(DICR, MASTER | EN6);
+      dma.wr16(0x10f4, 0x8000);
+      expect(dma.rd32(DICR) >>> 0).to.eql((0x80000000 | MASTER | EN6 | 0x8000) >>> 0);
+      expect(cpu.istat).to.eql(0x08);
+    });
+
+    it('should write the enables with a halfword store to 0x10f6', async () => {
+      dma.wr16(0x10f6, 0x00c0);
+      expect(dma.rd32(DICR) >>> 0).to.eql(MASTER | EN6);
+    });
+
+  });
+
+  describe('register access', () => {
+
+    it('should read DICR in byte and halfword lanes', async () => {
+      dma.wr32(0x10f4, 0x00c0803f);
+      expect(dma.rd08(0x10f4)).to.eql(0x3f);
+      expect(dma.rd08(0x10f5)).to.eql(0x80);
+      expect(dma.rd08(0x10f6)).to.eql(0xc0);
+      expect(dma.rd08(0x10f7)).to.eql(0x80); // b31: forced by b15
+      expect(dma.rd16(0x10f6)).to.eql(0x80c0);
+      expect(dma.rd16(0x10f4)).to.eql(0x803f);
+    });
+
+    it('should read unmapped registers as zero', async () => {
+      for (const reg of [0x10d0, 0x10d4, 0x10d8, 0x10f8, 0x10fc]) {
+        expect(dma.rd32(reg)).to.eql(0);
+        expect(dma.rd16(reg + 2)).to.eql(0);
+        expect(dma.rd08(reg + 3)).to.eql(0);
+      }
+    });
+
+    it('should ignore writes to unmapped registers', async () => {
+      for (const reg of [0x10d0, 0x10d4, 0x10d8, 0x10f8, 0x10fc]) {
+        dma.wr32(reg, 0xffffffff);
+        dma.wr16(reg + 2, 0xffff);
+        dma.wr08(reg + 1, 0xff);
+      }
+      expect(dma.rd32(0x10f4) >>> 0).to.eql(0);
+    });
+
+    it('should write the upper half of a channel register with a halfword store', async () => {
+      dma.wr16(MADR + 2, 0x0012);
+      expect(dma.rd32(MADR)).to.eql(0x00120000);
+    });
+
+  });
+
 })
