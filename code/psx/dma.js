@@ -27,7 +27,7 @@ mdlr('enge:psx:dma', ({ include }) => {
     const before = masterFlag();
     update();
     if (!before && masterFlag()) {
-      cpu.istat |= 0x0008;
+      cpu.raiseIrq(0x0008);
     }
   }
 
@@ -47,10 +47,6 @@ mdlr('enge:psx:dma', ({ include }) => {
   const wr32r10f4 = data => {
     // b0-5 and b15-23 r/w, b24-30 write 1 to acknowledge, b6-14 always 0
     updateDicr(() => dicr = (dicr & (~((data & 0x7f000000) | 0x00ff803f))) | (data & 0x00ff803f));
-  };
-
-  const wr08r10f6 = data => {
-    wr32r10f4(((data & 0xff) << 16) | (dicr & 0x0000ffff));
   };
 
   const wr32r1088 = ctrl => {
@@ -214,22 +210,34 @@ mdlr('enge:psx:dma', ({ include }) => {
       unsetEvent(self);
     },
 
-    rd08: addr => {
-      switch (addr & 0x3fff) {
-        case 0x10f6: return (dicr >> 16) & 0xff;
-        default: return dma.rd32(addr);
-      }
+    // Narrow accesses use the byte lanes of the aligned 32-bit register.
+    // Unmapped registers (channel 5, 0x10f8, 0x10fc) read as 0, writes are
+    // ignored.
+    rd08: addr => (dma.rd32(addr) >> ((addr & 3) << 3)) & 0xff,
+    rd16: addr => (dma.rd32(addr) >> ((addr & 2) << 3)) & 0xffff,
+    rd32: addr => {
+      const read = $rd32.get(addr & 0x3ffc);
+      return read ? read() : 0;
     },
-    rd16: addr => dma.rd32(addr),
-    rd32: addr => $rd32.get(addr & 0x3fff)(),
-    wr08: (addr, data) => {
-      switch (addr & 0x3fff) {
-        case 0x10f6: wr08r10f6(data); break;
-        default: return dma.wr32(addr, data);
-      }
+    wr08: (addr, data) => narrowWrite(addr, data & 0xff, 0xff << ((addr & 3) << 3), (addr & 3) << 3),
+    wr16: (addr, data) => narrowWrite(addr, data & 0xffff, 0xffff << ((addr & 2) << 3), (addr & 2) << 3),
+    wr32: (addr, data) => {
+      const write = $wr32.get(addr & 0x3ffc);
+      if (write) write(data);
     },
-    wr16: (addr, data) => dma.wr32(addr, data),
-    wr32: (addr, data) => $wr32.get(addr & 0x3fff)(data),
+  };
+
+  // A narrow store is a 32-bit write with the other lanes zero. Block control
+  // (channel BCR) is the only register that honours the byte enables and keeps
+  // the lanes that are not written (as in DuckStation). For DICR this means a
+  // byte store that acknowledges a flag also clears the enables.
+  const narrowWrite = (addr, data, lanes, shift) => {
+    const reg = addr & 0x3ffc;
+    let value = (data << shift) & lanes;
+    if ((reg & 0x0c) === 0x04 && reg < 0x10f0) {
+      value = (dma.rd32(reg) & ~lanes) | value;
+    }
+    dma.wr32(reg, value);
   };
 
   const $rd32 = new Map([

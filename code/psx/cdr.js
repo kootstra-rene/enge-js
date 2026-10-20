@@ -165,11 +165,16 @@ mdlr('enge:psx:cdr', () => {
 
   const getCdVolume = (data) => ((data & 0xff) >>> 0) / 0x80;
 
+  // The CD-ROM IRQ line is (flags & enable). I_STAT bit 2 is only set when
+  // that goes from zero to non-zero, including when the enable register
+  // unmasks a flag that is already pending.
+  const updateIrqLine = () => {
+    cpu.setIrqLine(0x0004, (irq & irqEnable & 0x1F) !== 0);
+  };
+
   const setIrq = (data) => {
     irq = (irq & 0xE0) | (data & 0x1F);
-    if (irq & (0x1F & irqEnable)) {
-      cpu.istat |= 0x0004;
-    }
+    updateIrqLine();
     if (cdDebug && (data & 0x1F)) {
       cdLog('interrupt asserted', {
         requested: data & 0x1F,
@@ -183,6 +188,7 @@ mdlr('enge:psx:cdr', () => {
   const acknowledgeInterrupt = (data) => {
     const before = irq;
     irq &= ~(data & 0x1F);
+    updateIrqLine();
     if (cdDebug && (data & 0x1F)) {
       cdLog('interrupt acknowledged', {
         requested: data & 0x1F,
@@ -1041,6 +1047,7 @@ mdlr('enge:psx:cdr', () => {
     results.length = 0;
     params.length = 0;
     currTrack = {};
+    updateIrqLine();
     cpu.istat &= ~0x0004;
   };
 
@@ -1120,6 +1127,7 @@ mdlr('enge:psx:cdr', () => {
             break;
           case 1:
             irqEnable = data;
+            updateIrqLine();
             if (cdDebug) cdLog('interrupt register select/write', { irqEnable, irq });
             break;
           case 2:

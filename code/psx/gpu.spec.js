@@ -47,7 +47,7 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
 
   beforeEach(async () => {
     globalThis.psx = { clock: 0, addEvent: () => ({}), setEvent: () => {}, unsetEvent: () => {}, updateEvent: () => {} };
-    globalThis.cpu = { istat: 0 };
+    globalThis.cpu = { istat: 0, raiseIrq(mask) { this.istat |= mask; } };
     globalThis.ram = new DataView(new ArrayBuffer(2 * 1024 * 1024));
     ({ gpu } = include('enge:psx:gpu'));
     globalThis.gpu = gpu;

@@ -3,26 +3,39 @@ mdlr('[test]enge:psx:cpu', ({ include, test }) => {
 
   const { describe, it, expect, beforeEach, before, after } = test;
 
-  const savedVector = globalThis.vector;
-  const savedPsx = globalThis.psx;
+  const globalNames = ['vector', 'psx', 'map', 'gte'];
+  const savedGlobals = {};
   const vector = { pc: 0x80000080 };
+
+  // Records the GTE commands executed; every command takes 8 cycles.
+  const gteCommands = [];
+  const gte = {
+    cycles: () => 8,
+    command: (command) => gteCommands.push(command),
+  };
 
   let cpu, cpuException, cpuInterrupt;
 
   before(async () => {
+    for (const name of globalNames) savedGlobals[name] = globalThis[name];
     globalThis.vector = vector;
     globalThis.psx = { clock: 0, eventClock: 0 };
+    globalThis.map = new Int32Array(0x4000);
+    globalThis.gte = gte;
   });
 
   after(async () => {
-    if (savedVector === undefined) delete globalThis.vector;
-    else globalThis.vector = savedVector;
-    if (savedPsx === undefined) delete globalThis.psx;
-    else globalThis.psx = savedPsx;
+    for (const name of globalNames) {
+      if (savedGlobals[name] === undefined) delete globalThis[name];
+      else globalThis[name] = savedGlobals[name];
+    }
   });
 
   beforeEach(async () => {
     ({ cpu, cpuException, cpuInterrupt } = include('enge:psx:cpu'));
+    map.fill(0);
+    gteCommands.length = 0;
+    psx.clock = 0;
   });
 
   describe('edge triggered I_STAT', () => {
@@ -120,6 +133,77 @@ mdlr('[test]enge:psx:cpu', ({ include, test }) => {
     it('should not request a check for other COP0 registers', async () => {
       cpu.setCtrl(7, 0);
       expect(psx.eventClock).to.eql(10000);
+    });
+
+    it('should request a check when a device raises an IRQ', async () => {
+      cpu.raiseIrq(0x08);
+      expect(cpu.istat).to.eql(0x08);
+      expect(psx.eventClock).to.eql(0);
+    });
+
+    it('should request a check on the rising edge of an IRQ line', async () => {
+      cpu.setIrqLine(0x80, true);
+      expect(psx.eventClock).to.eql(0);
+    });
+
+  });
+
+  describe('software interrupts', () => {
+
+    it('should be taken with excode 0 and keep IP0/IP1 in CAUSE', async () => {
+      cpu.sr = 0x101;
+      cpu.setCtrl(13, 0x100);
+      expect(cpuInterrupt({ pc: 0x1000 })).to.eql(vector);
+      expect(cpu.getCtrl(13) & 0x37c).to.eql(0x100);
+      expect(cpu.epc).to.eql(0x1000);
+    });
+
+    it('should not be taken while masked in SR', async () => {
+      cpu.sr = 0x201;
+      cpu.setCtrl(13, 0x100);
+      const entry = { pc: 0x1000 };
+      expect(cpuInterrupt(entry)).to.eql(entry);
+    });
+
+  });
+
+  describe('interrupt on a GTE command', () => {
+
+    const RTPS = 0x4a180001;
+    const NCLIP = 0x4b400006;
+    const MTC2 = 0x48800000; // COP2 but not a command
+
+    beforeEach(async () => {
+      cpu.sr = 0x401;
+      cpu.istat = 0x01;
+      cpu.imask = 0x01;
+    });
+
+    it('should execute the GTE command before taking the interrupt', async () => {
+      map[0x1000 >>> 2] = RTPS;
+      expect(cpuInterrupt({ pc: 0x1000 })).to.eql(vector);
+      expect(gteCommands).to.eql([RTPS & 0x1ffffff]);
+      expect(cpu.epc).to.eql(0x1000); // the BIOS handler skips it on return
+      expect(psx.clock).to.eql(8);
+    });
+
+    it('should recognise both COP2 command opcodes (0x4a and 0x4b)', async () => {
+      map[0x1000 >>> 2] = NCLIP;
+      cpuInterrupt({ pc: 0x1000 });
+      expect(gteCommands).to.eql([NCLIP & 0x1ffffff]);
+    });
+
+    it('should not execute other COP2 instructions', async () => {
+      map[0x1000 >>> 2] = MTC2;
+      cpuInterrupt({ pc: 0x1000 });
+      expect(gteCommands).to.eql([]);
+    });
+
+    it('should not execute the GTE command when no interrupt is taken', async () => {
+      cpu.imask = 0;
+      map[0x1000 >>> 2] = RTPS;
+      cpuInterrupt({ pc: 0x1000 });
+      expect(gteCommands).to.eql([]);
     });
 
   });

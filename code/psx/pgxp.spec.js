@@ -62,7 +62,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     globalThis.nextPrimitive = () => {}; // provided by the renderer
     globalThis.psx = { clock: 0, addEvent: () => ({}), setEvent: () => {} };
     globalThis.context = { counter: 0 };
-    globalThis.cpu = { gpr: new Int32Array(32), dr: 0, dv: 0, istat: 0 };
+    globalThis.cpu = { gpr: new Int32Array(32), dr: 0, dv: 0, istat: 0, raiseIrq(mask) { this.istat |= mask; } };
     // RAM + scratchpad laid out like mmu.js: masked address / 4
     globalThis.map = new Int32Array(0x02000000 >> 2);
     globalThis.ram = new DataView(map.buffer, 0, 2 * 1024 * 1024);

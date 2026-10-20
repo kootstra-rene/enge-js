@@ -66,6 +66,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
 
   let psx;
   let cdr;
+  let cpu;
 
   const pendingInterrupt = () => {
     cdr.wr08r1800(1);
@@ -129,7 +130,9 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
 
   beforeEach(async () => {
     psx = globalThis.psx = createScheduler();
-    globalThis.cpu = { istat: 0 };
+    // The real CPU module, so the CD-ROM IRQ goes through its edge-triggered line.
+    ({ cpu } = include('enge:psx:cpu'));
+    globalThis.cpu = cpu;
     ({ cdr } = include('enge:psx:cdr'));
     insert(createDisc(0xA1));
   });
@@ -247,6 +250,60 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
       cdr.openShell();
       psx.run(2000);
       expect(cdr.shellOpen).to.be.true;
+    });
+
+  });
+
+  describe('IRQ line (flags & enable)', () => {
+
+    const writeEnable = (value) => {
+      cdr.wr08r1800(1);
+      cdr.wr08r1802(value);
+      cdr.wr08r1800(0);
+    };
+
+    // Issues GetStat and runs until its INT3 is pending, without acknowledging it.
+    const pendingGetStat = () => {
+      cdr.wr08r1800(0);
+      cdr.wr08r1801(0x01);
+      for (let spent = 0; !pendingInterrupt() && spent < 2 * PSX_SPEED; spent += 0x1000) psx.run(0x1000);
+      expect(pendingInterrupt()).to.eql(3);
+    };
+
+    it('should raise I_STAT when a response arrives while enabled', async () => {
+      cpu.istat = 0;
+      pendingGetStat();
+      expect(cpu.istat & 0x04).to.eql(0x04);
+    });
+
+    it('should not raise I_STAT while the flag is masked', async () => {
+      writeEnable(0x00);
+      cpu.istat = 0;
+      pendingGetStat();
+      expect(cpu.istat & 0x04).to.eql(0);
+    });
+
+    it('should raise I_STAT when the enable register unmasks a pending flag', async () => {
+      writeEnable(0x00);
+      cpu.istat = 0;
+      pendingGetStat();
+      writeEnable(0x1F);
+      expect(cpu.istat & 0x04).to.eql(0x04);
+    });
+
+    it('should not raise I_STAT again while the line stays active', async () => {
+      cpu.istat = 0;
+      pendingGetStat();
+      cpu.istat = 0; // acknowledge I_STAT only
+      writeEnable(0x1F);
+      expect(cpu.istat & 0x04).to.eql(0);
+    });
+
+    it('should raise I_STAT for the next response once the flag is acknowledged', async () => {
+      send(0x01);
+      cpu.istat = 0;
+      send(0x01);
+      expect(cpu.istat & 0x04).to.eql(0x04);
     });
 
   });
