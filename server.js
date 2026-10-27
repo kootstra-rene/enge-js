@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 
 // eNGE LAN server: emulator files, game files, and cloud saves on one port.
-// This intentionally uses only Node's standard library so the server does not
-// add a second language/runtime dependency to the JavaScript project.
+// The server uses Node's standard library, including crypto for HTTPS
+// certificate generation.
 
 const fs = require('node:fs');
 const fsp = fs.promises;
 const http = require('node:http');
+const https = require('node:https');
 const os = require('node:os');
 const path = require('node:path');
 const { URL } = require('node:url');
+const { createSelfSignedCertificate } = require('./tools/self-signed-cert');
 
 const MAX_STATE_BYTES = 32 * 1024 * 1024;
 const MEMORY_CARD_BYTES = 128 * 1024;
@@ -20,22 +22,41 @@ function parseArgs(argv) {
     docs: 'docs',
     games: 'games',
     cloud: 'cloud-data',
+    https: true,
+    tlsKey: null,
+    tlsCert: null,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    const match = argument.match(/^--(port|docs|games|cloud)=(.*)$/);
-    if (match) {
-      options[match[1]] = match[1] === 'port' ? Number(match[2]) : match[2];
+    if (argument === '--https') {
+      options.https = true;
       continue;
     }
-    if (argument === '--port' || argument === '--docs' || argument === '--games' || argument === '--cloud') {
-      const name = argument.slice(2);
+    if (argument === '--http') {
+      options.https = false;
+      continue;
+    }
+    const match = argument.match(/^--(port|docs|games|cloud|tls-key|tls-cert)=(.*)$/);
+    if (match) {
+      const name = match[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      options[name] = name === 'port' ? Number(match[2]) : match[2];
+      continue;
+    }
+    if (['--port', '--docs', '--games', '--cloud', '--tls-key', '--tls-cert'].includes(argument)) {
+      const name = argument.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
       const value = argv[++index];
       options[name] = name === 'port' ? Number(value) : value;
     }
   }
   if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535) {
     throw new Error(`Invalid port: ${options.port}`);
+  }
+  if (Boolean(options.tlsKey) !== Boolean(options.tlsCert)) {
+    throw new Error('HTTPS requires both --tls-key and --tls-cert');
+  }
+  if (options.https && !options.tlsKey) {
+    options.tlsKey = path.join('.enge-certs', 'server-key.pem');
+    options.tlsCert = path.join('.enge-certs', 'server-cert.pem');
   }
   return options;
 }
@@ -300,13 +321,51 @@ function localAddress() {
   return '127.0.0.1';
 }
 
+async function ensureTlsCertificate(keyFile, certFile) {
+  if (fs.existsSync(keyFile) && fs.existsSync(certFile)) return;
+
+  const addresses = [...new Set(Object.values(os.networkInterfaces())
+    .flatMap(interfaces => interfaces || [])
+    .filter(address => address.family === 'IPv4' && !address.internal)
+    .map(address => address.address))];
+  const pems = createSelfSignedCertificate(addresses);
+
+  const resolvedKeyFile = path.resolve(keyFile);
+  const resolvedCertFile = path.resolve(certFile);
+  await Promise.all([
+    fsp.mkdir(path.dirname(resolvedKeyFile), { recursive: true }),
+    fsp.mkdir(path.dirname(resolvedCertFile), { recursive: true }),
+  ]);
+  const suffix = `.tmp-${process.pid}`;
+  const tempKeyFile = `${resolvedKeyFile}${suffix}`;
+  const tempCertFile = `${resolvedCertFile}${suffix}`;
+  await Promise.all([
+    fsp.writeFile(tempKeyFile, pems.privateKey, { mode: 0o600 }),
+    fsp.writeFile(tempCertFile, pems.certificate),
+  ]);
+  try {
+    await fsp.rename(tempKeyFile, resolvedKeyFile);
+    await fsp.rename(tempCertFile, resolvedCertFile);
+  } catch (error) {
+    await Promise.allSettled([
+      fsp.unlink(resolvedKeyFile),
+      fsp.unlink(resolvedCertFile),
+      fsp.unlink(tempKeyFile),
+      fsp.unlink(tempCertFile),
+    ]);
+    throw error;
+  }
+  console.log(`generated self-signed HTTPS certificate at ${certFile}`);
+}
+
 function createServer(options) {
   const docsRoot = path.resolve(options.docs);
   const gamesRoot = path.resolve(options.games);
   const cloudRoot = path.resolve(options.cloud);
-  return http.createServer(async (request, response) => {
+  const handler = async (request, response) => {
     cors(response);
-    const requestUrl = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+    const protocol = options.https ? 'https' : 'http';
+    const requestUrl = new URL(request.url, `${protocol}://${request.headers.host || 'localhost'}`);
     console.log(`${request.socket.remoteAddress} ${request.method} ${requestUrl.pathname} Range=${request.headers.range || '-'}`);
     try {
       if (request.method === 'OPTIONS') return response.writeHead(204).end();
@@ -328,18 +387,25 @@ function createServer(options) {
       console.error(error);
       sendText(response, error.statusCode || 500, error.message || 'Internal server error');
     }
-  });
+  };
+  if (!options.https) return http.createServer(handler);
+  return https.createServer({
+    key: fs.readFileSync(path.resolve(options.tlsKey)),
+    cert: fs.readFileSync(path.resolve(options.tlsCert)),
+  }, handler);
 }
 
 async function start(options) {
   await ensureGamesCatalog(path.resolve(options.games));
   await ensureBiosCatalog(path.resolve(options.games));
+  if (options.https) await ensureTlsCertificate(options.tlsKey, options.tlsCert);
   const server = createServer(options);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(options.port, '0.0.0.0', resolve);
   });
-  console.log(`eNGE server listening on http://${localAddress()}:${options.port}`);
+  const protocol = options.https ? 'https' : 'http';
+  console.log(`eNGE server listening on ${protocol}://${localAddress()}:${options.port}`);
   console.log(`docs=${path.resolve(options.docs)} games=${path.resolve(options.games)} cloud=${path.resolve(options.cloud)}`);
   return server;
 }

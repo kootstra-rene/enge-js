@@ -12,6 +12,8 @@ mdlr('enge:psx:spu', ({ include }) => {
   const SAMPLE_RATE = 44100;
   const CHUNK_FRAMES = 512;                           // ~11.6 ms per message
   const MAX_PENDING_CHUNKS = (SAMPLE_RATE * 0.25 / CHUNK_FRAMES) >> 0;
+  const FALLBACK_BUFFER_FRAMES = 1024;
+  const FALLBACK_PREBUFFER_FRAMES = (SAMPLE_RATE * 0.05) >> 0;
 
   const memory = new Uint8Array(512 * 1024);
   const voices = new Array(24);
@@ -21,6 +23,84 @@ mdlr('enge:psx:spu', ({ include }) => {
 
   let outputPort = null;
   let pendingChunks = [];
+  let fallbackQueue = [];
+  let fallbackOffset = 0;
+  let fallbackQueuedFrames = 0;
+  let fallbackPlaying = false;
+  let fallbackFrac = 0;
+  let fallbackCurL = 0;
+  let fallbackCurR = 0;
+  let fallbackNextL = 0;
+  let fallbackNextR = 0;
+  let fallbackNode = null;
+
+  const queueFallbackChunk = message => {
+    fallbackQueue.push(message);
+    fallbackQueuedFrames += message.left.length;
+    while (fallbackQueuedFrames > MAX_PENDING_CHUNKS * CHUNK_FRAMES && fallbackQueue.length > 1) {
+      const dropped = fallbackQueue.shift();
+      fallbackQueuedFrames -= dropped.left.length - fallbackOffset;
+      fallbackOffset = 0;
+    }
+  };
+
+  const pullFallbackSample = () => {
+    const chunk = fallbackQueue[0];
+    fallbackNextL = chunk.left[fallbackOffset];
+    fallbackNextR = chunk.right[fallbackOffset];
+    if (++fallbackOffset === chunk.left.length) {
+      fallbackQueue.shift();
+      fallbackOffset = 0;
+    }
+    --fallbackQueuedFrames;
+  };
+
+  const startScriptProcessor = (context, gainNode) => {
+    if (typeof context.createScriptProcessor !== 'function') {
+      throw new Error('AudioWorklet is unavailable and ScriptProcessorNode is not supported');
+    }
+    fallbackNode = context.createScriptProcessor(FALLBACK_BUFFER_FRAMES, 0, 2);
+    fallbackNode.onaudioprocess = event => {
+      const output = event.outputBuffer;
+      const outL = output.getChannelData(0);
+      const outR = output.numberOfChannels > 1 ? output.getChannelData(1) : outL;
+      const step = SAMPLE_RATE / context.sampleRate;
+      outL.fill(0);
+      if (outR !== outL) outR.fill(0);
+
+      if (!fallbackPlaying) {
+        if (fallbackQueuedFrames < FALLBACK_PREBUFFER_FRAMES) return;
+        fallbackPlaying = true;
+        fallbackFrac = 0;
+        pullFallbackSample();
+        fallbackCurL = fallbackNextL;
+        fallbackCurR = fallbackNextR;
+        pullFallbackSample();
+      }
+
+      for (let i = 0; i < outL.length; ++i) {
+        const fraction = fallbackFrac;
+        outL[i] = fallbackCurL + (fallbackNextL - fallbackCurL) * fraction;
+        outR[i] = fallbackCurR + (fallbackNextR - fallbackCurR) * fraction;
+        fallbackFrac += step;
+        while (fallbackFrac >= 1) {
+          fallbackFrac -= 1;
+          fallbackCurL = fallbackNextL;
+          fallbackCurR = fallbackNextR;
+          if (fallbackQueuedFrames === 0) {
+            fallbackPlaying = false;
+            fallbackFrac = 0;
+            fallbackCurL = fallbackCurR = fallbackNextL = fallbackNextR = 0;
+            return;
+          }
+          pullFallbackSample();
+        }
+      }
+    };
+    fallbackNode.connect(gainNode);
+    for (const message of pendingChunks) queueFallbackChunk(message);
+    pendingChunks = [];
+  };
 
   const newChunk = () => {
     left = new Float32Array(CHUNK_FRAMES);
@@ -32,6 +112,8 @@ mdlr('enge:psx:spu', ({ include }) => {
     const message = { left, right };
     if (outputPort) {
       outputPort.postMessage(message, [left.buffer, right.buffer]);
+    } else if (fallbackNode) {
+      queueFallbackChunk(message);
     } else {
       pendingChunks.push(message);
       if (pendingChunks.length > MAX_PENDING_CHUNKS) pendingChunks.shift();
@@ -64,22 +146,35 @@ mdlr('enge:psx:spu', ({ include }) => {
       window.addEventListener(type, resume, { capture: true });
     }
 
-    context.audioWorklet.addModule(worklet.url()).then(() => {
-      const node = new AudioWorkletNode(context, worklet.name, {
-        numberOfInputs: 0,
-        numberOfOutputs: 1,
-        outputChannelCount: [2],
-        processorOptions: { inputRate: SAMPLE_RATE }
+    if (context.audioWorklet && typeof context.audioWorklet.addModule === 'function') {
+      context.audioWorklet.addModule(worklet.url()).then(() => {
+        const node = new AudioWorkletNode(context, worklet.name, {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+          processorOptions: { inputRate: SAMPLE_RATE }
+        });
+        node.connect(gainNode);
+        outputPort = node.port;
+        for (const message of pendingChunks) {
+          outputPort.postMessage(message, [message.left.buffer, message.right.buffer]);
+        }
+        pendingChunks = [];
+      }).catch(error => {
+        console.warn('spu: unable to start audio worklet; using ScriptProcessorNode fallback', error);
+        try {
+          startScriptProcessor(context, gainNode);
+        } catch (fallbackError) {
+          console.error('spu: unable to start ScriptProcessorNode fallback', fallbackError);
+        }
       });
-      node.connect(gainNode);
-      outputPort = node.port;
-      for (const message of pendingChunks) {
-        outputPort.postMessage(message, [message.left.buffer, message.right.buffer]);
+    } else {
+      try {
+        startScriptProcessor(context, gainNode);
+      } catch (error) {
+        console.error('spu: audio output is unavailable', error);
       }
-      pendingChunks = [];
-    }).catch(error => {
-      console.error('spu: unable to start audio worklet', error);
-    });
+    }
   }
 
 
@@ -187,6 +282,12 @@ mdlr('enge:psx:spu', ({ include }) => {
       if (left && right) {
         writeIndex = 0;
         pendingChunks = [];
+        fallbackQueue = [];
+        fallbackOffset = 0;
+        fallbackQueuedFrames = 0;
+        fallbackPlaying = false;
+        fallbackFrac = 0;
+        fallbackCurL = fallbackCurR = fallbackNextL = fallbackNextR = 0;
         outputPort?.postMessage({ clear: true });
       }
     },

@@ -1,2 +1,4 @@
 **/.DS_Store
 **/PsyQ*
+.enge-certs/
+node_modules/
