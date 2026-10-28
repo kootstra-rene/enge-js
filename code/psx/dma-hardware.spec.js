@@ -1,6 +1,6 @@
 mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
 
-  const { describe, it, xit, expect, beforeEach, after } = test;
+  const { describe, it, expect, beforeEach, after } = test;
 
   // Ported from the nugget DMA tests (https://github.com/pcsx-redux/nugget,
   // tests/dma, MIT), which check the DMA controller on real hardware: GPU
@@ -80,9 +80,7 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
   describe('GPU DMA, block mode', () => {
 
     // One word, E1 = 555h, block mode: finishes, DICR flag set, BCR counted.
-    // Block-mode GPU DMA (CHCR 01000201h) only feeds a VRAM transfer in
-    // progress: the E1 command never reaches GP0 and GPUSTAT stays 0.
-    const normal = (name, madr) => xit(name, async () => {
+    const normal = (name, madr) => it(name, async () => {
       startGpuDma({ words: [0xe1000555], madr, bcr: 0x00010001, chcr: 0x01000201 });
       const r = finishGpuDma(128);
       expect(asHex(r)).to.eql(asHex({
@@ -96,7 +94,7 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
     normal('normal_dma_with_3_upper_bits', addr => (addr | 0xe0000000) >>> 0);
     normal('normal_dma_with_8_upper_bits', addr => (addr | 0xff000000) >>> 0);
 
-    xit('normal_dma_odd_address', async () => {
+    it('normal_dma_odd_address', async () => {
       startGpuDma({ words: [0xe1000555], madr: addr => addr | 3, bcr: 0x00010001, chcr: 0x01000201 });
       const r = finishGpuDma(128);
       expect(asHex(r)).to.eql(asHex({
@@ -108,9 +106,8 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
 
     // DICR master enable, channel enable and force bits gate the IRQ: the
     // flag stays set, but a DMA IRQ is only signalled while the flag is set
-    // and an edge of the master flag (bit 31) happens. Fails on GPUSTAT, as
-    // normal_dma.
-    xit('normal_dma_dicr_toggle', async () => {
+    // and an edge of the master flag (bit 31) happens.
+    it('normal_dma_dicr_toggle', async () => {
       startGpuDma({ words: [0xe1000555], bcr: 0x00010001, chcr: 0x01000201 });
       const r = finishGpuDma(128);
       expect(asHex(r)).to.eql(asHex({
@@ -130,10 +127,9 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
       step(0x00800000, 32, 1, 0x84800000);
     });
 
-    // A transfer started with the channel disabled in DPCR stays pending on
-    // the hardware (CHCR busy, MADR/BCR untouched, no IRQ); here the busy bit
-    // is dropped and MADR, BCR and DICR change.
-    const disabled = (name, offset) => xit(name, async () => {
+    // A transfer started with the channel disabled in DPCR stays pending
+    // (CHCR busy, MADR/BCR untouched, no IRQ).
+    const disabled = (name, offset) => it(name, async () => {
       startGpuDma({ dpcr: 0, words: [0xe1000555], madr: addr => addr | offset, bcr: 0x00010001, chcr: 0x01000201 });
       const r = finishGpuDma(32);
       expect(asHex(r)).to.eql(asHex({
@@ -164,9 +160,7 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
     });
 
     // The same with bits 0-1 set in the links: the controller ignores them.
-    // The linked-list walk (gpu.js dmaTransferMode0401) reads the headers at
-    // the unaligned addresses and never finds the end: the emulator hangs.
-    xit('linked_dma_3_oddlinks', async () => {
+    it('linked_dma_3_oddlinks', async () => {
       const words = [node(1, BUF + 8) | 3, 0, node(1, BUF + 16) | 3, 0, 0x01ffffff, 0xe1000555];
       startGpuDma({ words, bcr: 0x12345678, chcr: 0x01000401 });
       const r = finishGpuDma(128);
@@ -188,9 +182,8 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
     });
 
     // Any address with bit 23 set ends the list, MADR keeps it and DICR bit
-    // 15 (bus error) is set as well. Here MADR always ends at 00FFFFFFh and
-    // bit 15 stays clear.
-    const terminator = (name, word, madr) => xit(name, async () => {
+    // 15 (bus error) is set as well.
+    const terminator = (name, word, madr) => it(name, async () => {
       startGpuDma({ words: [word, 0xe1000555], bcr: 0x12345678, chcr: 0x01000401 });
       const r = finishGpuDma(128);
       expect(asHex(r)).to.eql(asHex({
@@ -210,7 +203,7 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
     terminator('linked_dma_800001_terminator', 0x01800001, 0x00800001);
 
     // MADR and DICR bit 15 as for the terminators above
-    xit('linked_dma_800000_terminator_dicr_toggle', async () => {
+    it('linked_dma_800000_terminator_dicr_toggle', async () => {
       startGpuDma({ words: [0x01800000, 0xe1000555], bcr: 0x12345678, chcr: 0x01000401 });
       const r = finishGpuDma(128);
       expect(asHex(r)).to.eql(asHex({
@@ -223,8 +216,7 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
     });
 
     // The node points at a word holding the terminator, with bits 0-1 set.
-    // The unaligned link makes the emulator hang, as linked_dma_3_oddlinks.
-    xit('linked_dma_odd_terminator', async () => {
+    it('linked_dma_odd_terminator', async () => {
       const terminatorAt = BUF + 8;
       startGpuDma({ words: [((terminatorAt & 0xffffff) | 0x01000001) >>> 0, 0xe1000555, 0x00ffffff], bcr: 0x12345678, chcr: 0x01000401 });
       const r = finishGpuDma(128);
@@ -276,8 +268,8 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
 
     const pick = (r, keys) => Object.fromEntries(keys.map(k => [k, typeof r[k] === 'number' && k !== 'timeout' && k !== 'good' ? hex(r[k]) : r[k]]));
 
-    // with the channel disabled the start bit (24) is not kept
-    xit('otc_chcr_readback', async () => {
+    // with the channel disabled the start bit (24) is kept
+    it('otc_chcr_readback', async () => {
       w32(DPCR, 0);
       w32(CHCR(DMA_GPUOTC), 0xffffffff);
       const ones = r32(CHCR(DMA_GPUOTC));
@@ -290,8 +282,8 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
 
     // Started transfers: the table is written from s_otcBuf[8] down, each
     // entry pointing at the one before, the last one FFFFFFh; MADR keeps the
-    // start address. Here MADR ends at 00FFFFFFh.
-    const started = (name, chcrWrite, chcr) => xit(name, async () => {
+    // start address.
+    const started = (name, chcrWrite, chcr) => it(name, async () => {
       const r = otcRun(0x08000000, chcrWrite, 0x08000000);
       const keys = ['timeout', 'chcr', 'madr', 'bcr', 'dicr', 'good', 'term', 'guardLo', 'guardHi'];
       expect(pick(r, keys)).to.eql(pick({
@@ -312,17 +304,16 @@ mdlr('[test]enge:psx:dma-hardware', ({ include, test }) => {
       expect(pick(r, keys)).to.eql(pick({ timeout, chcr, bcr: 8, dicr: 0x00c00000, good: 0, term: 0xdeadbeef }, keys));
     });
 
-    // without the trigger bit (28) the transfer runs anyway
-    idle('otc_start_41000002', 0x08000000, 0x41000002, 1, 0x41000002, xit);
-    idle('otc_start_01000002', 0x08000000, 0x01000002, 1, 0x01000002, xit);
-    idle('otc_start_01000000', 0x08000000, 0x01000000, 1, 0x01000002, xit);
+    // without the trigger bit (28) the transfer does not run
+    idle('otc_start_41000002', 0x08000000, 0x41000002, 1, 0x41000002);
+    idle('otc_start_01000002', 0x08000000, 0x01000002, 1, 0x01000002);
+    idle('otc_start_01000000', 0x08000000, 0x01000000, 1, 0x01000002);
     idle('otc_start_10000002', 0x08000000, 0x10000002, 0, 0x10000002);
-    // with the channel disabled the start bit is dropped instead of kept
-    idle('otc_start_disabled', 0x00000000, 0x11000002, 1, 0x11000002, xit);
+    // with the channel disabled the start bit is kept
+    idle('otc_start_disabled', 0x00000000, 0x11000002, 1, 0x11000002);
 
-    // Enabling the channel in DPCR starts a transfer already latched in CHCR;
-    // here the start bit is dropped while the channel is disabled.
-    xit('otc_start_disabled_then_enabled', async () => {
+    // Enabling the channel in DPCR starts a transfer already latched in CHCR.
+    it('otc_start_disabled_then_enabled', async () => {
       const r = otcRun(0x00000000, 0x11000002, 0x08000000);
       const keys = ['timeout', 'chcr', 'dicr', 'good', 'term'];
       expect(pick(r, keys)).to.eql(pick({ timeout: 0, chcr: 0x00000002, dicr: 0xc0c00000, good: 7, term: 0x00ffffff }, keys));

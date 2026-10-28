@@ -384,27 +384,24 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
       expect({ busy: term.chcr[VBLANKS] & 0x01000000, madr: hex(term.madr[VBLANKS] & 0xffffff) }).to.eql({ busy: 0, madr: hex(0x00ffffff) });
     });
 
-    // The looping lists hang the emulator: the linked-list walk (gpu.js
-    // dmaTransferMode0401) runs the whole list inside the CHCR write and
-    // never returns.
-    xit('loopStaysBusy', async () => {
+    it('loopStaysBusy', async () => {
       const loop0 = run(0, false), loop1 = run(1, false);
       for (let v = 0; v <= VBLANKS; ++v) {
         expect((loop0.chcr[v] & 0x01000000) !== 0 && (loop1.chcr[v] & 0x01000000) !== 0).to.be.true;
       }
     });
 
-    xit('loopKeepsWalking', async () => {
+    it('loopKeepsWalking', async () => {
       const loop0 = run(0, false), loop1 = run(1, false);
       expect(loop0.madrChanges > 0 && loop1.madrChanges > 0).to.be.true;
     });
 
-    xit('loopRaisesNoDmaError', async () => {
+    it('loopRaisesNoDmaError', async () => {
       const loop0 = run(0, false), loop1 = run(1, false);
       expect([loop0.dicr[VBLANKS] & 0x8000, loop1.dicr[VBLANKS] & 0x8000]).to.eql([0, 0]);
     });
 
-    xit('chcrWriteStopsTheLoop', async () => {
+    it('chcrWriteStopsTheLoop', async () => {
       const loop0 = run(0, false), loop1 = run(1, false);
       expect([loop0.chcrAfterStop & 0x01000000, loop1.chcrAfterStop & 0x01000000]).to.eql([0, 0]);
     });
@@ -601,10 +598,6 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
     //
     // The texture the quads sample, uploaded first on hardware, only changes
     // pixels and is left out.
-    //
-    // In enge the linked-list walk (gpu.js dmaTransferMode0401) runs inside
-    // the CHCR write and stops at the first packet it has already sent, so
-    // the channel is idle again at once and never laps the ring.
 
     const D2_MADR = 0x1f8010a0, D2_BCR = 0x1f8010a4, D2_CHCR = 0x1f8010a8, DPCR = 0x1f8010f0, DICR = 0x1f8010f4;
     const GPU_DATA = 0x1f801810, GPU_STATUS = 0x1f801814, IREG = 0x1f801070, IMASK = 0x1f801074;
@@ -695,15 +688,15 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
     };
     after(async () => { if (m) { w32(D2_CHCR, 0x00000401); w32(GPU_STATUS, 0); } });
 
-    xit('ringStaysBusy', async () => {
+    it('ringStaysBusy', async () => {
       for (const a of runs()) expect(a.chcr.every(c => (c & 0x01000000) !== 0)).to.be.true;
     });
 
-    xit('dmaLapsTheRing', async () => {
+    it('dmaLapsTheRing', async () => {
       for (const a of runs()) expect(a.laps.reduce((x, y) => x + y, 0) >= 1).to.be.true;
     });
 
-    xit('cpuKeepsProducing', async () => {
+    it('cpuKeepsProducing', async () => {
       for (const a of runs()) expect(Math.min(...a.written.slice(2)) > 0).to.be.true;
     });
 

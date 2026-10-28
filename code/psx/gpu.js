@@ -742,46 +742,36 @@ mdlr('enge:psx:gpu', ({ include }) => {
       return (blck >> 16) * (blck & 0xFFFF);
     },
 
+    // Block DMA to GP0: every word is a GP0 write, a command or the data of
+    // a VRAM transfer in progress, as the CPU would write it.
     dmaTransferMode0201: function (addr, blck) {
-      if (!(addr & 0x007fffff)) return 0x10;
-      if ((addr & ~3) === 0) {
-        return (blck >> 16) * (blck & 0xFFFF);
+      const total = (((blck >>> 16) || 0x10000) * ((blck & 0xffff) || 0x10000)) >>> 0;
+      addr &= 0x001ffffc;
+      for (let words = total; words > 0; --words) {
+        gpu.wr32r1810(ram.getInt32(addr, true));
+        addr = (addr + 4) & 0x001ffffc;
       }
-      var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
-      gpu.transferTotal -= transferSize;
-
-      const img = gpu.img;
-      while (--transferSize >= 0) {
-        const data = map16[(addr & 0x001fffff) >>> 1];
-        img.buffer[img.index++] = data;
-        addr += 2;
-      }
-
-      if (gpu.transferTotal <= 0) {
-        gpu.imgTransferComplete(gpu.img);
-        gpu.updated = true;
-      }
-
-      return (blck >> 16) * (blck & 0xFFFF);
+      gpu.updated = true;
+      return total;
     },
 
-    dmaTransferMode0401: function (addr, blck) {
-      if (!(addr & 0x007fffff)) return 0x10;
+    // Linked-list DMA to GP0, a node at a time: walks nodes from `addr` until
+    // the list ends (a link with bit 23 set) or `budget` words have gone, and
+    // returns where it stopped: { next, words, done }, `next` being the node
+    // to continue with, or the terminating link once done. Bits 0-1 of the
+    // links are ignored; a list may loop forever, as on hardware.
+    dmaLinkedListStep: function (addr, budget) {
       if (dmaIndex !== 0) abort('not implemented')
-      if ((addr & ~3) === 0) {
-        return (blck >> 16) * (blck & 0xFFFF);
-      }
 
-      const seen = new Set();
       const data = dmaBuffer;
       let words = 0;
-      for (; ;) {
-        addr = addr & 0x001fffff;
-        // seen.add(addr);
+      let node = addr & 0x001ffffc;
+      while (words < budget) {
+        addr = node;
         let header = ram.getInt32(addr, true);
         let nitem = header >>> 24;
 
-        addr = addr + 4; ++words;
+        addr = (addr + 4) & 0x001ffffc; ++words;
 
         while (nitem > 0) {
           // GP0(A0h) inside the list: following words are pixel data (DR_LOAD)
@@ -790,16 +780,17 @@ mdlr('enge:psx:gpu', ({ include }) => {
             addr += 4; --nitem; ++words;
             continue;
           }
-          if (seen.has(addr)) return words;
-          seen.add(addr);
           const packetWord = ram.getInt32(addr, true) >>> 0;
           const packetId = packetWord >>> 24;
           if (packetSizes[packetId] === 0) {
-            if (missing.has(packetId)) return words;
-            missing.add(packetId);
-
-            console.warn('invalid packetId:', hex(packetId, 2), hex(header), hex(packetWord));
-            return words;
+            if (!missing.has(packetId)) {
+              missing.add(packetId);
+              console.warn('invalid packetId:', hex(packetId, 2), hex(header), hex(packetWord));
+            }
+            // skip the rest of the node
+            words += nitem;
+            nitem = 0;
+            break;
           }
           else if (((packetId >= 0x48) && (packetId < 0x50)) || ((packetId >= 0x58) && (packetId < 0x60))) {
             let i = 0;
@@ -810,7 +801,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
               if (isPolyLineTerminator(packetId, i, value)) break;
               data[i] = value;
             }
-            if (nitem < 0) return words;
+            if (nitem < 0) break; // a packet running past its node is dropped
             nextPrimitive();
             handlers[packetId].call(gpu, data, i);
             gpu.updated = true;
@@ -826,7 +817,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
               addr += 4; --nitem;
               ++words;
             }
-            if (nitem < 0) return words;
+            if (nitem < 0) break; // a packet running past its node is dropped
             if (precise && pgxp.debug) notePolygonVertices(packetId, (i, word) => pgxp.noteVertex(packetAddr + 4 * i, word, dmaFrac[i]), data);
             nextPrimitive();
             gpu.pgxpFrac = anyFrac ? dmaFrac : null;
@@ -835,12 +826,23 @@ mdlr('enge:psx:gpu', ({ include }) => {
             gpu.updated = true;
           }
         }
-        if (header & 0x00800000) { break; } //end dma transfer
-        // if (!nnext || (nnext == 0x001fffff)) break;
-        addr = header & 0x001fffff;
+        if (header & 0x00800000) return { next: header & 0x00ffffff, words, done: true };
+        node = header & 0x001ffffc;
       }
 
-      return words;
+      return { next: node, words, done: false };
+    },
+
+    // a whole list at once (at most 1M words): what the DMA controller does a
+    // stretch at a time
+    dmaTransferMode0401: function (addr) {
+      let total = 0;
+      for (;;) {
+        const step = gpu.dmaLinkedListStep(addr, 0x100000 - total);
+        total += step.words;
+        if (step.done || total >= 0x100000) return total;
+        addr = step.next;
+      }
     },
 
     dmaLinkedListMode0002: function (addr, blck) {

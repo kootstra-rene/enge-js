@@ -49,8 +49,24 @@ mdlr('enge:psx:dma', ({ include }) => {
     updateDicr(() => dicr = (dicr & (~((data & 0x7f000000) | 0x00ff803f))) | (data & 0x00ff803f));
   };
 
+  // Transfers requested while their channel was disabled in DPCR, by
+  // channel bit: they start once DPCR enables the channel.
+  let pending = 0;
+  const wr32r10f0 = data => {
+    dpcr = data >>> 0;
+    if (!pending) return;
+    const starts = [[0, () => wr32r1088(r1088)], [1, () => wr32r1098(r1098)], [2, () => wr32r10a8(r10a8)],
+      [3, () => wr32r10b8(r10b8)], [4, () => wr32r10c8(r10c8)], [6, () => wr32r10e8(r10e8)]];
+    for (const [ch, start] of starts) {
+      if (!(pending & (1 << ch)) || !(dpcr & (8 << (ch << 2)))) continue;
+      pending &= ~(1 << ch);
+      start();
+    }
+  };
+
   const wr32r1088 = ctrl => {
     r1088 = ctrl;
+    pending &= ~(1 << 0);
     if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00000008) {
       let transferSize = 10;
@@ -66,12 +82,13 @@ mdlr('enge:psx:dma', ({ include }) => {
       setEvent(eventDMA0, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      r1088 &= 0xfeffffff;
+      pending |= 1 << 0; // started when DPCR enables the channel
     }
   };
 
   const wr32r1098 = ctrl => {
     r1098 = ctrl;
+    pending &= ~(1 << 1);
     if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00000080) {
       let transferSize = 10;
@@ -86,13 +103,53 @@ mdlr('enge:psx:dma', ({ include }) => {
 
     }
     else {
-      r1098 &= 0xfeffffff;
+      pending |= 1 << 1; // started when DPCR enables the channel
+    }
+  };
+
+  // Linked-list GPU DMA walks LINKED_STEP words at a time, a word a cycle
+  // (as the other GPU transfers are timed), so the CPU runs alongside: MADR
+  // follows the walk, a list that loops keeps the channel busy, and the CPU
+  // can rewrite nodes behind it or stop it by clearing CHCR bit 24. A list
+  // ends at a link with bit 23 set; MADR keeps that link, and one other than
+  // FFFFFFh also sets DICR bit 15.
+  // (odd, so that MADR read between steps also moves on a short loop)
+  const LINKED_STEP = 509;
+  let linkedEnd = 0;
+
+  const linkedListStep = () => {
+    if (!(r10a0 & 0x001ffffc)) {
+      // a list at address 0 (not a real list): done at once
+      r10a0n = 0x00ffffff;
+      linkedEnd = 0x00ffffff;
+      setEvent(eventDMA2, 10);
+      return;
+    }
+    const step = gpu.dmaLinkedListStep(r10a0, LINKED_STEP);
+    const cycles = Math.max(1, ((step.words * 0x110) / 0x100) >>> 0);
+    if (step.done) {
+      r10a0n = step.next;
+      linkedEnd = step.next;
+      setEvent(eventDMA2, cycles);
+    } else {
+      r10a0 = step.next;
+      setEvent(eventDMA2Linked, cycles);
     }
   };
 
   const wr32r10a8 = ctrl => {
+    const running = (r10a8 & 0x01000000) !== 0;
     r10a8 = ctrl;
-    if (!(ctrl & 0x01000000)) return;
+    pending &= ~(1 << 2);
+    if (!(ctrl & 0x01000000)) {
+      // clearing the start bit stops a transfer in progress
+      if (running) {
+        unsetEvent(eventDMA2Linked);
+        unsetEvent(eventDMA2);
+      }
+      return;
+    }
+    if (running && (eventDMA2Linked.active || eventDMA2.active)) return;
     if (dpcr & 0x00000800) {
       let transferSize = 10;
 
@@ -103,9 +160,10 @@ mdlr('enge:psx:dma', ({ include }) => {
         case 0x01000201: transferSize = gpu.dmaTransferMode0201(r10a0, r10a4) || 10;
           r10a0n = r10a0 + (transferSize << 2);
           break;
-        case 0x01000401: transferSize = gpu.dmaTransferMode0401(r10a0, r10a4) || 10;
-          r10a0n = 0x00ffffff;
-          break;
+        case 0x01000401:
+          // linked list: walked a stretch at a time (see linkedListStep)
+          linkedListStep();
+          return;
 
         default: abort(hex(ctrl));
       }
@@ -113,12 +171,13 @@ mdlr('enge:psx:dma', ({ include }) => {
       setEvent(eventDMA2, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      r10a8 &= 0xfeffffff;
+      pending |= 1 << 2; // started when DPCR enables the channel
     }
   };
 
   const wr32r10b8 = ctrl => {
     r10b8 = ctrl;
+    pending &= ~(1 << 3);
     if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00008000) {
       let transferSize = 10;
@@ -148,12 +207,13 @@ mdlr('enge:psx:dma', ({ include }) => {
       setEvent(eventDMA3, ((transferSize * rate) / 0x100) >>> 0);
     }
     else {
-      r10b8 &= 0xfeffffff;
+      pending |= 1 << 3; // started when DPCR enables the channel
     }
   };
 
   const wr32r10c8 = ctrl => {
     r10c8 = ctrl;
+    pending &= ~(1 << 4);
     if (!(ctrl & 0x01000000)) return;
     if (dpcr & 0x00080000) {
       let transferSize = 10;
@@ -174,19 +234,20 @@ mdlr('enge:psx:dma', ({ include }) => {
       setEvent(eventDMA4, ((transferSize * 0x420) / 0x100) >>> 0);
     }
     else {
-      r10c8 &= 0xfeffffff;
+      pending |= 1 << 4; // started when DPCR enables the channel
     }
   };
 
   const wr32r10e8 = ctrl => {
     // only b24, b28 and b30 are r/w, b1 (decrement) is always set
     r10e8 = (ctrl & 0x51000000) | 0x2;
+    pending &= ~(1 << 6);
     if (!(r10e8 & 0x01000000)) return;
     // sync mode 0 (start immediately) also needs the manual start trigger
     if (!((ctrl >> 9) & 3) && !(ctrl & 0x10000000)) return;
     if (dpcr & 0x08000000) {
       const transferSize = gpu.dmaLinkedListMode0002(r10e0, r10e4) || 10;
-      r10e0n = 0x00ffffff; // todo: update with actual value
+      r10e0n = r10e0; // MADR keeps the start address
 
       // trigger bit clears once the transfer starts
       r10e8 &= 0xefffffff;
@@ -194,7 +255,7 @@ mdlr('enge:psx:dma', ({ include }) => {
       setEvent(eventDMA6, ((transferSize * 0x110) / 0x100) >>> 0);
     }
     else {
-      r10e8 &= 0xfeffffff;
+      pending |= 1 << 6; // started when DPCR enables the channel
     }
   };
 
@@ -282,11 +343,14 @@ mdlr('enge:psx:dma', ({ include }) => {
     [0x10e0, _ => r10e0 = _ & 0x00ffffff],
     [0x10e4, _ => r10e4 = _ >>> 0],
     [0x10e8, _ => wr32r10e8(_)],
-    [0x10f0, _ => dpcr = _ >>> 0],
+    [0x10f0, _ => wr32r10f0(_)],
     [0x10f4, _ => wr32r10f4(_)],
   ]);
 
-  const eventDMA0 = addEvent(0, (self) => {
+  // the completion events, idle until a transfer starts
+  const idle = event => (unsetEvent(event), event);
+
+  const eventDMA0 = idle(addEvent(0, (self) => {
     completeIrq(0);
 
     r1088 &= 0xfeffffff;
@@ -294,19 +358,27 @@ mdlr('enge:psx:dma', ({ include }) => {
     r1084 = completedBcr(r1088, r1084);
 
     unsetEvent(self);
-  });
+  }));
 
-  const eventDMA2 = addEvent(0, (self) => {
+  const eventDMA2Linked = idle(addEvent(0, (self) => {
+    unsetEvent(self);
+    linkedListStep();
+  }));
+
+  const eventDMA2 = idle(addEvent(0, (self) => {
     completeIrq(2);
+    if ((r10a8 & 0x00000600) === 0x00000400 && linkedEnd !== 0x00ffffff) {
+      updateDicr(() => dicr |= 0x8000);
+    }
 
     r10a8 &= 0xfeffffff;
     r10a0 = r10a0n;
     r10a4 = completedBcr(r10a8, r10a4);
 
     unsetEvent(self);
-  });
+  }));
 
-  const eventDMA3 = addEvent(0, (self) => {
+  const eventDMA3 = idle(addEvent(0, (self) => {
     completeIrq(3);
 
     dmaLog('channel 3 complete', {
@@ -322,9 +394,9 @@ mdlr('enge:psx:dma', ({ include }) => {
     r10b0 = r10b0n;
 
     unsetEvent(self);
-  });
+  }));
 
-  const eventDMA4 = addEvent(0, (self) => {
+  const eventDMA4 = idle(addEvent(0, (self) => {
     completeIrq(4);
 
     r10c8 &= 0xfeffffff;
@@ -332,16 +404,16 @@ mdlr('enge:psx:dma', ({ include }) => {
     r10c4 = completedBcr(r10c8, r10c4);
 
     unsetEvent(self);
-  });
+  }));
 
-  const eventDMA6 = addEvent(0, (self) => {
+  const eventDMA6 = idle(addEvent(0, (self) => {
     completeIrq(6);
 
     r10e8 &= 0xfeffffff;
     r10e0 = r10e0n;
 
     unsetEvent(self);
-  });
+  }));
 
   return { dma };
 })

@@ -7,7 +7,7 @@ they are likely to matter (numbering kept; fixed items move to the end). When
 an item is fixed, turn its cases back into
 `it` and run the spec.
 
-Counts are skipped cases (262 left; the 5 in `mdec` and `spu` predate the port
+Counts are skipped cases (232 left; the 5 in `mdec` and `spu` predate the port
 and are not listed). Spec names are `[test]enge:psx:<spec>`.
 
 ## Crashes and hangs
@@ -32,18 +32,6 @@ These stop or hang the emulator instead of giving a wrong value.
    - `cop0`: Coprocessor Unusable for COP1/COP3 (2), BC2F in a delay slot (1),
      the cop-branch matrix of 20 probes at three SR.CU settings (60)
 
-4. **Linked-list DMA runs the whole list inside the CHCR write**
-   (`gpu.js` `dmaTransferMode0401`).
-   - With bits 0-1 set in a link the walk reads unaligned headers and never
-     ends: the emulator hangs. Hardware ignores those bits.
-     `dma-hardware`: linked_dma_3_oddlinks, linked_dma_odd_terminator (2)
-   - A list that loops back on itself hangs (empty nodes), or stops at the
-     first packet sent twice. On hardware the channel stays busy, MADR keeps
-     walking, the CPU can rewrite nodes behind it, and a CHCR write stops it.
-     `gpu-hardware`: loopStaysBusy, loopKeepsWalking, loopRaisesNoDmaError,
-     chcrWriteStopsTheLoop (gpu-dma-loop, 4); ringStaysBusy, dmaLapsTheRing,
-     cpuKeepsProducing (gpu-dma-ring, 3)
-
 ## Likely to affect games
 
 9. **GP0(1Fh) and the GPU IRQ are not implemented** — GPUSTAT.24 is never
@@ -51,12 +39,9 @@ These stop or hang the emulator instead of giving a wrong value.
    - `gpu-hardware`: irq_clear_after_reset, irq_gp0_1f_sets_flag,
      irq_gp1_02_acknowledges (3)
 
-10. **Block-mode GPU DMA only feeds a VRAM transfer in progress** — commands
-    sent by block DMA (CHCR 01000201h) never reach GP0, and GPUSTAT.28 (DMA
-    request) does not pace the blocks.
-    - `dma-hardware`: normal_dma, normal_dma_with_3_upper_bits,
-      normal_dma_with_8_upper_bits, normal_dma_odd_address,
-      normal_dma_dicr_toggle (5)
+10. **GPU DMA ignores the GPU's DMA request (GPUSTAT.28)** — a block
+    boundary inside a line or polygon never stalls the channel, and a
+    poly-line does not hold back the blocks after it.
     - `gpu-hardware`: lines_bs16_split, lines_bs1, tris_nop_bs1,
       tris_2nop_bs2_split, gtris_bs16_split, pline_bs16_split, pline_bs1,
       gpline_bs16_split (8)
@@ -77,24 +62,6 @@ These stop or hang the emulator instead of giving a wrong value.
     poly-line streamed by the CPU never fills it; unpaced, hardware loses the
     terminator.
     - `gpu-hardware`: pline_cpu_paced, pline_cpu_unpaced (2)
-
-15. **DMA register corner cases**
-    - A transfer started while the channel is disabled in DPCR: hardware
-      keeps it pending (CHCR busy, MADR/BCR untouched, no IRQ) and starts it
-      when DPCR enables the channel; enge drops the start bit (block mode
-      even runs it).
-      `dma-hardware`: disabled_dma, disabled_dma_odd_address, otc_chcr_readback,
-      otc_start_disabled, otc_start_disabled_then_enabled (5)
-    - Any link with bit 23 set ends a list; hardware keeps that address in
-      MADR and sets DICR bit 15. enge ends at 00FFFFFFh with bit 15 clear.
-      `dma-hardware`: linked_dma_fffff0_terminator, linked_dma_800000_terminator,
-      linked_dma_800001_terminator, linked_dma_800000_terminator_dicr_toggle (4)
-    - OTC (channel 6): MADR keeps the start address after the table is
-      written (enge leaves 00FFFFFFh), and without the trigger bit (28) the
-      transfer does not run (enge runs it).
-      `dma-hardware`: otc_start_11000002, otc_start_11000000,
-      otc_start_51000f07, otc_start_11000f05, otc_start_41000002,
-      otc_start_01000002, otc_start_01000000 (7)
 
 16. **Voice captures are one LSB off the goldens** — the voice is now
     decoded, interpolated and enveloped in integers as on hardware and the
@@ -196,3 +163,19 @@ the tests of nugget's own libraries.
   before each sample and a key-on starts at the fourth sample of the
   block, ENDX latches once the end block has played. Captures went from
   silence (written after the voice volume) to within one LSB of silicon.
+- **Linked-list GPU DMA runs a stretch at a time** (`dma.js`, `gpu.js`
+  dmaLinkedListStep): about a word a cycle, alongside the CPU, so MADR
+  follows the walk, a looping list keeps the channel busy and clearing CHCR
+  bit 24 stops it. Bits 0-1 of the links are ignored (unaligned links hung
+  the emulator), and a list that ends on a link other than FFFFFFh keeps it
+  in MADR and sets DICR bit 15. `dma-hardware` linked_dma_*; `gpu-hardware`
+  the gpu-dma-loop and gpu-dma-ring cases.
+- **Block-mode GPU DMA writes every word to GP0** (`gpu.js`), commands
+  included, not only the data of a VRAM transfer in progress.
+  `dma-hardware` normal_dma*.
+- **DMA start and DPCR** (`dma.js`): a transfer started while its channel is
+  disabled stays pending (CHCR busy, MADR/BCR untouched) and starts when DPCR
+  enables the channel; OTC keeps its start address in MADR and does not run
+  without the trigger bit in sync mode 0; the completion events no longer
+  fire once at power-on (they cleared the busy bits and set MADR to
+  undefined). `dma-hardware` disabled_dma*, otc_*.
