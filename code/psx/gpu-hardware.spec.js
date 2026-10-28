@@ -4,8 +4,9 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
 
   // Ported from the nugget GPU tests that check the GPU's command handling
   // and DMA rather than rendered pixels (https://github.com/pcsx-redux/nugget,
-  // tests/gpu-command, gpu-irq, gpu-dma-dreq and gpu-dma-loop, MIT), all
-  // verified on real hardware.
+  // tests/gpu-command, gpu-irq, gpu-dma-dreq, gpu-dma-loop, gpu-dma-ring,
+  // gpustat10, gpustat-480i and the status case of gpu-async-stress, MIT),
+  // all verified on real hardware.
 
   const { createMachine } = include('enge:psx:test-machine');
   const { gpuHelpers } = include('enge:psx:test-gpu');
@@ -406,6 +407,320 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
     xit('chcrWriteStopsTheLoop', async () => {
       const loop0 = run(0, false), loop1 = run(1, false);
       expect([loop0.chcrAfterStop & 0x01000000, loop1.chcrAfterStop & 0x01000000]).to.eql([0, 0]);
+    });
+
+  });
+
+  describe('GPUSTAT bits 0-10 follow GP0(E1h) and textured polygons (gpustat10)', () => {
+
+    // GP0(E1h) loads GPUSTAT bits 0-10. A textured polygon loads the texpage
+    // bits 0-8 from its texpage word and leaves bit 9 (dither) and bit 10
+    // (draw to display area) alone; an untextured one leaves them all.
+
+    const GPU_DATA = 0x1f801810, GPU_STATUS = 0x1f801814;
+    const w32 = (a, v) => m.write32(a, v >> 0);
+    before(async () => { fresh(); });
+    after(async () => { w32(GPU_STATUS, 0); });
+
+    const stat = () => {
+      m.idleUntil(() => (g.gpuStatus() & 0x14000000) === 0x14000000, 1000000, 16);
+      return hex(g.gpuStatus() & 0x7ff);
+    };
+    const setup = e1 => {
+      w32(GPU_STATUS, 0x00000000);
+      w32(GPU_DATA, 0xe3000000);
+      w32(GPU_DATA, 0xe4000000 | 319 | (239 << 10));
+      w32(GPU_DATA, 0xe5000000);
+      w32(GPU_DATA, 0xe1000000 | e1);
+    };
+    const texTri = tp => {
+      for (const v of [0x24808080, (10 << 16) | 10, 0, (10 << 16) | 20, tp << 16, (20 << 16) | 10, 0]) w32(GPU_DATA, v);
+    };
+    const flatTri = () => {
+      for (const v of [0x20ffffff, (10 << 16) | 10, (10 << 16) | 20, (20 << 16) | 10]) w32(GPU_DATA, v);
+    };
+
+    it('e1LoadsBits0To10', async () => {
+      setup(0x400);
+      expect(stat()).to.eql(hex(0x400));
+      setup(0x600);
+      expect(stat()).to.eql(hex(0x600));
+    });
+
+    it('texturedPolyKeepsDfe', async () => {
+      setup(0x400);
+      texTri(0x0005);
+      expect(stat()).to.eql(hex(0x405));
+      flatTri();
+      expect(stat()).to.eql(hex(0x405));
+    });
+
+    it('texturedPolyKeepsDither', async () => {
+      setup(0x600);
+      texTri(0x0005);
+      expect(stat()).to.eql(hex(0x605));
+    });
+
+    it('texturedPolyIgnoresTexpageBits9And10', async () => {
+      setup(0x400);
+      texTri(0x0605);
+      expect(stat()).to.eql(hex(0x405));
+      setup(0x000);
+      texTri(0x0605);
+      expect(stat()).to.eql(hex(0x005));
+    });
+
+  });
+
+  describe('GPUSTAT bits 31 and 13 in 480i (gpustat-480i)', () => {
+
+    // NTSC 640x480 interlaced. Over six fields, timed in lines with root
+    // counter 1 on hblank from the vblank IRQ: bit 31 reads 0 at vblank,
+    // fields alternate between one where it rises (at line 22-24) and one
+    // where it does not, and bit 13 flips a few lines into each field to
+    // follow the previous one.
+
+    const GPU_STATUS = 0x1f801814, IREG = 0x1f801070, IMASK = 0x1f801074;
+    const FIELDS = 6, NONE = 0xffff;
+    const r32 = a => m.read32(a) >>> 0;
+    const w32 = (a, v) => m.write32(a, v >> 0);
+    const timer1 = () => m.read16(0x1f801110) & 0xffff;
+
+    let fields;
+    before(async () => {
+      fresh();
+      w32(IMASK, 0);
+      w32(GPU_STATUS, 0x00000000);
+      w32(GPU_STATUS, 0x06000000 | 0x260 | (0xc60 << 12));
+      w32(GPU_STATUS, 0x07000000 | 0x010 | (0x100 << 10));
+      w32(GPU_STATUS, 0x05000000);
+      w32(GPU_STATUS, 0x08000027);
+      w32(GPU_STATUS, 0x03000000);
+      m.write16(0x1f801114, 0x0100); // counter 1 on hblank
+      w32(IREG, ~1);
+      m.idleUntil(() => (r32(IREG) & 1) !== 0, 33868800, 16);
+      w32(IREG, ~1);
+      let vbl = timer1();
+      fields = [];
+      for (let f = 0; f < FIELDS; f++) {
+        const p = { b31Rise: NONE, b31Fall: NONE, b13Rise: NONE, b13Fall: NONE, lines: 0 };
+        let prev = r32(GPU_STATUS);
+        p.firstStat = prev;
+        m.idleUntil(() => {
+          const s = r32(GPU_STATUS);
+          const line = (timer1() - vbl) & 0xffff;
+          if (r32(IREG) & 1) {
+            w32(IREG, ~1);
+            p.lines = line;
+            vbl = timer1();
+            return true;
+          }
+          const rise = (s & ~prev) >>> 0, fall = (prev & ~s) >>> 0;
+          if ((rise & 0x80000000) && p.b31Rise === NONE) p.b31Rise = line;
+          if ((fall & 0x80000000) && p.b31Fall === NONE) p.b31Fall = line;
+          if ((rise & 0x2000) && p.b13Rise === NONE) p.b13Rise = line;
+          if ((fall & 0x2000) && p.b13Fall === NONE) p.b13Fall = line;
+          prev = s;
+          return false;
+        }, 33868800, 16);
+        fields.push(p);
+      }
+    });
+    after(async () => { w32(GPU_STATUS, 0); });
+
+    const isLong = p => p.b31Rise !== NONE;
+
+    it('bit31ZeroAtVBlank', async () => {
+      expect(fields.map(p => (p.firstStat >>> 31))).to.eql(new Array(FIELDS).fill(0));
+    });
+
+    it('bit31AlternatesFields', async () => {
+      for (let f = 1; f < FIELDS; f++) expect(isLong(fields[f - 1]) !== isLong(fields[f])).to.be.true;
+    });
+
+    // bit 31 rises at line 17 and falls again at line 257
+    xit('bit31RisesAtLine23', async () => {
+      for (const p of fields.filter(isLong)) {
+        expect(p.b31Rise >= 22 && p.b31Rise <= 24 && p.b31Fall === NONE).to.be.true;
+      }
+    });
+
+    // bit 13 stays 0
+    xit('bit13FollowsShortField', async () => {
+      for (const p of fields.slice(1)) {
+        if (isLong(p)) {
+          expect({ b13: (p.firstStat & 0x2000) !== 0, fallOk: p.b13Fall >= 5 && p.b13Fall <= 7, rise: p.b13Rise })
+            .to.eql({ b13: true, fallOk: true, rise: NONE });
+        } else {
+          expect({ b13: (p.firstStat & 0x2000) !== 0, riseOk: p.b13Rise >= 4 && p.b13Rise <= 6, fall: p.b13Fall })
+            .to.eql({ b13: false, riseOk: true, fall: NONE });
+        }
+      }
+    });
+
+  });
+
+  describe('GPUSTAT follows GP0(E1h) and GP0(E6h) between draws (gpu-async-stress)', () => {
+
+    // Only the status case of the suite: the other three compare VRAM.
+
+    before(async () => { fresh(); g.rasterFullReset(); });
+
+    it('status_follows_env_commands', async () => {
+      let seed = 4;
+      const stressRand = () => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return seed >>> 8; };
+      g.rasterReset();
+      g.rasterFillRect(256, 256, 128, 128, 0);
+      let bad = 0;
+      for (let i = 0; i < 500; i++) {
+        const r = stressRand() & 0x1f, gg = stressRand() & 0x1f, b = stressRand() & 0x1f;
+        g.rasterFlatRect((r << 3) | ((gg << 3) << 8) | ((b << 3) << 16), 256, 256, 128, 128);
+        const tpage = stressRand() & 0x1ff;
+        const mask = stressRand() & 3;
+        g.sendGPUData(0xe1000000 | tpage);
+        g.sendGPUData(0xe6000000 | mask);
+        g.waitGPU();
+        const stat = g.gpuStatus();
+        if ((stat & 0x7ff) !== tpage) bad++;
+        if (((stat >>> 11) & 3) !== mask) bad++;
+      }
+      g.sendGPUData(0xe6000000);
+      g.sendGPUData(0xe1000400);
+      expect(bad).to.eql(0);
+    });
+
+  });
+
+  describe('GPU linked-list DMA on a ring the CPU keeps refilling (gpu-dma-ring)', () => {
+
+    // A 16-slot ring of textured quads, each slot linking to the next and
+    // the last back to the first; the CPU rewrites the slots behind the DMA
+    // for ten vblanks, trailing it by 2 or by 8 slots. The channel stays
+    // busy, laps the ring, raises no DMA error, and once a slot is made a
+    // terminator it completes with MADR FFFFFFh and its DICR flag set.
+    //
+    // The texture the quads sample, uploaded first on hardware, only changes
+    // pixels and is left out.
+    //
+    // In enge the linked-list walk (gpu.js dmaTransferMode0401) runs inside
+    // the CHCR write and stops at the first packet it has already sent, so
+    // the channel is idle again at once and never laps the ring.
+
+    const D2_MADR = 0x1f8010a0, D2_BCR = 0x1f8010a4, D2_CHCR = 0x1f8010a8, DPCR = 0x1f8010f0, DICR = 0x1f8010f4;
+    const GPU_DATA = 0x1f801810, GPU_STATUS = 0x1f801814, IREG = 0x1f801070, IMASK = 0x1f801074;
+    const RING = 16, SLOT_WORDS = 16, VBLANKS = 10, EXIT_LIMIT = 2000000, QUAD_WORDS = 12;
+    const RING_ADDR = 0x80100000;
+    const QUAD_TPAGE = 10 | (2 << 7);
+    const r32 = a => m.read32(a) >>> 0;
+    const w32 = (a, v) => m.write32(a, v >> 0);
+    const slotAddr = k => (RING_ADDR + k * SLOT_WORDS * 4) & 0xffffff;
+    const slotOf = madr => {
+      madr &= 0xffffff;
+      if (madr < slotAddr(0)) return -1;
+      const off = Math.floor((madr - slotAddr(0)) / (SLOT_WORDS * 4));
+      return off < RING ? off : -1;
+    };
+    const writeQuad = (k, seq) => {
+      const c = Math.imul(seq, 0x0f0b07) & 0x007f7f7f;
+      m.load(RING_ADDR + (k * SLOT_WORDS + 1) * 4, [
+        0x3e000000 | c, 0, 0, c ^ 0x003f003f, 319, (QUAD_TPAGE << 16) | 63, c ^ 0x00003f3f, 239 << 16, 15 << 8,
+        c ^ 0x003f3f00, (239 << 16) | 319, (15 << 8) | 63,
+      ].map(v => v >>> 0));
+    };
+    const link = (k, next) => m.load(RING_ADDR + k * SLOT_WORDS * 4, [((QUAD_WORDS << 24) | next) >>> 0]);
+
+    const run = trail => {
+      w32(GPU_STATUS, 0x00000000);
+      w32(GPU_STATUS, 0x06000000 | 0x260 | (0xc60 << 12));
+      w32(GPU_STATUS, 0x07000000 | 0x010 | (0x100 << 10));
+      w32(GPU_STATUS, 0x05000000);
+      w32(GPU_STATUS, 0x08000001);
+      for (const v of [0xe1000600, 0xe3000000, 0xe4000000 | 319 | (239 << 10), 0xe5000000]) w32(GPU_DATA, v);
+      w32(GPU_STATUS, 0x03000000);
+      w32(GPU_STATUS, 0x04000002);
+      g.waitGPU();
+      for (let k = 0; k < RING; k++) {
+        link(k, slotAddr((k + 1) % RING));
+        writeQuad(k, k);
+      }
+      w32(DPCR, r32(DPCR) | 0x00000800);
+      w32(DICR, 0x00840000 | 0x7f000000);
+      w32(IREG, ~0x8);
+      w32(D2_MADR, slotAddr(0));
+      w32(D2_BCR, 0);
+      w32(D2_CHCR, 0x01000401);
+      let prod = (RING - trail) % RING, last = 0, seq = RING;
+      const a = { chcr: [r32(D2_CHCR)], dicr: [r32(DICR)], written: [0], laps: [0] };
+      for (let v = 1; v <= VBLANKS; v++) {
+        let written = 0, laps = 0;
+        w32(IREG, ~1);
+        m.idleUntil(() => {
+          if (r32(IREG) & 1) return true;
+          const d = slotOf(r32(D2_MADR));
+          if (d < 0) return false;
+          if (d < last) laps++;
+          last = d;
+          const target = (d + RING - trail) % RING;
+          while (prod !== target) {
+            writeQuad(prod, seq++);
+            prod = (prod + 1) % RING;
+            written++;
+          }
+          return false;
+        }, 2 * 33868800 / 50, 64);
+        a.chcr.push(r32(D2_CHCR));
+        a.dicr.push(r32(DICR));
+        a.written.push(written);
+        a.laps.push(laps);
+      }
+      const d = slotOf(r32(D2_MADR));
+      link(((d < 0 ? 0 : d) + RING / 2) % RING, 0xffffff);
+      m.idleUntil(() => (r32(D2_CHCR) & 0x01000000) === 0, EXIT_LIMIT * 8, 16);
+      a.exitChcr = r32(D2_CHCR);
+      a.exitMadr = r32(D2_MADR);
+      a.exitDicr = r32(DICR);
+      if (a.exitChcr & 0x01000000) w32(D2_CHCR, 0x00000401);
+      return a;
+    };
+
+    let high, mid;
+    const runs = () => {
+      if (!high) {
+        fresh();
+        w32(IMASK, 0);
+        high = run(2);
+        mid = run(RING / 2);
+      }
+      return [high, mid];
+    };
+    after(async () => { if (m) { w32(D2_CHCR, 0x00000401); w32(GPU_STATUS, 0); } });
+
+    xit('ringStaysBusy', async () => {
+      for (const a of runs()) expect(a.chcr.every(c => (c & 0x01000000) !== 0)).to.be.true;
+    });
+
+    xit('dmaLapsTheRing', async () => {
+      for (const a of runs()) expect(a.laps.reduce((x, y) => x + y, 0) >= 1).to.be.true;
+    });
+
+    xit('cpuKeepsProducing', async () => {
+      for (const a of runs()) expect(Math.min(...a.written.slice(2)) > 0).to.be.true;
+    });
+
+    it('noDmaErrorWhileLooping', async () => {
+      for (const a of runs()) expect(a.dicr.map(d => d & 0x00008000)).to.eql(new Array(VBLANKS + 1).fill(0));
+    });
+
+    it('exitByTerminatorCompletes', async () => {
+      for (const a of runs()) {
+        expect({ busy: a.exitChcr & 0x01000000, madr: hex(a.exitMadr & 0xffffff) }).to.eql({ busy: 0, madr: hex(0x00ffffff) });
+      }
+    });
+
+    it('exitRaisesTheChannelFlag', async () => {
+      for (const a of runs()) {
+        expect({ flag: (a.exitDicr & 0x04000000) !== 0, error: a.exitDicr & 0x00008000 }).to.eql({ flag: true, error: 0 });
+      }
     });
 
   });
