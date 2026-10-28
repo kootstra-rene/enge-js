@@ -152,6 +152,16 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
       expect(dmaBits()).to.eql({ request: 1, cmd: 1, vram: 0, block: 1, direction: 2 });
     });
 
+    it('should stay ready for a DMA block while GP0(A0h) waits for its data', async () => {
+      gp1(0x04000002);
+      gp0(0xa0000000);                                  // CPU to VRAM
+      gp0(0x00000000);                                  // x, y
+      gp0(0x00020002);                                  // 2x2
+      expect(dmaBits()).to.eql({ request: 1, cmd: 1, vram: 0, block: 1, direction: 2 });
+      gp0(0x00000000); gp0(0x00000000);                 // the pixel words
+      expect(dmaBits()).to.eql({ request: 1, cmd: 1, vram: 0, block: 1, direction: 2 });
+    });
+
   });
 
 })
