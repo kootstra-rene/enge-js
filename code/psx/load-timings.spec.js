@@ -133,8 +133,9 @@ mdlr('[test]enge:psx:load-timings', ({ include, test }) => {
 
   // An MMIO load stalls the next load for its bus cycle, so nops right
   // after it are free (32 loads followed by k nops).
-  // enge measures 99 cycles for every k: the counter reads inside one
-  // recompiled block do not see the cycles of the instructions between them
+  // enge measures 99 cycles for every k: the recompiler adds a block's
+  // cycles to the clock at the end of the block (rec.js), so two counter
+  // reads in one block do not see the instructions between them
   xit('loadShadow', async () => {
     const got = [0, 1, 2, 3, 4, 5, 6, 7].map(k => BENCH(`spaced${k}`, ADDR_ISTAT));
     expect(got).to.eql([164, 196, 228, 228, 228, 260, 292, 324]);
