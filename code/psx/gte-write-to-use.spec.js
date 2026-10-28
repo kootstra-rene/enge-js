@@ -156,15 +156,10 @@ mdlr('[test]enge:psx:gte-write-to-use', ({ include, test }) => {
     }).join(' ');
   };
 
-  // enge runs a command on the values written before it, however close the
-  // write: every letter is N. The cells where silicon still uses the old
-  // value (O, o) or a mix (X) at some N are skipped for that reason.
-  const lateOnSilicon = expected => /[OoX]/.test(expected);
-
   const cells = list => {
     for (const [K, label, scene, op, reg, canary, expected] of list) {
       const cell = { label, scene, ctrl: K === 'C', reg, canary, expect: expected, read: () => u32(gte.get((K === 'C' ? 32 : 0) + reg)) };
-      (lateOnSilicon(expected) ? xit : it)(`${label} ${expected}`, async () => {
+      it(`${label} ${expected}`, async () => {
         expect(measure(K, reg, op, cell)).to.eql(expected.split('').join(' '));
       });
     }

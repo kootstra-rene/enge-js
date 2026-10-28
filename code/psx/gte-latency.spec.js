@@ -1021,8 +1021,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
       expect(cases.map(lzcr_expect)).to.eql([...runs, ...runs]);
     });
 
-    // LZCR is updated by the MTC2 itself: N=0 already reads the new count
-    xit('lzcs_sweep_cached', async () => {
+    it('lzcs_sweep_cached', async () => {
       expect(run_regime(false)).to.eql({ never_settled: 0, n0_correct: 0 });
     });
 

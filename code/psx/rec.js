@@ -1,5 +1,9 @@
 mdlr('enge:psx:rec', ({ include }) => {
 
+  // the time of a GTE access, in instructions: the block's start clock plus
+  // the instruction's place in the block (see gte.js, write-to-use delays)
+  const gteAt = rec => 'psx.clock + ' + (((rec.pc - rec.entryPC) >>> 2) >>> 0);
+
   const getOF = (opcode) => {
     const offset = ((opcode << 16) >> 16);
     return `(${offset} + ${getRS()}) & 0x01ffffff`;
@@ -264,10 +268,10 @@ mdlr('enge:psx:rec', ({ include }) => {
     '32': (rec, opc) => {
       if (pgxpOn() && rec.rt >= 0x0c && rec.rt <= 0x0f) {
         const a = `_pa${state.loadSeq++}`, v = `_pv${state.loadSeq}`;
-        return `const ${a} = ${getOF(opc)}, ${v} = memRead32(${a});\ngte.set(${rec.rt}, ${v});\n` +
+        return `const ${a} = ${getOF(opc)}, ${v} = memRead32(${a});\ngte.set(${rec.rt}, ${v}, ${gteAt(rec)});\n` +
           `if (pgxpMemFrac[${pgxpIndex(a)}] !== 0) pgxp.lwc2(${rec.rt}, ${a}, ${v});`;
       }
-      const code = setReg(0, 'gte.set(' + rec.rt + ', memRead32(' + getOF(opc) + '))');
+      const code = setReg(0, 'gte.set(' + rec.rt + ', memRead32(' + getOF(opc) + '), ' + gteAt(rec) + ')');
       return code;
     },
 
@@ -481,7 +485,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     'C0': (rec, opc) => {
       if (pgxpOn()) return setLoad(rec.rt, `pgxp.mfc2(${rec.rt}, ${rec.rd})`);
-      const code = setLoad(rec.rt, 'gte.get(' + rec.rd + ')');
+      const code = setLoad(rec.rt, 'gte.get(' + rec.rd + ', ' + gteAt(rec) + ')');
       return code;
     },
 
@@ -491,7 +495,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     'C4': (rec, opc) => {
-      const code = setReg(0, 'gte.set(' + rec.rd + ', ' + getRT() + ')');
+      const code = setReg(0, 'gte.set(' + rec.rd + ', ' + getRT() + ', ' + gteAt(rec) + ')');
       if (pgxpOn() && rec.rd >= 0x0c && rec.rd <= 0x0f && rec.rt) {
         return code + `\nif (pgxpGprFrac[${rec.rt}] !== 0) pgxp.mtc2(${rec.rd}, ${rec.rt}, ${getRT()});`;
       }
@@ -499,13 +503,14 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     'C6': (rec, opc) => {
-      const code = setReg(0, 'gte.set(' + (32 + rec.rd) + ', ' + getRT() + ')');
+      const code = setReg(0, 'gte.set(' + (32 + rec.rd) + ', ' + getRT() + ', ' + gteAt(rec) + ')');
       return code;
     },
 
     'D0': (rec, opc) => {
+      const at = gteAt(rec);
       rec.cycles += gte.cycles(opc & 0x1ffffff);
-      const code = setReg(0, 'gte.command(0x' + hex(opc & 0x1ffffff) + ')');
+      const code = setReg(0, 'gte.command(0x' + hex(opc & 0x1ffffff) + ', ' + at + ')');
       return code;
     },
     'invalid': (rec, opc) => {

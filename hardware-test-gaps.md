@@ -7,7 +7,7 @@ they are likely to matter (numbering kept; fixed items move to the end). When
 an item is fixed, turn its cases back into
 `it` and run the spec.
 
-Counts are skipped cases (219 left; the 5 in `mdec` and `spu` predate the port
+Counts are skipped cases (133 left; the 5 in `mdec` and `spu` predate the port
 and are not listed). Spec names are `[test]enge:psx:<spec>`.
 
 ## Crashes and hangs
@@ -84,13 +84,6 @@ These stop or hang the emulator instead of giving a wrong value.
     expansion delay registers (1F801008h-1F801020h) do not change any cost.
     - `load-timings`: loadShadow, loadInterlocked, loadShadowByTarget,
       loadInterlockedByTarget, busDelaySweep (5)
-
-19. **GTE inputs are used at once** — a command reads the value written to
-    its input however close the write; hardware still reads the old value,
-    or a mix, for up to three instructions on some inputs. LZCR is ready on
-    the MTC2 that writes LZCS, where hardware needs one instruction.
-    - `gte-write-to-use`: the cells with O, o or X letters (85)
-    - `gte-latency`: lzcs_sweep_cached (1)
 
 20. **SIO1 is not emulated** — its status reads 0.
     - `serial-hardware`: resets port 1 (1)
@@ -179,3 +172,11 @@ the tests of nugget's own libraries.
   line command is incomplete, so a block boundary inside one stops the
   channel (until the command is completed), with MADR and BCR showing the
   blocks sent. `gpu-hardware` the gpu-dma-dreq stall cases (8).
+- **GTE write-to-use delays** (`gte.js`, data in `gte-latency.data.js`
+  from the nugget measurements): MTC2, CTC2 and LWC2 note when they write,
+  COP2 when it runs, and a command within three instructions of a write runs
+  on the old value of an input where silicon does, or on a mix: the outputs
+  of a run on the old value and one on the new value, or the old low half
+  (low byte for a 16-bit register) when a single output depends on it. LZCR
+  reads the previous count on the instruction right after the MTC2 to LZCS.
+  `gte-write-to-use` every cell (85); `gte-latency` lzcs_sweep_cached.
