@@ -249,15 +249,18 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     rd32r1814: function () {
+      // bit 28 (ready to receive DMA block) is also set while GP0(A0h) waits
+      // for its pixel words; gpu.status bit 28 only tracks that transfer.
+      const status = gpu.status | 0x10000000;
       // bit 25 (DMA request) depends on the DMA direction: off 0, FIFO 1,
       // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
       let request = 0;
-      switch ((gpu.status >>> 29) & 3) {
+      switch ((status >>> 29) & 3) {
         case 1: request = 1; break;
-        case 2: request = (gpu.status >>> 28) & 1; break;
-        case 3: request = (gpu.status >>> 27) & 1; break;
+        case 2: request = (status >>> 28) & 1; break;
+        case 3: request = (status >>> 27) & 1; break;
       }
-      return (gpu.status & ~0x02000000) | (request << 25);
+      return (status & ~0x02000000) | (request << 25);
     },
 
     wr32r1810: data => {

@@ -172,7 +172,8 @@ mdlr('enge:psx:mmu', ({ include }) => {
     }
 
     switch (addr & 0x3fff) {
-      case 0x1014: return map[addr >>> 2] >> 0;
+      case 0x1000: case 0x1004: case 0x1008: case 0x100c:
+      case 0x1010: case 0x1014: case 0x1018:
       case 0x1020: return map[addr >>> 2] >> 0;
       case 0x101c: return 0x00070777; // EXP2_DELAY_SIZE / DEV8 delay
       case 0x2080: return 0x58534350; // PCSX-Redux expansion ID: 'PCSX'
