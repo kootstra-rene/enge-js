@@ -152,14 +152,64 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
       expect(dmaBits()).to.eql({ request: 1, cmd: 1, vram: 0, block: 1, direction: 2 });
     });
 
+  });
+
+  describe('GPUSTAT DMA bits during VRAM transfers', () => {
+
+    const dmaBits = () => {
+      const s = stat();
+      return { request: (s >> 25) & 1, cmd: (s >> 26) & 1, vram: (s >> 27) & 1, block: (s >> 28) & 1, direction: (s >> 29) & 3 };
+    };
+
+    // GP0(A0h) 2x2 at 0,0: four pixels in two data words
+    const startUpload = () => { gp0(0xa0000000); gp0(0x00000000); gp0(0x00020002); };
+    // GP0(C0h) 2x2 at 0,0: four pixels in two GPUREAD words
+    const startReadback = () => { gp0(0xc0000000); gp0(0x00000000); gp0(0x00020002); };
+
     it('should stay ready for a DMA block while GP0(A0h) waits for its data', async () => {
       gp1(0x04000002);
-      gp0(0xa0000000);                                  // CPU to VRAM
-      gp0(0x00000000);                                  // x, y
-      gp0(0x00020002);                                  // 2x2
+      startUpload();
+      expect(dmaBits()).to.eql({ request: 1, cmd: 0, vram: 0, block: 1, direction: 2 });
+    });
+
+    it('should be ready for commands again once the GP0(A0h) data has arrived', async () => {
+      gp1(0x04000002);
+      startUpload();
+      gp0(0x00000000); gp0(0x00000000);
       expect(dmaBits()).to.eql({ request: 1, cmd: 1, vram: 0, block: 1, direction: 2 });
-      gp0(0x00000000); gp0(0x00000000);                 // the pixel words
+    });
+
+    it('should not be ready for a DMA block while GP0(C0h) data waits in GPUREAD', async () => {
+      gp1(0x04000003);
+      startReadback();
+      expect(dmaBits()).to.eql({ request: 1, cmd: 1, vram: 1, block: 0, direction: 3 });
+    });
+
+    it('should be ready for a DMA block once the GP0(C0h) data has been read', async () => {
+      gp1(0x04000003);
+      startReadback();
+      gpu.rd32r1810(); gpu.rd32r1810();
+      expect(dmaBits()).to.eql({ request: 0, cmd: 1, vram: 0, block: 1, direction: 3 });
+    });
+
+    it('should keep the DMA direction on GP1(01h)', async () => {
+      gp1(0x04000002);
+      gp1(0x01000000);
       expect(dmaBits()).to.eql({ request: 1, cmd: 1, vram: 0, block: 1, direction: 2 });
+    });
+
+    it('should end a pending GP0(A0h) transfer on GP1(01h)', async () => {
+      startUpload();
+      gp1(0x01000000);
+      writeE1(0x00f);                                    // a command, not pixel data
+      expect(stat() & 0x0f).to.eql(0x0f);
+      expect(dmaBits().cmd).to.eql(1);
+    });
+
+    it('should end a pending GP0(C0h) readback on GP1(01h)', async () => {
+      startReadback();
+      gp1(0x01000000);
+      expect(dmaBits().vram).to.eql(0);
     });
 
   });
