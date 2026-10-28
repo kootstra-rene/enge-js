@@ -2,11 +2,14 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
 
   const { describe, it, xit, expect, beforeEach, before, after } = test;
 
+  const { stubWindow } = include('enge:psx:test-window');
+  let restoreWindow;
+
   // Ported from ps1-tests spu/memory-transfer
   // (https://github.com/JaCzekanski/ps1-tests, MIT). Only the 7 cases listed as
   // passing in its psx.log, captured on real hardware, are included.
 
-  const globalNames = ['window', 'psx', 'cpu', 'spu', 'map16', 'abort', 'hex', 'clearCodeCache'];
+  const globalNames = ['psx', 'cpu', 'spu', 'map16', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
 
   const SPU_TRANSFER_ADDRESS = 0x1da6;
@@ -86,13 +89,14 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
 
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    globalThis.window = { location: { search: '' } };
+    restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
   });
 
   after(async () => {
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];

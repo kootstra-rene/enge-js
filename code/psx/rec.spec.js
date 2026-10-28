@@ -2,7 +2,10 @@ mdlr('[test]enge:psx:rec', ({ include, test }) => {
 
   const { describe, it, expect, before, after } = test;
 
-  const globalNames = ['window', 'psx', 'cpu', 'map', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls', 'getCacheEntry', 'fastCache', 'invalidateCache', 'memRead32'];
+  const { stubWindow } = include('enge:psx:test-window');
+  let restoreWindow;
+
+  const globalNames = ['psx', 'cpu', 'map', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls', 'getCacheEntry', 'fastCache', 'invalidateCache', 'memRead32'];
   const savedGlobals = {};
 
   // R-type JALR: rs in bits 21..25, rd in bits 11..15, funct 0x09
@@ -41,7 +44,7 @@ mdlr('[test]enge:psx:rec', ({ include, test }) => {
 
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    globalThis.window = { location: { href: '', search: '' } };
+    restoreWindow = stubWindow({ location: { href: '', search: '' } });
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
     globalThis.trace = () => {};
@@ -66,6 +69,7 @@ mdlr('[test]enge:psx:rec', ({ include, test }) => {
   });
 
   after(async () => {
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];

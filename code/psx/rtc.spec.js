@@ -86,7 +86,7 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
 
   beforeEach(async () => {
     psx = globalThis.psx = createScheduler();
-    globalThis.cpu = include('enge:psx:cpu').cpu;
+    ({ cpu: globalThis.cpu } = include('enge:psx:cpu'));
     globalThis.gpu = createGpu();
     ({ rtc } = include('enge:psx:rtc'));
     psx.nextLine(); // establish the first scanline

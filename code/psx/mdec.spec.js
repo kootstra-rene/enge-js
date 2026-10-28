@@ -2,11 +2,14 @@ mdlr('[test]enge:psx:mdec', ({ include, test }) => {
 
   const { describe, it, xit, expect, beforeEach, before, after } = test;
 
+  const { stubWindow } = include('enge:psx:test-window');
+  let restoreWindow;
+
   // Ported from ps1-tests mdec/4bit and mdec/8bit
   // (https://github.com/JaCzekanski/ps1-tests, MIT). The expected bytes are the
   // decoded output dumped by the tests on real hardware (psx.log).
 
-  const globalNames = ['window', 'psx', 'dma', 'map', 'map8', 'map16', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache'];
+  const globalNames = ['psx', 'dma', 'map', 'map8', 'map16', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
 
   const bytes = text => text.split(' ').map(h => parseInt(h, 16));
@@ -54,7 +57,7 @@ mdlr('[test]enge:psx:mdec', ({ include, test }) => {
 
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    globalThis.window = { location: { search: '' } };
+    restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.PSX_SPEED = 44100 * 768;
     globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
@@ -62,6 +65,7 @@ mdlr('[test]enge:psx:mdec', ({ include, test }) => {
   });
 
   after(async () => {
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];

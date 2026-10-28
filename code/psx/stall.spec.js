@@ -1,12 +1,14 @@
 mdlr('[test]enge:psx:stall', ({ include, test }) => {
 
   const { describe, it, expect, before, after } = test;
+  const { stubWindow, setSearch } = include('enge:psx:test-window');
 
-  const globalNames = ['window', 'psx', 'cpu', 'gpu', 'map', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls',
+  const globalNames = ['psx', 'cpu', 'gpu', 'map', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls',
     'getCacheEntry', 'memRead8', 'memRead16', 'memRead32', 'memWrite8', 'memWrite16', 'memWrite32',
     'fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord', 'stallReport'];
   const savedGlobals = {};
   const savedWarn = console.warn;
+  let restoreWindow;
 
   const T0 = 8, T1 = 9;
   const LUI = (rt, imm) => ((0x0f << 26) | (rt << 16) | (imm & 0xffff)) >>> 0;
@@ -15,7 +17,7 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
   const BEQ = (rs, rt, off) => ((0x04 << 26) | (rs << 21) | (rt << 16) | (off & 0xffff)) >>> 0;
   const NOP = 0;
 
-  let stall, reads32, warnings;
+  let stall, reads32, warnings, read32;
 
   // Runs `frames` animation frames of `perFrame` blocks each, like mainLoop.
   const runFrames = (pc, frames, perFrame = 20) => {
@@ -31,8 +33,8 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
 
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    globalThis.window = globalThis;
-    globalThis.location = { href: '', search: '?debug-stall' };
+    restoreWindow = stubWindow({ location: { href: '', search: '' } });
+    setSearch('?debug-stall');
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     // same as hex() in code/utils.js: keeps only the last `length` digits
     globalThis.hex = (value, length) => ('00000000' + (value >>> 0).toString(16)).substr(-(length || 8));
@@ -46,7 +48,7 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
     globalThis.map = new Int32Array(0x02000000 >> 2);
     reads32 = 0;
     // GPUSTAT reads back 0, so the loop below never ends
-    globalThis.memRead32 = addr => { ++reads32; return addr === 0x01801814 ? 0 : map[(addr & 0x001fffff) >>> 2]; };
+    globalThis.memRead32 = read32 = addr => { ++reads32; return addr === 0x01801814 ? 0 : map[(addr & 0x001fffff) >>> 2]; };
     globalThis.memWrite32 = (addr, data) => { map[(addr & 0x001fffff) >>> 2] = data; };
     for (const name of ['memRead8', 'memRead16', 'memWrite8', 'memWrite16']) globalThis[name] = () => 0;
 
@@ -61,7 +63,7 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
 
   after(async () => {
     console.warn = savedWarn;
-    delete globalThis.location;
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];
@@ -122,8 +124,8 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
     it('should restore the memory accessors after the report', async () => {
       const before = reads32;
       runFrames(0x1000, 1, 1);
+      expect(memRead32 === read32).to.eql(true);
       expect(reads32 > before).to.eql(true); // still the original function underneath
-      expect(memRead32.toString().includes('++reads32')).to.eql(true);
     });
 
     it('should report a stall only once', async () => {

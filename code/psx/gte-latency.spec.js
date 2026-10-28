@@ -13,6 +13,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
   // ps-exe there, so each describe gets a fresh GTE.
 
   let gte;
+  const freshGte = () => include('enge:psx:gte'); // a new GTE per describe
 
   const u32 = v => v >>> 0;
   const s32 = v => v | 0;
@@ -75,7 +76,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('lighting, triple and single (NCCT, NCCS, NCDT, NCDS, NCT, NCS) (gte-latency.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       // LLM = identity diagonal
@@ -227,7 +228,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('single-vertex lighting (NCS, NCCS, NCDS) (gte-latency-singles.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       gte.set(32 + 8, 0x00001000);
@@ -349,7 +350,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('perspective (RTPS, RTPT) (gte-latency-perspective.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       // Rotation matrix R = identity diagonal
@@ -453,7 +454,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('color (CC, CDP) (gte-latency-color.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       // LCM = identity diagonal
@@ -542,7 +543,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('depth cueing (DPCS, DPCT, DCPL, INTPL) (gte-latency-dpc.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       gte.set(6, 0x00808080); // RGBC
@@ -629,7 +630,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('math (SQR, OP, NCLIP) (gte-latency-math.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       // R matrix - diagonal used by OP. Off-diagonal entries don't matter
@@ -700,7 +701,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('misc (AVSZ3, AVSZ4, GPF, GPL) (gte-latency-misc.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       gte.set(32 + 29, 0x0400); // ZSF3 = 0x400 (1/4 in 1.12)
@@ -777,7 +778,7 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   describe('MVMVA (gte-latency-mvmva.c)', () => {
 
-    before(async () => { ({ gte } = include('enge:psx:gte')); });
+    before(async () => { ({ gte } = freshGte()); });
 
     const scene_setup = () => {
       // Rotation matrix R = identity diagonal

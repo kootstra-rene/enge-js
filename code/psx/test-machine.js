@@ -127,8 +127,12 @@ mdlr('enge:psx:test-machine', ({ include }) => {
 
     // --- the browser pieces the modules touch ----------------------------
     // Without a browser, window is the global object, as it is in one.
-    if (typeof window === 'undefined') {
+    // A runner may provide a plain window object; keep its properties.
+    if (typeof window === 'undefined' || window !== globalThis) {
+      if (typeof window !== 'undefined') Object.assign(globalThis, window);
       globalThis.window = globalThis;
+    }
+    if (typeof location === 'undefined') {
       globalThis.location = { href: 'http://localhost/', search: '' };
     }
     if (typeof document === 'undefined') {
@@ -146,8 +150,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
         removeItem: key => store.delete(key),
       };
     }
-    if (typeof window.addEventListener !== 'function') window.addEventListener = noop;
-    globalThis.AudioContext = AudioContextStub;
+    if (typeof window.addEventListener !== 'function') window.addEventListener = noop;    globalThis.AudioContext = AudioContextStub;
     globalThis.AudioWorkletNode = undefined;
 
     // --- what enge:psx:index and the renderer provide --------------------
@@ -169,9 +172,17 @@ mdlr('enge:psx:test-machine', ({ include }) => {
 
     // --- the emulator, as enge:psx assembles it (no gamepad, no page) -----
     Object.assign(globalThis, include('enge:psx:core'));
-    for (const id of ['serial', 'cpu', 'cdr', 'mdec', 'gpu', 'gte', 'pgxp', 'mmu', 'rec', 'spu', 'stall']) {
-      Object.assign(globalThis, include(`enge:psx:${id}`));
-    }
+    Object.assign(globalThis, include('enge:psx:serial'));
+    Object.assign(globalThis, include('enge:psx:cpu'));
+    Object.assign(globalThis, include('enge:psx:cdr'));
+    Object.assign(globalThis, include('enge:psx:mdec'));
+    Object.assign(globalThis, include('enge:psx:gpu'));
+    Object.assign(globalThis, include('enge:psx:gte'));
+    Object.assign(globalThis, include('enge:psx:pgxp'));
+    Object.assign(globalThis, include('enge:psx:mmu'));
+    Object.assign(globalThis, include('enge:psx:rec'));
+    Object.assign(globalThis, include('enge:psx:spu'));
+    Object.assign(globalThis, include('enge:psx:stall'));
     globalThis.vector = getCacheEntry(0x80);
 
     // --- the machine ------------------------------------------------------

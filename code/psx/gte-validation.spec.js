@@ -2694,16 +2694,18 @@ mdlr('[test]enge:psx:gte-validation', ({ include, test }) => {
         gte_set_far_color(700, 800, 900);
 
         // All 64 MVMVA combos
-        for (let mx = 0; mx < 4; ++mx) {
-          for (let v = 0; v < 4; ++v) {
-            for (let cv = 0; cv < 4; ++cv) {
-              if (v === 3) { gte.set(9, 0x100); gte.set(10, 0x200); gte.set(11, 0x300); }
-              gte_clear_flag();
-              gte.command(COP2_MVMVA(1, mx, v, cv, 0));
+        const allCombos = () => {
+          for (let mx = 0; mx < 4; ++mx) {
+            for (let v = 0; v < 4; ++v) {
+              for (let cv = 0; cv < 4; ++cv) {
+                if (v === 3) { gte.set(9, 0x100); gte.set(10, 0x200); gte.set(11, 0x300); }
+                gte_clear_flag();
+                gte.command(COP2_MVMVA(1, mx, v, cv, 0));
+              }
             }
           }
-        }
-        expect(1).to.eql(1); // if we got here, none crashed
+        };
+        expect(allCombos).to.not.throw();
       });
 
       it('enc_mvmva_mx3_all_vectors', async () => {
@@ -2723,12 +2725,14 @@ mdlr('[test]enge:psx:gte-validation', ({ include, test }) => {
         gte.set(10, 0x500);
         gte.set(11, 0x600);
 
-        for (let v = 0; v < 4; ++v) {
-          if (v === 3) { gte.set(9, 0x400); gte.set(10, 0x500); gte.set(11, 0x600); }
-          gte_clear_flag();
-          gte.command(COP2_MVMVA(1, 3, v, 3, 0));
-        }
-        expect(1).to.eql(1);
+        const allVectors = () => {
+          for (let v = 0; v < 4; ++v) {
+            if (v === 3) { gte.set(9, 0x400); gte.set(10, 0x500); gte.set(11, 0x600); }
+            gte_clear_flag();
+            gte.command(COP2_MVMVA(1, 3, v, 3, 0));
+          }
+        };
+        expect(allVectors).to.not.throw();
       });
 
       it('enc_mvmva_cv2_all_matrices', async () => {
@@ -2742,12 +2746,14 @@ mdlr('[test]enge:psx:gte-validation', ({ include, test }) => {
         gte.set(10, 0x200);
         gte.set(11, 0x300);
 
-        for (let mx = 0; mx < 3; ++mx) {
-          gte.set(9, 0x100); gte.set(10, 0x200); gte.set(11, 0x300);
-          gte_clear_flag();
-          gte.command(COP2_MVMVA(1, mx, 0, 2, 0));
-        }
-        expect(1).to.eql(1);
+        const allMatrices = () => {
+          for (let mx = 0; mx < 3; ++mx) {
+            gte.set(9, 0x100); gte.set(10, 0x200); gte.set(11, 0x300);
+            gte_clear_flag();
+            gte.command(COP2_MVMVA(1, mx, 0, 2, 0));
+          }
+        };
+        expect(allMatrices).to.not.throw();
       });
 
       it('enc_nclip_ignores_sf_lm', async () => {

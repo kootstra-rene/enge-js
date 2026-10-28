@@ -2,11 +2,14 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
 
   const { describe, it, expect, beforeEach, before, after } = test;
 
+  const { stubWindow } = include('enge:psx:test-window');
+  let restoreWindow;
+
   // Ported from ps1-tests gpu/gp0-e1 and gpu/gpustat
   // (https://github.com/JaCzekanski/ps1-tests, MIT); every case listed here
   // passes on real hardware according to the tests' psx.log.
 
-  const globalNames = ['window', 'psx', 'cpu', 'ram', 'renderer', 'nextPrimitive', 'abort', 'hex'];
+  const globalNames = ['psx', 'cpu', 'ram', 'renderer', 'nextPrimitive', 'abort', 'hex'];
   const savedGlobals = {};
 
   const E1_MASK = 0b1000011111111111; // GPUSTAT bits 0-10 and 15
@@ -31,7 +34,7 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
 
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    globalThis.window = { location: { search: '' } };
+    restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
     globalThis.renderer = new Proxy({}, { get: () => () => {} });
@@ -39,6 +42,7 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
   });
 
   after(async () => {
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];
