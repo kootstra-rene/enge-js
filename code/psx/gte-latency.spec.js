@@ -1,6 +1,6 @@
 mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
-  const { describe, it, expect, before } = test;
+  const { describe, it, xit, expect, before, after } = test;
 
   // Ported from the nugget GTE input-register latency tests
   // (https://github.com/pcsx-redux/nugget, tests/gte-latency*, MIT). On the
@@ -900,5 +900,151 @@ mdlr('[test]enge:psx:gte-latency', ({ include, test }) => {
 
   });
 
+  describe('LZCS to LZCR latency (gte-latency-lzcs.c)', () => {
+
+    // LZCR (data register 31) counts the leading bits of LZCS (30) equal to
+    // its sign bit. Read with no instruction between the write and MFC2,
+    // LZCR still holds the count of the value before: every case needs at
+    // least one, and every case settles within eight. The probes run from
+    // cached (KSEG0) and uncached (KSEG1) addresses; the arms put an I/O
+    // load, a multiply or a divide between the write and the read.
+
+    const { createMachine } = include('enge:psx:test-machine');
+    const MAX_N = 8, DRAIN = 24, BASE = 0x80030000;
+
+    const nops = n => '\n          nop'.repeat(n);
+    const probes = Array.from({ length: MAX_N + 1 }, (_, n) => `
+      probe_${n}:
+          mtc2  $a0, $30${nops(DRAIN)}
+          mtc2  $a1, $30${nops(n)}
+          mfc2  $v0, $31
+          nop
+          nop
+          jr    $ra
+          nop`).join('');
+    const arms = {
+      iostat: 'lw $t1, 0($t5)',
+      multbig_mflo: 'mult $t2, $t3\n          mflo $t1',
+      multsmall_mflo: 'mult $t4, $t3\n          mflo $t1',
+      div_mflo: 'div $zero, $t2, $t3\n          mflo $t1',
+      lonemult: 'mult $t2, $t3',
+    };
+    const armCode = Object.entries(arms).map(([name, filler]) => `
+      arm_${name}:
+          li    $t2, 0x7fffffff
+          li    $t3, 3
+          li    $t4, 7
+          li    $t5, 0xbf801070
+          mtc2  $a0, $30${nops(DRAIN)}
+          mtc2  $a1, $30
+          ${filler}
+          mfc2  $v0, $31
+          nop
+          nop
+          jr    $ra
+          nop`).join('');
+
+    const cases = [];
+    for (let run = 1; run <= 31; run++) {
+      cases.push((0xffffffff >>> run) >>> 0, run === 31 ? 1 : (0x80000000 >>> run) >>> 0);
+    }
+    cases.push(0);
+    for (let run = 1; run <= 31; run++) {
+      cases.push((~(0xffffffff >>> run)) >>> 0, (~(0x80000000 >>> run)) >>> 0);
+    }
+    cases.push(0xffffffff);
+
+    const lzcr_expect = v => {
+      const top = v >>> 31;
+      let n = 0;
+      for (let i = 31; i >= 0; i--) {
+        if (((v >>> i) & 1) !== top) break;
+        n++;
+      }
+      return n;
+    };
+    const poison_for = expected => expected <= 16 ? 0x00000001 : 0x40000000;
+
+    let m, labels;
+    before(async () => {
+      m = createMachine();
+      labels = m.asm(BASE, `
+      gte_enable:
+          mfc0  $t0, $12
+          lui   $t1, 0x4000
+          or    $t0, $t0, $t1
+          mtc0  $t0, $12
+          nop
+          nop
+          jr    $ra
+          nop
+      lzcs_put_get:
+          mtc2  $a0, $30
+          nop
+          nop
+          mfc2  $v0, $31
+          nop
+          jr    $ra
+          nop
+      ${probes}
+      ${armCode}
+      `).labels;
+      m.call(labels.gte_enable);
+    });
+    after(async () => { m?.dispose(); });
+
+    const call = (addr, uncached, ...args) => m.call(uncached ? ((addr & 0x1fffffff) | 0xa0000000) >>> 0 : addr, ...args).v0;
+
+    const run_regime = uncached => {
+      let n0_correct = 0, never_settled = 0;
+      for (const value of cases) {
+        const expected = lzcr_expect(value);
+        const poison = poison_for(expected);
+        for (let n = 0; n <= MAX_N; n++) call(labels[`probe_${n}`], uncached, poison, value);
+        const got = [];
+        for (let n = 0; n <= MAX_N; n++) got.push(call(labels[`probe_${n}`], uncached, poison, value));
+        if (!got.includes(expected)) never_settled++;
+        if (got[0] === expected) n0_correct++;
+      }
+      return { never_settled, n0_correct };
+    };
+
+    it('lzcs_semantics', async () => {
+      expect([0x00010000, 0xfffe0000, 0x00000000, 0x80000000].map(v => call(labels.lzcs_put_get, false, v)))
+        .to.eql([15, 15, 32, 1]);
+    });
+
+    it('the case table', async () => {
+      expect(cases.length).to.eql(126);
+      const runs = [...Array.from({ length: 62 }, (_, i) => (i >> 1) + 1), 32];
+      expect(cases.map(lzcr_expect)).to.eql([...runs, ...runs]);
+    });
+
+    // LZCR is updated by the MTC2 itself: N=0 already reads the new count
+    xit('lzcs_sweep_cached', async () => {
+      expect(run_regime(false)).to.eql({ never_settled: 0, n0_correct: 0 });
+    });
+
+    it('lzcs_sweep_uncached', async () => {
+      expect(run_regime(true).never_settled).to.eql(0);
+    });
+
+    for (const [regime, uncached] of [['cached', false], ['uncached', true]]) {
+      it(`lzcs_arms_${regime}`, async () => {
+        const rows = Object.keys(arms).map(name => {
+          let n = 0;
+          for (const value of cases) {
+            const poison = poison_for(lzcr_expect(value));
+            call(labels[`arm_${name}`], uncached, poison, value);
+            call(labels[`arm_${name}`], uncached, poison, value);
+            n++;
+          }
+          return n;
+        });
+        expect(rows).to.eql(new Array(5).fill(cases.length));
+      });
+    }
+
+  });
 
 })
