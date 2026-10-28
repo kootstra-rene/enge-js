@@ -4,7 +4,9 @@
   "type": "commonjs",
   "scripts": {
     "server": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:nugget": "node tests/nugget/run.js",
+    "build:nugget": "sh tests/nugget/build.sh"
   },
   "engines": {
     "node": ">=18"

@@ -2,3 +2,4 @@
 **/PsyQ*
 .enge-certs/
 node_modules/
+tests/nugget/.nugget/
