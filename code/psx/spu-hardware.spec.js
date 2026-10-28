@@ -446,6 +446,17 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
 
   describe('ADSR envelopes (spu-adsr)', () => {
 
+    // The traces play whatever sample the capture tests left at
+    // SPU_UPLOAD_ADDR, a looping one; upload one here, so they do not
+    // depend on which capture tests ran (an end block without repeat would
+    // mute the voice).
+    before(async () => {
+      s.spu_reset_quiet();
+      const upload = new Uint8Array(128).fill(0xaa);
+      upload.set(s.kAdpcmSine);
+      s.spu_write_sync(s.SPU_UPLOAD_ADDR, upload, 128);
+    });
+
     const ATTACK = (step, shift, exp) => u32(((step & 3) << 8) | ((shift & 31) << 10) | ((exp ? 1 : 0) << 15));
     const DECAY = shift => (shift & 15) << 4;
     const SUSTAIN = (step, shift, level, direction, exp) =>
@@ -518,9 +529,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       expect(hex(near ? nominal : got)).to.eql(hex(nominal));
     };
 
-    // the first sample reads 2 where silicon reads 5
-
-    xit('adsr_attack_linear_step', async () => {
+    it('adsr_attack_linear_step', async () => {
       let i;
       const envx = new Uint16Array(0x40);
 
@@ -549,9 +558,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       for (i = 33; i < 48; i++) expect(u32(envx[i])).to.eql(0x000c);
     });
 
-    // ENVX 0e00h where silicon reads 0dcfh
-
-    xit('adsr_attack_linear_shift', async () => {
+    it('adsr_attack_linear_shift', async () => {
       let i;
       const envx = new Uint16Array(0x40);
 
@@ -629,9 +636,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       for (i = 33; i < 48; i++) expect(u32(envx[i])).to.eql(0x0012);
     });
 
-    // the first sample reads 3 where silicon reads 7
-
-    xit('adsr_attack_exponential', async () => {
+    it('adsr_attack_exponential', async () => {
       const envx = new Uint16Array(0x40);
 
       let base = u32(DECAY(0) | SUSTAIN(3, 0x1f, 15, 0, 0) | RELEASE(0, 0));
@@ -671,9 +676,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       ASSERT_ENVX_NEAR(0x7e3f, 7, envx[31]);
     });
 
-    // ENVX 7ff9h where silicon reads 6370h
-
-    xit('adsr_decay_shift', async () => {
+    it('adsr_decay_shift', async () => {
       const envx = new Uint16Array(0x40);
 
       spu_adsr_capture(
@@ -747,9 +750,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       ASSERT_ENVX_NEAR(0x4c05, 0x02, envx[31]);
     });
 
-    // ENVX 7fbah where silicon holds the sustain level 07ffh
-
-    xit('adsr_sustain_level', async () => {
+    it('adsr_sustain_level', async () => {
       const envx = new Uint16Array(16);
 
       spu_adsr_capture(
@@ -778,9 +779,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       for (let i = 1; i < 16; i++) expect(u32(envx[i])).to.eql(0x7fef);
     });
 
-    // ENVX 63abh where silicon reads 5b50h
-
-    xit('adsr_sustain_up_linear', async () => {
+    it('adsr_sustain_up_linear', async () => {
       const envx = new Uint16Array(0x20);
 
       spu_adsr_capture(
@@ -844,9 +843,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       ASSERT_ENVX_NEAR(0x4d88, 0x02, envx[31]);
     });
 
-    // ENVX 382fh where silicon reads 2c7ch
-
-    xit('adsr_sustain_down_linear', async () => {
+    it('adsr_sustain_down_linear', async () => {
       const envx = new Uint16Array(0x20);
 
       spu_adsr_capture(
@@ -904,9 +901,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       ASSERT_ENVX_NEAR(0x3105, 0x02, envx[30]);
     });
 
-    // ENVX 4eeah where silicon reads 46d1h
-
-    xit('adsr_sustain_up_exponential', async () => {
+    it('adsr_sustain_up_exponential', async () => {
       const envx = new Uint16Array(0x20);
 
       spu_adsr_capture(
@@ -941,9 +936,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       ASSERT_ENVX_NEAR(0x6591, 0x02, envx[31]);
     });
 
-    // ENVX 440bh where silicon reads 3c19h
-
-    xit('adsr_sustain_down_exponential', async () => {
+    it('adsr_sustain_down_exponential', async () => {
       const envx = new Uint16Array(0x20);
 
       spu_adsr_capture(
@@ -971,9 +964,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       ASSERT_ENVX_NEAR(0x035b, 0x01, envx[30]);
     });
 
-    // the attack peaks at 7fffh where silicon reads 7ff7h
-
-    xit('adsr_release_linear', async () => {
+    it('adsr_release_linear', async () => {
       const envx = new Uint16Array(0x20);
 
       spu_adsr_capture_with_keyoff(
@@ -1030,9 +1021,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       ASSERT_ENVX_NEAR(0x79fb, 0x04, envx[15]);
     });
 
-    // the attack peaks at 7fffh where silicon reads 7ff7h
-
-    xit('adsr_release_exponential', async () => {
+    it('adsr_release_exponential', async () => {
       const envx = new Uint16Array(0x20);
 
       spu_adsr_capture_with_keyoff(

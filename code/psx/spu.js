@@ -193,13 +193,29 @@ mdlr('enge:psx:spu', ({ include }) => {
     const captureIndex = (totalSamples % 0x200) << 1;
     spu.checkIrq();
 
+    // Key-on is serviced every other sample, at least a sample after the
+    // write: ENDX clears and the voice restarts (it fetches block headers
+    // for three samples and starts its envelope on the fourth).
+    if (keyOnPending && !(totalSamples & 1) && totalSamples >= keyOnWrittenAt + 2) {
+      for (let i = 0; i < 24; ++i) {
+        if (!(keyOnPending & (1 << i))) continue;
+        voices[i].keyOn();
+        spu.ENDX &= ~(1 << i);
+      }
+      keyOnPending = 0;
+    }
+
     let audio = [0.0, 0.0];
     let reverbLeft = 0.0, reverbRight = 0.0;
     let previousVoiceOutput = 0.0;
     for (let voice of voices) {
       const active = voice.advance(memory, audio, previousVoiceOutput);
       previousVoiceOutput = voice.outputForModulation;
-      if (!active) continue;
+      if (!active) {
+        // voices 1 and 3 write their capture buffer every sample
+        if (voice.capture) view.setInt16(voice.capture + captureIndex, 0, true);
+        continue;
+      }
 
       l += audio[0];
       r += audio[1];
@@ -263,6 +279,8 @@ mdlr('enge:psx:spu', ({ include }) => {
   let irqOffset = 0;
   let writeIndex = 0;
   let totalSamples = 0;
+  let keyOnPending = 0;    // voices keyed on, waiting for the key-on service
+  let keyOnWrittenAt = 0;  // the sample count at the last KON write
 
   let SPUCNT = 0x0000;
   let SPUSTAT = 0x0000;
@@ -300,7 +318,8 @@ mdlr('enge:psx:spu', ({ include }) => {
       switch (addr) {
         case 0x1daa: return SPUCNT;
         case 0x1dae: return (SPUSTAT & ~0x3f) | (SPUCNT & 0x3f);
-        case 0x1d9c: return spu.ENDX;
+        case 0x1d9c: return spu.ENDX & 0xffff;
+        case 0x1d9e: return spu.ENDX >>> 16;
         default:
           if ((addr >= 0x1c00) && (addr < 0x1d80)) {
             const id = (addr - 0x1c00) >> 4;
@@ -308,6 +327,9 @@ mdlr('enge:psx:spu', ({ include }) => {
           }
           if ((addr >= 0x1dc0) && (addr < 0x1e00)) {
             return reverb.rd16(addr);
+          }
+          if ((addr >= 0x1e00) && (addr < 0x1e60)) {
+            return voices[(addr - 0x1e00) >> 2].volx(addr & 2);
           }
           return regs.get(addr);
       }
@@ -330,17 +352,15 @@ mdlr('enge:psx:spu', ({ include }) => {
         case 0x1d86:
           reverb.wr16(addr, data);
           break;
-        case 0x1d88: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue;
-          voices[i].keyOn()
-          spu.ENDX &= ~(1 << i);
-        }
+        // KON is a register: a write replaces the voices waiting for the
+        // key-on service (a second write before the service drops the first)
+        case 0x1d88:
+          keyOnPending = (keyOnPending & 0xff0000) | data;
+          keyOnWrittenAt = totalSamples;
           break
-        case 0x1d8a: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue;
-          voices[16 + i].keyOn()
-          spu.ENDX &= ~(1 << (16 + i));
-        }
+        case 0x1d8a:
+          keyOnPending = (keyOnPending & 0xffff) | ((data & 0xff) << 16);
+          keyOnWrittenAt = totalSamples;
           break
         case 0x1d8c: for (let i = 0; i < 16; ++i) {
           if ((data & (1 << i)) === 0) continue;

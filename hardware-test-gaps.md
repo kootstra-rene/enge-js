@@ -7,7 +7,7 @@ they are likely to matter (numbering kept; fixed items move to the end). When
 an item is fixed, turn its cases back into
 `it` and run the spec.
 
-Counts are skipped cases (288 left; the 5 in `mdec` and `spu` predate the port
+Counts are skipped cases (262 left; the 5 in `mdec` and `spu` predate the port
 and are not listed). Spec names are `[test]enge:psx:<spec>`.
 
 ## Crashes and hangs
@@ -46,19 +46,6 @@ These stop or hang the emulator instead of giving a wrong value.
 
 ## Likely to affect games
 
-7. **ADSR envelopes differ from the first sample** — attack, decay, sustain
-   and release steps all read off: the first attack sample is 2 where silicon
-   reads 5, sustain level 07FFh holds at 7FBAh, release starts from 7FFFh
-   instead of 7FF7h.
-   - `spu-hardware`: adsr_attack_linear_step, adsr_attack_linear_shift,
-     adsr_attack_exponential, adsr_decay_shift, adsr_sustain_level,
-     adsr_sustain_up/down_linear, adsr_sustain_up/down_exponential,
-     adsr_release_linear, adsr_release_exponential (11)
-
-8. **Current voice volume (VOLX, 1F801E00h + 4n) is not emulated** — reads
-   0, so volume sweeps cannot be observed.
-   - `spu-voices`: every voice volume sweep case (14)
-
 9. **GP0(1Fh) and the GPU IRQ are not implemented** — GPUSTAT.24 is never
    set.
    - `gpu-hardware`: irq_clear_after_reset, irq_gp0_1f_sets_flag,
@@ -85,11 +72,6 @@ These stop or hang the emulator instead of giving a wrong value.
     at line 257; hardware raises it around line 23 and holds it to vblank.
     Bit 13 never changes. Matters for interlaced games that sync on GPUSTAT.
     - `gpu-hardware`: bit31RisesAtLine23, bit13FollowsShortField (2)
-
-13. **SPU key-on happens at once** — no key-on service latency on the
-    two-sample grid, no attack delay after ENDX clears, no header fetches
-    that latch the repeat address.
-    - `spu-voices`: repeat address latching and key-on timing (1)
 
 14. **The GP0 FIFO is not emulated** — GPUSTAT.25 never drops and a
     poly-line streamed by the CPU never fills it; unpaced, hardware loses the
@@ -193,3 +175,17 @@ the tests of nugget's own libraries.
   (`spu-voice.js`), and the IRQ address matches while the voice plays the
   block holding it. `spu-voices` B: end without repeat, IRQ from a silent
   voice.
+- **ADSR envelopes and voice volume sweeps follow the hardware's integer
+  envelope** (`spu-voice.js`): step and rate as psx-spx describes them,
+  exponential decrease scaled by the level and increase slowed above 6000h,
+  a phase ends on the step that reaches its end (decay once the top four
+  bits are at or below the sustain level). VOLX (1F801E00h + 4n) reads the
+  current volumes. `spu-hardware` adsr_* (11); `spu-voices` the volume
+  sweeps (14).
+- **Key-on is serviced every other sample, a sample or more after the
+  write** (`spu.js`); KON is a register, so a second write before the
+  service replaces the first. The voice fetches the first block header for
+  three samples (taking its loop start whatever the CPU wrote), then starts
+  its envelope. A repeat address the CPU writes while the voice plays is
+  kept against later loop-start flags. The voice capture buffers are written
+  every sample. `spu-voices` repeat address latching and key-on timing.

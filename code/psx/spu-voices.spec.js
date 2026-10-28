@@ -588,8 +588,7 @@ mdlr('[test]enge:psx:spu-voices', ({ include, test }) => {
 
     // the cases run in order on one voice, as on hardware
     for (const [tag, startDirect, sweep, stride, golden] of cases) {
-      // VOLX (1F801E00h + 4n) is not emulated and reads 0
-      xit(tag, async () => {
+      it(tag, async () => {
         setup();
         const voice = hw.SPU_VOICES[1];
         voice.volumeLeft = startDirect;
@@ -731,9 +730,7 @@ mdlr('[test]enge:psx:spu-voices', ({ include, test }) => {
 
     const near = (value, target, tolerance) => value !== NONE && value + tolerance >= target && value <= target + tolerance;
 
-    // key-on starts the voice at once: no header fetches that latch the
-    // repeat address, no service latency, no attack delay after ENDX
-    xit('repeat address latching and key-on timing', async () => {
+    it('repeat address latching and key-on timing', async () => {
       boot();
       const failures = [];
       const check = (ok, what) => { if (!ok) failures.push(what); };
