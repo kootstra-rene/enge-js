@@ -98,11 +98,13 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
 
   });
 
-  // The voice 1 capture ring (SPU RAM 800h) is written after the voice
-  // volume in enge (spu.js), where hardware writes the enveloped sample
-  // before it: with the volume at 0, as here, the capture stays silent. Taken
-  // before the volume, the waveforms have the golden's shape but not its
-  // amplitude (a sine peaks at 16064 against 14278 on silicon).
+  // The capture goldens compare to the LSB, and enge's captures are within
+  // one LSB of them: the voice is decoded, interpolated and enveloped as on
+  // hardware, but the exact rounding of interpolation times envelope is not
+  // matched (the tops of the sine read 14279 against 14278, other samples
+  // one high or one low). The cases that differ by more say so.
+  // Note: nugget itself does not assert the spu-adpcm-edge goldens yet
+  // (SPU_ADPCM_EDGE_GOLDENS_AVAILABLE 0), so those are weaker evidence.
 
   describe('ADPCM decoding (spu-adpcm)', () => {
 
@@ -111,42 +113,30 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       expect(s.spu_compare_golden('silent')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
     xit('adpcm_decode_sinewave', async () => {
       s.run_voice1_with_sample(s.kAdpcmSine, 0x1000);
       expect(s.spu_compare_golden('sine')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('adpcm_decode_sinewave_lowpitch', async () => {
       s.run_voice1_with_sample(s.kAdpcmSine394Hz, 0x1000);
       expect(s.spu_compare_golden('sine_low')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
     xit('adpcm_decode_sinewave_highpitch', async () => {
       s.run_voice1_with_sample(s.kAdpcmSine5512Hz, 0x1000);
       expect(s.spu_compare_golden('sine_high')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('adpcm_decode_tranglewave', async () => {
       s.run_voice1_with_sample(s.kAdpcmTriangle, 0x1000);
       expect(s.spu_compare_golden('triangle')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
     xit('adpcm_decode_squarewave', async () => {
       s.run_voice1_with_sample(s.kAdpcmSquare, 0x1000);
       expect(s.spu_compare_golden('square')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('adpcm_decode_with_loop', async () => {
       s.run_voice1_with_sample(s.kAdpcmTriangle, 0x1000);
@@ -229,8 +219,9 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       s.muteSpu();
     };
 
+    // filters 2-4 drift by up to 11 LSB within a block (the rounding of the
+    // prediction accumulates); filters 0 and 1 are within one LSB
     for (const N of [0, 1, 2, 3, 4]) {
-      // capture is written after the voice volume
       xit(`adpcm_edge_predictor_${N}`, async () => {
         const sample = new Uint8Array(64);
         spu_adpcm_edge_block(sample, 0, (N << 4) | 4, 0x04, kEdgeMixed);
@@ -242,8 +233,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       });
     }
 
-    // capture is written after the voice volume
-
     xit('adpcm_edge_shift_00_03', async () => {
       const sample = new Uint8Array(64);
       spu_adpcm_edge_block(sample, 0, 0x00, 0x04, kEdgeAlternating);
@@ -253,8 +242,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       s.run_voice1_with_sample(sample, 0x1000);
       expect(s.spu_compare_golden('adpcm_edge_shift_00_03')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('adpcm_edge_shift_04_07', async () => {
       const sample = new Uint8Array(64);
@@ -266,8 +253,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       expect(s.spu_compare_golden('adpcm_edge_shift_04_07')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
     xit('adpcm_edge_shift_08_11', async () => {
       const sample = new Uint8Array(64);
       spu_adpcm_edge_block(sample, 0, 0x08, 0x04, kEdgeAlternating);
@@ -278,8 +263,8 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       expect(s.spu_compare_golden('adpcm_edge_shift_08_11')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
+    // shifts 13-15 decode as shift 9 in enge; on hardware the alternating
+    // -8/+7 nibbles come out near -128/-4 (not matched yet)
     xit('adpcm_edge_shift_12_15', async () => {
       const sample = new Uint8Array(64);
       spu_adpcm_edge_block(sample, 0, 0x0c, 0x04, kEdgeAlternating);
@@ -289,8 +274,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       s.run_voice1_with_sample(sample, 0x1000);
       expect(s.spu_compare_golden('adpcm_edge_shift_12_15')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('adpcm_edge_state_carry', async () => {
       const sample = new Uint8Array(64);
@@ -316,8 +299,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       expect(s.spu_compare_golden('adpcm_edge_saturation_negative')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
     xit('adpcm_edge_flag_code2_ignored', async () => {
       const sample = new Uint8Array(64);
       spu_adpcm_edge_block(sample, 0, 0x04, 0x04, kEdgeRamp);
@@ -327,8 +308,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       s.run_voice1_with_sample(sample, 0x1000);
       expect(s.spu_compare_golden('adpcm_edge_flag_code2_ignored')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('adpcm_edge_flag_loop_start_latch', async () => {
       const sample = new Uint8Array(64);
@@ -361,8 +340,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       spu_adpcm_edge_stop();
     });
 
-    // capture is written after the voice volume
-
     xit('adpcm_edge_flag_end_repeat', async () => {
       const sample = new Uint8Array(64);
       spu_adpcm_edge_block(sample, 0, 0x04, 0x04, kEdgePositive);
@@ -379,8 +356,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       spu_adpcm_edge_stop();
     });
 
-    // capture is written after the voice volume
-
     xit('adpcm_edge_invalid_predictor_5_7', async () => {
       const sample = new Uint8Array(64);
       spu_adpcm_edge_block(sample, 0, 0x54, 0x04, kEdgeMixed);
@@ -396,8 +371,6 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
 
   describe('voice capture (spu-capture)', () => {
 
-    // capture is written after the voice volume
-
     xit('voice_sample_rates', async () => {
       s.run_voice1_with_sample(s.kAdpcmSine, 0x0800);
       expect(s.spu_compare_golden('sine_pitch_0800')).to.eql(0);
@@ -407,28 +380,20 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       expect(s.spu_compare_golden('sine_pitch_3000')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
     xit('voice_sample_rate_nondyadic', async () => {
       s.run_voice1_with_sample(s.kAdpcmSine, 0x1500);
       expect(s.spu_compare_golden('sine_pitch_1500')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('voice_sample_rate_swept_index', async () => {
       s.run_voice1_with_sample(s.kAdpcmSine, 0x1400);
       expect(s.spu_compare_golden('sine_pitch_1400')).to.eql(0);
     });
 
-    // capture is written after the voice volume
-
     xit('voice_sample_rate_swept_index_full', async () => {
       s.run_voice1_with_sample(s.kAdpcmSine7, 0x1300);
       expect(s.spu_compare_golden('sine7_pitch_1300')).to.eql(0);
     });
-
-    // capture is written after the voice volume
 
     xit('voice_volume_does_not_affect_capture', async () => {
       hw.SPU_VOICES[1].volumeLeft = 0x3fff;

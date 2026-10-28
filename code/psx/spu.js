@@ -207,15 +207,14 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     let audio = [0.0, 0.0];
     let reverbLeft = 0.0, reverbRight = 0.0;
-    let previousVoiceOutput = 0.0;
+    let previousVoiceOutput = 0;
     for (let voice of voices) {
       const active = voice.advance(memory, audio, previousVoiceOutput);
-      previousVoiceOutput = voice.outputForModulation;
-      if (!active) {
-        // voices 1 and 3 write their capture buffer every sample
-        if (voice.capture) view.setInt16(voice.capture + captureIndex, 0, true);
-        continue;
-      }
+      previousVoiceOutput = voice.lastVolume;
+      // voices 1 and 3 write their enveloped sample, before the voice
+      // volume, to a capture buffer every sample
+      if (voice.capture) view.setInt16(voice.capture + captureIndex, voice.lastVolume, true);
+      if (!active) continue;
 
       l += audio[0];
       r += audio[1];
@@ -223,11 +222,6 @@ mdlr('enge:psx:spu', ({ include }) => {
       if (voice.reverb) {
         reverbLeft += audio[0];
         reverbRight += audio[1];
-      }
-      if (voice.capture) {
-        // todo: verify cacpture left or right channel
-        const mono = (audio[0] * 0x8000) >> 0;
-        view.setInt16(voice.capture + captureIndex, mono, true);
       }
     }
 

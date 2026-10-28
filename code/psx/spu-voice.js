@@ -1,6 +1,5 @@
 mdlr('enge:psx:spu-voice', ({ include }) => {
 
-  let BLOCKSIZE = (28 * 0x1000) >>> 0;
 
   let id = 0;
   // ADSR: the phase (0 off, 1 attack, 2 decay, 3 sustain, 4 release) and
@@ -10,16 +9,22 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   let pitchModulationEnabled = false;
 
   let pitchStep = 0;
-  let pitchCounter = BLOCKSIZE;
+  // the position in the block: sample index in bits 12 and up, the
+  // interpolation index in bits 4-11
+  let pitchCounter = 0;
   let repeatAddress = 0;
   let blockAddress = 0;
   let currentBlock = -1;  // the block being played, for IRQ address matches
   let started = false;    // keyed on at least once: the voice reads SPU RAM
   let startup = 0;        // samples of header fetches left after a key-on
   let ignoreLoop = false; // the CPU wrote the repeat address while playing
-  let buffer = new Float32Array(28);
-  let s0 = 0.0;
-  let s1 = 0.0;
+  // the decoded block, after the last three samples of the one before (for
+  // the interpolation); its flags; the decoder's two previous samples
+  const samples = new Int16Array(3 + 28);
+  let blockFlags = 0;
+  let hasSamples = false;
+  let s0 = 0;
+  let s1 = 0;
   // the current volumes (VOLX, signed 16 bit); set directly, or swept
   let volumeLeft = 0;
   let volumeRight = 0;
@@ -206,59 +211,70 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     return { level: current, sweeping: sweep.increment > 0 };
   };
 
+  // the ADPCM prediction filters
+  const FILTER_POS = [0, 60, 115, 98, 122];
+  const FILTER_NEG = [0, 0, -52, -55, -60];
+
+  // decode the block at blockAddress into samples[3..30]
   const decodeBlock = (ram) => {
     currentBlock = blockAddress;
     const shiftFilter = ram[blockAddress + 0];
-    const flags = ram[blockAddress + 1];
+    blockFlags = ram[blockAddress + 1];
 
     const shiftValue = shiftFilter & 0x0f;
     const shift = shiftValue > 12 ? 9 : shiftValue;
-    const filter = (shiftFilter & 0xf0) >>> 3;
+    // filters 5-7 decode as filter 0 (measured)
+    const filter = (shiftFilter >>> 4) > 4 ? 0 : shiftFilter >>> 4;
+    const k0 = FILTER_POS[filter], k1 = FILTER_NEG[filter];
 
-    const k0 = Math.round(xa2flt[filter + 0] * 64);
-    const k1 = Math.round(xa2flt[filter + 1] * 64);
-
-    let sample = -1;
-    for (let offset = 2; offset < 16; ++offset) {
-      let data = ram[blockAddress + offset];
-      let nibble = (data & 0x0f) << 12;
-      if (nibble & 0x8000) nibble |= 0xffff0000;
-      let value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
+    samples[0] = samples[28];
+    samples[1] = samples[29];
+    samples[2] = samples[30];
+    for (let i = 0; i < 28; ++i) {
+      const data = ram[blockAddress + 2 + (i >> 1)];
+      const nibble = ((data >> ((i & 1) << 2)) & 0xf) << 12;
+      let value = (((nibble << 16) >> 16) >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
       value = Math.max(-0x8000, Math.min(0x7fff, value));
       s1 = s0; s0 = value;
-      buffer[++sample] = value / 0x8000;
-
-      nibble = (data & 0xf0) << 8;
-      if (nibble & 0x8000) nibble |= 0xffff0000;
-      value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
-      value = Math.max(-0x8000, Math.min(0x7fff, value));
-      s1 = s0; s0 = value;
-      buffer[++sample] = value / 0x8000;
+      samples[3 + i] = value;
     }
 
-    if ((flags & 4) === 4 && !ignoreLoop) {
+    if ((blockFlags & 4) === 4 && !ignoreLoop) {
       repeatAddress = blockAddress;
     }
+    hasSamples = true;
+  };
 
-    blockAddress += 16;
-
-    if ((flags & 1) === 1) {
+  // past the end of a block: the next one, or the repeat address after an
+  // end flag (ENDX latches; without the repeat flag the voice is muted)
+  const nextBlock = () => {
+    hasSamples = false;
+    blockAddress = (blockAddress + 16) & 0x7ffff;
+    if (blockFlags & 1) {
       blockAddress = repeatAddress;
       spu.ENDX |= (1 << id);
-      if ((flags & 2) === 0) {
-        startAdsrRelease();
+      if (!(blockFlags & 2)) {
+        adsrState = 0;
         adsrLevel = 0;
+        regs[0x0c] = 0;
       }
     }
+  };
 
-  }
-
-  let $s1, $s2, $s3, $s4;
+  // the 4-point gaussian interpolation of the decoded samples
+  const interpolate = () => {
+    const i = (pitchCounter >>> 4) & 0xff;
+    const n = 3 + (pitchCounter >>> 12);
+    return (gauss[0x0ff - i] * samples[n - 3] + gauss[0x1ff - i] * samples[n - 2] +
+      gauss[0x100 + i] * samples[n - 1] + gauss[i] * samples[n]) >> 15;
+  };
 
   const voice = {
     reverb: 0,
     capture: 0,
-    outputForModulation: 0.0,
+    // the enveloped sample before the voice volume: the capture buffers and
+    // the next voice's pitch modulation take it
+    lastVolume: 0,
 
     setId(voiceId) {
       id = voiceId;
@@ -267,15 +283,16 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       return voice;
     },
 
-    advance(ram, audio, previousVoiceOutput = 0.0) {
+    // One sample. Returns whether the voice sounds (audio holds its left
+    // and right output, -1..1).
+    advance(ram, audio, previousVoiceOutput = 0) {
+      voice.lastVolume = 0;
+
       // Once keyed on, a voice keeps reading SPU RAM, also after it ended or
       // was keyed off and its envelope reached 0: its address still moves,
       // ENDX still latches and the IRQ address still matches. Only a voice
       // never keyed on is skipped.
-      if (!started) {
-        voice.outputForModulation = 0.0;
-        return 0;
-      }
+      if (!started) return 0;
 
       // After a key-on the voice fetches the first block's header for three
       // samples, taking its loop start whatever the CPU wrote, and starts on
@@ -283,59 +300,36 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       if (startup) {
         --startup;
         if (startup < 3 && (ram[blockAddress + 1] & 4)) repeatAddress = blockAddress;
-        voice.outputForModulation = 0.0;
         return 0;
       }
 
-      // PMON scales this voice's pitch from the preceding voice's signed
-      // interpolated output, centered around a factor of 1.0.
-      let currentPitchStep = pitchStep;
+      // the position moves by the pitch before the sample is taken
+      // PMON scales the pitch by the previous voice's enveloped sample,
+      // centered around a factor of 1.0
+      let step = pitchStep;
       if (pitchModulationEnabled && id > 0) {
-        const modulatorSample = Math.max(-0x8000, Math.min(0x7fff, (previousVoiceOutput * 0x8000) | 0));
-        const modulationFactor = modulatorSample + 0x8000;
-        currentPitchStep = (pitchStep * modulationFactor) >> 15;
+        const factor = Math.max(-0x8000, Math.min(0x7fff, previousVoiceOutput)) + 0x8000;
+        step = ((step * factor) >> 15) & 0xffff;
       }
-      pitchCounter += currentPitchStep;
-
-      if (pitchCounter >= BLOCKSIZE) {
-        pitchCounter -= BLOCKSIZE;
-
+      if (!hasSamples) decodeBlock(ram);
+      pitchCounter += Math.min(step, 0x4000);
+      if ((pitchCounter >>> 12) >= 28) {
+        pitchCounter -= 28 << 12;
+        nextBlock();
         decodeBlock(ram);
       }
       // the IRQ address matches while the voice plays the block holding it
       spu.checkIrq(voice);
 
+      const sample = interpolate();
+      if (adsrState) mixADSR();
+      const enveloped = (sample * adsrLevel) >> 15;
+      voice.lastVolume = enveloped;
+
+      audio[0] = ((enveloped * volumeLeft) >> 15) / 0x8000;
+      audio[1] = ((enveloped * volumeRight) >> 15) / 0x8000;
       if (sweepingLeft) volumeLeft = sweepLeft.tick(volumeLeft);
       if (sweepingRight) volumeRight = sweepRight.tick(volumeRight);
-
-      if (!adsrState) {
-        // silent: nothing to mix (the interpolation history is all 0)
-        $s4 = $s3 = $s2 = $s1 = 0;
-        voice.outputForModulation = 0.0;
-        return 0;
-      }
-
-      const sample = buffer[pitchCounter >>> 12];
-      const adsrVolume = mixADSR();
-
-      $s1 = sample * adsrVolume;
-      const i = (pitchCounter >>> 4) & 0xff;
-
-      let out = ((gauss[255 - i] * $s4));
-      out = out + ((gauss[511 - i] * $s3));
-      out = out + ((gauss[256 + i] * $s2));
-      out = out + ((gauss[i] * $s1));
-
-      let s = out / 0x8000;
-      voice.outputForModulation = s;
-      // if (out) console.log(out);
-
-      audio[0] = s * volumeLeft / 0x8000;
-      audio[1] = s * volumeRight / 0x8000;
-
-      $s4 = $s3;
-      $s3 = $s2;
-      $s2 = $s1;
 
       return adsrState;
     },
@@ -354,10 +348,12 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       ignoreLoop = false;
       adsrLevel = 0;
       regs[0x0c] = 0;
-      s0 = 0.0;
-      s1 = 0.0;
-      $s1 = 0, $s2 = 0, $s3 = 0, $s4 = 0;
-      pitchCounter = BLOCKSIZE;
+      s0 = 0;
+      s1 = 0;
+      samples.fill(0);
+      hasSamples = false;
+      // measured: the first block plays from its fourth sample on
+      pitchCounter = 3 << 12;
       blockAddress = regs[0x6] << 3;
       currentBlock = -1;
       started = true;

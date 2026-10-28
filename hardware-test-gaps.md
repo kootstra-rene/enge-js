@@ -96,16 +96,16 @@ These stop or hang the emulator instead of giving a wrong value.
       otc_start_51000f07, otc_start_11000f05, otc_start_41000002,
       otc_start_01000002, otc_start_01000000 (7)
 
-16. **The voice capture buffers are written after the voice volume** — SPU
-    RAM 800h/C00h hold the enveloped sample before the volume on hardware,
-    so with the volume at 0 enge captures silence. Moved before the volume,
-    the waveforms have the right shape but not the amplitude (a sine peaks
-    at 16064 against 14278), so the decoder or the gaussian interpolation
-    also differs. Few games read the capture buffers; it is listed for the
-    decoder accuracy the goldens check.
-    - `spu-hardware`: adpcm_decode_* (6), adpcm_edge_predictor_0-4 (5), the
-      other adpcm_edge_* cases (9), voice_sample_rate* and
-      voice_volume_does_not_affect_capture (5)
+16. **Voice captures are one LSB off the goldens** — the voice is now
+    decoded, interpolated and enveloped in integers as on hardware and the
+    capture buffers hold the enveloped sample before the voice volume, but
+    the rounding of interpolation times envelope is not matched exactly (a
+    sine's top reads 14279 against 14278; other samples one high or low).
+    Further, ADPCM filters 2-4 drift by up to 11 LSB within a block (the
+    prediction's rounding), and shifts 13-15 decode as shift 9 where hardware
+    gives something else. Inaudible; listed for exactness.
+    - `spu-hardware`: adpcm_decode_* (6), adpcm_edge_* (14),
+      voice_sample_rate* and voice_volume_does_not_affect_capture (5)
 
 ## Accuracy
 
@@ -189,3 +189,10 @@ the tests of nugget's own libraries.
   its envelope. A repeat address the CPU writes while the voice plays is
   kept against later loop-start flags. The voice capture buffers are written
   every sample. `spu-voices` repeat address latching and key-on timing.
+- **Voice decoding** (`spu-voice.js`): blocks decode in integers, ADPCM
+  filters 5-7 decode as filter 0, the gaussian interpolation runs over the
+  decoded samples (with three carried over from the previous block) rather
+  than over enveloped output samples, the position moves by the pitch
+  before each sample and a key-on starts at the fourth sample of the
+  block, ENDX latches once the end block has played. Captures went from
+  silence (written after the voice volume) to within one LSB of silicon.
