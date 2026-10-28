@@ -65,8 +65,7 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
     // Acknowledge IRQ1 via GP1(02h), then let the status bit settle.
     const gpuIrqAck = () => { g.sendGPUStatus(0x02000000); for (let i = 0; i < 64; ++i) g.gpuStatus(); };
 
-    // GP0(1Fh) is not implemented: GPUSTAT.24 is never set
-    xit('irq_clear_after_reset', async () => {
+    it('irq_clear_after_reset', async () => {
       g.rasterReset();
       gpuIrqRequest();
       statEq(GPUSTAT_IRQ, GPUSTAT_IRQ);
@@ -74,13 +73,13 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
       statEq(0, GPUSTAT_IRQ);
     });
 
-    xit('irq_gp0_1f_sets_flag', async () => {
+    it('irq_gp0_1f_sets_flag', async () => {
       g.rasterReset();
       gpuIrqRequest();
       statEq(GPUSTAT_IRQ, GPUSTAT_IRQ);
     });
 
-    xit('irq_gp1_02_acknowledges', async () => {
+    it('irq_gp1_02_acknowledges', async () => {
       g.rasterReset();
       gpuIrqRequest();
       statEq(GPUSTAT_IRQ, GPUSTAT_IRQ);
@@ -535,15 +534,13 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
       for (let f = 1; f < FIELDS; f++) expect(isLong(fields[f - 1]) !== isLong(fields[f])).to.be.true;
     });
 
-    // bit 31 rises at line 17 and falls again at line 257
-    xit('bit31RisesAtLine23', async () => {
+    it('bit31RisesAtLine23', async () => {
       for (const p of fields.filter(isLong)) {
         expect(p.b31Rise >= 22 && p.b31Rise <= 24 && p.b31Fall === NONE).to.be.true;
       }
     });
 
-    // bit 13 stays 0
-    xit('bit13FollowsShortField', async () => {
+    it('bit13FollowsShortField', async () => {
       for (const p of fields.slice(1)) {
         if (isLong(p)) {
           expect({ b13: (p.firstStat & 0x2000) !== 0, fallOk: p.b13Fall >= 5 && p.b13Fall <= 7, rise: p.b13Rise })

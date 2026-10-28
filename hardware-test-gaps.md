@@ -7,7 +7,7 @@ they are likely to matter (numbering kept; fixed items move to the end). When
 an item is fixed, turn its cases back into
 `it` and run the spec.
 
-Counts are skipped cases (232 left; the 5 in `mdec` and `spu` predate the port
+Counts are skipped cases (227 left; the 5 in `mdec` and `spu` predate the port
 and are not listed). Spec names are `[test]enge:psx:<spec>`.
 
 ## Crashes and hangs
@@ -34,11 +34,6 @@ These stop or hang the emulator instead of giving a wrong value.
 
 ## Likely to affect games
 
-9. **GP0(1Fh) and the GPU IRQ are not implemented** — GPUSTAT.24 is never
-   set.
-   - `gpu-hardware`: irq_clear_after_reset, irq_gp0_1f_sets_flag,
-     irq_gp1_02_acknowledges (3)
-
 10. **GPU DMA ignores the GPU's DMA request (GPUSTAT.28)** — a block
     boundary inside a line or polygon never stalls the channel, and a
     poly-line does not hold back the blocks after it.
@@ -52,11 +47,6 @@ These stop or hang the emulator instead of giving a wrong value.
     - `rtc-hardware`: timerC0GateMode1ResetAtHblank,
       timerC0GateMode2ResetPauseOutside, timerC0GateMode3FreeAfterHblank,
       reset_period_accumulated (4)
-
-12. **GPUSTAT bits 31 and 13 in 480i** — bit 31 rises at line 17 and falls
-    at line 257; hardware raises it around line 23 and holds it to vblank.
-    Bit 13 never changes. Matters for interlaced games that sync on GPUSTAT.
-    - `gpu-hardware`: bit31RisesAtLine23, bit13FollowsShortField (2)
 
 14. **The GP0 FIFO is not emulated** — GPUSTAT.25 never drops and a
     poly-line streamed by the CPU never fills it; unpaced, hardware loses the
@@ -179,3 +169,12 @@ the tests of nugget's own libraries.
   without the trigger bit in sync mode 0; the completion events no longer
   fire once at power-on (they cleared the busy bits and set MADR to
   undefined). `dma-hardware` disabled_dma*, otc_*.
+- **GP0(1Fh) sets GPUSTAT.24 and raises IRQ1; GP1(02h) acknowledges it**
+  (`gpu.js`). `gpu-hardware` irq_* (3).
+- **The VBlank IRQ comes at the start of the vertical blank** (the line
+  GP1(07h) ends the display on, as the root counters gate on), not at the
+  end of the frame; in 480i GPUSTAT.31 is the odd field while it is being
+  displayed (0 in the vertical blank) and GPUSTAT.13 the field, which
+  changes two lines before the frame ends; GPUSTAT.13 reads 1 when not
+  interlaced (`gpu.js`). `gpu-hardware` bit31RisesAtLine23,
+  bit13FollowsShortField.

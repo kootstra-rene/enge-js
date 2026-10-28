@@ -191,15 +191,29 @@ mdlr('enge:psx:gpu', ({ include }) => {
       if (vblankbegin > vsync) vblankbegin = vsync;
       if (vblankend < 0) vblankend = 0;
 
+      // the vertical blank as GP1(07h) sets it (and as the root counters
+      // gate on it); the VBlank IRQ is raised as it starts
+      const inVBlank = (scanline < gpu.dispT) || (scanline >= gpu.dispB);
+      if (inVBlank && !gpu.inVBlank) {
+        cpu.raiseIrq(0x0001);
+        gpu.vblankIrqRaised = true;
+      }
+      gpu.inVBlank = inVBlank;
+
+      // GPUSTAT.13 is the interlace field (1 when not interlaced), .31 the
+      // odd field while it is being displayed (0 during the vertical blank)
+      // odd/even field, changing two lines before the frame ends (measured)
+      const oddField = ((gpu.frame + (scanline >= vsync - 2 ? 1 : 0)) & 1) === 1;
       if (interlaced) {
-        if ((gpu.frame & 1) === 1) {
-          gpu.status |= 0x80000000;
+        if (oddField) {
+          gpu.status = (gpu.status & ~0x80002000) | (inVBlank ? 0 : 0x80000000);
         }
         else {
-          gpu.status &= 0x7fffffff;
+          gpu.status = (gpu.status | 0x2000) & 0x7fffffff;
         }
       }
       else {
+        gpu.status |= 0x2000;
         const oddLine = gpu.hline + (gpu.frame & 1); // toggle even/odd on every frame
         if ((oddLine & 1) === 1) {
           gpu.status |= 0x80000000;
@@ -214,7 +228,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       if (gpu.hline === vblankend) {
         renderer.onVBlankEnd();
       }
-      if ((gpu.hline >= vblankbegin) || (gpu.hline < vblankend)) {
+      if (!interlaced && ((gpu.hline >= vblankbegin) || (gpu.hline < vblankend))) {
         // always even during vlbank.
         gpu.status &= 0x7fffffff;
       }
@@ -224,7 +238,9 @@ mdlr('enge:psx:gpu', ({ include }) => {
           ++gpu.internalFrame;
         }
         gpu.updated = false;
-        cpu.raiseIrq(0x0001);
+        // a display range without a vertical blank still interrupts once a frame
+        if (!gpu.vblankIrqRaised) cpu.raiseIrq(0x0001);
+        gpu.vblankIrqRaised = false;
         gpu.hline = 0;
         ++gpu.frame;
         if (debugGame && (gpu.frame % 60) === 0) {
@@ -357,7 +373,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
           gpu.transferTotal = 0;
           dmaIndex = 0;
           break;
-        case 0x02: break;
+        case 0x02: gpu.status &= ~0x01000000; // acknowledge the GPU IRQ
+          break;
         case 0x03: gpu.status &= 0xFF7FFFFF;
           gpu.status |= ((data & 0x01) << 0x17);
           break;
@@ -420,6 +437,13 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
     pckt00: data => {
       // intentionally left blank
+    },
+
+    // Interrupt request: sets GPUSTAT.24 and raises IRQ1 until GP1(02h)
+    pckt1F: data => {
+      if (gpu.status & 0x01000000) return;
+      gpu.status |= 0x01000000;
+      cpu.raiseIrq(0x0002);
     },
 
     // Clear Cache
