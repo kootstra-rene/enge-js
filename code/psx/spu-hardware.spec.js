@@ -1151,10 +1151,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       hw.SPU_KEY_OFF_HIGH = 0xffff;
       s.muteSpu();
     };
-
-    // clearing SPUCNT bit 6 does not acknowledge: spu.js clears SPUSTAT bit 6 when bit 6 is written as 1
-
-    xit('irq_voice_read_pointer_block_aligned', async () => {
+    it('irq_voice_read_pointer_block_aligned', async () => {
       spu_irq_prepare();
       s.spu_wait_status_bit11_flip();
       spu_irq_arm(SPU_IRQ_TEST_ADDR + 16);
@@ -1166,10 +1163,7 @@ mdlr('[test]enge:psx:spu-hardware', ({ include, test }) => {
       expect({ fired: polls !== 0, ackCleared, flagAfterAck: statusAfterAck & 0x0040 })
         .to.eql({ fired: true, ackCleared: 1, flagAfterAck: 0 });
     });
-
-    // clearing SPUCNT bit 6 does not acknowledge: spu.js clears SPUSTAT bit 6 when bit 6 is written as 1
-
-    xit('irq_voice_read_pointer_ack_rearms', async () => {
+    it('irq_voice_read_pointer_ack_rearms', async () => {
       spu_irq_prepare();
       s.spu_wait_status_bit11_flip();
       spu_irq_arm(SPU_IRQ_TEST_ADDR + 16);

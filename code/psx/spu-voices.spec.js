@@ -357,9 +357,7 @@ mdlr('[test]enge:psx:spu-voices', ({ include, test }) => {
       expect(run_case(0x03, false)).to.eql([]);
     });
 
-    // a voice that has ended stops decoding (spu-voice.js advance returns
-    // early without an envelope), so the IRQ address is never read
-    xit('B: end without repeat', async () => {
+    it('B: end without repeat', async () => {
       expect(run_case(0x01, true)).to.eql([]);
     });
 
@@ -374,10 +372,7 @@ mdlr('[test]enge:psx:spu-voices', ({ include, test }) => {
     const SPU_IRQ_BYTE_ADDR = 0x1080 + 4 * 16;
     const IRQ9 = 0x0200, IRQ_POLL_LIMIT = 4000000, WINDOW = 3000000, MIN_FLIPS = 8;
 
-    // the IRQ fires again on every pass over the address while the flag is
-    // set, and clearing SPUCNT bit 6 does not acknowledge it: spu.js clears
-    // SPUSTAT bit 6 when bit 6 is written as 1
-    xit('refire rules', async () => {
+    it('refire rules', async () => {
       boot();
       const failures = [];
       const check = (ok, what) => { if (!ok) failures.push(what); };
@@ -472,9 +467,7 @@ mdlr('[test]enge:psx:spu-voices', ({ include, test }) => {
     const SPU_IRQ_BYTE_ADDR = 0x1080 + 4 * 16;
     const IRQ_POLL_LIMIT = 4000000, ENVX_POLL_LIMIT = 4000000;
 
-    // clearing SPUCNT bit 6 does not acknowledge, and a keyed-off voice at
-    // ENVX 0 stops decoding (spu-voice.js advance returns early)
-    xit('IRQ from a silent voice', async () => {
+    it('IRQ from a silent voice', async () => {
       boot();
       spu_init();
       if (!spu_dma_write(0x1080, irqSample())) return expect('the sample upload never finished').to.eql(null);

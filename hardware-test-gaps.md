@@ -3,10 +3,11 @@
 Where enge differs from a real PlayStation, as found by the nugget hardware
 tests ported to `code/psx/*.spec.js`. Every item is one or more `xit` cases;
 each verified on silicon by nugget and failing in enge. Ordered by how much
-they are likely to matter. When an item is fixed, turn its cases back into
+they are likely to matter (numbering kept; fixed items move to the end). When
+an item is fixed, turn its cases back into
 `it` and run the spec.
 
-Counts are skipped cases (293 in all; the 5 in `mdec` and `spu` predate the port
+Counts are skipped cases (288 left; the 5 in `mdec` and `spu` predate the port
 and are not listed). Spec names are `[test]enge:psx:<spec>`.
 
 ## Crashes and hangs
@@ -44,22 +45,6 @@ These stop or hang the emulator instead of giving a wrong value.
      cpuKeepsProducing (gpu-dma-ring, 3)
 
 ## Likely to affect games
-
-5. **The SPU IRQ is not acknowledged by clearing SPUCNT bit 6** — `spu.js`
-   clears SPUSTAT bit 6 when bit 6 is written as 1, hardware when it is
-   written as 0. While the flag is set the IRQ also fires again on every
-   pass over the address; hardware raises it once per arming. Affects games
-   that stream audio on the SPU IRQ.
-   - `spu-hardware`: irq_voice_read_pointer_block_aligned,
-     irq_voice_read_pointer_ack_rearms (2)
-   - `spu-voices`: refire rules, IRQ from a silent voice (2, together with 6)
-
-6. **A voice that has ended or is keyed off stops reading SPU RAM** —
-   `spu-voice.js` `advance` returns early without an envelope. On hardware
-   the voice keeps decoding at ENVX 0, so the IRQ address still matches and
-   a repeat address written later still applies.
-   - `spu-voices`: B: end without repeat (spu-endredirect), IRQ from a silent
-     voice (spu-offvoice) (2)
 
 7. **ADSR envelopes differ from the first sample** — attack, decay, sustain
    and release steps all read off: the first attack sample is 2 where silicon
@@ -197,3 +182,14 @@ generated test disc), multitap (expectations come from pcsx-redux's own
 emulation), gpu-timing (needs GPU draw timing and pixel readback), anything
 compared on rendered pixels (the gpu-raster phases and related suites), and
 the tests of nugget's own libraries.
+
+## Fixed
+
+- **The SPU IRQ is acknowledged by writing SPUCNT bit 6 as 0, and fires
+  once per arming** (`spu.js`). Was: cleared on bit 6 written as 1, refired
+  on every pass. `spu-hardware` irq_voice_read_pointer_block_aligned,
+  irq_voice_read_pointer_ack_rearms; `spu-voices` refire rules.
+- **A voice keeps reading SPU RAM after it ends or is keyed off**
+  (`spu-voice.js`), and the IRQ address matches while the voice plays the
+  block holding it. `spu-voices` B: end without repeat, IRQ from a silent
+  voice.

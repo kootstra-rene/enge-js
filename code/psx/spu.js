@@ -411,7 +411,10 @@ mdlr('enge:psx:spu', ({ include }) => {
           if ((!left || !right) && SPUCNT & 0x8000) {
             init();
           }
-          if (SPUCNT & (1 << 6)) {
+          // Writing SPUCNT bit 6 (IRQ enable) as 0 acknowledges the IRQ:
+          // SPUSTAT bit 6 clears, and stays clear until the IRQ is enabled
+          // again and the address matches.
+          if (!(SPUCNT & (1 << 6))) {
             SPUSTAT &= ~(0x0040);
           }
           // todo: delayed application of bits 0-5
@@ -513,7 +516,8 @@ mdlr('enge:psx:spu', ({ include }) => {
         }
       }
 
-      if (irq) {
+      // The flag latches: while it is set, further matches raise nothing.
+      if (irq && !(SPUSTAT & 0x0040)) {
         cpu.raiseIrq(0x0200);
         SPUSTAT |= 0x0040;
       }

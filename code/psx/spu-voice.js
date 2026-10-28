@@ -22,6 +22,8 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   let pitchCounter = BLOCKSIZE;
   let repeatAddress = 0;
   let blockAddress = 0;
+  let currentBlock = -1;  // the block being played, for IRQ address matches
+  let started = false;    // keyed on at least once: the voice reads SPU RAM
   let buffer = new Float32Array(28);
   let s0 = 0.0;
   let s1 = 0.0;
@@ -150,6 +152,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   }
 
   const decodeBlock = (ram) => {
+    currentBlock = blockAddress;
     const shiftFilter = ram[blockAddress + 0];
     const flags = ram[blockAddress + 1];
 
@@ -210,9 +213,13 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     },
 
     advance(ram, audio, previousVoiceOutput = 0.0) {
-      if (!adsrState) {
+      // Once keyed on, a voice keeps reading SPU RAM, also after it ended or
+      // was keyed off and its envelope reached 0: its address still moves,
+      // ENDX still latches and the IRQ address still matches. Only a voice
+      // never keyed on is skipped.
+      if (!started) {
         voice.outputForModulation = 0.0;
-        return adsrState; // note: this is an optimisation that behave differently then the hardware does.
+        return 0;
       }
 
       // PMON scales this voice's pitch from the preceding voice's signed
@@ -229,7 +236,15 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
         pitchCounter -= BLOCKSIZE;
 
         decodeBlock(ram);
-        spu.checkIrq(voice);
+      }
+      // the IRQ address matches while the voice plays the block holding it
+      spu.checkIrq(voice);
+
+      if (!adsrState) {
+        // silent: nothing to mix (the interpolation history is all 0)
+        $s4 = $s3 = $s2 = $s1 = 0;
+        voice.outputForModulation = 0.0;
+        return 0;
       }
 
       const sample = buffer[pitchCounter >>> 12];
@@ -258,7 +273,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     },
 
     checkIrq(offset) {
-      return (blockAddress <= offset) && (offset < (blockAddress + 16));
+      return (currentBlock <= offset) && (offset < (currentBlock + 16));
     },
 
     keyOn() {
@@ -268,6 +283,8 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       pitchCounter = BLOCKSIZE;
       blockAddress = regs[0x6] << 3;
       repeatAddress = regs[0xe] << 3;
+      currentBlock = -1;
+      started = true;
       startAdsrAttack();
     },
 
