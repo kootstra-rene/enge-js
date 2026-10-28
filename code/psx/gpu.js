@@ -275,7 +275,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       const reading = (gpu.status & 0x08000000) !== 0;
       let status = gpu.status & ~0x16000000;
       if (!gpu.imageWrite) status |= 0x04000000;
-      if (!reading) status |= 0x10000000;
+      if (!reading && gpu.dmaBlockReady()) status |= 0x10000000;
       // bit 25 (DMA request) depends on the DMA direction: off 0, FIFO 1,
       // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
       let request = 0;
@@ -285,6 +285,20 @@ mdlr('enge:psx:gpu', ({ include }) => {
         case 3: request = (status >>> 27) & 1; break;
       }
       return status | (request << 25);
+    },
+
+    // GPUSTAT.28 (ready for a DMA block) drops after the command word of a
+    // polygon or a line (poly-lines included) and stays low until the
+    // command is complete
+    dmaBlockReady: () => !(dmaIndex > 0 && (dmaBuffer[0] >>> 24) >= 0x20 && (dmaBuffer[0] >>> 24) < 0x60),
+
+    // a DMA waiting for GPUSTAT.28: called once the current command is done
+    dreqWaiter: null,
+    commandDone: () => {
+      if (!gpu.dreqWaiter) return;
+      const waiter = gpu.dreqWaiter;
+      gpu.dreqWaiter = null;
+      waiter();
     },
 
     wr32r1810: data => {
@@ -299,6 +313,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
             nextPrimitive();
             handlers[packetId].call(gpu, dmaBuffer, dmaIndex);
             dmaIndex = 0;
+            gpu.commandDone();
           }
           else {
             dmaBuffer[dmaIndex++] = data;
@@ -318,6 +333,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
           nextPrimitive();
           handlers[packetId].call(gpu, dmaBuffer);
           dmaIndex = 0;
+          gpu.commandDone();
         }
       }
       else {

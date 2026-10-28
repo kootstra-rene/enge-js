@@ -238,11 +238,8 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
 
     it('rects_bs16_split', async () => block(rects(80), 16, 2, DONE));
     it('rects_bs1', async () => block(rects(80), 1, 2, DONE));
-    // Block-mode GPU DMA ignores GPUSTAT.28 (and treats the words as VRAM
-    // data, see dma-hardware): a block boundary inside a line or polygon
-    // never stops the channel.
-    xit('lines_bs16_split', async () => block(lines(80, 0), 16, 2, 16));
-    xit('lines_bs1', async () => block(lines(80, 0), 1, 2, 1));
+    it('lines_bs16_split', async () => block(lines(80, 0), 16, 2, 16));
+    it('lines_bs1', async () => block(lines(80, 0), 1, 2, 1));
     it('lines_bs3_whole', async () => block(lines(80, 0), 3, 2, DONE));
     it('lines_bs15_whole', async () => block(lines(80, 0), 15, 2, DONE));
     it('lines_dir1_bs1', async () => block(lines(80, 0), 1, 1, DONE));
@@ -250,9 +247,9 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
     it('glines_bs16_whole', async () => block(glines(60), 16, 2, DONE));
     it('glines_bs4_whole', async () => block(glines(60), 4, 2, DONE));
     it('tris_bs16_whole', async () => block(tris(60, 0), 16, 2, DONE));
-    xit('tris_nop_bs1', async () => block(tris(60, 1), 1, 2, 2));
-    xit('tris_2nop_bs2_split', async () => block(tris(60, 2), 2, 2, 4));
-    xit('gtris_bs16_split', async () => block(gtris(40), 16, 2, 16));
+    it('tris_nop_bs1', async () => block(tris(60, 1), 1, 2, 2));
+    it('tris_2nop_bs2_split', async () => block(tris(60, 2), 2, 2, 4));
+    it('gtris_bs16_split', async () => block(gtris(40), 16, 2, 16));
     it('gtris_bs6_whole', async () => block(gtris(40), 6, 2, DONE));
     it('gtris_dir1_bs1', async () => block(gtris(40), 1, 1, DONE));
     it('linked_lines_240', async () => linked(lines(80, 0)));
@@ -303,8 +300,8 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
     // GPUSTAT.25 drops after 11 queued words, then each further word waits
     // for one 290-pixel segment: the poly-line streams through the FIFO.
     // Bits 26 and 28 read 0 after every word of the list. The GP0 FIFO and
-    // the drawing time are not emulated, and the last pixel depends on the
-    // renderer.
+    // the drawing time are not emulated (a command completes as its last
+    // word arrives), and the last pixel depends on the renderer.
     xit('pline_cpu_paced', async () => {
       const r = cpuPline(60, true);
       const busy = r.bits.reduce((a, b) => a | (b & 6), 0);
@@ -322,10 +319,10 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
 
     // A poly-line is in the DREQ stall class: the block after the one holding
     // its command word never starts, whatever the block size.
-    xit('pline_bs16_split', async () => block(plines(46, 0), 16, 2, 16));
-    xit('pline_bs1', async () => block(plines(46, 0), 1, 2, 1));
+    it('pline_bs16_split', async () => block(plines(46, 0), 16, 2, 16));
+    it('pline_bs1', async () => block(plines(46, 0), 1, 2, 1));
     it('pline_dir1_bs1', async () => block(plines(46, 0), 1, 1, DONE));
-    xit('gpline_bs16_split', async () => block(gplines(23, 1), 16, 2, 16));
+    it('gpline_bs16_split', async () => block(gplines(23, 1), 16, 2, 16));
 
   });
 

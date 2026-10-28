@@ -7,7 +7,7 @@ they are likely to matter (numbering kept; fixed items move to the end). When
 an item is fixed, turn its cases back into
 `it` and run the spec.
 
-Counts are skipped cases (227 left; the 5 in `mdec` and `spu` predate the port
+Counts are skipped cases (219 left; the 5 in `mdec` and `spu` predate the port
 and are not listed). Spec names are `[test]enge:psx:<spec>`.
 
 ## Crashes and hangs
@@ -34,13 +34,6 @@ These stop or hang the emulator instead of giving a wrong value.
 
 ## Likely to affect games
 
-10. **GPU DMA ignores the GPU's DMA request (GPUSTAT.28)** — a block
-    boundary inside a line or polygon never stalls the channel, and a
-    poly-line does not hold back the blocks after it.
-    - `gpu-hardware`: lines_bs16_split, lines_bs1, tris_nop_bs1,
-      tris_2nop_bs2_split, gtris_bs16_split, pline_bs16_split, pline_bs1,
-      gpline_bs16_split (8)
-
 11. **Root counter 0 ignores gate modes 1-3** and runs free (or stays paused
     in mode 3); the reset period with target reset differs (201/401 system
     clock cycles, 408/808 on system clock / 8).
@@ -48,9 +41,12 @@ These stop or hang the emulator instead of giving a wrong value.
       timerC0GateMode2ResetPauseOutside, timerC0GateMode3FreeAfterHblank,
       reset_period_accumulated (4)
 
-14. **The GP0 FIFO is not emulated** — GPUSTAT.25 never drops and a
-    poly-line streamed by the CPU never fills it; unpaced, hardware loses the
-    terminator.
+14. **The GP0 FIFO and drawing time are not emulated** — a command
+    completes the moment its last word arrives, so GPUSTAT.25 never drops
+    and a poly-line streamed by the CPU never fills the FIFO (unpaced,
+    hardware loses the terminator), and GPUSTAT.26/28 read ready right after
+    the last word where hardware is still drawing. Needs a model of the
+    16-word FIFO drained by per-primitive drawing time.
     - `gpu-hardware`: pline_cpu_paced, pline_cpu_unpaced (2)
 
 16. **Voice captures are one LSB off the goldens** — the voice is now
@@ -178,3 +174,8 @@ the tests of nugget's own libraries.
   changes two lines before the frame ends; GPUSTAT.13 reads 1 when not
   interlaced (`gpu.js`). `gpu-hardware` bit31RisesAtLine23,
   bit13FollowsShortField.
+- **Block-mode GPU DMA waits for GPUSTAT.28 before each block** (`dma.js`
+  blocksToGpu, `gpu.js` dmaBlockReady): the bit is low while a polygon or
+  line command is incomplete, so a block boundary inside one stops the
+  channel (until the command is completed), with MADR and BCR showing the
+  blocks sent. `gpu-hardware` the gpu-dma-dreq stall cases (8).

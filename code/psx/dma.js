@@ -137,6 +137,28 @@ mdlr('enge:psx:dma', ({ include }) => {
     }
   };
 
+  // Block-mode DMA to the GPU sends a block at a time. In DMA mode
+  // (GP1(04h)=2) each block waits for GPUSTAT.28, which is low while a
+  // polygon or line command is incomplete: a block boundary inside one stops
+  // the channel until the command is completed (from elsewhere), with MADR
+  // and BCR showing the blocks sent.
+  const blocksToGpu = () => {
+    const bs = r10a4 & 0xffff;
+    let ba = r10a4 >>> 16;
+    let words = 0;
+    while (ba > 0) {
+      if (((gpu.status >>> 29) & 3) === 2 && !gpu.dmaBlockReady()) {
+        gpu.dreqWaiter = blocksToGpu;
+        return;
+      }
+      words += gpu.dmaTransferMode0201(r10a0, 0x10000 | bs);
+      r10a0 = (r10a0 + ((bs || 0x10000) << 2)) & 0x00ffffff;
+      r10a4 = ((--ba) << 16) | bs;
+    }
+    r10a0n = r10a0;
+    setEvent(eventDMA2, Math.max(1, ((words * 0x110) / 0x100) >>> 0));
+  };
+
   const wr32r10a8 = ctrl => {
     const running = (r10a8 & 0x01000000) !== 0;
     r10a8 = ctrl;
@@ -146,10 +168,11 @@ mdlr('enge:psx:dma', ({ include }) => {
       if (running) {
         unsetEvent(eventDMA2Linked);
         unsetEvent(eventDMA2);
+        gpu.dreqWaiter = null;
       }
       return;
     }
-    if (running && (eventDMA2Linked.active || eventDMA2.active)) return;
+    if (running && (eventDMA2Linked.active || eventDMA2.active || gpu.dreqWaiter)) return;
     if (dpcr & 0x00000800) {
       let transferSize = 10;
 
@@ -157,9 +180,10 @@ mdlr('enge:psx:dma', ({ include }) => {
         case 0x01000200: transferSize = gpu.dmaTransferMode0200(r10a0, r10a4) || 10;
           r10a0n = r10a0 + (transferSize << 2);
           break;
-        case 0x01000201: transferSize = gpu.dmaTransferMode0201(r10a0, r10a4) || 10;
-          r10a0n = r10a0 + (transferSize << 2);
-          break;
+        case 0x01000201:
+          // block mode to GP0: a block at a time (see blocksToGpu)
+          blocksToGpu();
+          return;
         case 0x01000401:
           // linked list: walked a stretch at a time (see linkedListStep)
           linkedListStep();
