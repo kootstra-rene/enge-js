@@ -125,6 +125,10 @@ mdlr('enge:psx:gpu', ({ include }) => {
     maxheights: [240, 480, 256, 512],
     maxwidths: [256, 368, 320, 368, 512, 368, 640, 368],
     packetSize: 0,
+    // GP0 words are pixel data for GP0(A0h) rather than commands. Kept apart
+    // from GPUSTAT: bit 28 (ready to receive DMA block) stays set while the
+    // GPU waits for those words, since they usually arrive by DMA2.
+    imageWrite: false,
     result: 2,
     status: 0x14802000,
     tp: 0,
@@ -249,9 +253,13 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     rd32r1814: function () {
-      // bit 28 (ready to receive DMA block) is also set while GP0(A0h) waits
-      // for its pixel words; gpu.status bit 28 only tracks that transfer.
-      const status = gpu.status | 0x10000000;
+      // bit 26 (ready to receive cmd word) is clear while GP0(A0h) takes its
+      // pixel words; bit 28 (ready to receive DMA block) is clear while
+      // GP0(C0h) has VRAM data waiting in GPUREAD (bit 27).
+      const reading = (gpu.status & 0x08000000) !== 0;
+      let status = gpu.status & ~0x16000000;
+      if (!gpu.imageWrite) status |= 0x04000000;
+      if (!reading) status |= 0x10000000;
       // bit 25 (DMA request) depends on the DMA direction: off 0, FIFO 1,
       // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
       let request = 0;
@@ -260,7 +268,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         case 2: request = (status >>> 28) & 1; break;
         case 3: request = (status >>> 27) & 1; break;
       }
-      return (status & ~0x02000000) | (request << 25);
+      return status | (request << 25);
     },
 
     wr32r1810: data => {
@@ -268,7 +276,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         console.debug('[GPU] GP0', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
         debugGpuCommandCount++;
       }
-      if (gpu.status & 0x10000000) {
+      if (!gpu.imageWrite) {
         if (dmaIndex > 0 && isPolyLine(dmaBuffer[0] >>> 24)) {
           const packetId = dmaBuffer[0] >>> 24;
           if (isPolyLineTerminator(packetId, dmaIndex, data) || dmaIndex === dmaBuffer.length) {
@@ -312,6 +320,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       }
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14820000;
+          gpu.imageWrite = false;
           dmaIndex = 0;
           allowTextureDisable = 0;
           /*
@@ -341,7 +350,11 @@ mdlr('enge:psx:gpu', ({ include }) => {
           gpu.pcktE6([0]);
           renderer.updateDrawArea?.call(renderer);
           break;
-        case 0x01: gpu.status |= 0x70000000;
+        // reset command buffer: drop a pending primitive and end any VRAM
+        // transfer; the DMA direction (bits 29-30) is left alone
+        case 0x01: gpu.imageWrite = false;
+          gpu.status &= ~0x08000000;
+          gpu.transferTotal = 0;
           dmaIndex = 0;
           break;
         case 0x02: break;
@@ -411,7 +424,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
     // Clear Cache
     pckt01: data => {
-      gpu.status = (gpu.status | 0x10000000) & ~0x08000000;
+      gpu.status &= ~0x08000000;
     },
 
     // Framebuffer Rectangle draw
@@ -608,7 +621,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
     // Send image to frame buffer
     pcktA0: data => {
-      gpu.status &= ~0x10000000;
+      gpu.imageWrite = true;
       var x = ((data[1] << 16) >>> 16);
       var y = ((data[1] << 0) >>> 16);
       var w = ((data[2] << 16) >>> 16);
@@ -704,7 +717,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
     imgTransferComplete: function (img) {
       renderer.storeImage(gpu.img);
-      gpu.status |= 0x10000000;
+      gpu.imageWrite = false;
     },
 
     dmaTransferMode0200: function (addr, blck) {
@@ -772,7 +785,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
         while (nitem > 0) {
           // GP0(A0h) inside the list: following words are pixel data (DR_LOAD)
-          if (!(gpu.status & 0x10000000)) {
+          if (gpu.imageWrite) {
             gpu.wr32r1810(ram.getInt32(addr, true));
             addr += 4; --nitem; ++words;
             continue;
