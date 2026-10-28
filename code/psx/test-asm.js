@@ -13,7 +13,8 @@ mdlr('enge:psx:test-asm', () => {
   // with `.set noreorder`. Comments start with # or //, or are /* blocks */;
   // `;` separates statements on one line. `.word` emits data, `.space n`
   // zero bytes, other directives are ignored. Immediates are numbers, labels,
-  // %hi(x) / %lo(x), `.` (the current address) and sums of those. Numeric
+  // %hi(x) / %lo(x), `.` (the current address), sums and products of those,
+  // and symbols from `.set NAME, value`. Numeric
   // local labels work as in GNU as (`1:` ... `b 1b`, `b 1f`), and so do the
   // two-operand shorthands (`ori $v0, 8`, `addu $v0, $a0`, `sll $v0, 2`).
 
@@ -79,6 +80,7 @@ mdlr('enge:psx:test-asm', () => {
   const assemble = (source, origin = 0) => {
     origin >>>= 0;
     const labels = {};
+    const consts = {}; // .set symbols, known while sizing
     const locals = {}; // numeric label -> addresses
     const items = []; // { addr, size, emit(value) }
 
@@ -120,10 +122,15 @@ mdlr('enge:psx:test-asm', () => {
         addr += pad;
         continue;
       }
+      // .set NAME, value / .equ NAME, value: a symbol (constants only)
+      if ((mnemonic === '.set' || mnemonic === '.equ') && args.length === 2) {
+        labels[args[0]] = consts[args[0]] = evaluate(args[1], labels, addr, locals);
+        continue;
+      }
       if (mnemonic.startsWith('.')) continue;
 
-      const size = sizeOf(mnemonic, args);
-      items.push({ addr: at, size, encode: value => encode(mnemonic, args, at, value, line) });
+      const size = sizeOf(mnemonic, args, consts);
+      items.push({ addr: at, size, encode: value => encode(mnemonic, args, at, value, line, size) });
       addr += 4 * size;
     }
 
@@ -158,7 +165,8 @@ mdlr('enge:psx:test-asm', () => {
       const not = body.startsWith('~');
       if (not) body = body.slice(1);
       let v;
-      if (/^(0x[0-9a-f]+|\d+)$/i.test(body)) v = Number(body);
+      if (body.includes('*')) v = body.split('*').reduce((p, f) => p * evaluate(f, labels, here, locals), 1);
+      else if (/^(0x[0-9a-f]+|\d+)$/i.test(body)) v = Number(body);
       else if (body === '.' && here !== undefined) v = here;
       else if ((m = /^(\d+)([fb])$/.exec(body)) && locals[m[1]]) {
         const defs = locals[m[1]];
@@ -174,12 +182,13 @@ mdlr('enge:psx:test-asm', () => {
 
   const isConstant = text => /^[+-]?~?(0x[0-9a-f]+|\d+)$/i.test(text.trim());
 
-  const sizeOf = (mnemonic, args) => {
+  const sizeOf = (mnemonic, args, consts = {}) => {
     switch (mnemonic) {
       case 'la': return 2;
       case 'li': {
-        if (!isConstant(args[1])) return 2;
-        const v = evaluate(args[1], {});
+        const symbols = args[1].match(/(?<![\w$])[A-Za-z_][\w.$]*/g) || [];
+        if (!isConstant(args[1]) && !symbols.every(name => name in consts)) return 2;
+        const v = evaluate(args[1], consts);
         return (v >= -0x8000 && v <= 0xffff) || (v & 0xffff) === 0 ? 1 : 2;
       }
       default: return 1;
@@ -201,7 +210,7 @@ mdlr('enge:psx:test-asm', () => {
     throw new Error(`not a coprocessor register: ${text}`);
   };
 
-  const encode = (mnemonic, args, pc, value, line) => {
+  const encode = (mnemonic, args, pc, value, line, size = sizeOf(mnemonic, args)) => {
     const imm16 = (text) => {
       const v = value(text);
       if (v < -0x8000 || v > 0xffff) throw new Error(`immediate out of range in "${line}"`);
@@ -276,7 +285,7 @@ mdlr('enge:psx:test-asm', () => {
         const rt = reg(args[0]);
         const v = value(args[1]) >>> 0;
         const s = (v << 0);
-        if (sizeOf('li', args) === 1) {
+        if (size === 1) {
           if (s >= -0x8000 && s <= 0x7fff) return [I(0x09, 0, rt, s)];
           if (v <= 0xffff) return [I(0x0d, 0, rt, v)];
           return [I(0x0f, 0, rt, v >>> 16)];
