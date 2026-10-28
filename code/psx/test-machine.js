@@ -189,6 +189,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
       get spu() { return spu; },
       get joy() { return joy; },
       get renderer() { return renderer; },
+      get ram() { return ram; },
       get clock() { return psx.clock; },
       tty: () => String.fromCharCode(...tty),
 
