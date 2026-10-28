@@ -193,7 +193,7 @@ mdlr('[test]enge:psx:cpu-mips', ({ include, test }) => {
     fn = load(LOADS + LWLR + LINKS + BRANCHBRANCH);
   });
 
-  after(async () => { m.dispose(); });
+  after(async () => { m?.dispose(); });
 
   const hilo = (body) => {
     const { labels } = m.asm(0x80018000, `test: ${HILO(body)}`);

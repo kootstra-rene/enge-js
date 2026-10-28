@@ -49,7 +49,7 @@ mdlr('[test]enge:psx:test-machine', ({ include, test }) => {
     // createMachine() disposes the previous machine
     let m;
     beforeEach(async () => { m = createMachine(); });
-    after(async () => { m.dispose(); });
+    after(async () => { m?.dispose(); });
 
     it('should call assembled code and return v0/v1', async () => {
       const { labels } = m.asm(0x80010000, `

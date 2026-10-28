@@ -23,7 +23,7 @@ mdlr('[test]enge:psx:cop0', ({ include, test }) => {
     m.cpu.setCtrl(12, SR_DEFAULT);
   });
 
-  after(async () => { m.dispose(); });
+  after(async () => { m?.dispose(); });
 
   const getSR = () => m.cpu.getCtrl(12) >>> 0;
   const setSR = sr => m.cpu.setCtrl(12, sr >> 0);
