@@ -438,4 +438,45 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
 
   });
 
+  describe('command acknowledgements carry the drive status', () => {
+
+    // An XA stream whose sectors the filter skips: the drive reads without a
+    // single data IRQ, as MediEvil II's dialogue does, and the game can tell
+    // it is playing only from the status byte of the next acknowledgement.
+    const streamXa = () => {
+      const image = createDisc(0x00, 16);
+      for (let lba = 0; lba < 16; lba++) image.set([1, 0, 0x64, 0x00, 1, 0, 0x64, 0x00], lba * SECTOR_SIZE + 0x10);
+      insert(image);
+      expect(send(0x0E, 0xc8).int).to.eql(3);             // Setmode: double speed, XA-ADPCM, filter
+      expect(send(0x0D, 1, 1).int).to.eql(3);             // Setfilter file 1 channel 1 (the disc has channel 0)
+      expect(send(0x02, 0x00, 0x02, 0x00).int).to.eql(3); // Setloc 00:02:00
+      expect(send(0x1B).int).to.eql(3);                   // ReadS
+      psx.run(3 * 222300);
+      expect(pendingInterrupt()).to.eql(0);
+    };
+
+    it('should report reading on Setloc while a stream plays', async () => {
+      streamXa();
+      expect(send(0x02, 0x00, 0x02, 0x00)).to.eql({ int: 3, results: [0x22] });
+    });
+
+    it('should report reading on ReadS while a stream plays (the status before the new read)', async () => {
+      streamXa();
+      expect(send(0x02, 0x00, 0x02, 0x00).int).to.eql(3);
+      expect(send(0x1B)).to.eql({ int: 3, results: [0x22] });
+    });
+
+    it('should report reading on Setmode and Setfilter while a stream plays', async () => {
+      streamXa();
+      expect(send(0x0D, 1, 1)).to.eql({ int: 3, results: [0x22] });
+      expect(send(0x0E, 0xc8)).to.eql({ int: 3, results: [0x22] });
+    });
+
+    it('should report the motor only when idle', async () => {
+      expect(send(0x02, 0x00, 0x02, 0x00)).to.eql({ int: 3, results: [0x02] });
+      expect(send(0x06)).to.eql({ int: 3, results: [0x02] });
+    });
+
+  });
+
 })

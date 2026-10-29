@@ -88,6 +88,9 @@ mdlr('enge:psx:cdr', () => {
 
   let status = 0x18;
   let statusCode = 0x00;
+  // the status byte a command is acknowledged with: the drive's status when
+  // the command was written (ReadN/ReadS stop the running read right then)
+  let ackStatus = 0x02;
 
   let ncmdread = 0;
   let ncmdctrl = 0;
@@ -201,6 +204,10 @@ mdlr('enge:psx:cdr', () => {
     }
   };
 
+  // current status byte, as GetStat reports it: the motor is on unless the
+  // shell is open
+  const driveStatus = () => shellOpen ? statusCode : (statusCode | 0x02);
+
   const enqueueEvent = (irq, ...params) => {
     // if (results.length) abort('not yet read all results');
     status = (status & ~0x80) | 0x20;
@@ -289,7 +296,7 @@ mdlr('enge:psx:cdr', () => {
           seekLoc = currLoc;
         }
         setlocPending = true;
-        enqueueEvent(3, 0x02);
+        enqueueEvent(3, driveStatus());
         break;
 
       case 0x03:
@@ -310,7 +317,7 @@ mdlr('enge:psx:cdr', () => {
         debugReadSectors = 0;
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x06;
-        enqueueEvent(3, 0x42);
+        enqueueEvent(3, ackStatus);
         if (setlocPending) currLoc = seekLoc;
         setlocPending = false;
         break;
@@ -365,28 +372,28 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x0B:
-        enqueueEvent(3, 0x02);
+        enqueueEvent(3, driveStatus());
         mute = true;
         break;
 
       case 0x0C:
-        enqueueEvent(3, 0x02);
+        enqueueEvent(3, driveStatus());
         mute = false;
         break;
 
       case 0x0D:
         filterFile = params[0];
         filterChan = params[1];
-        enqueueEvent(3, 0x02);
+        enqueueEvent(3, driveStatus());
         break;
 
       case 0x0E:
-        enqueueEvent(3, 0x02);
+        enqueueEvent(3, driveStatus());
         mode = params[0];
         break;
 
       case 0x0F:
-        enqueueEvent(3, 0x02, mode, 0, filterFile, filterChan);
+        enqueueEvent(3, driveStatus(), mode, 0, filterFile, filterChan);
         break;
 
       case 0x10: {
@@ -546,7 +553,7 @@ mdlr('enge:psx:cdr', () => {
         debugReadSectors = 0;
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x1B;
-        enqueueEvent(3, 0x42);
+        enqueueEvent(3, ackStatus);
         if (setlocPending) currLoc = seekLoc;
         setlocPending = false;
         break;
@@ -715,6 +722,7 @@ mdlr('enge:psx:cdr', () => {
       tracks: tracks.length
     });
     if (data === 0x19) testSubcommand = params[0] || 0;
+    ackStatus = driveStatus();
     switch (data) {
       case 0x01:  //- CdlNop
         nevtctrl = 0xc4e1;
@@ -1340,6 +1348,7 @@ mdlr('enge:psx:cdr', () => {
         currLoc,
         seekLoc,
         setlocPending,
+        ackStatus,
         volCdLeft2SpuLeft,
         volCdLeft2SpuRight,
         volCdRight2SpuLeft,
@@ -1384,6 +1393,7 @@ mdlr('enge:psx:cdr', () => {
         currLoc = state.currLoc;
         seekLoc = state.seekLoc;
         setlocPending = state.setlocPending ?? false;
+        ackStatus = state.ackStatus ?? 0x02;
         volCdLeft2SpuLeft = state.volCdLeft2SpuLeft;
         volCdLeft2SpuRight = state.volCdLeft2SpuRight;
         volCdRight2SpuLeft = state.volCdRight2SpuLeft;
