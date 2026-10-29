@@ -135,6 +135,115 @@ mdlr('enge:psx:gpu', ({ include }) => {
   // nugget's gpu-dma-dreq poly-line cases (a 290-pixel segment takes about
   // four of the test's 56-64 cycle loop iterations; 45-55 pass)
   const LINE_SETUP = 50;
+
+  // Drawing time of polygons, rectangles, fills and VRAM copies, after
+  // DuckStation (gpu.cpp AddDrawTriangleTicks/AddDrawRectangleTicks and the
+  // command handlers): setup time plus the pixels inside the drawing area,
+  // in GPU ticks of half a CPU cycle (the GPU draws two pixels per clock).
+  // GPUSTAT.26 stays low while the GPU draws; GPUSTAT.28 does not, so
+  // libgpu sees "drawing, ready for a DMA block" (Dukes of Hazzard's
+  // DrawSync(1) after DrawOTag waits for that).
+  const POLY_SETUP = [46, 226, 334, 496, 82, 262, 370, 532]; // [quad][gouraud][textured]
+  const RECT_SIZES = [0, 1, 8, 16];
+  const MAX_WIDTH = 1024, MAX_HEIGHT = 512;
+  const DMA_RUN_AHEAD = 4096; // CPU cycles, under 1% of a frame
+  let renderCycles = 0;     // drawing time of the polygon/rectangle just executed
+  let lineUntil = 0;        // a line drawn by the CPU's FIFO keeps GPUSTAT.28 low until here
+  let drawStart = 0;        // when the GPU starts the last drawing command it took
+
+  const clampX = x => Math.min(Math.max(x, gpu.drawAreaX1), gpu.drawAreaX2 + 1);
+  const clampY = y => Math.min(Math.max(y, gpu.drawAreaY1), gpu.drawAreaY2 + 1);
+  // 480i without drawing to the displayed field: every other line is skipped
+  const skipsField = () => (gpu.status & 0x00480400) === 0x00480000;
+  const semiOrMask = packetId => (packetId & 0x02) !== 0 || (gpu.status & 0x00001000) !== 0;
+
+  const triangleTicks = (packetId, a, b, c) => {
+    const ax = (a << 21) >> 21, ay = (a << 5) >> 21;
+    const bx = (b << 21) >> 21, by = (b << 5) >> 21;
+    const cx = (c << 21) >> 21, cy = (c << 5) >> 21;
+    // too large to draw: the GPU skips it
+    if (Math.max(ax, bx, cx) - Math.min(ax, bx, cx) >= MAX_WIDTH) return 0;
+    if (Math.max(ay, by, cy) - Math.min(ay, by, cy) >= MAX_HEIGHT) return 0;
+    const ox = gpu.drawOffsetX, oy = gpu.drawOffsetY;
+    const x1 = clampX(ax + ox), y1 = clampY(ay + oy);
+    const x2 = clampX(bx + ox), y2 = clampY(by + oy);
+    const x3 = clampX(cx + ox), y3 = clampY(cy + oy);
+    let pixels = Math.abs(((x1 * y2 + x2 * y3 + x3 * y1 - x1 * y3 - x2 * y1 - x3 * y2) / 2) | 0);
+    if (packetId & 0x04) pixels += pixels;
+    if (semiOrMask(packetId)) pixels += (pixels + 1) >> 1;
+    if (skipsField()) pixels >>= 1;
+    return pixels;
+  };
+
+  const rectangleTicks = (packetId, data) => {
+    const textured = (packetId & 0x04) !== 0;
+    const size = (packetId >>> 3) & 3;
+    const xy = data[1];
+    const x = ((xy << 21) >> 21) + gpu.drawOffsetX;
+    const y = ((xy << 5) >> 21) + gpu.drawOffsetY;
+    let w = RECT_SIZES[size], h = RECT_SIZES[size];
+    if (!size) { const wh = data[textured ? 3 : 2]; w = wh & 0x3ff; h = (wh >>> 16) & 0x1ff; }
+    const width = Math.max(0, clampX(x + w) - clampX(x));
+    let height = Math.max(0, clampY(y + h) - clampY(y));
+    let perRow = width;
+    if (textured) {
+      switch ((gpu.status >>> 7) & 3) {
+        case 0: perRow += width; break;
+        case 1:
+          if (width > 128) perRow += (width >>> 2) * 8;
+          else if (width * height > 2048) perRow += (width >>> 2) * (4 * ((128 / width) | 0));
+          else perRow += width;
+          break;
+        default:
+          if (width > 128) perRow += (width >>> 1) * 8;
+          else if (width * height > 1024) perRow += (width >>> 2) * (8 * ((128 / width) | 0));
+          else perRow += width;
+          break;
+      }
+    }
+    if (semiOrMask(packetId)) perRow += (width + 1) >>> 1;
+    if (skipsField()) height = Math.max(height >>> 1, 1);
+    return 16 + perRow * height;
+  };
+
+  // drawing time in CPU cycles of a complete command (lines excluded: see
+  // lineCycles)
+  const renderTime = (packetId, data) => {
+    let ticks = 0;
+    switch (packetId >>> 5) {
+      case 0:
+        if (packetId === 0x02) {
+          const w = ((data[2] & 0x3ff) + 0xf) & ~0xf, h = (data[2] >>> 16) & 0x1ff;
+          ticks = 46 + ((w >>> 3) + 9) * h;
+        }
+        break;
+      case 1: { // polygon
+        const textured = (packetId >>> 2) & 1, gouraud = (packetId >>> 4) & 1, quad = (packetId >>> 3) & 1;
+        const stride = 1 + textured + gouraud;
+        ticks = POLY_SETUP[(quad << 2) | (gouraud << 1) | textured];
+        ticks += triangleTicks(packetId, data[1], data[1 + stride], data[1 + 2 * stride]);
+        if (quad) ticks += triangleTicks(packetId, data[1 + stride], data[1 + 2 * stride], data[1 + 3 * stride]);
+        break;
+      }
+      case 3: // rectangle
+        ticks = rectangleTicks(packetId, data);
+        break;
+      case 4: { // VRAM to VRAM copy
+        const wh = data[3];
+        ticks = 2 * (((wh - 1) & 0x3ff) + 1) * ((((wh >>> 16) - 1) & 0x1ff) + 1);
+        break;
+      }
+    }
+    return ticks > 0 ? Math.max((ticks + 1) >> 1, 1) : 0;
+  };
+
+  // a drawing command from DMA: the GPU starts it once the previous one is drawn
+  const addRenderTime = cycles => {
+    if (!cycles) return;
+    drawStart = Math.max(drawingUntil, now());
+    drawingUntil = drawStart + cycles;
+  };
+
   // run the FIFO up to now; all of it with `flush` (DMA and resets)
   const sync = flush => {
     while (fifo.length) {
@@ -142,10 +251,13 @@ mdlr('enge:psx:gpu', ({ include }) => {
       if (!flush && at > now()) break;
       const word = fifo.shift(); fifo.shift();
       drawCycles = 0;
+      renderCycles = 0;
       execute(word);
-      drawingUntil = at + drawCycles;
+      drawingUntil = at + drawCycles + renderCycles;
+      if (drawCycles) lineUntil = drawingUntil;
+      if (renderCycles) drawStart = at;
     }
-    if (flush) drawingUntil = 0;
+    if (flush) drawingUntil = lineUntil = 0;
   };
   let allowTextureDisable = 0; // GP1(09h)
 
@@ -186,6 +298,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         nextPrimitive();
         handlers[packetId].call(gpu, dmaBuffer);
         if ((packetId & 0xe8) === 0x40) drawCycles += lineCycles(dmaBuffer[1], dmaBuffer[(packetId & 0x10) ? 3 : 2]);
+        else renderCycles += renderTime(packetId, dmaBuffer);
         dmaIndex = 0;
         gpu.commandDone();
       }
@@ -211,6 +324,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
     drawAreaX2: 0,
     drawAreaY1: 0,
     drawAreaY2: 0,
+    drawOffsetX: 0,
+    drawOffsetY: 0,
     heights: [1, 2, 1, 2],
     hline: 0,
     pgxpFrac: null,
@@ -370,11 +485,13 @@ mdlr('enge:psx:gpu', ({ include }) => {
       // Both are also clear while the GPU has words queued or is drawing, and
       // bit 26 while a command is incomplete.
       sync(false);
+      // Drawing a polygon or rectangle keeps bit 26 low but not bit 28.
       const reading = (gpu.status & 0x08000000) !== 0;
       const idle = !busy();
+      const accepts = fifo.length === 0 && lineUntil <= now();
       let status = gpu.status & ~0x16000000;
       if (!gpu.imageWrite && idle && !(dmaIndex > 0 && isPolyLine(dmaBuffer[0] >>> 24))) status |= 0x04000000;
-      if (!reading && idle && gpu.dmaBlockReady()) status |= 0x10000000;
+      if (!reading && accepts && gpu.dmaBlockReady()) status |= 0x10000000;
       // bit 25 (DMA request) depends on the DMA direction: off 0, FIFO 1,
       // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
       let request = 0;
@@ -404,8 +521,14 @@ mdlr('enge:psx:gpu', ({ include }) => {
     // buffer, after the words the CPU queued
     wr32r1810: data => {
       if (fifo.length) sync(true);
+      renderCycles = 0;
       execute(data);
+      addRenderTime(renderCycles);
     },
+
+    // when the GPU starts the last drawing command it was given: a DMA to
+    // the GPU (16-word FIFO) cannot move on, or complete, before that
+    drawStartAt: () => drawStart,
 
     // GP0 written by the CPU
     cpuWriteGP0: data => {
@@ -422,7 +545,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       }
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14820000;
-          fifo.length = 0; drawingUntil = 0;
+          fifo.length = 0; drawingUntil = lineUntil = drawStart = 0;
           gpu.imageWrite = false;
           dmaIndex = 0;
           allowTextureDisable = 0;
@@ -456,7 +579,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         // reset command buffer: drop a pending primitive and end any VRAM
         // transfer; the DMA direction (bits 29-30) is left alone
         case 0x01: gpu.imageWrite = false;
-          fifo.length = 0; drawingUntil = 0;
+          fifo.length = 0; drawingUntil = lineUntil = drawStart = 0;
           gpu.status &= ~0x08000000;
           gpu.transferTotal = 0;
           dmaIndex = 0;
@@ -818,6 +941,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
       const drawOffsetX = (data[0] << 21) >> 21;
       const drawOffsetY = (data[0] << 10) >> 21;
 
+      gpu.drawOffsetX = drawOffsetX;
+      gpu.drawOffsetY = drawOffsetY;
       setDrawAreaOF(drawOffsetX, drawOffsetY);
     },
 
@@ -868,7 +993,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     // Linked-list DMA to GP0, a node at a time: walks nodes from `addr` until
-    // the list ends (a link with bit 23 set) or `budget` words have gone, and
+    // the list ends (a link with bit 23 set), `budget` words have gone or the
+    // GPU has fallen behind (drawing what it was sent), and
     // returns where it stopped: { next, words, done }, `next` being the node
     // to continue with, or the terminating link once done. Bits 0-1 of the
     // links are ignored; a list may loop forever, as on hardware.
@@ -936,11 +1062,16 @@ mdlr('enge:psx:gpu', ({ include }) => {
             gpu.pgxpFrac = anyFrac ? dmaFrac : null;
             handlers[packetId].call(gpu, data, 0);
             gpu.pgxpFrac = null;
+            if ((packetId & 0xe0) !== 0x40) addRenderTime(renderTime(packetId, data));
             gpu.updated = true;
           }
         }
         if (header & 0x00800000) return { next: header & 0x00ffffff, words, done: true };
         node = header & 0x001ffffc;
+        // the FIFO fills up once the GPU falls behind the walk: stop here
+        // and go on when it has caught up (see dma.js gpuPaced). Walking
+        // DMA_RUN_AHEAD cycles ahead keeps the steps (events) few.
+        if (drawStart > now() + words + DMA_RUN_AHEAD) break;
       }
 
       return { next: node, words, done: false };

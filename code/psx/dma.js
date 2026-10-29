@@ -115,6 +115,13 @@ mdlr('enge:psx:dma', ({ include }) => {
   // FFFFFFh also sets DICR bit 15.
   // (odd, so that MADR read between steps also moves on a short loop)
   const LINKED_STEP = 509;
+
+  // The GPU takes words from its 16-word FIFO only as it draws, so a
+  // transfer to it cannot move on (or complete and raise its IRQ) before
+  // the GPU has started on the last command it was sent: at most that
+  // command is still being drawn when the channel completes.
+  const gpuPaced = words => Math.max(1, ((words * 0x110) / 0x100) >>> 0,
+    Math.ceil(gpu.drawStartAt() - psx.clock));
   let linkedEnd = 0;
 
   const linkedListStep = () => {
@@ -126,7 +133,7 @@ mdlr('enge:psx:dma', ({ include }) => {
       return;
     }
     const step = gpu.dmaLinkedListStep(r10a0, LINKED_STEP);
-    const cycles = Math.max(1, ((step.words * 0x110) / 0x100) >>> 0);
+    const cycles = gpuPaced(step.words);
     if (step.done) {
       r10a0n = step.next;
       linkedEnd = step.next;
@@ -156,7 +163,7 @@ mdlr('enge:psx:dma', ({ include }) => {
       r10a4 = ((--ba) << 16) | bs;
     }
     r10a0n = r10a0;
-    setEvent(eventDMA2, Math.max(1, ((words * 0x110) / 0x100) >>> 0));
+    setEvent(eventDMA2, gpuPaced(words));
   };
 
   const wr32r10a8 = ctrl => {
