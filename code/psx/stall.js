@@ -9,11 +9,18 @@ mdlr('enge:psx:stall', ({ include }) => {
   // while the set stays small, the next CAPTURE_FRAMES frames are recorded
   // with wrapped memRead*/memWrite* globals (recompiled code calls them by
   // name), and the report is printed to the console once per stall.
+  //
+  // ?debug-stall=N watches loops of up to N blocks (default 48): a game
+  // waiting for the CD-ROM often also runs its VSync and CD interrupt
+  // handlers every frame. In DevTools, stallStatus() shows how many blocks
+  // ran in the last frame, and stallCapture() records the next frames and
+  // prints the report whatever the detector thinks (for a hang it misses).
 
-  const enabled = typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).has('debug-stall');
+  const search = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const enabled = !!search && search.has('debug-stall');
 
-  const MAX_BLOCKS = 48;
+  const MAX_BLOCKS = (search && parseInt(search.get('debug-stall'), 10) > 0)
+    ? parseInt(search.get('debug-stall'), 10) : 48;
   const STABLE_FRAMES = 120;   // ~2 seconds at 60 fps
   const CAPTURE_FRAMES = 30;
   const MAX_VALUES = 6;
@@ -169,6 +176,8 @@ mdlr('enge:psx:stall', ({ include }) => {
   let writes = new Map();
   let original = null;
   let lastReport = '';
+  let manual = false;        // the capture was asked for with stallCapture()
+  let lastFrameBlocks = 0;   // distinct blocks run in the last frame
 
   const note = (table, addr, size, value) => {
     const key = (addr >>> 0) * 4 + (size >> 3); // keeps 8/16/32-bit accesses apart
@@ -232,7 +241,9 @@ mdlr('enge:psx:stall', ({ include }) => {
   const buildReport = () => {
     const g = cpu.gpr;
     const lines = [];
-    lines.push(`[STALL] the CPU has been running the same ${watch.size} block(s) for ${STABLE_FRAMES + CAPTURE_FRAMES} frames`);
+    lines.push(manual
+      ? `[STALL] captured on request: ${captureBlocks.size} block(s) ran in ${CAPTURE_FRAMES} frames`
+      : `[STALL] the CPU has been running the same ${watch.size} block(s) for ${STABLE_FRAMES + CAPTURE_FRAMES} frames`);
     lines.push(`pc=0x${hex(cpu.pc)} ra=0x${hex(g[31])} sp=0x${hex(g[29])} sr=0x${hex(cpu.sr)} cause=0x${hex(cpu.cause)} epc=0x${hex(cpu.epc)}`);
     lines.push(`i_stat=0x${hex(cpu.istat, 3)} i_mask=0x${hex(cpu.imask, 3)} gpustat=0x${hex(typeof gpu !== 'undefined' ? gpu.status : 0)} clock=${Math.round(psx.clock)}`);
     lines.push('gpr: ' + REG.map((n, i) => `${n}=${hex(g[i])}`).join(' '));
@@ -242,7 +253,7 @@ mdlr('enge:psx:stall', ({ include }) => {
     lines.push(...formatAccesses('writes', writes));
     lines.push('');
 
-    const hot = [...captureBlocks.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 12);
+    const hot = [...captureBlocks.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, manual ? 24 : 12);
     lines.push('hot blocks (address, calls/frame):');
     for (const [, { entry, count }] of hot) {
       lines.push(`  block 0x${hex(cpuAddress(entry.pc))}  ${(count / CAPTURE_FRAMES).toFixed(0)}/frame`);
@@ -286,6 +297,7 @@ mdlr('enge:psx:stall', ({ include }) => {
           console.warn('[STALL] the report is also in window.stallReport; in DevTools: copy(stallReport)');
           if (typeof window !== 'undefined') window.stallReport = lastReport;
           reported = true;
+          manual = false;
         }
         frameBlocks = new Map();
         return;
@@ -307,13 +319,30 @@ mdlr('enge:psx:stall', ({ include }) => {
         quietFrames = 0;
         reported = false;
       }
+      lastFrameBlocks = frameBlocks.size;
       frameBlocks = new Map();
 
       if (!reported && quietFrames >= STABLE_FRAMES && watch.size) startCapture();
     },
 
     report: () => lastReport,
+
+    // record the next CAPTURE_FRAMES frames and report them, stalled or not
+    capture: () => {
+      if (capturing) return 'already capturing';
+      manual = true;
+      frameBlocks = new Map();
+      startCapture();
+      return `capturing ${CAPTURE_FRAMES} frames; the report follows in the console`;
+    },
+
+    status: () => ({ blocksLastFrame: lastFrameBlocks, watching: watch.size, quietFrames, maxBlocks: MAX_BLOCKS, stableFrames: STABLE_FRAMES }),
   };
+
+  if (enabled) {
+    window.stallCapture = stall.capture;
+    window.stallStatus = stall.status;
+  }
 
   return { stall };
 })
