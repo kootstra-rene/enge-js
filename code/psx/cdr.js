@@ -21,6 +21,7 @@ mdlr('enge:psx:cdr', () => {
   let localImage;
   let remoteRead;
   let debugSectorLogCount = 0;
+  let debugReadSectors = 0;  // sectors logged since the last ReadN/ReadS (?debug-cd)
   let debugDmaLogCount = 0;
   let debugResponseLogCount = 0;
 
@@ -306,6 +307,7 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x06:
+        debugReadSectors = 0;
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x06;
         enqueueEvent(3, 0x42);
@@ -541,6 +543,7 @@ mdlr('enge:psx:cdr', () => {
         break;
 
       case 0x1B:
+        debugReadSectors = 0;
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x1B;
         enqueueEvent(3, 0x42);
@@ -645,6 +648,10 @@ mdlr('enge:psx:cdr', () => {
       case 0x06:
       case 0x1b: {
         const result = readSector(currLoc);
+        if (cdDebug && result !== READ_PENDING && debugReadSectors < 8) {
+          ++debugReadSectors;
+          logReadSector(currLoc, result);
+        }
         if (handleReadFailure(self, result)) return;
         // XA audio still counts as reading, even when no data IRQ reaches the CPU.
         statusCode = (statusCode & ~0xc0) | 0x22;
@@ -759,6 +766,28 @@ mdlr('enge:psx:cdr', () => {
         break;
       }
     }
+  };
+
+  // ?debug-cd: the first sectors of every ReadN/ReadS, with their subheader
+  // and what became of them, to tell data from XA audio
+  const logReadSector = (readLoc, result) => {
+    const at = sectorOffset;
+    const byte = i => sectorData8[at + i] & 0xff;
+    const sub = byte(0x12);
+    const xa = (mode & 0x40) && byte(0x0f) === 2 && (sub & 0x44) === 0x44;
+    let fate = result === READ_MISSING ? 'missing' : result === READ_DATA ? 'data (INT1)' : 'xa played';
+    if (xa && (mode & 0x08) && (byte(0x10) !== (filterFile & 0xff) || byte(0x11) !== (filterChan & 0xff))) fate = 'xa skipped (filter)';
+    cdLog('read sector', {
+      lba: readLoc - 150,
+      msf: [((readLoc / 75 / 60) | 0), ((readLoc / 75) | 0) % 60, readLoc % 75].map(v => String(v).padStart(2, '0')).join(':'),
+      fate,
+      mode: '0x' + (mode & 0xff).toString(16),
+      filter: [filterFile & 0xff, filterChan & 0xff],
+      header: [byte(0x0c), byte(0x0d), byte(0x0e), byte(0x0f)].map(v => v.toString(16).padStart(2, '0')).join(' '),
+      file: byte(0x10), chan: byte(0x11),
+      submode: '0x' + sub.toString(16).padStart(2, '0'),
+      coding: '0x' + byte(0x13).toString(16).padStart(2, '0'),
+    });
   };
 
   const readSector = (readLoc) => {
@@ -877,12 +906,13 @@ mdlr('enge:psx:cdr', () => {
       let sub = sectorData8[sectorOffset + 0x12];
       if ((sub & 0x44) !== 0x44) return READ_DATA;
 
+      // the subheader bytes are unsigned (sectorData8 is signed)
       if (mode & 0x08) {
-        let file = sectorData8[sectorOffset + 0x10];
-        if (file !== filterFile) return READ_AUDIO;
+        let file = sectorData8[sectorOffset + 0x10] & 0xff;
+        if (file !== (filterFile & 0xff)) return READ_AUDIO;
 
-        let chan = sectorData8[sectorOffset + 0x11];
-        if (chan !== filterChan) return READ_AUDIO;
+        let chan = sectorData8[sectorOffset + 0x11] & 0xff;
+        if (chan !== (filterChan & 0xff)) return READ_AUDIO;
       }
 
       let nfo = sectorData8[sectorOffset + 0x13];
