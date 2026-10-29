@@ -6,7 +6,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
   const SECTOR_SIZE = 2352;
 
   // cdr.js uses the emulator globals; provide minimal stand-ins.
-  const globalNames = ['psx', 'cpu', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache'];
+  const globalNames = ['psx', 'cpu', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache', 'xa2flt', 'xa2pcm'];
   const savedGlobals = {};
   const { stubWindow } = include('enge:psx:test-window');
   let restoreWindow;
@@ -111,6 +111,9 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
     restoreWindow = stubWindow({ location: { search: '' }, localStorage: { getItem: () => null } });
     globalThis.PSX_SPEED = PSX_SPEED;
     globalThis.clearCodeCache = () => {};
+    // XA ADPCM decoder tables (enge:psx:spu); zeros will do here
+    globalThis.xa2flt = new Float32Array(16 * 2);
+    globalThis.xa2pcm = new Float32Array(16 * 256 * 2);
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
   });
@@ -400,4 +403,39 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
 
   });
 
-});
+  describe('XA-ADPCM filter', () => {
+
+    // every sector a real-time XA audio sector (submode 64h: real-time,
+    // form 2, audio) of the given file and channel, mono 37.8 kHz
+    const createXaDisc = (file, chan, sectors = 8) => {
+      const image = createDisc(0x00, sectors);
+      for (let lba = 0; lba < sectors; lba++) {
+        const at = lba * SECTOR_SIZE;
+        image.set([file, chan, 0x64, 0x00], at + 0x10);
+        image.set([file, chan, 0x64, 0x00], at + 0x14);
+      }
+      return image;
+    };
+
+    const playXa = (file, chan) => {
+      insert(createXaDisc(file, chan));
+      expect(send(0x0E, 0xc8).int).to.eql(3);             // Setmode: double speed, XA-ADPCM, filter
+      expect(send(0x0D, file, chan).int).to.eql(3);       // Setfilter
+      expect(send(0x02, 0x00, 0x02, 0x00).int).to.eql(3); // Setloc 00:02:00
+      expect(send(0x1B).int).to.eql(3);                   // ReadS
+      psx.run(3 * 222300);
+      return { pcm: cdr.getState().pcmmax > 0, pending: pendingInterrupt() };
+    };
+
+    it('should play a matching sector without a data IRQ', async () => {
+      expect(playXa(0x01, 0x02)).to.eql({ pcm: true, pending: 0 });
+    });
+
+    it('should match file and channel numbers of 80h and up', async () => {
+      // the subheader bytes are unsigned; read signed they never matched
+      expect(playXa(0x81, 0x90)).to.eql({ pcm: true, pending: 0 });
+    });
+
+  });
+
+})
