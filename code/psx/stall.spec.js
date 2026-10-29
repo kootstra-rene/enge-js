@@ -152,6 +152,49 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
       expect(warnings.length).to.eql(0);
     });
 
+    // 60 straight-line blocks in a ring: more than the default 48
+    const bigLoop = () => {
+      for (let b = 0; b < 60; ++b) {
+        const pc = 0x20000 + b * 0x40;
+        const next = b < 59 ? pc + 0x40 : 0x20000;
+        map[pc >>> 2] = 0x08000000 | (next >>> 2); // j next
+        map[(pc >>> 2) + 1] = NOP;
+      }
+    };
+
+    it('should not report a loop larger than the block limit', async () => {
+      bigLoop();
+      warnings = [];
+      runFrames(0x20000, 300, 60);
+      expect({ warnings: warnings.length, blocks: stall.status().blocksLastFrame }).to.eql({ warnings: 0, blocks: 60 });
+    });
+
+    it('should capture on request, stalled or not', async () => {
+      bigLoop();
+      warnings = [];
+      expect(stall.capture().startsWith('capturing')).to.eql(true);
+      runFrames(0x20000, 30, 60);
+      const report = window.stallReport || '';
+      expect(report.includes('[STALL] captured on request: 60 block(s) ran in 30 frames')).to.eql(true);
+      expect(report.includes('block 0x80020000')).to.eql(true);
+      expect(memRead32 === read32).to.eql(true);
+    });
+
+    it('should watch larger loops with ?debug-stall=N', async () => {
+      setSearch('?debug-stall=100');
+      const { stall: wide } = include('enge:psx:stall');
+      setSearch('?debug-stall');
+      bigLoop();
+      warnings = [];
+      let entry = getCacheEntry(0x20000);
+      for (let f = 0; f < 200; ++f) {
+        for (let i = 0; i < 60; ++i) { wide.block(entry); entry = entry.code(psx); }
+        wide.endFrame();
+      }
+      expect({ limit: wide.status().maxBlocks, reported: warnings.length > 0 }).to.eql({ limit: 100, reported: true });
+      expect((window.stallReport || '').includes('running the same 60 block(s)')).to.eql(true);
+    });
+
   });
 
 })
