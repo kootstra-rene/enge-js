@@ -121,6 +121,22 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
       expect(report.includes('beq t1, zero, 0x80001000')).to.eql(true);
     });
 
+    it('should list every hardware register access, however rare', async () => {
+      // 30 RAM addresses read every frame, then one SPUSTAT read: the
+      // register is listed although 24 rows of RAM are busier
+      for (let i = 0; i < 30; ++i) map[(0x3000 >>> 2) + i] = 0;
+      warnings = [];
+      stall.capture();
+      for (let f = 0; f < 30; ++f) {
+        for (let i = 0; i < 30; ++i) memRead32(0x3000 + 4 * i);
+        if (f === 0) memRead32(0x01801dac);
+        stall.block(getCacheEntry(0x1000));
+        stall.endFrame();
+      }
+      const report = window.stallReport || '';
+      expect(report.includes('0x1f801dac  32  SPU_XFER_CTRL             0.03')).to.eql(true);
+    });
+
     it('should restore the memory accessors after the report', async () => {
       const before = reads32;
       runFrames(0x1000, 1, 1);
