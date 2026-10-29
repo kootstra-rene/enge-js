@@ -175,11 +175,12 @@ the tests of nugget's own libraries.
 - **GP0 FIFO and line drawing time** (`gpu.js`): words the CPU writes to
   GP0 queue in a FIFO that the GPU drains while it is not drawing, a line
   segment keeping it busy for its length (one pixel per GPU cycle) plus a
-  setup time. GPUSTAT.25 (DMA direction 1) drops with six words queued,
-  counting a word a few cycles after its store, words written to a full FIFO
-  are lost, and bits 26 and 28 stay low while words wait or a line is drawn
-  (bit 26 also during a poly-line). DMA still feeds the command buffer
-  directly and polygons take no time. The depth, latency and setup time are
-  fitted to the two cases; whether the overflow loses the terminator itself
-  depends on where the segments fall. `gpu-hardware` pline_cpu_paced (its
-  pixel readback is not compared), pline_cpu_unpaced.
+  setup time. The FIFO holds 16 words and words written to a full FIFO are
+  lost; GPUSTAT.25 (DMA direction 1) drops earlier, with six words queued
+  (counting a word a few cycles after its store), and bits 26 and 28 stay
+  low while words wait or a line is drawn (bit 26 also during a poly-line).
+  DMA still feeds the command buffer directly and polygons take no time.
+  The bit 25 threshold, latency and setup time are fitted to the two cases;
+  whether the overflow loses the terminator itself depends on where the
+  segments fall. `gpu-hardware` pline_cpu_paced (its pixel readback is not
+  compared), pline_cpu_unpaced.

@@ -105,12 +105,15 @@ mdlr('enge:psx:gpu', ({ include }) => {
   let dmaIndex = 0;
 
   // GP0 FIFO for words the CPU writes (DMA feeds the command buffer
-  // directly). The GPU takes words from it while it is not drawing: a line
-  // segment keeps it busy for its length in GPU cycles. GPUSTAT.25 (DMA
-  // direction 1) reads 0 once FIFO_FULL words wait, counting a word
-  // FIFO_LATENCY cycles after its store, and words written to a full FIFO
-  // are lost.
-  const FIFO_FULL = 6;
+  // directly). It holds FIFO_SIZE words, the documented 16; words written to
+  // a full FIFO are lost. The GPU takes words from it while it is not
+  // drawing: a line segment keeps it busy for its length in GPU cycles.
+  // GPUSTAT.25 (DMA direction 1) drops well before the FIFO is full: nugget
+  // measures it low after 11 words of a poly-line, with the command word and
+  // two vertices taken, so once FIFO_REQUEST words wait, counting a word
+  // FIFO_LATENCY cycles after its store.
+  const FIFO_SIZE = 16;
+  const FIFO_REQUEST = 6;
   const FIFO_LATENCY = 16;
   const fifo = [];          // [word, cycle it reaches the FIFO, ...]
   let drawingUntil = 0;     // the GPU draws until this cycle
@@ -128,10 +131,10 @@ mdlr('enge:psx:gpu', ({ include }) => {
     const dy = Math.abs(((a << 5) >> 21) - ((b << 5) >> 21));
     return Math.ceil(Math.max(dx, dy) * 7 / 11) + LINE_SETUP;
   };
-  // per line, in CPU cycles; with the FIFO depth and latency fitted to
+  // per line, in CPU cycles; with FIFO_REQUEST and FIFO_LATENCY fitted to
   // nugget's gpu-dma-dreq poly-line cases (a 290-pixel segment takes about
-  // four of the test's 56-64 cycle loop iterations)
-  const LINE_SETUP = 55;
+  // four of the test's 56-64 cycle loop iterations; 45-55 pass)
+  const LINE_SETUP = 50;
   // run the FIFO up to now; all of it with `flush` (DMA and resets)
   const sync = flush => {
     while (fifo.length) {
@@ -376,7 +379,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
       let request = 0;
       switch ((status >>> 29) & 3) {
-        case 1: request = queued() < FIFO_FULL ? 1 : 0; break;
+        case 1: request = queued() < FIFO_REQUEST ? 1 : 0; break;
         case 2: request = (status >>> 28) & 1; break;
         case 3: request = (status >>> 27) & 1; break;
       }
@@ -407,7 +410,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     // GP0 written by the CPU
     cpuWriteGP0: data => {
       sync(false);
-      if (fifo.length >> 1 >= FIFO_FULL) return; // full: the word is lost
+      if (fifo.length >> 1 >= FIFO_SIZE) return; // full: the word is lost
       fifo.push(data, now());
       sync(false);
     },
