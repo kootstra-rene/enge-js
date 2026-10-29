@@ -122,7 +122,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     return n;
   };
   const busy = () => fifo.length > 0 || drawingUntil > now();
-  // a line of dx by dy pixels: one pixel per GPU cycle (11/7 of a CPU cycle)
+  // a line of dx by dy pixels: one pixel per GPU cycle (7/11 of a CPU cycle)
   const lineCycles = (a, b) => {
     const dx = Math.abs(((a << 21) >> 21) - ((b << 21) >> 21));
     const dy = Math.abs(((a << 5) >> 21) - ((b << 5) >> 21));
