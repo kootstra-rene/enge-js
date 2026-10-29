@@ -49,6 +49,7 @@ mdlr('enge:psx:stall', ({ include }) => {
     0x1d88: 'SPU_KON', 0x1d8a: 'SPU_KON_HI', 0x1d8c: 'SPU_KOFF', 0x1d8e: 'SPU_KOFF_HI',
     0x1d9c: 'SPU_ENDX', 0x1d9e: 'SPU_ENDX_HI', 0x1da4: 'SPU_IRQ_ADDR', 0x1da6: 'SPU_XFER_ADDR',
     0x1da8: 'SPU_FIFO', 0x1daa: 'SPUCNT', 0x1dac: 'SPU_XFER_CTRL', 0x1dae: 'SPUSTAT',
+    0x1db0: 'SPU_CD_VOL_L', 0x1db2: 'SPU_CD_VOL_R',
   };
 
   const ioName = (addr) => {
@@ -231,11 +232,16 @@ mdlr('enge:psx:stall', ({ include }) => {
     .map(([v, n]) => `0x${hex(v, e.size >> 2)}${e.values.size > 1 ? ` x${n}` : ''}`)
     .join(', ') + (e.values.size >= MAX_VALUES ? ', ...' : '');
 
+  // every hardware register access (a rare one can matter most), then the
+  // busiest RAM addresses
+  const perFrame = count => (count / CAPTURE_FRAMES).toFixed(count < 10 * CAPTURE_FRAMES ? 2 : 0);
+  const isIo = addr => addr >= 0x01801000 && addr < 0x01803000;
   const formatAccesses = (title, table) => {
-    const rows = [...table.values()].sort((a, b) => b.count - a.count).slice(0, 24);
+    const all = [...table.values()].sort((a, b) => b.count - a.count);
+    const rows = [...all.filter(e => isIo(e.addr)), ...all.filter(e => !isIo(e.addr)).slice(0, 24)];
     if (!rows.length) return [`${title}: none`];
     return [`${title} (address, size, name, count/frame, values seen):`, ...rows.map(e =>
-      `  0x${hex(cpuAddress(e.addr))}  ${String(e.size).padStart(2)}  ${ioName(e.addr).padEnd(22)} ${(e.count / CAPTURE_FRAMES).toFixed(0).padStart(7)}  ${formatValues(e)}`)];
+      `  0x${hex(cpuAddress(e.addr))}  ${String(e.size).padStart(2)}  ${ioName(e.addr).padEnd(22)} ${perFrame(e.count).padStart(7)}  ${formatValues(e)}`)];
   };
 
   const buildReport = () => {
