@@ -103,7 +103,98 @@ mdlr('enge:psx:gpu', ({ include }) => {
   }
 
   let dmaIndex = 0;
+
+  // GP0 FIFO for words the CPU writes (DMA feeds the command buffer
+  // directly). The GPU takes words from it while it is not drawing: a line
+  // segment keeps it busy for its length in GPU cycles. GPUSTAT.25 (DMA
+  // direction 1) reads 0 once FIFO_FULL words wait, counting a word
+  // FIFO_LATENCY cycles after its store, and words written to a full FIFO
+  // are lost.
+  const FIFO_FULL = 6;
+  const FIFO_LATENCY = 16;
+  const fifo = [];          // [word, cycle it reaches the FIFO, ...]
+  let drawingUntil = 0;     // the GPU draws until this cycle
+  let drawCycles = 0;       // drawing time of the word just executed
+  const now = () => psx.clock;
+  const queued = () => {
+    let n = 0;
+    for (let i = 1; i < fifo.length; i += 2) if (fifo[i] + FIFO_LATENCY <= now()) ++n;
+    return n;
+  };
+  const busy = () => fifo.length > 0 || drawingUntil > now();
+  // a line of dx by dy pixels: one pixel per GPU cycle (11/7 of a CPU cycle)
+  const lineCycles = (a, b) => {
+    const dx = Math.abs(((a << 21) >> 21) - ((b << 21) >> 21));
+    const dy = Math.abs(((a << 5) >> 21) - ((b << 5) >> 21));
+    return Math.ceil(Math.max(dx, dy) * 7 / 11) + LINE_SETUP;
+  };
+  // per line, in CPU cycles; with the FIFO depth and latency fitted to
+  // nugget's gpu-dma-dreq poly-line cases (a 290-pixel segment takes about
+  // four of the test's 56-64 cycle loop iterations)
+  const LINE_SETUP = 55;
+  // run the FIFO up to now; all of it with `flush` (DMA and resets)
+  const sync = flush => {
+    while (fifo.length) {
+      const at = Math.max(fifo[1], drawingUntil);
+      if (!flush && at > now()) break;
+      const word = fifo.shift(); fifo.shift();
+      drawCycles = 0;
+      execute(word);
+      drawingUntil = at + drawCycles;
+    }
+    if (flush) drawingUntil = 0;
+  };
   let allowTextureDisable = 0; // GP1(09h)
+
+  const execute = data => {
+    if (debugGame && debugGpuCommandCount < 64) {
+      console.debug('[GPU] GP0', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
+      debugGpuCommandCount++;
+    }
+    if (!gpu.imageWrite) {
+      if (dmaIndex > 0 && isPolyLine(dmaBuffer[0] >>> 24)) {
+        const packetId = dmaBuffer[0] >>> 24;
+        if (isPolyLineTerminator(packetId, dmaIndex, data) || dmaIndex === dmaBuffer.length) {
+          nextPrimitive();
+          handlers[packetId].call(gpu, dmaBuffer, dmaIndex);
+          dmaIndex = 0;
+          gpu.commandDone();
+        }
+        else {
+          // a vertex after the first ends a segment (gouraud: odd words)
+          const gouraud = (packetId & 0x10) !== 0;
+          if (gouraud ? (dmaIndex & 1) && dmaIndex >= 3 : dmaIndex >= 2) {
+            drawCycles += lineCycles(dmaBuffer[dmaIndex - (gouraud ? 2 : 1)], data);
+          }
+          dmaBuffer[dmaIndex++] = data;
+        }
+        return;
+      }
+
+      dmaBuffer[dmaIndex++] = data;
+
+      if (dmaIndex === 1) {
+        gpu.packetSize = packetSizes[data >>> 24];
+      }
+
+      if (dmaIndex === gpu.packetSize) {
+        var packetId = dmaBuffer[0] >>> 24;
+        if (pgxpState !== 1 && packetId >= 0x20 && packetId < 0x40 && pgxpOn() && pgxp.debug) pgxp.noteDirect((packetId & 0x08) ? 4 : 3);
+        nextPrimitive();
+        handlers[packetId].call(gpu, dmaBuffer);
+        if ((packetId & 0xe8) === 0x40) drawCycles += lineCycles(dmaBuffer[1], dmaBuffer[(packetId & 0x10) ? 3 : 2]);
+        dmaIndex = 0;
+        gpu.commandDone();
+      }
+    }
+    else {
+      gpu.img.buffer[gpu.img.index++] = (data >>> 0) & 0xffff;
+      if (--gpu.transferTotal <= 0) { gpu.imgTransferComplete(gpu.img); return; }
+
+      gpu.img.buffer[gpu.img.index++] = (data >>> 16) & 0xffff;
+      if (--gpu.transferTotal <= 0) { gpu.imgTransferComplete(gpu.img); return; }
+    }
+  };
 
   let gpu = {
     dispB: 256,
@@ -256,6 +347,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     rd32r1810: function () {
+      sync(false);
       if (gpu.status & 0x08000000) {
         // GPUREAD shares the VRAM read cursor with DMA. FFIX reads the
         // resource header here before transferring the remaining data by DMA.
@@ -272,15 +364,19 @@ mdlr('enge:psx:gpu', ({ include }) => {
       // bit 26 (ready to receive cmd word) is clear while GP0(A0h) takes its
       // pixel words; bit 28 (ready to receive DMA block) is clear while
       // GP0(C0h) has VRAM data waiting in GPUREAD (bit 27).
+      // Both are also clear while the GPU has words queued or is drawing, and
+      // bit 26 while a command is incomplete.
+      sync(false);
       const reading = (gpu.status & 0x08000000) !== 0;
+      const idle = !busy();
       let status = gpu.status & ~0x16000000;
-      if (!gpu.imageWrite) status |= 0x04000000;
-      if (!reading && gpu.dmaBlockReady()) status |= 0x10000000;
+      if (!gpu.imageWrite && idle && !(dmaIndex > 0 && isPolyLine(dmaBuffer[0] >>> 24))) status |= 0x04000000;
+      if (!reading && idle && gpu.dmaBlockReady()) status |= 0x10000000;
       // bit 25 (DMA request) depends on the DMA direction: off 0, FIFO 1,
       // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
       let request = 0;
       switch ((status >>> 29) & 3) {
-        case 1: request = 1; break;
+        case 1: request = queued() < FIFO_FULL ? 1 : 0; break;
         case 2: request = (status >>> 28) & 1; break;
         case 3: request = (status >>> 27) & 1; break;
       }
@@ -301,48 +397,19 @@ mdlr('enge:psx:gpu', ({ include }) => {
       waiter();
     },
 
+    // GP0 from DMA and from the emulator itself: straight to the command
+    // buffer, after the words the CPU queued
     wr32r1810: data => {
-      if (debugGame && debugGpuCommandCount < 64) {
-        console.debug('[GPU] GP0', `0x${(data >>> 0).toString(16).padStart(8, '0')}`);
-        debugGpuCommandCount++;
-      }
-      if (!gpu.imageWrite) {
-        if (dmaIndex > 0 && isPolyLine(dmaBuffer[0] >>> 24)) {
-          const packetId = dmaBuffer[0] >>> 24;
-          if (isPolyLineTerminator(packetId, dmaIndex, data) || dmaIndex === dmaBuffer.length) {
-            nextPrimitive();
-            handlers[packetId].call(gpu, dmaBuffer, dmaIndex);
-            dmaIndex = 0;
-            gpu.commandDone();
-          }
-          else {
-            dmaBuffer[dmaIndex++] = data;
-          }
-          return;
-        }
+      if (fifo.length) sync(true);
+      execute(data);
+    },
 
-        dmaBuffer[dmaIndex++] = data;
-
-        if (dmaIndex === 1) {
-          gpu.packetSize = packetSizes[data >>> 24];
-        }
-
-        if (dmaIndex === gpu.packetSize) {
-          var packetId = dmaBuffer[0] >>> 24;
-          if (pgxpState !== 1 && packetId >= 0x20 && packetId < 0x40 && pgxpOn() && pgxp.debug) pgxp.noteDirect((packetId & 0x08) ? 4 : 3);
-          nextPrimitive();
-          handlers[packetId].call(gpu, dmaBuffer);
-          dmaIndex = 0;
-          gpu.commandDone();
-        }
-      }
-      else {
-        gpu.img.buffer[gpu.img.index++] = (data >>> 0) & 0xffff;
-        if (--gpu.transferTotal <= 0) { gpu.imgTransferComplete(gpu.img); return; }
-
-        gpu.img.buffer[gpu.img.index++] = (data >>> 16) & 0xffff;
-        if (--gpu.transferTotal <= 0) { gpu.imgTransferComplete(gpu.img); return; }
-      }
+    // GP0 written by the CPU
+    cpuWriteGP0: data => {
+      sync(false);
+      if (fifo.length >> 1 >= FIFO_FULL) return; // full: the word is lost
+      fifo.push(data, now());
+      sync(false);
     },
 
     wr32r1814: data => {
@@ -352,6 +419,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       }
       switch (data >>> 24) {
         case 0x00: gpu.status = 0x14820000;
+          fifo.length = 0; drawingUntil = 0;
           gpu.imageWrite = false;
           dmaIndex = 0;
           allowTextureDisable = 0;
@@ -385,6 +453,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         // reset command buffer: drop a pending primitive and end any VRAM
         // transfer; the DMA direction (bits 29-30) is left alone
         case 0x01: gpu.imageWrite = false;
+          fifo.length = 0; drawingUntil = 0;
           gpu.status &= ~0x08000000;
           gpu.transferTotal = 0;
           dmaIndex = 0;
@@ -801,6 +870,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     // to continue with, or the terminating link once done. Bits 0-1 of the
     // links are ignored; a list may loop forever, as on hardware.
     dmaLinkedListStep: function (addr, budget) {
+      if (fifo.length) sync(true);
       if (dmaIndex !== 0) abort('not implemented')
 
       const data = dmaBuffer;

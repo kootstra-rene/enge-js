@@ -377,7 +377,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
         cpu.requestInterruptCheck();
         irqLog('I_MASK write32', `0x${(data >>> 0).toString(16)}`);
         return;
-      case 0x1810: gpu.wr32r1810(data); return;
+      case 0x1810: gpu.cpuWriteGP0(data); return;
       case 0x1814: gpu.wr32r1814(data); return;
       case 0x1820: mdc.wr32r1820(data); return;
       case 0x1824: mdc.wr32r1824(data); return;

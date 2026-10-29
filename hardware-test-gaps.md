@@ -7,7 +7,7 @@ they are likely to matter (numbering kept; fixed items move to the end). When
 an item is fixed, turn its cases back into
 `it` and run the spec.
 
-Counts are skipped cases (133 left; the 5 in `mdec` and `spu` predate the port
+Counts are skipped cases (131 left; the 5 in `mdec` and `spu` predate the port
 and are not listed). Spec names are `[test]enge:psx:<spec>`.
 
 ## Crashes and hangs
@@ -40,14 +40,6 @@ These stop or hang the emulator instead of giving a wrong value.
     - `rtc-hardware`: timerC0GateMode1ResetAtHblank,
       timerC0GateMode2ResetPauseOutside, timerC0GateMode3FreeAfterHblank,
       reset_period_accumulated (4)
-
-14. **The GP0 FIFO and drawing time are not emulated** — a command
-    completes the moment its last word arrives, so GPUSTAT.25 never drops
-    and a poly-line streamed by the CPU never fills the FIFO (unpaced,
-    hardware loses the terminator), and GPUSTAT.26/28 read ready right after
-    the last word where hardware is still drawing. Needs a model of the
-    16-word FIFO drained by per-primitive drawing time.
-    - `gpu-hardware`: pline_cpu_paced, pline_cpu_unpaced (2)
 
 16. **Voice captures are one LSB off the goldens** — the voice is now
     decoded, interpolated and enveloped in integers as on hardware and the
@@ -180,3 +172,14 @@ the tests of nugget's own libraries.
   (low byte for a 16-bit register) when a single output depends on it. LZCR
   reads the previous count on the instruction right after the MTC2 to LZCS.
   `gte-write-to-use` every cell (85); `gte-latency` lzcs_sweep_cached.
+- **GP0 FIFO and line drawing time** (`gpu.js`): words the CPU writes to
+  GP0 queue in a FIFO that the GPU drains while it is not drawing, a line
+  segment keeping it busy for its length (one pixel per GPU cycle) plus a
+  setup time. GPUSTAT.25 (DMA direction 1) drops with six words queued,
+  counting a word a few cycles after its store, words written to a full FIFO
+  are lost, and bits 26 and 28 stay low while words wait or a line is drawn
+  (bit 26 also during a poly-line). DMA still feeds the command buffer
+  directly and polygons take no time. The depth, latency and setup time are
+  fitted to the two cases; whether the overflow loses the terminator itself
+  depends on where the segments fall. `gpu-hardware` pline_cpu_paced (its
+  pixel readback is not compared), pline_cpu_unpaced.

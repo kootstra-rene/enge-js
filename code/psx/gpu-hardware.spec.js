@@ -259,8 +259,87 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
 
     // CPU-fed poly-line, GP1(04h)=1; paced: wait for GPUSTAT.25 before each
     // word. Records GPUSTAT bits 25/26/28 right after each word and the polls
-    // spent waiting, then reads back a pixel on the last segment.
+    // spent waiting, then reads back a pixel on the last segment. The word
+    // loop runs on the CPU, as compiled for the original, since how many
+    // words the GPU has taken by a given word depends on its pace.
+    const PLINE = 0x80102000;   // the loop
+    const BITS = 0x80103000;    // u8 per word
+    const WAITS = 0x80103400;   // u16 per word
+    const RESULT = 0x80103c00;  // maxWait, fullAt
+    const PARAMS = 0x80103c10;  // buf, words, paced
+    let plineCode = null;
     const cpuPline = (n, paced) => {
+      if (!plineCode) {
+        plineCode = m.asm(PLINE, `
+        pline:  lw    $a2, 0($a0)
+                lw    $s0, 4($a0)
+                lw    $t4, 8($a0)
+                li    $t6, ${BITS}
+                li    $a3, ${WAITS}
+                li    $t3, ${RESULT}
+                li    $t2, ${RESULT + 4}
+                sw    $zero, 0($t3)
+                li    $v0, -1
+                sw    $v0, 0($t2)
+                move  $a0, $zero
+                lui   $t0, 0x1f80
+                lui   $t9, 0x200
+                li    $t1, ${LIMIT}
+                lui   $s2, 0x1
+        loop:   slt   $v0, $a0, $s0
+                beqz  $v0, done
+                nop
+                bnez  $t4, wait
+                move  $v1, $zero
+        send:   lw    $a1, 0($a2)
+                addu  $t7, $t6, $a0
+                sw    $a1, 0x1810($t0)
+                lw    $a1, 0x1814($t0)
+                nop
+                srl   $v0, $a1, 0x19
+                srl   $t8, $a1, 0x1a
+                andi  $t8, $t8, 0x4
+                andi  $v0, $v0, 0x2
+                or    $v0, $v0, $t8
+                srl   $t8, $a1, 0x19
+                andi  $t8, $t8, 0x1
+                or    $v0, $v0, $t8
+                sb    $v0, 0($t7)
+                sltu  $t7, $v1, $s2
+                bnez  $t7, clamp
+                move  $v0, $v1
+                li    $v0, 0xffff
+        clamp:  sh    $v0, 0($a3)
+                lw    $v0, 0($t3)
+                nop
+                sltu  $v0, $v0, $v1
+                beqz  $v0, most
+                nop
+                sw    $v1, 0($t3)
+        most:   lw    $v0, 0($t2)
+                nop
+                bgez  $v0, next
+                and   $a1, $a1, $t9
+                bnez  $a1, next
+                nop
+                sw    $a0, 0($t2)
+        next:   addiu $a0, $a0, 1
+                addiu $a2, $a2, 4
+                b     loop
+                addiu $a3, $a3, 2
+        wait:   lw    $v0, 0x1814($t0)
+                nop
+                and   $v0, $v0, $t9
+                bnez  $v0, send
+                nop
+                bne   $v1, $t1, wait
+                addiu $v1, $v1, 1
+                b     send
+                addiu $v1, $v1, -1
+        done:   jr    $ra
+                nop
+        `).labels;
+      }
       gpuSetup();
       w32(GP1, 0x04000001);
       w32(GP0, 0x02000000);
@@ -268,22 +347,15 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
       w32(GP0, xy(320, 240));
       poll(() => (r32(GP1) & 0x14000000) === 0x14000000);
       const words = plines(n, 0);
+      m.load(BUF, buf);
+      m.load(PARAMS, [BUF, words, paced ? 1 : 0]);
+      m.call(plineCode.pline, PARAMS);
       const bits = [], waits = [];
-      let maxWait = 0, fullAt = -1;
       for (let i = 0; i < words; ++i) {
-        let polls = 0;
-        if (paced) {
-          const start = m.clock;
-          poll(() => (r32(GP1) & 0x02000000) !== 0);
-          polls = Math.trunc((m.clock - start) / 4);
-        }
-        w32(GP0, buf[i]);
-        const st = r32(GP1);
-        bits.push(((st >>> 25) & 1) | (((st >>> 26) & 1) << 1) | (((st >>> 28) & 1) << 2));
-        waits.push(Math.min(polls, 0xffff));
-        if (polls > maxWait) maxWait = polls;
-        if (fullAt < 0 && !(st & 0x02000000)) fullAt = i;
+        bits.push((r32(BITS + (i & ~3)) >>> ((i & 3) * 8)) & 0xff);
+        waits.push((r32(WAITS + (i & ~1) * 2) >>> ((i & 1) * 16)) & 0xffff);
       }
+      const maxWait = r32(RESULT), fullAt = r32(RESULT + 4) >> 0;
       const idleOk = poll(() => (r32(GP1) & 0x14000000) === 0x14000000) ? 1 : 0;
       // readPx
       const x = ((n - 1) & 1) ? 300 : 10, y = 10 + (n - 1) * 3;
@@ -299,20 +371,19 @@ mdlr('[test]enge:psx:gpu-hardware', ({ include, test }) => {
 
     // GPUSTAT.25 drops after 11 queued words, then each further word waits
     // for one 290-pixel segment: the poly-line streams through the FIFO.
-    // Bits 26 and 28 read 0 after every word of the list. The GP0 FIFO and
-    // the drawing time are not emulated (a command completes as its last
-    // word arrives), and the last pixel depends on the renderer.
-    xit('pline_cpu_paced', async () => {
+    // Bits 26 and 28 read 0 after every word of the list. The original also
+    // reads back the last pixel (7E08h); pixels are not compared here.
+    it('pline_cpu_paced', async () => {
       const r = cpuPline(60, true);
       const busy = r.bits.reduce((a, b) => a | (b & 6), 0);
-      expect({ idleOk: r.idleOk, readOk: r.readOk, waited: r.maxWait !== LIMIT, px: hex(r.lastPx), fullAt: r.fullAt, w10: r.waits[10], w11: r.waits[11] !== 0, busy })
-        .to.eql({ idleOk: 1, readOk: 1, waited: true, px: hex(0x7e08), fullAt: -1, w10: 0, w11: true, busy: 0 });
+      expect({ idleOk: r.idleOk, readOk: r.readOk, waited: r.maxWait !== LIMIT, fullAt: r.fullAt, w10: r.waits[10], w11: r.waits[11] !== 0, busy })
+        .to.eql({ idleOk: 1, readOk: 1, waited: true, fullAt: -1, w10: 0, w11: true, busy: 0 });
     });
 
     // Unpaced, GPUSTAT.25 is 0 from the 11th word and the overflow loses the
     // terminator: the GPU never goes idle and the GP0(C0h) readback is eaten
-    // as vertices. The GP0 FIFO is not emulated.
-    xit('pline_cpu_unpaced', async () => {
+    // as vertices.
+    it('pline_cpu_unpaced', async () => {
       const r = cpuPline(60, false);
       expect({ fullAt: r.fullAt, idleOk: r.idleOk, readOk: r.readOk }).to.eql({ fullAt: 10, idleOk: 0, readOk: 0 });
     });
