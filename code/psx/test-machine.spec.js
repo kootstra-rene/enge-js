@@ -70,6 +70,7 @@ mdlr('[test]enge:psx:test-machine', ({ include, test }) => {
       m.write32(0x1f801810, 0x020000ff);  // fill 16x1 at 0,0 with red (bgr15 001Fh)
       m.write32(0x1f801810, 0x00000000);
       m.write32(0x1f801810, 0x00010010);
+      m.idleUntil(() => (m.read32(0x1f801814) & 0x04000000) !== 0, 10000, 16); // the fill takes time
       m.write32(0x1f801810, 0xc0000000);  // VRAM -> CPU 2x1 at 0,0
       m.write32(0x1f801810, 0x00000000);
       m.write32(0x1f801810, 0x00010002);

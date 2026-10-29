@@ -218,4 +218,83 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
 
   });
 
+  describe('GPUSTAT while drawing (bit 26 low, bit 28 high)', () => {
+
+    // Draw times follow DuckStation: setup plus pixels inside the drawing
+    // area, in GPU ticks of half a CPU cycle. A flat triangle (GP0 20h) has
+    // 46 setup ticks; one with corners 0,0 100,0 0,100 covers 5000 pixels,
+    // so it draws for (46 + 5000) / 2 = 2523 CPU cycles.
+    const cmdReady = () => (stat() >>> 26) & 1;
+    const dmaReady = () => (stat() >>> 28) & 1;
+    const setDrawArea = (w, h) => { gp0(0xe3000000); gp0(0xe4000000 | ((h - 1) << 10) | (w - 1)); };
+    const drawTriangle = (x0, y0, x1, y1, x2, y2) => {
+      gp0(0x20ff0000);
+      gp0((y0 << 16) | (x0 & 0xffff)); gp0((y1 << 16) | (x1 & 0xffff)); gp0((y2 << 16) | (x2 & 0xffff));
+    };
+    const busyFor = () => {
+      const start = psx.clock;
+      while (!cmdReady() && psx.clock < start + 1e7) ++psx.clock;
+      const cycles = psx.clock - start;
+      psx.clock = start;
+      return cycles;
+    };
+
+    it('should clear bit 26 and keep bit 28 set while a polygon draws', async () => {
+      setDrawArea(320, 240);
+      drawTriangle(0, 0, 100, 0, 0, 100);
+      expect({ cmd: cmdReady(), dma: dmaReady() }).to.eql({ cmd: 0, dma: 1 });
+    });
+
+    it('should set bit 26 again once the polygon is drawn', async () => {
+      setDrawArea(320, 240);
+      drawTriangle(0, 0, 100, 0, 0, 100);
+      expect(busyFor()).to.eql(2523);
+    });
+
+    it('should draw consecutive polygons one after the other', async () => {
+      setDrawArea(320, 240);
+      drawTriangle(0, 0, 100, 0, 0, 100);
+      drawTriangle(0, 0, 100, 0, 0, 100);
+      expect({ busy: busyFor(), start: gpu.drawStartAt() }).to.eql({ busy: 2 * 2523, start: 2523 });
+    });
+
+    it('should only count pixels inside the drawing area', async () => {
+      setDrawArea(10, 10);
+      drawTriangle(0, 0, 1000, 0, 0, 500);                 // 50 pixels inside
+      expect(busyFor()).to.eql((46 + 50) / 2);
+    });
+
+    it('should apply the drawing offset before clipping', async () => {
+      setDrawArea(320, 240);
+      gp0(0xe5000000 | 400);                               // x + 400: right of the area
+      drawTriangle(0, 0, 100, 0, 0, 100);
+      expect(busyFor()).to.eql(46 / 2);
+    });
+
+    it('should only take the setup time for a polygon too large to draw', async () => {
+      setDrawArea(320, 240);
+      drawTriangle(0, 0, 1024, 0, 0, 100);
+      expect(busyFor()).to.eql(46 / 2);
+    });
+
+    it('should take time for a fill', async () => {
+      gp0(0x02000000); gp0(0x00000000); gp0((240 << 16) | 320);
+      expect(busyFor()).to.eql((46 + (320 / 8 + 9) * 240) / 2);
+    });
+
+    it('should not be busy after drawing mode commands', async () => {
+      setDrawArea(320, 240);
+      gp0(0xe1000000); gp0(0xe5000000);
+      expect(cmdReady()).to.eql(1);
+    });
+
+    it('should stop drawing on GP1(01h)', async () => {
+      setDrawArea(320, 240);
+      drawTriangle(0, 0, 100, 0, 0, 100);
+      gp1(0x01000000);
+      expect({ cmd: cmdReady(), start: gpu.drawStartAt() }).to.eql({ cmd: 1, start: 0 });
+    });
+
+  });
+
 })
