@@ -2,11 +2,14 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
 
   const { describe, it, expect, beforeEach, before, after } = test;
 
+  const { stubWindow } = include('enge:psx:test-window');
+  let restoreWindow;
+
   // Ported from ps1-tests dma/otc-test (https://github.com/JaCzekanski/ps1-tests,
   // MIT). Only the 13 cases listed as passing in its psx.log, captured on real
   // hardware, are included.
 
-  const globalNames = ['window', 'psx', 'cpu', 'gpu', 'ram', 'renderer', 'abort', 'hex', 'clearCodeCache'];
+  const globalNames = ['psx', 'cpu', 'gpu', 'ram', 'renderer', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
 
   const DPCR = 0x10f0;
@@ -61,7 +64,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
 
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    globalThis.window = { location: { search: '' } };
+    restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
@@ -69,6 +72,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
   });
 
   after(async () => {
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];

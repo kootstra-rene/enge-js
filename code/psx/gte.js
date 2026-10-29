@@ -7,6 +7,8 @@ mdlr('enge:psx:gte', ({ include }) => {
   let zsf3 = 0.0;
   let zsf4 = 0.0;
   let lzcr = 0;
+  let lzcrBefore = 0;
+  let lzcsAt; // when LZCS was last written (MTC2), in instructions
 
   const v0 = new Int32Array(4);
   const v1 = new Int32Array(4);
@@ -405,8 +407,185 @@ mdlr('enge:psx:gte', ({ include }) => {
   const u16lo = data => (data << 16) >>> 16;
   const sat5 = data => data < 0 ? 0 : data > 0x1f ? 0x1f : data;
 
+  // Write-to-use delays (enge:psx:gte-latency-data): a register written a
+  // few instructions before a command may still read as its old value, or a
+  // mix, for that command. MTC2/CTC2/LWC2 pass the time of the write and
+  // COP2 the time of the command, in instructions; the command then runs
+  // with the late registers put back (all of it for O, the low half for X),
+  // and the new values land after it, unless the command wrote them.
+  const { writeToUse } = include('enge:psx:gte-latency-data');
+  const lateRegs = new Set(Object.keys(writeToUse).map(k => +k.split(':')[1]));
+  const lateWrites = new Map(); // register -> { at, old }
+  const commandKey = id => ((id & 0x3f) === 0x12 ? id & 0x7e03f : id & 0x3f).toString(16);
+
+  const setQuiet = (regId, data) => {
+    regs[regId] = data;
+
+    switch (regId) {
+      case 0x00: v0[1] = s16lo(data); v0[2] = s16hi(data); break;
+      case 0x01: v0[3] = s16lo(data); break;
+      case 0x02: v1[1] = s16lo(data); v1[2] = s16hi(data); break;
+      case 0x03: v1[3] = s16lo(data); break;
+      case 0x04: v2[1] = s16lo(data); v2[2] = s16hi(data); break;
+      case 0x05: v2[3] = s16lo(data); break;
+      case 0x06: rgb[3] = data; break;
+      case 0x07: break;
+      case 0x08: ir[0] = s16lo(data); break;
+      case 0x09: ir[1] = s16lo(data); break;
+      case 0x0a: ir[2] = s16lo(data); break;
+      case 0x0b: ir[3] = s16lo(data); break;
+      case 0x0c: sx[0] = s16lo(data); sy[0] = s16hi(data); sxyFrac[0] = 0; break;
+      case 0x0d: sx[1] = s16lo(data); sy[1] = s16hi(data); sxyFrac[1] = 0; break;
+      case 0x0e: sx[2] = s16lo(data); sy[2] = s16hi(data); sxyFrac[2] = 0; break;
+      case 0x0f: sx[0] = sx[1]; sy[0] = sy[1];
+        sx[1] = sx[2]; sy[1] = sy[2];
+        sx[2] = s16lo(data); sy[2] = s16hi(data);
+        sxyFrac[0] = sxyFrac[1]; sxyFrac[1] = sxyFrac[2]; sxyFrac[2] = 0;
+        break;
+      case 0x10: sz[0] = u16lo(data); break;
+      case 0x11: sz[1] = u16lo(data); break;
+      case 0x12: sz[2] = u16lo(data); break;
+      case 0x13: sz[3] = u16lo(data); break;
+      case 0x14: rgb[0] = data; break;
+      case 0x15: rgb[1] = data; break;
+      case 0x16: rgb[2] = data; break;
+      case 0x17: break;
+      case 0x18: mac[0] = s32(data); break;
+      case 0x19: mac[1] = s32(data); break;
+      case 0x1a: mac[2] = s32(data); break;
+      case 0x1b: mac[3] = s32(data); break;
+      case 0x1c: ir[1] = (data & 0x001f) << 7;
+        ir[2] = (data & 0x03e0) << 2;
+        ir[3] = (data & 0x7c00) >> 3;
+        break;
+      case 0x1d: break; // readonly
+      case 0x1e: countLeadingZeros(data); break;
+      case 0x1f: break; // readonly
+      case 0x20: rt[0] = s16lo(data); rt[1] = s16hi(data); break;
+      case 0x21: rt[2] = s16lo(data); rt[3] = s16hi(data); break;
+      case 0x22: rt[4] = s16lo(data); rt[5] = s16hi(data); break;
+      case 0x23: rt[6] = s16lo(data); rt[7] = s16hi(data); break;
+      case 0x24: regs[regId] = rt[8] = s16lo(data); break;
+      case 0x25: tr[0] = s32(data); break;
+      case 0x26: tr[1] = s32(data); break;
+      case 0x27: tr[2] = s32(data); break;
+      case 0x28: ll[0] = s16lo(data); ll[1] = s16hi(data); break;
+      case 0x29: ll[2] = s16lo(data); ll[3] = s16hi(data); break;
+      case 0x2a: ll[4] = s16lo(data); ll[5] = s16hi(data); break;
+      case 0x2b: ll[6] = s16lo(data); ll[7] = s16hi(data); break;
+      case 0x2c: regs[regId] = ll[8] = s16lo(data); break;
+      case 0x2d: bk[0] = s32(data); break;
+      case 0x2e: bk[1] = s32(data); break;
+      case 0x2f: bk[2] = s32(data); break;
+      case 0x30: lc[0] = s16lo(data); lc[1] = s16hi(data); break;
+      case 0x31: lc[2] = s16lo(data); lc[3] = s16hi(data); break;
+      case 0x32: lc[4] = s16lo(data); lc[5] = s16hi(data); break;
+      case 0x33: lc[6] = s16lo(data); lc[7] = s16hi(data); break;
+      case 0x34: regs[regId] = lc[8] = s16lo(data); break;
+      case 0x35: fc[0] = s32(data); break;
+      case 0x36: fc[1] = s32(data); break;
+      case 0x37: fc[2] = s32(data); break;
+      case 0x38: regs[regId] = s32(data); break;
+      case 0x39: regs[regId] = s32(data); break;
+      case 0x3a: regs[regId] = u16lo(data); break;
+      case 0x3b: regs[regId] = s16lo(data); break;
+      case 0x3c: regs[regId] = s32(data); break;
+      case 0x3d: regs[regId] = zsf3 = s16lo(data); break;
+      case 0x3e: regs[regId] = zsf4 = s16lo(data); break;
+      case 0x3f: regs[regId] = data & 0x7ffff000;
+        if (regs[regId] & 0x7f87e000) {
+          regs[regId] |= 0x80000000;
+        }
+        break;
+      default: abort(hex(regId, 2));
+    }
+  };
+
+  // The state a command can change, saved to run it twice (see X below).
+  const stateArrays = [v0, v1, v2, rt, ll, lc, bk, fc, tr, rgb, ir, mac, regs, flag, sx, sy, sxyFrac, sz];
+  const saveState = () => ({ arrays: stateArrays.map(a => a.slice()), zsf3, zsf4, lzcr });
+  const loadState = s => {
+    stateArrays.forEach((a, i) => a.set(s.arrays[i]));
+    ({ zsf3, zsf4, lzcr } = s);
+  };
+  // The outputs as the CPU reads them, a unit per register.
+  const outputUnits = [
+    [8, () => ir[0], v => { ir[0] = v; }], [9, () => ir[1], v => { ir[1] = v; }],
+    [10, () => ir[2], v => { ir[2] = v; }], [11, () => ir[3], v => { ir[3] = v; }],
+    ...[0, 1, 2].map(i => [12 + i, () => [sx[i], sy[i], sxyFrac[i]], ([x, y, f]) => { sx[i] = x; sy[i] = y; sxyFrac[i] = f; }]),
+    ...[0, 1, 2, 3].map(i => [16 + i, () => sz[i], v => { sz[i] = v; }]),
+    ...[0, 1, 2].map(i => [20 + i, () => rgb[i], v => { rgb[i] = v; }]),
+    ...[0, 1, 2, 3].map(i => [24 + i, () => mac[i], v => { mac[i] = v; }]),
+    [63, () => regs[63], v => { regs[63] = v; }],
+  ];
+  const sameUnit = (a, b) => Array.isArray(a) ? a.every((v, i) => v === b[i]) : a === b;
+
+  // O: the command runs with the old value. X: hardware reads the register
+  // at more than one point of the command, so some outputs come from the old
+  // value and the rest from the new one; the command runs both ways and the
+  // first output that differs (other than a written register) is taken from
+  // the run on the old value. When only one output differs, the register is
+  // taken as its new high half with its old low half (low byte for 16 bits).
+  const withLateWrites = (commandId, at, run) => {
+    if (at === undefined || !lateWrites.size) return run();
+    const key = commandKey(commandId);
+    const olds = [], mixes = [];
+    for (const [reg, write] of lateWrites) {
+      const n = at - write.at - 1;
+      if (n < 0 || n > 3) { lateWrites.delete(reg); continue; }
+      const letter = writeToUse[`${key}:${reg}`]?.[n];
+      if (letter === 'O') olds.push([reg, write.old]);
+      else if (letter === 'X') mixes.push([reg, write.old]);
+    }
+    if (!olds.length && !mixes.length) return run();
+
+    const putBack = list => list.map(([reg, old]) => {
+      const now = gte.get(reg);
+      setQuiet(reg, old);
+      return [reg, now, gte.get(reg)];
+    });
+    const restore = restores => {
+      for (const [reg, now, stale] of restores) {
+        if (gte.get(reg) === stale) setQuiet(reg, now);
+      }
+    };
+
+    if (!mixes.length) {
+      const restores = putBack(olds);
+      run();
+      return restore(restores);
+    }
+
+    const before = saveState();
+    putBack(olds); putBack(mixes);
+    run();
+    const fromOld = outputUnits.map(([, read]) => read()).map(v => Array.isArray(v) ? v.slice() : v);
+    loadState(before);
+    let restores = putBack(olds);
+    run();
+    const written = new Set(mixes.concat(olds).map(([reg]) => reg));
+    const differ = outputUnits.map(([reg, read], i) => !written.has(reg) && !sameUnit(read(), fromOld[i]));
+    const first = differ.indexOf(true);
+    if (differ.indexOf(true, first + 1) >= 0) {
+      outputUnits[first][2](fromOld[first]);
+    } else {
+      // a single output: it is computed from the low half of the old value
+      // and the high half of the new one (the low byte, for a register that
+      // differs only in its low half)
+      restore(restores);
+      loadState(before);
+      const low = (now, old) => ((now ^ old) & ~0xffff) ? 0xffff : 0xff; // 16-bit registers mix by byte
+      restores = putBack(olds).concat(putBack(mixes.map(([reg, old]) => {
+        const now = gte.get(reg), mask = low(now, old);
+        return [reg, (now & ~mask) | (old & mask)];
+      })));
+      run();
+    }
+    restore(restores);
+  };
+
   const gte = {
-    get: (regId) => {
+    get: (regId, at) => {
       switch (regId) {
         case 0x01: // VZ0..VZ2 read back sign-extended
         case 0x03:
@@ -437,96 +616,19 @@ mdlr('enge:psx:gte', ({ include }) => {
           value |= (sat5(ir[2] >> 7) << 5);
           value |= (sat5(ir[3] >> 7) << 10);
           return value;
-        case 0x1f: return lzcr;
+        case 0x1f: return at === lzcsAt + 1 ? lzcrBefore : lzcr; // ready an instruction after LZCS
         case 0x3a: return s16lo(regs[regId]);
         default: return regs[regId];
       }
     },
 
-    set: (regId, data) => {
-      regs[regId] = data;
-
-      switch (regId) {
-        case 0x00: v0[1] = s16lo(data); v0[2] = s16hi(data); break;
-        case 0x01: v0[3] = s16lo(data); break;
-        case 0x02: v1[1] = s16lo(data); v1[2] = s16hi(data); break;
-        case 0x03: v1[3] = s16lo(data); break;
-        case 0x04: v2[1] = s16lo(data); v2[2] = s16hi(data); break;
-        case 0x05: v2[3] = s16lo(data); break;
-        case 0x06: rgb[3] = data; break;
-        case 0x07: break;
-        case 0x08: ir[0] = s16lo(data); break;
-        case 0x09: ir[1] = s16lo(data); break;
-        case 0x0a: ir[2] = s16lo(data); break;
-        case 0x0b: ir[3] = s16lo(data); break;
-        case 0x0c: sx[0] = s16lo(data); sy[0] = s16hi(data); sxyFrac[0] = 0; break;
-        case 0x0d: sx[1] = s16lo(data); sy[1] = s16hi(data); sxyFrac[1] = 0; break;
-        case 0x0e: sx[2] = s16lo(data); sy[2] = s16hi(data); sxyFrac[2] = 0; break;
-        case 0x0f: sx[0] = sx[1]; sy[0] = sy[1];
-          sx[1] = sx[2]; sy[1] = sy[2];
-          sx[2] = s16lo(data); sy[2] = s16hi(data);
-          sxyFrac[0] = sxyFrac[1]; sxyFrac[1] = sxyFrac[2]; sxyFrac[2] = 0;
-          break;
-        case 0x10: sz[0] = u16lo(data); break;
-        case 0x11: sz[1] = u16lo(data); break;
-        case 0x12: sz[2] = u16lo(data); break;
-        case 0x13: sz[3] = u16lo(data); break;
-        case 0x14: rgb[0] = data; break;
-        case 0x15: rgb[1] = data; break;
-        case 0x16: rgb[2] = data; break;
-        case 0x17: break;
-        case 0x18: mac[0] = s32(data); break;
-        case 0x19: mac[1] = s32(data); break;
-        case 0x1a: mac[2] = s32(data); break;
-        case 0x1b: mac[3] = s32(data); break;
-        case 0x1c: ir[1] = (data & 0x001f) << 7;
-          ir[2] = (data & 0x03e0) << 2;
-          ir[3] = (data & 0x7c00) >> 3;
-          break;
-        case 0x1d: break; // readonly
-        case 0x1e: countLeadingZeros(data); break;
-        case 0x1f: break; // readonly
-        case 0x20: rt[0] = s16lo(data); rt[1] = s16hi(data); break;
-        case 0x21: rt[2] = s16lo(data); rt[3] = s16hi(data); break;
-        case 0x22: rt[4] = s16lo(data); rt[5] = s16hi(data); break;
-        case 0x23: rt[6] = s16lo(data); rt[7] = s16hi(data); break;
-        case 0x24: regs[regId] = rt[8] = s16lo(data); break;
-        case 0x25: tr[0] = s32(data); break;
-        case 0x26: tr[1] = s32(data); break;
-        case 0x27: tr[2] = s32(data); break;
-        case 0x28: ll[0] = s16lo(data); ll[1] = s16hi(data); break;
-        case 0x29: ll[2] = s16lo(data); ll[3] = s16hi(data); break;
-        case 0x2a: ll[4] = s16lo(data); ll[5] = s16hi(data); break;
-        case 0x2b: ll[6] = s16lo(data); ll[7] = s16hi(data); break;
-        case 0x2c: regs[regId] = ll[8] = s16lo(data); break;
-        case 0x2d: bk[0] = s32(data); break;
-        case 0x2e: bk[1] = s32(data); break;
-        case 0x2f: bk[2] = s32(data); break;
-        case 0x30: lc[0] = s16lo(data); lc[1] = s16hi(data); break;
-        case 0x31: lc[2] = s16lo(data); lc[3] = s16hi(data); break;
-        case 0x32: lc[4] = s16lo(data); lc[5] = s16hi(data); break;
-        case 0x33: lc[6] = s16lo(data); lc[7] = s16hi(data); break;
-        case 0x34: regs[regId] = lc[8] = s16lo(data); break;
-        case 0x35: fc[0] = s32(data); break;
-        case 0x36: fc[1] = s32(data); break;
-        case 0x37: fc[2] = s32(data); break;
-        case 0x38: regs[regId] = s32(data); break;
-        case 0x39: regs[regId] = s32(data); break;
-        case 0x3a: regs[regId] = u16lo(data); break;
-        case 0x3b: regs[regId] = s16lo(data); break;
-        case 0x3c: regs[regId] = s32(data); break;
-        case 0x3d: regs[regId] = zsf3 = s16lo(data); break;
-        case 0x3e: regs[regId] = zsf4 = s16lo(data); break;
-        case 0x3f: regs[regId] = data & 0x7ffff000;
-          if (regs[regId] & 0x7f87e000) {
-            regs[regId] |= 0x80000000;
-          }
-          break;
-        default: abort(hex(regId, 2));
-      }
+    set: (regId, data, at) => {
+      if (at !== undefined && lateRegs.has(regId)) lateWrites.set(regId, { at, old: gte.get(regId) });
+      if (regId === 0x1e) { lzcsAt = at; lzcrBefore = lzcr; }
+      setQuiet(regId, data);
     },
 
-    command: (commandId) => {
+    command: (commandId, at) => withLateWrites(commandId, at, () => {
       sf = (commandId >> 19) & 1 ? 4096.0 : 1.0;
       isf = (commandId >> 19) & 1 ? 1.0 : 4096.0;
       rsf = 1.0 / sf;
@@ -535,7 +637,7 @@ mdlr('enge:psx:gte', ({ include }) => {
       regs[0x3f] = 0;
 
       $command.get(commandId & 0x3f)(commandId);
-    },
+    }),
 
     cycles: (commandId) => $cycles.get(commandId & 0x3f) || 5,
 

@@ -1,8 +1,9 @@
 mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
   const { describe, it, expect, before, after } = test;
+  const { stubWindow, setSearch } = include('enge:psx:test-window');
 
-  const globalNames = ['window', 'psx', 'cpu', 'map', 'ram', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls',
+  const globalNames = ['psx', 'cpu', 'map', 'ram', 'renderer', 'context', 'abort', 'hex', 'trace', 'calls',
     'getCacheEntry', 'memRead32', 'memRead16', 'memWrite32', 'memWrite16', 'memWrite8', 'gte', 'pgxp', 'gpu', 'clearCodeCache',
     'fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord', 'nextPrimitive', 'pgxpMemFrac', 'pgxpGprFrac'];
   const savedGlobals = {};
@@ -50,9 +51,18 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
   const fracAt = (addr) => pgxp.fracAt(addr, map[(addr & 0x1fffff) >>> 2]);
 
+  // a new instance each call (the later describes start from scratch)
+  const freshPgxp = () => include('enge:psx:pgxp');
+  const freshRec = () => include('enge:psx:rec');
+
+  // the GPU tests' renderer; gpu.js binds its draw functions when included
+  let gpu, gpuRenderer, drawn;
+  let restoreWindow;
+
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    globalThis.window = { location: { href: '', search: '?pgxp' } };
+    restoreWindow = stubWindow({ location: { href: '', search: '' } });
+    setSearch('?pgxp');
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     // same as hex() in code/utils.js: keeps only the last `length` digits
     globalThis.hex = (value, length) => ('00000000' + (value >>> 0).toString(16)).substr(-(length || 8));
@@ -75,15 +85,25 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
     globalThis.renderer = { fpsRenderCounter: 0, fpsCounter: 0 };
     ({ gte: globalThis.gte } = include('enge:psx:gte'));
-    ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = include('enge:psx:pgxp'));
-    ({ getCacheEntry: globalThis.getCacheEntry } = include('enge:psx:rec'));
+    ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = freshPgxp());
+    ({ getCacheEntry: globalThis.getCacheEntry } = freshRec());
     // compiled blocks use the code-invalidation globals rec.js publishes on window
     for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
       if (window[name]) globalThis[name] = window[name];
     }
+
+    globalThis.renderer = gpuRenderer = new Proxy({
+      drawTriangle(data, c1, xy1, c2, xy2, c3, xy3) {
+        const frac = globalThis.gpu.pgxpFrac;
+        drawn.push(frac ? [frac[xy1], frac[xy2], frac[xy3]] : null);
+      },
+    }, { get: (target, key) => target[key] || (() => {}) });
+    ({ gpu } = include('enge:psx:gpu'));
+    globalThis.renderer = { fpsRenderCounter: 0, fpsCounter: 0 };
   });
 
   after(async () => {
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];
@@ -200,16 +220,9 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
   describe('GPU', () => {
 
     const LIST = 0x2000;
-    let gpu, drawn;
 
     before(async () => {
-      globalThis.renderer = new Proxy({
-        drawTriangle(data, c1, xy1, c2, xy2, c3, xy3) {
-          const frac = globalThis.gpu.pgxpFrac;
-          drawn.push(frac ? [frac[xy1], frac[xy2], frac[xy3]] : null);
-        },
-      }, { get: (target, key) => target[key] || (() => {}) });
-      ({ gpu } = include('enge:psx:gpu'));
+      globalThis.renderer = gpuRenderer;
       globalThis.gpu = gpu;
     });
 
@@ -295,9 +308,9 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
     before(async () => {
       for (const name of names) saved[name] = globalThis[name];
-      window.location.search = '?pgxp=cpu';
-      ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = include('enge:psx:pgxp'));
-      ({ getCacheEntry: globalThis.getCacheEntry } = include('enge:psx:rec'));
+      setSearch('?pgxp=cpu');
+      ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = freshPgxp());
+      ({ getCacheEntry: globalThis.getCacheEntry } = freshRec());
       for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
         if (window[name]) globalThis[name] = window[name];
       }
@@ -306,7 +319,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     });
 
     after(async () => {
-      window.location.search = '?pgxp';
+      setSearch('?pgxp');
       for (const name of names) globalThis[name] = saved[name];
     });
 
@@ -393,9 +406,9 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
     before(async () => {
       for (const name of names) saved[name] = globalThis[name];
-      window.location.search = '?pgxp&debug-pgxp';
-      ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = include('enge:psx:pgxp'));
-      ({ getCacheEntry: globalThis.getCacheEntry } = include('enge:psx:rec'));
+      setSearch('?pgxp&debug-pgxp');
+      ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = freshPgxp());
+      ({ getCacheEntry: globalThis.getCacheEntry } = freshRec());
       for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
         if (window[name]) globalThis[name] = window[name];
       }
@@ -407,7 +420,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
     after(async () => {
       console.log = savedLog;
-      window.location.search = '?pgxp';
+      setSearch('?pgxp');
       delete window.pgxpStats;
       for (const name of names) globalThis[name] = saved[name];
     });

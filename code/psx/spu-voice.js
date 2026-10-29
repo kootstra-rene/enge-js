@@ -1,32 +1,33 @@
 mdlr('enge:psx:spu-voice', ({ include }) => {
 
-  let BLOCKSIZE = (28 * 0x1000) >>> 0;
 
   let id = 0;
+  // ADSR: the phase (0 off, 1 attack, 2 decay, 3 sustain, 4 release) and
+  // the level (ENVX, 0..7FFFh)
   let adsrLevel = 0;
   let adsrState = 0;
-  let adsrAttackMode = 0;
-  let adsrAttackRate = 0;
-  let adsrDecayRate = 0;
-  let adsrSustainMode = 0;
-  let adsrSustainRate = 0;
-  let adsrSustainLevel = 0;
-  let adsrSustainDirection = 0;
-  let adsrReleaseMode = 0;
-  let adsrReleaseRate = 0;
-  let sweepLeft = [];
-  let sweepRight = [];
   let pitchModulationEnabled = false;
 
   let pitchStep = 0;
-  let pitchCounter = BLOCKSIZE;
+  // the position in the block: sample index in bits 12 and up, the
+  // interpolation index in bits 4-11
+  let pitchCounter = 0;
   let repeatAddress = 0;
   let blockAddress = 0;
-  let buffer = new Float32Array(28);
-  let s0 = 0.0;
-  let s1 = 0.0;
-  let volumeLeft = 0.0;
-  let volumeRight = 0.0;
+  let currentBlock = -1;  // the block being played, for IRQ address matches
+  let started = false;    // keyed on at least once: the voice reads SPU RAM
+  let startup = 0;        // samples of header fetches left after a key-on
+  let ignoreLoop = false; // the CPU wrote the repeat address while playing
+  // the decoded block, after the last three samples of the one before (for
+  // the interpolation); its flags; the decoder's two previous samples
+  const samples = new Int16Array(3 + 28);
+  let blockFlags = 0;
+  let hasSamples = false;
+  let s0 = 0;
+  let s1 = 0;
+  // the current volumes (VOLX, signed 16 bit); set directly, or swept
+  let volumeLeft = 0;
+  let volumeRight = 0;
 
   let regs = new Uint16Array(16);
 
@@ -97,110 +98,183 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     0x5997, 0x599E, 0x59A4, 0x59A9, 0x59AD, 0x59B0, 0x59B2, 0x59B3
   ];
 
-  const adsrStep = (direction, mode, rate, level = adsrLevel) => {
-    const table = direction ? envelopeExponentialDecrease : envelopeExponentialIncrease;
-    const offset = mode ? table[level >>> 28] : 0;
-    const step = envelopStep[rate + offset];
-    return direction ? -step : step;
-  }
+  // A volume envelope, as the ADSR and the volume sweeps use it (after
+  // psx-spx and DuckStation). `rate` is the 7-bit shift:step value; a tick
+  // is due every 1 << max(0, shift - 11) samples and moves the level by
+  // step << max(0, 11 - shift), the step being 7 - (rate & 3) up or
+  // -(8 - (rate & 3)) down. Exponential decrease scales the step by the
+  // level; exponential increase slows down above 6000h. A rate with every
+  // bit of `mask` set never ticks.
+  const envelope = () => {
+    const e = { rate: 0, decreasing: false, exponential: false, invert: false, step: 0, increment: 0, counter: 0, stepped: false };
+    e.reset = (rate, mask, decreasing, exponential, invert = false) => {
+      e.rate = rate;
+      e.decreasing = decreasing;
+      e.exponential = exponential;
+      e.invert = invert;
+      e.counter = 0;
+      e.increment = 0x8000;
+      const base = 7 - (rate & 3);
+      e.step = ((decreasing !== invert) || (invert && exponential)) ? ~base : base;
+      if (rate < 44) {
+        e.step <<= (11 - (rate >> 2));
+      } else if (rate >= 48) {
+        e.increment >>= ((rate >> 2) - 11);
+        if ((rate & mask) !== mask) e.increment = Math.max(e.increment, 1);
+      }
+    };
+    // one sample: the new level
+    e.tick = level => {
+      let increment = e.increment;
+      let step = e.step;
+      if (e.exponential) {
+        if (e.decreasing) {
+          step = (step * level) >> 15;
+        } else if (level >= 0x6000) {
+          if (e.rate < 40) {
+            step >>= 2;
+          } else if (e.rate >= 44) {
+            increment >>= 2;
+          } else {
+            step >>= 1;
+            increment >>= 1;
+          }
+        }
+      }
+      e.counter += increment;
+      e.stepped = (e.counter & 0x8000) !== 0;
+      if (!e.stepped) return level;
+      e.counter = 0;
+      const next = level + step;
+      if (!e.decreasing) return Math.max(-0x8000, Math.min(0x7fff, next));
+      if (e.invert) return Math.max(-0x7fff, Math.min(0, next));
+      return Math.max(0, next);
+    };
+    return e;
+  };
 
+  const adsr = envelope();
+  const sweepLeft = envelope(), sweepRight = envelope();
+  let sweepingLeft = false, sweepingRight = false;
+
+  const adsrRegister = () => (regs[0x8] | (regs[0xa] << 16)) >>> 0;
+
+  // enter an ADSR phase: its envelope and the level that ends it
+  const adsrPhase = phase => {
+    const r = adsrRegister();
+    adsrState = phase;
+    switch (phase) {
+      case 1: // attack
+        adsr.reset((r >>> 8) & 0x7f, 0x7f, false, (r & 0x8000) !== 0);
+        break;
+      case 2: // decay
+        adsr.reset(((r >>> 4) & 0xf) << 2, 0x1f << 2, true, true);
+        break;
+      case 3: // sustain
+        adsr.reset((r >>> 22) & 0x7f, 0x7f, (r & 0x40000000) !== 0, (r & 0x80000000) !== 0);
+        break;
+      case 4: // release
+        adsr.reset(((r >>> 16) & 0x1f) << 2, 0x1f << 2, true, (r & 0x200000) !== 0);
+        break;
+    }
+  };
+
+  // One sample of the envelope: the level as a volume. A phase ends on the
+  // step that reaches its end: attack at 7FFFh, decay once the level's top
+  // four bits are at or below the sustain level, release at 0.
   const mixADSR = () => {
-    switch (adsrState) {
-      case 0x0:
-        adsrLevel = 0.0;
-      case 0x1:
-        adsrLevel += adsrStep(0, adsrAttackMode, adsrAttackRate);
-        if (adsrLevel >= 0x7FFFFFFF) {
-          adsrState = 2;
-        }
-        break;
-      case 0x2:
-        adsrLevel += adsrStep(1, 1, adsrDecayRate);
-        if (((adsrLevel >>> 27) & 15) <= adsrSustainLevel) {
-          adsrState = 3;
-        }
-        break;
-      case 0x3:
-        adsrLevel += adsrStep(adsrSustainDirection, adsrSustainMode, adsrSustainRate);
-        break;
-      case 0x4:
-        adsrLevel += adsrStep(1, adsrReleaseMode, adsrReleaseRate);
-        if (adsrLevel <= 0) {
-          adsrState = 0;
-        }
-        break;
+    adsrLevel = adsr.tick(adsrLevel);
+    if (adsr.stepped) {
+      switch (adsrState) {
+        case 1: if (adsrLevel >= 0x7fff) adsrPhase(2); break;
+        case 2: if ((adsrLevel >> 11) <= (regs[0x8] & 0xf)) adsrPhase(3); break;
+        case 4: if (adsrLevel <= 0) adsrState = 0; break;
+      }
     }
-
-    if (adsrLevel > 0x7FFFFFFF) {
-      adsrLevel = 0x7FFFFFFF;
-    }
-    if (adsrLevel < 0) {
-      adsrLevel = 0;
-    }
-
-    return (regs[0x0c] = adsrLevel >>> 16) / 0x8000;
-  }
+    regs[0x0c] = adsrLevel;
+    return adsrLevel / 0x8000;
+  };
 
   const startAdsrAttack = () => {
-    adsrState = 1;
     adsrLevel = 0;
-  }
+    adsrPhase(1);
+  };
   const startAdsrRelease = () => {
-    adsrState = 4;
-  }
+    adsrPhase(4);
+  };
 
+  // a voice volume register: fixed (bits 0-14, times two) or a sweep from
+  // the current volume
+  const setVolume = (data, current, sweep) => {
+    if (!(data & 0x8000)) return { level: ((data & 0x7fff) << 17) >> 16, sweeping: false };
+    sweep.reset(data & 0x7f, 0x7f, (data & 0x2000) !== 0, (data & 0x4000) !== 0, (data & 0x1000) !== 0);
+    return { level: current, sweeping: sweep.increment > 0 };
+  };
+
+  // the ADPCM prediction filters
+  const FILTER_POS = [0, 60, 115, 98, 122];
+  const FILTER_NEG = [0, 0, -52, -55, -60];
+
+  // decode the block at blockAddress into samples[3..30]
   const decodeBlock = (ram) => {
+    currentBlock = blockAddress;
     const shiftFilter = ram[blockAddress + 0];
-    const flags = ram[blockAddress + 1];
+    blockFlags = ram[blockAddress + 1];
 
     const shiftValue = shiftFilter & 0x0f;
     const shift = shiftValue > 12 ? 9 : shiftValue;
-    const filter = (shiftFilter & 0xf0) >>> 3;
+    // filters 5-7 decode as filter 0 (measured)
+    const filter = (shiftFilter >>> 4) > 4 ? 0 : shiftFilter >>> 4;
+    const k0 = FILTER_POS[filter], k1 = FILTER_NEG[filter];
 
-    const k0 = Math.round(xa2flt[filter + 0] * 64);
-    const k1 = Math.round(xa2flt[filter + 1] * 64);
-
-    let sample = -1;
-    for (let offset = 2; offset < 16; ++offset) {
-      let data = ram[blockAddress + offset];
-      let nibble = (data & 0x0f) << 12;
-      if (nibble & 0x8000) nibble |= 0xffff0000;
-      let value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
+    samples[0] = samples[28];
+    samples[1] = samples[29];
+    samples[2] = samples[30];
+    for (let i = 0; i < 28; ++i) {
+      const data = ram[blockAddress + 2 + (i >> 1)];
+      const nibble = ((data >> ((i & 1) << 2)) & 0xf) << 12;
+      let value = (((nibble << 16) >> 16) >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
       value = Math.max(-0x8000, Math.min(0x7fff, value));
       s1 = s0; s0 = value;
-      buffer[++sample] = value / 0x8000;
-
-      nibble = (data & 0xf0) << 8;
-      if (nibble & 0x8000) nibble |= 0xffff0000;
-      value = (nibble >> shift) + ((s0 * k0) >> 6) + ((s1 * k1) >> 6);
-      value = Math.max(-0x8000, Math.min(0x7fff, value));
-      s1 = s0; s0 = value;
-      buffer[++sample] = value / 0x8000;
+      samples[3 + i] = value;
     }
 
-    if ((flags & 4) === 4) {
+    if ((blockFlags & 4) === 4 && !ignoreLoop) {
       repeatAddress = blockAddress;
     }
+    hasSamples = true;
+  };
 
-    blockAddress += 16;
-
-    if ((flags & 1) === 1) {
+  // past the end of a block: the next one, or the repeat address after an
+  // end flag (ENDX latches; without the repeat flag the voice is muted)
+  const nextBlock = () => {
+    hasSamples = false;
+    blockAddress = (blockAddress + 16) & 0x7ffff;
+    if (blockFlags & 1) {
       blockAddress = repeatAddress;
       spu.ENDX |= (1 << id);
-      if ((flags & 2) === 0) {
-        startAdsrRelease();
+      if (!(blockFlags & 2)) {
+        adsrState = 0;
         adsrLevel = 0;
+        regs[0x0c] = 0;
       }
     }
+  };
 
-  }
-
-  let $s1, $s2, $s3, $s4;
+  // the 4-point gaussian interpolation of the decoded samples
+  const interpolate = () => {
+    const i = (pitchCounter >>> 4) & 0xff;
+    const n = 3 + (pitchCounter >>> 12);
+    return (gauss[0x0ff - i] * samples[n - 3] + gauss[0x1ff - i] * samples[n - 2] +
+      gauss[0x100 + i] * samples[n - 1] + gauss[i] * samples[n]) >> 15;
+  };
 
   const voice = {
     reverb: 0,
     capture: 0,
-    outputForModulation: 0.0,
+    // the enveloped sample before the voice volume: the capture buffers and
+    // the next voice's pitch modulation take it
+    lastVolume: 0,
 
     setId(voiceId) {
       id = voiceId;
@@ -209,65 +283,80 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       return voice;
     },
 
-    advance(ram, audio, previousVoiceOutput = 0.0) {
-      if (!adsrState) {
-        voice.outputForModulation = 0.0;
-        return adsrState; // note: this is an optimisation that behave differently then the hardware does.
+    // One sample. Returns whether the voice sounds (audio holds its left
+    // and right output, -1..1).
+    advance(ram, audio, previousVoiceOutput = 0) {
+      voice.lastVolume = 0;
+
+      // Once keyed on, a voice keeps reading SPU RAM, also after it ended or
+      // was keyed off and its envelope reached 0: its address still moves,
+      // ENDX still latches and the IRQ address still matches. Only a voice
+      // never keyed on is skipped.
+      if (!started) return 0;
+
+      // After a key-on the voice fetches the first block's header for three
+      // samples, taking its loop start whatever the CPU wrote, and starts on
+      // the fourth.
+      if (startup) {
+        --startup;
+        if (startup < 3 && (ram[blockAddress + 1] & 4)) repeatAddress = blockAddress;
+        return 0;
       }
 
-      // PMON scales this voice's pitch from the preceding voice's signed
-      // interpolated output, centered around a factor of 1.0.
-      let currentPitchStep = pitchStep;
+      // the position moves by the pitch before the sample is taken
+      // PMON scales the pitch by the previous voice's enveloped sample,
+      // centered around a factor of 1.0
+      let step = pitchStep;
       if (pitchModulationEnabled && id > 0) {
-        const modulatorSample = Math.max(-0x8000, Math.min(0x7fff, (previousVoiceOutput * 0x8000) | 0));
-        const modulationFactor = modulatorSample + 0x8000;
-        currentPitchStep = (pitchStep * modulationFactor) >> 15;
+        const factor = Math.max(-0x8000, Math.min(0x7fff, previousVoiceOutput)) + 0x8000;
+        step = ((step * factor) >> 15) & 0xffff;
       }
-      pitchCounter += currentPitchStep;
-
-      if (pitchCounter >= BLOCKSIZE) {
-        pitchCounter -= BLOCKSIZE;
-
+      if (!hasSamples) decodeBlock(ram);
+      pitchCounter += Math.min(step, 0x4000);
+      if ((pitchCounter >>> 12) >= 28) {
+        pitchCounter -= 28 << 12;
+        nextBlock();
         decodeBlock(ram);
-        spu.checkIrq(voice);
       }
+      // the IRQ address matches while the voice plays the block holding it
+      spu.checkIrq(voice);
 
-      const sample = buffer[pitchCounter >>> 12];
-      const adsrVolume = mixADSR();
+      const sample = interpolate();
+      if (adsrState) mixADSR();
+      const enveloped = (sample * adsrLevel) >> 15;
+      voice.lastVolume = enveloped;
 
-      $s1 = sample * adsrVolume;
-      const i = (pitchCounter >>> 4) & 0xff;
-
-      let out = ((gauss[255 - i] * $s4));
-      out = out + ((gauss[511 - i] * $s3));
-      out = out + ((gauss[256 + i] * $s2));
-      out = out + ((gauss[i] * $s1));
-
-      let s = out / 0x8000;
-      voice.outputForModulation = s;
-      // if (out) console.log(out);
-
-      audio[0] = (s * volumeLeft * mixSweep(sweepLeft))
-      audio[1] = (s * volumeRight * mixSweep(sweepRight));
-
-      $s4 = $s3;
-      $s3 = $s2;
-      $s2 = $s1;
+      audio[0] = ((enveloped * volumeLeft) >> 15) / 0x8000;
+      audio[1] = ((enveloped * volumeRight) >> 15) / 0x8000;
+      if (sweepingLeft) volumeLeft = sweepLeft.tick(volumeLeft);
+      if (sweepingRight) volumeRight = sweepRight.tick(volumeRight);
 
       return adsrState;
     },
 
+    // VOLX: the current left or right volume
+    volx(right) {
+      return (right ? volumeRight : volumeLeft) & 0xffff;
+    },
+
     checkIrq(offset) {
-      return (blockAddress <= offset) && (offset < (blockAddress + 16));
+      return (currentBlock <= offset) && (offset < (currentBlock + 16));
     },
 
     keyOn() {
-      s0 = 0.0;
-      s1 = 0.0;
-      $s1 = 0, $s2 = 0, $s3 = 0, $s4 = 0;
-      pitchCounter = BLOCKSIZE;
+      startup = 4;
+      ignoreLoop = false;
+      adsrLevel = 0;
+      regs[0x0c] = 0;
+      s0 = 0;
+      s1 = 0;
+      samples.fill(0);
+      hasSamples = false;
+      // measured: the first block plays from its fourth sample on
+      pitchCounter = 3 << 12;
       blockAddress = regs[0x6] << 3;
-      repeatAddress = regs[0xe] << 3;
+      currentBlock = -1;
+      started = true;
       startAdsrAttack();
     },
 
@@ -289,30 +378,25 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     },
 
     rd16(addr) {
+      if ((addr & 15) === 0xe) return (repeatAddress >>> 3) & 0xffff;
       return regs[addr & 15];
     },
 
     wr16(addr, data) {
       regs[addr & 15] = data;
       switch (addr % 16) {
-        case 0x0:
-          if (data & 0x8000) {
-            sweepLeft = getEnvelope(data, volumeLeft);
-          }
-          else {
-            sweepLeft = [];
-            volumeLeft = spu.getVolume(data);
-          }
+        case 0x0: {
+          const v = setVolume(data, volumeLeft, sweepLeft);
+          volumeLeft = v.level;
+          sweepingLeft = v.sweeping;
           break;
-        case 0x2:
-          if (data & 0x8000) {
-            sweepRight = getEnvelope(data, volumeRight);
-          }
-          else {
-            sweepRight = [];
-            volumeRight = spu.getVolume(data);
-          }
+        }
+        case 0x2: {
+          const v = setVolume(data, volumeRight, sweepRight);
+          volumeRight = v.level;
+          sweepingRight = v.sweeping;
           break;
+        }
         case 0x4:
           pitchStep = Math.min(data, 0x4000);
           break;
@@ -320,68 +404,19 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
         //   blockAddress = data << 3;
         //   break;
         case 0x8:
-          adsrAttackMode = (data >>> 15) & 1
-          adsrAttackRate = ((data >>> 8) & 127);
-          adsrDecayRate = ((data >>> 4) & 15) << 3;
-          adsrSustainLevel = 1 + (data & 15);
-          break;
         case 0xa:
-          adsrSustainMode = (data >>> 15) & 1;
-          adsrSustainDirection = (data >>> 14) & 1;
-          adsrSustainRate = (data >>> 6) & 127;
-          adsrReleaseMode = (data >>> 5) & 1;
-          adsrReleaseRate = (data & 31) << 2;
+          // a new rate applies to the phase in progress
+          if (adsrState) adsrPhase(adsrState);
           break;
         // case 0xc:
         //   adsrLevel = data << 16;
         //   break;
         case 0xe:
           repeatAddress = data << 3;
+          if (started && adsrState) ignoreLoop = true;
           break;
       }
     }
-  }
-
-  const envelopStep = [];
-
-  const envelopeExponentialIncrease = [0, 0, 0, 0, 0, 0, 8, 8];
-  const envelopeExponentialDecrease = [12, 8, 6, 4, 3, 2, 1, 0];
-
-  const max = (a, b) => a > b ? a : b;
-
-  const getEnvelope = (data, volume) => {
-    const mode = (data & (1 << 14)) ? 1 : 0;
-    const direction = (data & (1 << 13)) ? 1 : 0;
-    const rate = (data >> 0) & 127;
-    const phaseNegative = (data & (1 << 12)) !== 0;
-
-    return {
-      mode,
-      direction,
-      rate,
-      level: Math.round(Math.abs(volume) * 0x7fffffff),
-      phaseNegative
-    };
-  }
-
-  const mixSweep = (sweep) => {
-    if (sweep.mode === undefined) return 1.0;
-
-    sweep.level += adsrStep(sweep.direction, sweep.mode, sweep.rate, sweep.level);
-    sweep.level = Math.max(0, Math.min(0x7fffffff, sweep.level));
-
-    const volume = (sweep.level >>> 16) / 0x8000;
-    return sweep.phaseNegative ? -volume : volume;
-  }
-
-  for (let i = 0; i < 140; ++i) {
-    const step = i & 3;
-    const shift = i >> 2;
-
-    const $cycles = 1 << max(0, shift - 11);
-    const $step = (7 - step) << max(0, 11 - shift);
-
-    envelopStep[i] = (($step / $cycles * 0x10000) >>> 0);
   }
 
   return { voice };

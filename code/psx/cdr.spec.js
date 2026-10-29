@@ -6,10 +6,10 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
   const SECTOR_SIZE = 2352;
 
   // cdr.js uses the emulator globals; provide minimal stand-ins.
-  const globalNames = ['window', 'psx', 'cpu', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache'];
+  const globalNames = ['psx', 'cpu', 'PSX_SPEED', 'abort', 'hex', 'clearCodeCache'];
   const savedGlobals = {};
-  const windowStubs = { location: { search: '' }, localStorage: { getItem: () => null } };
-  const addedWindowStubs = [];
+  const { stubWindow } = include('enge:psx:test-window');
+  let restoreWindow;
 
   const createScheduler = () => {
     const events = [];
@@ -108,12 +108,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
 
   before(async () => {
     for (const name of globalNames) savedGlobals[name] = globalThis[name];
-    if (typeof window === 'undefined') globalThis.window = {};
-    for (const [name, stub] of Object.entries(windowStubs)) {
-      if (window[name]) continue;
-      window[name] = stub;
-      addedWindowStubs.push(name);
-    }
+    restoreWindow = stubWindow({ location: { search: '' }, localStorage: { getItem: () => null } });
     globalThis.PSX_SPEED = PSX_SPEED;
     globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
@@ -121,7 +116,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
   });
 
   after(async () => {
-    for (const name of addedWindowStubs) delete window[name];
+    restoreWindow();
     for (const name of globalNames) {
       if (savedGlobals[name] === undefined) delete globalThis[name];
       else globalThis[name] = savedGlobals[name];
