@@ -298,9 +298,9 @@ mdlr('enge:psx:index', ({ include }) => {
   const stateStorageKey = 'enge-psx-save-state-v1';
   const stateBuild = 'enge-save-state-v3-renderer-v1';
   const stateStartupDelay = 15000;
-  const emulatorVariant = [...document.scripts].some(script => script.src.includes('index-webgpu'))
+  const emulatorVariant = window.renderer?.variant ?? ([...document.scripts].some(script => script.src.includes('index-webgpu'))
     ? 'webgpu'
-    : [...document.scripts].some(script => script.src.includes('index-webgl2')) ? 'webgl2' : 'webgl';
+    : [...document.scripts].some(script => script.src.includes('index-webgl2')) ? 'webgl2' : 'webgl');
   let loadedBiosId = 'unloaded';
   let loadedGameId = 'unloaded';
   let biosBooted = false;
@@ -547,6 +547,14 @@ mdlr('enge:psx:index', ({ include }) => {
   };
 
   const loadFileData = (arrayBuffer, sourceId = '') => {
+    // Memory cards are imported from the menu, where you choose the card. Anything
+    // not recognised below is treated as a disc image, so stop one here. A blank card
+    // has no header, which is why the file name counts too.
+    if (/\.(mcr|mc)$/i.test(sourceId) || (arrayBuffer.byteLength >= 4 && new DataView(arrayBuffer).getUint32(0, true) === 0x0000434d)) {
+      alert('To load a memory card, use Upload Memory Card in the menu.');
+      return;
+    }
+
     // Do not carry a branch-delay-slot load from the previous BIOS/game into
     // the new workload. This is especially important when testing multiple
     // games without refreshing the page.
@@ -576,13 +584,6 @@ mdlr('enge:psx:index', ({ include }) => {
 
       clearCodeCache(view.getInt32(0x18, true), arrayBuffer.byteLength);
       running = true;
-    }
-    else if (view.getUint32(0, true) === 0x0000434d) { // MEMCARD
-      var copy = new Uint8Array(arrayBuffer);
-      let card = joy.devices ? joy.devices[0].data : joy.cardOneMemory;
-      for (var i = 0; i < copy.length; ++i) {
-        card[i] = copy[i];
-      }
     }
     else if (arrayBuffer.byteLength === 524288) {
       biosBooted = false;
@@ -1032,19 +1033,24 @@ mdlr('enge:psx:index', ({ include }) => {
       }
     });
 
-    const downloadMemoryCardButton = document.getElementById('download-memorycard');
-    downloadMemoryCardButton?.addEventListener('click', () => {
-      try {
-        const card = joy.devices[0].getMemoryCard?.();
-        if (!card) throw new Error('Memory card is unavailable');
-        downloadFile(card, 'enge-memory-card-1.mcr', 'application/octet-stream');
-        updateStateButton(downloadMemoryCardButton, 'Downloaded');
-      }
-      catch (error) {
-        console.error('Unable to download memory card:', error);
-        updateStateButton(downloadMemoryCardButton, 'Download Failed');
-      }
-    });
+    // Card 1 keeps the plain ids, so a page with one set of buttons still works.
+    const memoryCardSuffix = slot => slot ? `-${slot + 1}` : '';
+
+    for (const slot of [0, 1]) {
+      const button = document.getElementById(`download-memorycard${memoryCardSuffix(slot)}`);
+      button?.addEventListener('click', () => {
+        try {
+          const card = joy.devices[slot].getMemoryCard?.();
+          if (!card) throw new Error(`Memory card ${slot + 1} is unavailable`);
+          downloadFile(card, `enge-memory-card-${slot + 1}.mcr`, 'application/octet-stream');
+          updateStateButton(button, 'Downloaded');
+        }
+        catch (error) {
+          console.error(`Unable to download memory card ${slot + 1}:`, error);
+          updateStateButton(button, 'Download Failed');
+        }
+      });
+    }
 
     const uploadStateButton = document.getElementById('upload-state');
     const uploadStateInput = document.getElementById('upload-state-file');
@@ -1063,21 +1069,30 @@ mdlr('enge:psx:index', ({ include }) => {
       }).finally(() => { uploadStateInput.value = ''; });
     });
 
-    const uploadMemoryCardButton = document.getElementById('upload-memorycard');
+    // Both cards share one file input, so a page only needs the one element.
     const uploadMemoryCardInput = document.getElementById('upload-memorycard-file');
-    uploadMemoryCardButton?.addEventListener('click', () => uploadMemoryCardInput?.click());
+    let uploadMemoryCardSlot = 0;
+    const uploadMemoryCardButton = slot => document.getElementById(`upload-memorycard${memoryCardSuffix(slot)}`);
+    for (const slot of [0, 1]) {
+      uploadMemoryCardButton(slot)?.addEventListener('click', () => {
+        uploadMemoryCardSlot = slot;
+        uploadMemoryCardInput?.click();
+      });
+    }
     uploadMemoryCardInput?.addEventListener('change', () => {
       const file = uploadMemoryCardInput.files?.[0];
       if (!file) return;
+      const slot = uploadMemoryCardSlot;
+      const button = uploadMemoryCardButton(slot);
       file.arrayBuffer().then(buffer => {
         if (buffer.byteLength !== 128 * 1024) throw new Error('Memory card must be exactly 128 KB');
-        joy.devices[0].setMemoryCard(new Uint8Array(buffer));
-        writeStorageStream('card1', buffer);
-        updateStateButton(uploadMemoryCardButton, 'Card Loaded');
+        joy.devices[slot].setMemoryCard(new Uint8Array(buffer));
+        writeStorageStream(`card${slot + 1}`, buffer);
+        updateStateButton(button, 'Card Loaded');
       }).catch(error => {
-        console.error('Unable to upload memory card:', error);
-        updateStateButton(uploadMemoryCardButton, 'Load Failed');
-        alert(`Unable to upload memory card: ${error.message}`);
+        console.error(`Unable to upload memory card ${slot + 1}:`, error);
+        updateStateButton(button, 'Load Failed');
+        alert(`Unable to upload memory card ${slot + 1}: ${error.message}`);
       }).finally(() => { uploadMemoryCardInput.value = ''; });
     });
 
