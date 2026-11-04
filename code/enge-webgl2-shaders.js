@@ -1,0 +1,1262 @@
+mdlr('enge:webgl2:shaders', () => {
+
+  return {
+    pixel: `#version 300 es
+    precision highp float;
+    precision highp int;
+
+    in vec3 a_position;
+    in vec2 a_texcoord;
+    in vec4 a_color;
+    in vec4 a_twin;
+    in float a_tmode;
+    in float a_clut;
+    in float a_flags;
+    in vec4 a_uvLimits;
+
+    out vec2 v_vramCoord;
+    out vec3 v_color;
+    out vec2 v_pixelCoord;
+    flat out uint v_textureMode;
+    flat out ivec2 v_texturePage;
+    flat out uint packetId;
+    flat out ivec2 clut;
+    // VRAM render scale (4 or 8)
+    uniform int u_scale;
+    flat out ivec4 twin;
+    flat out uint v_flags;
+    flat out vec4 v_uvLimits;
+
+    void main() {
+      gl_Position = vec4(a_position, 1.0);
+      gl_Position.x = (gl_Position.x - 512.0) / +512.0;
+      gl_Position.y = (gl_Position.y - 256.0) / +256.0;
+      // primitive id k -> window depth exactly k / 65535, i.e. depth value k
+      // in the 16-bit buffer; id / 32768 put every id on a .5 rounding
+      // boundary so neighbouring ids could get equal depth
+      gl_Position.z = (a_position.z * 2.0 / 65535.0) - 1.0;
+
+      v_vramCoord = a_texcoord; // texture is 4096x2048
+      v_pixelCoord = a_position.xy;
+      //v_color = vec4(a_color.rgb, 1.0);
+      v_textureMode = uint(mod(a_tmode, 4.0));
+      float tpx = mod(floor(a_tmode / 4.0), 16.0);
+      float tpy = mod(floor(a_tmode / 64.0), 2.0);
+      v_texturePage = ivec2(int(tpx) * 64 * u_scale, int(tpy) * 256 * u_scale);
+      packetId = uint(a_color.a * 255.0);
+      v_color = 4u == (packetId & 4u) ? 0u == (packetId & 1u) ? a_color.rgb / vec3(0.5, 0.5, 0.5) : vec3(1.0,1.0,1.0) : a_color.rgb;
+
+      float cx = mod(floor(a_clut / 1.0), 64.0) * 16.0;
+      float cy = mod(floor(a_clut / 64.0), 512.0);
+      clut = ivec2(int(cx), int(cy));
+      twin = ivec4(a_twin);
+      v_flags = uint(a_flags);
+      v_uvLimits = a_uvLimits;
+    }
+  `,
+    videoram: `#version 300 es
+    precision highp float;
+    precision highp int;
+
+    uniform sampler2D u_texture;
+    // VRAM render scale (4 or 8) and its log2: compiled in as constants
+    // (VRAM_SCALE_SHIFT), so the texel address maths folds
+#ifdef VRAM_SCALE_SHIFT
+#define u_scaleShift VRAM_SCALE_SHIFT
+#define u_scale (1 << VRAM_SCALE_SHIFT)
+#else
+    uniform int u_scale;
+    uniform int u_scaleShift;
+#endif
+    // GP0(E6h) bit 0: force VRAM bit 15 on every pixel drawn
+    uniform bool u_setMask;
+    // sample 15-bit textures at the 4x resolution they were rendered at, so
+    // render-to-texture effects keep their detail (palette textures hold
+    // indices and stay native)
+    uniform bool u_fullResTextures;
+    // texture filter for polygons and for sprites (rectangles):
+    // 0 nearest, 1 bilinear, 2 sharp bilinear, 3 xBR, 4 MMPX, 5 bicubic
+    uniform int u_textureFilter;
+    uniform int u_spriteFilter;
+
+    in vec2 v_vramCoord;
+    in vec3 v_color;
+    in vec2 v_pixelCoord;
+    flat in uint v_textureMode;
+    flat in ivec2 v_texturePage;
+    flat in uint packetId;
+    flat in ivec2 clut;
+    flat in ivec4 twin;
+    flat in uint v_flags;
+    flat in vec4 v_uvLimits;
+
+    out vec4 outColor;
+
+    int getSBGRfromRGBA(vec4 c) {
+      int sbgr = 0;
+      sbgr += int(c.r * 32.0);
+      sbgr += int(c.g * 32.0) * 32;
+      sbgr += int(c.b * 32.0) * 32 * 32;
+      if (c.a >= 0.5) sbgr += 32768;
+      return sbgr;
+    }
+
+    // wrap a scaled VRAM coordinate around the VRAM texture; the size is a
+    // power of two, so a mask (a modulo by a uniform is an integer division)
+    ivec2 wrapVram(ivec2 coord) {
+      return coord & ivec2((1024 << u_scaleShift) - 1, (512 << u_scaleShift) - 1);
+    }
+
+    vec4 vram16Bit(int tx, int ty) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale) * ivec2(tx, ty);
+      return texelFetch(u_texture, wrapVram(coord), 0);
+    }
+
+    // direct texels at full resolution: texel t, sub-texel s (0..scale-1)
+    vec4 vram16BitFull(ivec2 t, ivec2 s) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale) * t + s;
+      return texelFetch(u_texture, wrapVram(coord), 0);
+    }
+
+    ivec2 textureWindow(ivec2 t) {
+      return ivec2(((t.x & 255) & ~twin.x) | (twin.z & twin.x),
+                   ((t.y & 255) & ~twin.y) | (twin.a & twin.y));
+    }
+
+    vec4 vram8bit(int tx, int ty) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale >> 1, u_scale) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_texture, wrapVram(coord), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(tx) & 1;
+      int clutIndex = (sbgr >> (bit * 8)) & 0xff;
+
+      coord = ivec2(u_scale) * (clut + ivec2(clutIndex, 0));
+      return texelFetch(u_texture, wrapVram(coord), 0);
+    }
+
+    vec4 vram4bit(int tx, int ty) {
+      ivec2 coord = ivec2(v_texturePage) + ivec2(u_scale >> 2, u_scale) * ivec2(tx, ty);
+      vec4 color = texelFetch(u_texture, wrapVram(coord), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(tx) & 3;
+      int clutIndex = (sbgr >> (bit * 4)) & 0xf;
+
+      coord = ivec2(u_scale) * (clut + ivec2(clutIndex, 0));
+      return texelFetch(u_texture, wrapVram(coord), 0);
+    }
+
+    // one texel through texture window, depth and CLUT; in 4x sub-texel
+    // units for direct textures at full resolution
+    vec4 fetchTexel(ivec2 q, bool sub) {
+      if (sub) return vram16BitFull(textureWindow(q >> u_scaleShift), q & (u_scale - 1));
+      ivec2 t = textureWindow(q);
+      if (v_textureMode == 0u) return vram4bit(t.x, t.y);
+      if (v_textureMode == 1u) return vram8bit(t.x, t.y);
+      return vram16Bit(t.x, t.y);
+    }
+
+#ifdef TEXTURE_FILTERS
+    // Each filter is only compiled into the program variants that use it
+    // (FILTER_* defines, chosen from the settings), so the shader stays small:
+    // a large shader with every filter costs registers and speed even where
+    // its branches are not taken.
+
+#ifdef FILTER_BILINEAR
+    // Bilinear (filter 1) or sharp bilinear (filter 2) with binary alpha, as
+    // DuckStation's BinAlpha filters: transparent texels (0000h) are left out
+    // and the colour renormalised, coverage below one half is transparent.
+    // Samples are clamped to the primitive's texels (v_uvLimits). Returns the
+    // colour with a = semi-transparency (bit 15), coverage in ialpha.
+    vec4 filteredTexel(int texFilter, out float ialpha) {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? float(u_scale) : 1.0;
+      vec2 c = v_vramCoord * s;
+      vec2 lo = v_uvLimits.xy * s, hi = v_uvLimits.zw * s + (s - 1.0);
+
+      vec2 offset = fract(c) - 0.5;
+      vec2 dir = sign(offset);
+      ivec2 q00 = ivec2(floor(clamp(c, lo, hi)));
+      ivec2 q11 = ivec2(floor(clamp(c + dir, lo, hi)));
+      vec4 s00 = fetchTexel(q00, sub);
+      vec4 s10 = fetchTexel(ivec2(q11.x, q00.y), sub);
+      vec4 s01 = fetchTexel(ivec2(q00.x, q11.y), sub);
+      vec4 s11 = fetchTexel(q11, sub);
+
+      float a00 = s00 == vec4(0.0) ? 0.0 : 1.0;
+      float a10 = s10 == vec4(0.0) ? 0.0 : 1.0;
+      float a01 = s01 == vec4(0.0) ? 0.0 : 1.0;
+      float a11 = s11 == vec4(0.0) ? 0.0 : 1.0;
+
+      vec2 weights = abs(offset);
+      if (texFilter == 2) {
+        // keep the middle of each texel sharp; blend over one output pixel
+        // (1/scale texel, one sub-texel at full resolution)
+        float width = sub ? 1.0 : 1.0 / float(u_scale);
+        weights = clamp((weights - (0.5 - width * 0.5)) / width, 0.0, 1.0);
+      }
+
+      vec4 texcol = mix(mix(s00, s10, weights.x), mix(s01, s11, weights.x), weights.y);
+      ialpha = mix(mix(a00, a10, weights.x), mix(a01, a11, weights.x), weights.y);
+      if (ialpha > 0.0) texcol.rgb /= ialpha;
+      texcol.a = texcol.a >= 0.5 ? 1.0 : 0.0;
+      return texcol;
+    }
+#endif
+
+#ifdef FILTER_BICUBIC
+    // Bicubic (filter 5): Catmull-Rom over 4x4 texels, clamped to the primitive's
+    // texels like the bilinear filters. Colour is weighted by coverage so
+    // transparent texels (0000h) don't darken edges, then clamped to the range
+    // of the 2x2 nearest opaque texels to remove Catmull-Rom's ringing.
+    // Coverage and bit 15 come from the 2x2 nearest texels, as in bilinear, so
+    // sprite outlines match the bilinear filter.
+    vec4 catmullRom(float t) {
+      float t2 = t * t, t3 = t2 * t;
+      return vec4(-0.5 * t3 + t2 - 0.5 * t,
+                   1.5 * t3 - 2.5 * t2 + 1.0,
+                  -1.5 * t3 + 2.0 * t2 + 0.5 * t,
+                   0.5 * t3 - 0.5 * t2);
+    }
+    vec4 bicubicTexel(out float ialpha) {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? float(u_scale) : 1.0;
+      vec2 c = v_vramCoord * s;
+      ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
+
+      vec2 t = c - 0.5;
+      ivec2 i = ivec2(floor(t));
+      vec2 f = t - floor(t);
+      vec4 wx = catmullRom(f.x), wy = catmullRom(f.y);
+
+      vec3 sum = vec3(0.0);
+      float wsum = 0.0;
+      vec3 cmin = vec3(1.0), cmax = vec3(0.0);
+      vec4 near = vec4(0.0);   // 2x2 bilinear: colour (premultiplied), coverage
+      float nearStp = 0.0;
+      for (int y = 0; y < 4; ++y) {
+        for (int x = 0; x < 4; ++x) {
+          vec4 texel = fetchTexel(clamp(i + ivec2(x - 1, y - 1), lo, hi), sub);
+          float cov = texel == vec4(0.0) ? 0.0 : 1.0;
+          float w = wx[x] * wy[y];
+          sum += w * cov * texel.rgb;
+          wsum += w * cov;
+          if ((x == 1 || x == 2) && (y == 1 || y == 2)) {
+            float bw = (x == 1 ? 1.0 - f.x : f.x) * (y == 1 ? 1.0 - f.y : f.y);
+            near += bw * vec4(cov * texel.rgb, cov);
+            nearStp += bw * texel.a;
+            if (cov > 0.0) { cmin = min(cmin, texel.rgb); cmax = max(cmax, texel.rgb); }
+          }
+        }
+      }
+
+      ialpha = near.w;
+      vec3 rgb = wsum > 0.25 ? sum / wsum : (near.w > 0.0 ? near.rgb / near.w : vec3(0.0));
+      if (near.w > 0.0) rgb = clamp(rgb, cmin, cmax);
+      return vec4(rgb, nearStp >= 0.5 ? 1.0 : 0.0);
+    }
+#endif
+
+#ifdef FILTER_XBR
+    /*
+       Hyllian's xBR-lv2 Shader
+
+       Copyright (C) 2011-2016 Hyllian - sergiogdb@gmail.com
+
+       Permission is hereby granted, free of charge, to any person obtaining a copy
+       of this software and associated documentation files (the "Software"), to deal
+       in the Software without restriction, including without limitation the rights
+       to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+       copies of the Software, and to permit persons to whom the Software is
+       furnished to do so, subject to the following conditions:
+
+       The above copyright notice and this permission notice shall be included in
+       all copies or substantial portions of the Software.
+
+       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+       IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+       FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+       AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+       LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+       OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+       THE SOFTWARE.
+
+       Incorporates some of the ideas from SABR shader. Thanks to Joshua Street.
+
+       Adapted for enge-js from libretro glsl-shaders xbr/shaders/xbr-lv2.glsl
+       (CORNER_C, SMOOTH_TIPS, default parameters): texels are fetched through
+       the texture window and CLUT and clamped to the primitive's UV limits;
+       the blend width follows the actual magnification instead of a fixed
+       XBR_SCALE; transparent texels (0000h) count as a distinct colour for
+       edge detection and their coverage is blended alongside the colour.
+    */
+    float xbrLuma(vec4 t) {
+      return t == vec4(0.0) ? -1000.0 : dot(t.rgb, vec3(14.352, 28.176, 5.472));
+    }
+    vec4 xbrDf(vec4 a, vec4 b) { return abs(a - b); }
+    vec4 xbrDiff(vec4 a, vec4 b) { return vec4(notEqual(a, b)); }
+    vec4 xbrEq(vec4 a, vec4 b) { return step(xbrDf(a, b), vec4(15.0)); }
+    vec4 xbrNeq(vec4 a, vec4 b) { return vec4(1.0) - xbrEq(a, b); }
+    vec4 xbrWd(vec4 a, vec4 b, vec4 c, vec4 d, vec4 e, vec4 f, vec4 g, vec4 h) {
+      return xbrDf(a, b) + xbrDf(a, c) + xbrDf(d, e) + xbrDf(d, f) + 4.0 * xbrDf(g, h);
+    }
+    // texel as colour with coverage in w (transparent texels are all zero)
+    vec4 xbrCov(vec4 t) { return t == vec4(0.0) ? vec4(0.0) : vec4(t.rgb, 1.0); }
+
+    // xBR at the current sub-texel position; delta1 is the width of one output
+    // pixel in texels. Returns the colour with a = bit 15, coverage in ialpha.
+    vec4 xbrTexel(float delta1, out float ialpha) {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? float(u_scale) : 1.0;
+      vec2 uv = v_vramCoord * s;
+      ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
+      ivec2 q = ivec2(floor(uv));
+      vec2 fp = fract(uv);
+
+#define XT(dx, dy) fetchTexel(clamp(q + ivec2(dx, dy), lo, hi), sub)
+      vec4 A1 = XT(-1, -2), B1 = XT(0, -2), C1 = XT(1, -2);
+      vec4 A  = XT(-1, -1), B  = XT(0, -1), C  = XT(1, -1);
+      vec4 D  = XT(-1,  0), E  = XT(0,  0), F  = XT(1,  0);
+      vec4 G  = XT(-1,  1), H  = XT(0,  1), I  = XT(1,  1);
+      vec4 G5 = XT(-1,  2), H5 = XT(0,  2), I5 = XT(1,  2);
+      vec4 A0 = XT(-2, -1), D0 = XT(-2, 0), G0 = XT(-2, 1);
+      vec4 C4 = XT( 2, -1), F4 = XT( 2, 0), I4 = XT( 2, 1);
+#undef XT
+
+      vec4 b  = vec4(xbrLuma(B), xbrLuma(D), xbrLuma(H), xbrLuma(F));
+      vec4 c  = vec4(xbrLuma(C), xbrLuma(A), xbrLuma(G), xbrLuma(I));
+      vec4 d  = b.yzwx;
+      vec4 e  = vec4(xbrLuma(E));
+      vec4 f  = b.wxyz;
+      vec4 g  = c.zwxy;
+      vec4 h  = b.zwxy;
+      vec4 i  = c.wxyz;
+      vec4 i4 = vec4(xbrLuma(I4), xbrLuma(C1), xbrLuma(A0), xbrLuma(G5));
+      vec4 i5 = vec4(xbrLuma(I5), xbrLuma(C4), xbrLuma(A1), xbrLuma(G0));
+      vec4 h5 = vec4(xbrLuma(H5), xbrLuma(F4), xbrLuma(B1), xbrLuma(D0));
+      vec4 f4 = h5.yzwx;
+
+      const vec4 Ao = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bo = vec4( 1.0,  1.0, -1.0, -1.0);
+      const vec4 Co = vec4( 1.5,  0.5, -0.5,  0.5);
+      const vec4 Ax = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bx = vec4( 0.5,  2.0, -0.5, -2.0);
+      const vec4 Cx = vec4( 1.0,  1.0, -0.5,  0.0);
+      const vec4 Ay = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 By = vec4( 2.0,  0.5, -2.0, -0.5);
+      const vec4 Cy = vec4( 2.0,  0.0, -1.0,  0.5);
+      const vec4 Ci = vec4(0.25);
+
+      vec4 delta   = vec4(delta1);
+      vec4 delta_l = vec4(0.5 * delta1, delta1, 0.5 * delta1, delta1);
+      vec4 delta_u = delta_l.yxwz;
+
+      // these inequations define the line below which interpolation occurs
+      vec4 fx   = Ao * fp.y + Bo * fp.x;
+      vec4 fx_l = Ax * fp.y + Bx * fp.x;
+      vec4 fx_u = Ay * fp.y + By * fp.x;
+
+      vec4 irlv0 = xbrDiff(e, f) * xbrDiff(e, h);
+      vec4 irlv1 = irlv0 * (xbrNeq(f, b) * xbrNeq(f, c) + xbrNeq(h, d) * xbrNeq(h, g)
+        + xbrEq(e, i) * (xbrNeq(f, f4) * xbrNeq(f, i4) + xbrNeq(h, h5) * xbrNeq(h, i5))
+        + xbrEq(e, g) + xbrEq(e, c));
+      vec4 irlv2l = xbrDiff(e, g) * xbrDiff(d, g);
+      vec4 irlv2u = xbrDiff(e, c) * xbrDiff(b, c);
+
+      vec4 fx45i = clamp((fx   + delta   - Co - Ci) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx45  = clamp((fx   + delta   - Co     ) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx30  = clamp((fx_l + delta_l - Cx     ) / (2.0 * delta_l), 0.0, 1.0);
+      vec4 fx60  = clamp((fx_u + delta_u - Cy     ) / (2.0 * delta_u), 0.0, 1.0);
+
+      vec4 wd1 = xbrWd(e, c,  g, i, h5, f4, h, f);
+      vec4 wd2 = xbrWd(h, d, i5, f, i4,  b, e, i);
+
+      vec4 edri  = step(wd1, wd2) * irlv0;
+      vec4 edr   = step(wd1 + vec4(0.1), wd2) * step(vec4(0.5), irlv1);
+      vec4 edr_l = step(2.0 * xbrDf(f, g), xbrDf(h, c)) * irlv2l * edr;
+      vec4 edr_u = step(2.0 * xbrDf(h, c), xbrDf(f, g)) * irlv2u * edr;
+
+      fx45  = edr   * fx45;
+      fx30  = edr_l * fx30;
+      fx60  = edr_u * fx60;
+      fx45i = edri  * fx45i;
+
+      vec4 px = step(xbrDf(e, f), xbrDf(e, h));
+      vec4 maximos = max(max(fx30, fx60), max(fx45, fx45i));
+
+      // blend colour + coverage (w) and bit 15 with the same weights
+      vec4 cE = xbrCov(E), cF = xbrCov(F), cH = xbrCov(H), cB = xbrCov(B), cD = xbrCov(D);
+      vec4 res1 = cE;
+      res1 = mix(res1, mix(cH, cF, px.x), maximos.x);
+      res1 = mix(res1, mix(cB, cD, px.z), maximos.z);
+      vec4 res2 = cE;
+      res2 = mix(res2, mix(cF, cB, px.y), maximos.y);
+      res2 = mix(res2, mix(cD, cH, px.w), maximos.w);
+      float s1 = E.a;
+      s1 = mix(s1, mix(H.a, F.a, px.x), maximos.x);
+      s1 = mix(s1, mix(B.a, D.a, px.z), maximos.z);
+      float s2 = E.a;
+      s2 = mix(s2, mix(F.a, B.a, px.y), maximos.y);
+      s2 = mix(s2, mix(D.a, H.a, px.w), maximos.w);
+
+      vec3 d1 = abs(cE.rgb - res1.rgb), d2 = abs(cE.rgb - res2.rgb);
+      float pick = step(d1.r + d1.g + d1.b, d2.r + d2.g + d2.b);
+      vec4 res = mix(res1, res2, pick);
+      float stp = mix(s1, s2, pick);
+
+      ialpha = res.w;
+      vec4 texcol = vec4(ialpha > 0.0 ? res.rgb / ialpha : res.rgb, stp >= 0.5 ? 1.0 : 0.0);
+      return texcol;
+    }
+#endif
+
+#ifdef FILTER_MMPX
+    // MMPX
+    // by Morgan McGuire and Mara Gagiu
+    // https://casual-effects.com/research/McGuire2021PixelArt/
+    // License: MIT
+    // adapted for slang by hunterk
+    //
+    // Adapted for enge-js from libretro slang-shaders
+    // edge-smoothing/scalenx/shaders/mmpx.slang: texels are fetched through
+    // the texture window and CLUT and clamped to the primitive's UV limits,
+    // and compared as whole texels, so transparent 0000h differs from opaque
+    // black. Each texel is split into the 2x2 MMPX output and the quadrant
+    // under the sample is used; a transparent result is not drawn.
+    float mmpxLuma(vec4 c) { return dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)); }
+    bool mSame(vec4 a, vec4 b) { return a == b; }
+    bool mNot(vec4 a, vec4 b) { return a != b; }
+    bool mAll2(vec4 b, vec4 a0, vec4 a1) { return b == a0 && b == a1; }
+    bool mAll3(vec4 b, vec4 a0, vec4 a1, vec4 a2) { return b == a0 && b == a1 && b == a2; }
+    bool mAll4(vec4 b, vec4 a0, vec4 a1, vec4 a2, vec4 a3) { return b == a0 && b == a1 && b == a2 && b == a3; }
+    bool mAny3(vec4 b, vec4 a0, vec4 a1, vec4 a2) { return b == a0 || b == a1 || b == a2; }
+    bool mNone2(vec4 b, vec4 a0, vec4 a1) { return b != a0 && b != a1; }
+    bool mNone4(vec4 b, vec4 a0, vec4 a1, vec4 a2, vec4 a3) { return b != a0 && b != a1 && b != a2 && b != a3; }
+
+    vec4 mmpxTexel() {
+      bool sub = v_textureMode >= 2u && u_fullResTextures;
+      float s = sub ? float(u_scale) : 1.0;
+      vec2 uv = v_vramCoord * s;
+      ivec2 lo = ivec2(v_uvLimits.xy * s), hi = ivec2(v_uvLimits.zw * s + (s - 1.0));
+      ivec2 q = ivec2(floor(uv));
+#define src(dx, dy) fetchTexel(clamp(q + ivec2(dx, dy), lo, hi), sub)
+
+      // current texel and the central 3x3 grid
+      vec4 E = src(0, 0);
+      vec4 A = src(-1, -1), B = src(0, -1), C = src(1, -1);
+      vec4 D = src(-1,  0),                 F = src(1,  0);
+      vec4 G = src(-1,  1), H = src(0,  1), I = src(1,  1);
+
+      // default to nearest
+      vec4 J = E, K = E, L = E, M = E;
+
+      // constant 3x3 centres stay nearest
+      if (!(E == A && E == B && E == C && E == D && E == F && E == G && E == H && E == I)) {
+        // tips of the diamond pattern
+        vec4 P = src(0, -2), Q = src(-2, 0), R = src(2, 0), S = src(0, 2);
+
+        float Bl = mmpxLuma(B), Dl = mmpxLuma(D), El = mmpxLuma(E), Fl = mmpxLuma(F), Hl = mmpxLuma(H);
+
+        // round some corners and fill in 1:1 slopes, but preserve sharp right angles
+        if ((mSame(D,B) && mNot(D,H) && mNot(D,F)) && ((El>=Dl) || mSame(E,A)) && mAny3(E,A,C,G) && ((El<Dl) || mNot(A,D) || mNot(E,P) || mNot(E,Q))) J=D;
+        if ((mSame(B,F) && mNot(B,D) && mNot(B,H)) && ((El>=Bl) || mSame(E,C)) && mAny3(E,A,C,I) && ((El<Bl) || mNot(C,B) || mNot(E,P) || mNot(E,R))) K=B;
+        if ((mSame(H,D) && mNot(H,F) && mNot(H,B)) && ((El>=Hl) || mSame(E,G)) && mAny3(E,A,G,I) && ((El<Hl) || mNot(G,H) || mNot(E,S) || mNot(E,Q))) L=H;
+        if ((mSame(F,H) && mNot(F,B) && mNot(F,D)) && ((El>=Fl) || mSame(E,I)) && mAny3(E,C,G,I) && ((El<Fl) || mNot(I,H) || mNot(E,R) || mNot(E,S))) M=F;
+
+        // clean up disconnected line intersections
+        if ((mNot(E,F) && mAll4(E,C,I,D,Q) && mAll2(F,B,H)) && mNot(F,src(3, 0))) K=M=F;
+        if ((mNot(E,D) && mAll4(E,A,G,F,R) && mAll2(D,B,H)) && mNot(D,src(-3, 0))) J=L=D;
+        if ((mNot(E,H) && mAll4(E,G,I,B,P) && mAll2(H,D,F)) && mNot(H,src(0, 3))) L=M=H;
+        if ((mNot(E,B) && mAll4(E,A,C,H,S) && mAll2(B,D,F)) && mNot(B,src(0, -3))) J=K=B;
+
+        // remove tips of bright triangles on dark backgrounds
+        if ((Bl<El) && mAll4(E,G,H,I,S) && mNone4(E,A,D,C,F)) J=K=B;
+        if ((Hl<El) && mAll4(E,A,B,C,P) && mNone4(E,D,G,I,F)) L=M=H;
+        if ((Fl<El) && mAll4(E,A,D,G,Q) && mNone4(E,B,C,I,H)) K=M=F;
+        if ((Dl<El) && mAll4(E,C,F,I,R) && mNone4(E,B,A,G,H)) J=L=D;
+
+        // 2:1 and 1:2 slopes of constant colour
+        if (mNot(H,B)) {
+          if (mNot(H,A) && mNot(H,E) && mNot(H,C)) {
+            if (mAll3(H,G,F,R) && mNone2(H,D,src(2, -1))) L=M;
+            if (mAll3(H,I,D,Q) && mNone2(H,F,src(-2, -1))) M=L;
+          }
+          if (mNot(B,I) && mNot(B,G) && mNot(B,E)) {
+            if (mAll3(B,A,F,R) && mNone2(B,D,src(2, 1))) J=K;
+            if (mAll3(B,C,D,Q) && mNone2(B,F,src(-2, 1))) K=J;
+          }
+        }
+        if (mNot(F,D)) {
+          if (mNot(D,I) && mNot(D,E) && mNot(D,C)) {
+            if (mAll3(D,A,H,S) && mNone2(D,B,src(1, 2))) J=L;
+            if (mAll3(D,G,B,P) && mNone2(D,H,src(1, -2))) L=J;
+          }
+          if (mNot(F,E) && mNot(F,A) && mNot(F,G)) {
+            if (mAll3(F,C,H,S) && mNone2(F,B,src(-1, 2))) K=M;
+            if (mAll3(F,I,B,P) && mNone2(F,H,src(-1, -2))) M=K;
+          }
+        }
+      }
+#undef src
+
+      // which of the 4 output pixels of this texel the sample falls in
+      vec2 a = fract(uv);
+      return (a.x < 0.5) ? (a.y < 0.5 ? J : L) : (a.y < 0.5 ? K : M);
+    }
+#endif
+
+#endif
+
+    void main() {
+      // draw-area clipping is done with gl.scissor in flushBuffer()
+      // alpha is VRAM bit 15: 0 for untextured pixels, the texel's bit 15
+      // for textured ones (blending always keeps the source alpha)
+      bool transparentPrimitive = 2u == (packetId & 2u);
+#ifdef FILTER_XBR
+      // texels per output pixel, for xBR; derivatives must be taken in
+      // uniform control flow
+      vec2 texelsPerPixel = fwidth(v_vramCoord);
+#endif
+
+      if (0x00u == (packetId & 0x04u)) {
+        outColor = vec4(v_color, 0.0);
+      }
+      else {
+        vec4 tc;
+#ifdef TEXTURE_FILTERS
+        int texFilter = (v_flags & 1u) != 0u ? u_spriteFilter : u_textureFilter;
+
+        if (false) { }
+#ifdef FILTER_MMPX
+        else if (texFilter == 4) {
+          tc = mmpxTexel();
+          if (tc == vec4(0.0)) discard;
+        }
+#endif
+#ifdef FILTER_BICUBIC
+        else if (texFilter == 5) {
+          float ialpha;
+          tc = bicubicTexel(ialpha);
+          if (ialpha < 0.5) discard;
+        }
+#endif
+#ifdef FILTER_XBR
+        else if (texFilter == 3) {
+          float ialpha;
+          float scale = v_textureMode >= 2u && u_fullResTextures ? float(u_scale) : 1.0;
+          float delta1 = clamp(max(texelsPerPixel.x, texelsPerPixel.y) * scale, 1.0 / 16.0, 1.0);
+          tc = xbrTexel(delta1, ialpha);
+          if (ialpha < 0.5) discard;
+        }
+#endif
+#ifdef FILTER_BILINEAR
+        else if (texFilter == 1 || texFilter == 2) {
+          float ialpha;
+          tc = filteredTexel(texFilter, ialpha);
+          if (ialpha < 0.5) discard;
+        }
+#endif
+        else
+#else
+        const int texFilter = 0;
+#endif
+        if (v_textureMode >= 2u && u_fullResTextures) {
+          // texel and 4x sub-texel from the interpolated coordinate; the
+          // texture window applies to the texel
+          ivec2 q = ivec2(floor(v_vramCoord * float(u_scale)));
+          tc = vram16BitFull(textureWindow(q >> u_scaleShift), q & (u_scale - 1));
+        }
+        else {
+          int tx = ((int(v_vramCoord.x) & 255) & ~twin.x) | (twin.z & twin.x);
+          int ty = ((int(v_vramCoord.y) & 255) & ~twin.y) | (twin.a & twin.y);
+
+          if (v_textureMode == 0u) tc = vram4bit(tx, ty);
+          if (v_textureMode == 1u) tc = vram8bit(tx, ty);
+          if (v_textureMode == 2u) tc = vram16Bit(tx, ty);
+          if (v_textureMode == 3u) tc = vram16Bit(tx, ty);
+        }
+
+        if (texFilter == 0 && tc.rgba == vec4(0.0, 0.0, 0.0, 0.0)) discard;
+
+        bool isTransparentPolygonOrRectangle = (packetId & 0x80u) == 0x80u;
+        if (isTransparentPolygonOrRectangle) {
+          if (transparentPrimitive) {
+            if (tc.a <= 0.0) {
+              discard;
+            }
+            else {
+              outColor = vec4(tc.rgb * v_color, 1.0);
+            }
+          }
+          else {
+            if (tc.a > 0.0) {
+              discard;
+            }
+            else {
+              outColor = vec4(tc.rgb * v_color, 0.0);
+            }
+          }
+        }
+        else {
+          if (transparentPrimitive) {
+            if (tc.a <= 0.0) {
+              discard;
+            }
+            else {
+              outColor = vec4(tc.rgb * v_color, 1.0);
+            }
+          }
+          else {
+            outColor = vec4(tc.rgb * v_color, tc.a);
+          }
+        }
+      }
+
+      if (u_setMask) outColor.a = 1.0;
+
+#ifdef CHECK_MASK
+      // GP0(E6h) bit 1: pixels with bit 15 set must not be drawn over. They
+      // are marked with depth 1.0, which no primitive id reaches, so the
+      // GREATER depth test rejects later fragments there
+      gl_FragDepth = outColor.a >= 0.5 ? 1.0 : gl_FragCoord.z;
+#endif
+    }
+  `,
+    vramUploadVertex: `#version 300 es
+    // one triangle covering the viewport; the scissor selects the rectangle
+    void main() {
+      vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+      gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+    }
+  `,
+    vramUpload: `#version 300 es
+    precision highp float;
+    precision highp int;
+    precision highp usampler2D;
+
+    // raw 15-bit VRAM words at native resolution, same coordinates as VRAM
+    uniform usampler2D u_source;
+    // log2 of the VRAM render scale
+    uniform int u_scaleShift;
+    // vramShadow, in sync with vram for the uploaded area (check mask)
+    uniform sampler2D u_dest;
+    // GP0(E6h) mask bits
+    uniform bool u_setMask;
+    uniform bool u_checkMask;
+
+    out vec4 outColor;
+
+    void main() {
+      if (u_checkMask && texelFetch(u_dest, ivec2(gl_FragCoord.xy), 0).a >= 0.5) discard;
+      uint c = texelFetch(u_source, ivec2(gl_FragCoord.xy) >> u_scaleShift, 0).r;
+      if (u_setMask) c |= 0x8000u;
+      outColor = vec4(
+        float((c & 31u) << 3) / 255.0,
+        float(((c >> 5) & 31u) << 3) / 255.0,
+        float(((c >> 10) & 31u) << 3) / 255.0,
+        (c & 0x8000u) != 0u ? 1.0 : 0.0);
+    }
+  `,
+    vramCopy: `#version 300 es
+    precision highp float;
+    precision highp int;
+
+    // vramShadow, in sync with vram for the source and destination areas
+    uniform sampler2D u_vram;
+    // (source - destination) at 4x
+    uniform ivec2 u_offset;
+    // GP0(E6h) mask bits
+    uniform bool u_setMask;
+    uniform bool u_checkMask;
+
+    out vec4 outColor;
+
+    // VRAM -> VRAM copy that honours the mask bits
+    void main() {
+      ivec2 p = ivec2(gl_FragCoord.xy);
+      if (u_checkMask && texelFetch(u_vram, p, 0).a >= 0.5) discard;
+      outColor = texelFetch(u_vram, p + u_offset, 0);
+      if (u_setMask) outColor.a = 1.0;
+    }
+  `,
+    vramMaskDepth: `#version 300 es
+    precision highp float;
+
+    // vramShadow, in sync with vram for the scissored area
+    uniform sampler2D u_vram;
+
+    out vec4 outColor;
+
+    // depth 1.0 where VRAM bit 15 is set, untouched elsewhere
+    void main() {
+      if (texelFetch(u_vram, ivec2(gl_FragCoord.xy), 0).a < 0.5) discard;
+      gl_FragDepth = 1.0;
+      outColor = vec4(0.0);
+    }
+  `,
+    superXbr: `#version 300 es
+    /*
+       Super-xBR, adapted from libretro's glsl-shaders xbr/shaders/super-xbr
+       (pass0, pass1, pass2; MODE 0, default parameters)
+
+       Copyright (c) 2015 Hyllian - sergiogdb@gmail.com
+
+       Permission is hereby granted, free of charge, to any person obtaining a copy
+       of this software and associated documentation files (the "Software"), to deal
+       in the Software without restriction, including without limitation the rights
+       to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+       copies of the Software, and to permit persons to whom the Software is
+       furnished to do so, subject to the following conditions:
+
+       The above copyright notice and this permission notice shall be included in
+       all copies or substantial portions of the Software.
+
+       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+       IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+       FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+       AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+       LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+       OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+       THE SOFTWARE.
+    */
+    precision highp float;
+    precision highp int;
+
+    // One doubling is three passes over textures in display order (texel
+    // (x, y) is display pixel (x, y)):
+    //   1 diagonal:   one pixel per source pixel, the new value at its
+    //                 lower-right corner, from the 4x4 source pixels around it
+    //   2 orthogonal: 2x size; even/even pixels are the source, odd/odd the
+    //                 diagonal pass, the rest are interpolated from that lattice
+    //   3 realign:    2x size; the doubled image is a quarter source pixel off,
+    //                 so each pixel is re-interpolated at its upper-left corner
+    // Pass 0 copies the native 15-bit display area out of the scaled VRAM,
+    // with alpha 1 where the pixel's u_scale x u_scale VRAM block is one
+    // colour (native-resolution content: sprites, 2D, uploads) and 0 where it
+    // holds finer detail (polygon edges, shading, textures at render scale).
+    uniform sampler2D u_source;   // input of the pass (VRAM for pass 0)
+    uniform sampler2D u_original; // pass 2: the image passes 1 and 2 double
+    uniform int       u_pass;
+    uniform ivec4     u_disp;     // pass 0: display area (x0, y0, x1, y1)
+    uniform int       u_scale;    // VRAM render scale
+
+    out vec4 outColor;
+
+    vec3 src(ivec2 p) { return texelFetch(u_source, clamp(p, ivec2(0), textureSize(u_source, 0) - 1), 0).rgb; }
+    vec3 org(ivec2 p) { return texelFetch(u_original, clamp(p, ivec2(0), textureSize(u_original, 0) - 1), 0).rgb; }
+    // pass 2 lattice: (2x, 2y) is the original, (2x+1, 2y+1) the diagonal pass
+    vec3 lat(ivec2 p) { return (p.x & 1) == 0 ? org(p >> 1) : src(p >> 1); }
+
+    float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+    float df(float a, float b) { return abs(a - b); }
+
+    float d_wd(vec3 wa, vec3 wb, float b0, float b1, float c0, float c1, float c2, float d0, float d1, float d2, float d3, float e1, float e2, float e3, float f2, float f3) {
+      return wa.x * (df(c1, c2) + df(c1, c0) + df(e2, e1) + df(e2, e3)) + wa.y * (df(d2, d3) + df(d0, d1))
+           + wa.z * (df(d1, d3) + df(d0, d2)) + wb.x * df(d1, d2) + wb.y * (df(c0, c2) + df(e1, e3)) + wb.z * (df(b0, b1) + df(f2, f3));
+    }
+    float hv_wd(vec3 wa, vec3 wb, float i1, float i2, float i3, float i4, float e1, float e2, float e3, float e4) {
+      return wb.x * (df(i1, i2) + df(i3, i4)) + wa.x * (df(i1, e1) + df(i2, e2) + df(i3, e3) + df(i4, e4))
+           + wa.z * (df(i1, e2) + df(i3, e4) + df(e1, i2) + df(e3, i4));
+    }
+
+    /*
+                                  P1
+         |P0|B |C |P1|         C     F4
+         |D |E |F |F4|      B     F     I4
+         |G |H |I |I4|   P0    E  A  I     P3
+         |P2|H5|I5|P3|      D     H     I5
+                               G     H5
+                                  P2
+       A, the new pixel, is interpolated from the 16 around it, in the
+       stronger of the two diagonal and of the two orthogonal directions.
+    */
+    vec3 superXbr(vec3 P0, vec3 P1, vec3 P2, vec3 P3, vec3 B, vec3 C, vec3 D, vec3 E,
+                  vec3 F, vec3 G, vec3 H, vec3 I, vec3 F4, vec3 I4, vec3 H5, vec3 I5,
+                  vec3 wa, vec3 wb, float weight1, float weight2) {
+      float b = luma(B), c = luma(C), d = luma(D), e = luma(E);
+      float f = luma(F), g = luma(G), h = luma(H), i = luma(I);
+      float i4 = luma(I4), p0 = luma(P0), i5 = luma(I5), p1 = luma(P1);
+      float h5 = luma(H5), p2 = luma(P2), f4 = luma(F4), p3 = luma(P3);
+
+      // edgeness in the diagonal and in the horizontal/vertical directions
+      float d_edge = d_wd(wa, wb, d, b, g, e, c, p2, h, f, p1, h5, i, f4, i5, i4)
+                   - d_wd(wa, wb, c, f4, b, f, i4, p0, e, i, p3, d, h, i5, g, h5);
+      float hv_edge = hv_wd(wa, wb, f, i, e, h, c, i5, b, h5) - hv_wd(wa, wb, e, f, h, i, d, f4, g, i4);
+      float edge_strength = smoothstep(0.0, 0.6 + 0.000001, abs(d_edge));
+
+      // two-tap filters in four directions
+      vec4 w1 = vec4(-weight1, weight1 + 0.5, weight1 + 0.5, -weight1);
+      vec4 w2 = vec4(-weight2, weight2 + 0.25, weight2 + 0.25, -weight2);
+      vec3 c1 = mat4x3(P2, H, F, P1) * w1;
+      vec3 c2 = mat4x3(P0, E, I, P3) * w1;
+      vec3 c3 = mat4x3(D + G, E + H, F + I, F4 + I4) * w2;
+      vec3 c4 = mat4x3(C + B, F + E, I + H, I5 + H5) * w2;
+
+      // blend the strongest diagonal and orthogonal directions
+      vec3 color = mix(mix(c1, c2, step(0.0, d_edge)), mix(c3, c4, step(0.0, hv_edge)), 1.0 - edge_strength);
+
+      // anti-ringing: stay within the four nearest pixels
+      return clamp(color, min(min(E, F), min(H, I)), max(max(E, F), max(H, I)));
+    }
+
+    // diagonal passes (1 and 3): the 4x4 block whose top-left is base - 1
+    vec3 diagonal(ivec2 base, vec3 wa, vec3 wb) {
+#define S(dx, dy) src(base + ivec2(dx, dy))
+      return superXbr(S(-1, -1), S(2, -1), S(-1, 2), S(2, 2), S(0, -1), S(1, -1), S(-1, 0), S(0, 0),
+                      S(1, 0), S(-1, 1), S(0, 1), S(1, 1), S(2, 0), S(2, 1), S(0, 2), S(1, 2),
+                      wa, wb, 1.29633 / 10.0, 1.75068 / 10.0 / 2.0);
+#undef S
+    }
+
+    void main() {
+      ivec2 p = ivec2(gl_FragCoord.xy);
+
+      if (u_pass == 0) {
+        p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
+        ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511) * u_scale;
+        vec3 c = texelFetch(u_source, v + (u_scale >> 1), 0).rgb;
+        bool same = true;
+        for (int y = 0; y < u_scale; ++y)
+          for (int x = 0; x < u_scale; ++x)
+            same = same && texelFetch(u_source, v + ivec2(x, y), 0).rgb == c;
+        outColor = vec4(c, same ? 1.0 : 0.0);
+        return;
+      }
+      if (u_pass == 1) {
+        outColor = vec4(diagonal(p, vec3(2.0, 1.0, -1.0), vec3(4.0, -1.0, 1.0)), 1.0);
+        return;
+      }
+      if (u_pass == 3) {
+        outColor = vec4(diagonal(p - 1, vec3(1.0, 0.0, 2.0), vec3(3.0, -2.0, 1.0)), 1.0);
+        return;
+      }
+
+      // pass 2: lattice pixels are copied, the others interpolated along
+      // the diamond of lattice pixels around them (g1, g2 its two axes)
+      bool ex = (p.x & 1) == 0, ey = (p.y & 1) == 0;
+      if (ex == ey) {
+        outColor = vec4(lat(p), 1.0);
+        return;
+      }
+      ivec2 g1 = ex ? ivec2(0, 1) : ivec2(1, 0);
+      ivec2 g2 = g1.yx;
+      vec3 color = superXbr(
+        lat(p - 3 * g1),      lat(p - 3 * g2),      lat(p + 3 * g2),      lat(p + 3 * g1),
+        lat(p - 2 * g1 - g2), lat(p - g1 - 2 * g2), lat(p - 2 * g1 + g2), lat(p - g1),
+        lat(p - g2),          lat(p - g1 + 2 * g2), lat(p + g2),          lat(p + g1),
+        lat(p + g1 - 2 * g2), lat(p + 2 * g1 - g2), lat(p + g1 + 2 * g2), lat(p + 2 * g1 + g2),
+        vec3(8.0, 0.0, 0.0), vec3(0.0), 1.75068 / 10.0, 1.29633 / 10.0 / 2.0);
+      outColor = vec4(color, 1.0);
+    }
+  `,
+    vertex: `#version 300 es
+    precision highp float;
+  
+    in vec2 a_position;
+    in vec2 a_texcoord;
+    in vec4 a_color;
+   
+    out vec2 v_texcoord;
+    out vec2 v_vramCoord;
+    out vec4 v_color;
+    // VRAM render scale (4 or 8)
+    uniform int u_scale;
+    out vec2 v_pixelCoord;
+  
+    void main() {
+      gl_Position = vec4(a_position, 0.0, 1.0);
+      gl_Position.x = (gl_Position.x - 512.0) / +512.0;
+      gl_Position.y = (gl_Position.y - 256.0) / -256.0;
+      v_vramCoord = a_texcoord; 
+      v_pixelCoord = a_position;
+      v_texcoord = a_texcoord * float(u_scale); // VRAM texture is 1024x512 times the render scale
+      v_color = a_color;
+    }
+  `,
+    displayScreen: `#version 300 es
+    precision highp float;
+    precision highp int;
+     
+    uniform sampler2D u_texture;
+    uniform ivec4     u_disp;
+    uniform ivec4     u_draw;
+    uniform int       u_mode;
+    uniform int       u_scale;
+    uniform bool      u_tv_effect;
+#if defined(SCREEN_XBR) || defined(SCREEN_SUPER_XBR)
+    // above quality 1 (u_screenHybrid) the screen filter only applies to
+    // pixels whose VRAM block is one colour; blocks with render-scale detail
+    // (polygon edges, shading) keep the rendered pixels
+    uniform bool      u_screenHybrid;
+    // native display pixels, alpha 1 where the VRAM block is one colour
+    uniform sampler2D u_screenMask;
+#endif
+#ifdef SCREEN_SUPER_XBR
+    // Super-xBR result for the whole display area (programSuperXbr)
+    uniform sampler2D u_screen;
+#endif
+  
+    in vec2 v_texcoord;
+    in vec2 v_vramCoord;
+    in vec4 v_color;
+
+    out vec4 outColor;
+   
+    int getSBGRfromRGBA(vec4 c) {
+      int sbgr = 0;
+      sbgr += int(c.r * 32.0);
+      sbgr += int(c.g * 32.0) * 32;
+      sbgr += int(c.b * 32.0) * 32 * 32;
+      if (c.a >= 0.5) sbgr += 32768;
+      return sbgr;
+    }
+  
+    vec4 InterleavedGradientNoise() {
+      vec2 uv = floor(v_vramCoord - vec2(u_disp.xy));
+
+      const vec3 magic = vec3( 0.06711056, 0.00583715, 52.9829189 );
+      float rnd = fract(magic.z * fract( dot( uv, magic.xy ) ) ) * (1.0 / 64.0);
+      return vec4(rnd, rnd, rnd, 1.0);
+    }
+  
+    vec4 tv_effect(vec3 col) {//return vec4(col, 1.0);
+      vec2 resolution = vec2(u_disp.zw - u_disp.xy + ivec2(1,1));
+      vec2 uv = (v_vramCoord - vec2(u_disp.xy)) / resolution;
+
+      col *= step(0.0, uv.x) * step(0.0, uv.y);
+      col *= 1.0 - step(1.0, uv.x) * 1.0 - step(1.0, uv.y);
+    
+      col *= 0.5 + 0.5 * 16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
+      col *= vec3(0.98, 1.02, 0.98);
+    
+      if (resolution.y <= 288.0) {
+        col -= ((int(uv.y * resolution.y * 2.0) & 1) == 0) ? 0.0 : 0.05; //scanline
+        col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
+      }
+      else {
+        col -= ((int(uv.y * resolution.y) & 1) == 0) ? 0.0 : 0.05; //scanline
+        col -= ((int(uv.x * resolution.x * 2.0) & 1) == 0) ? 0.0 : 0.05; //pixel
+      }
+
+      return vec4(col, 1.0);
+    }
+    
+    vec4 vram24Bit() {
+      ivec2 ds = ivec2(v_vramCoord) - u_disp.xy;
+  
+      float tx = float(u_disp.x) + floor(float(ds.x) * 1.5);
+      float ty = floor(v_texcoord.y);
+  
+      vec4 c1 = texelFetch(u_texture, ivec2(float(u_scale) * tx, ty), 0);
+      int  sbgr1 = getSBGRfromRGBA(c1);
+      vec4 c2 = texelFetch(u_texture, ivec2(float(u_scale) * (tx + 1.0), ty), 0);
+      int  sbgr2 = getSBGRfromRGBA(c2);
+  
+      if ((ds.x & 1) == 1) {
+        float r = float((sbgr1 >> 8) & 255) / 256.0;
+        float g = float((sbgr2 >> 0) & 255) / 256.0;
+        float b = float((sbgr2 >> 8) & 255) / 256.0;
+    
+        return vec4(r, g, b, 1.0);
+      }
+      else {
+        float r = float((sbgr1 >> 0) & 255) / 256.0;
+        float g = float((sbgr1 >> 8) & 255) / 256.0;
+        float b = float((sbgr2 >> 0) & 255) / 256.0;
+    
+        return vec4(r, g, b, 1.0);
+      }
+    }
+
+    // FMV and screen filters are compiled into display program variants
+    // (FMV_SMOOTH, FMV_XBR, SCREEN_XBR, SCREEN_SUPER_XBR, with DISPLAY_FILTERS
+    // for any of them) only when selected, keeping the default display shader
+    // small
+#ifdef DISPLAY_FILTERS
+    // ---- 24-bit display filters (FMV) ----
+
+    // decoded 24-bit pixel p (relative to the display start), clamped to the
+    // display area; same decode and scale as vram24Bit()
+    vec3 fmv24(ivec2 p) {
+      p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
+      int tx = u_disp.x + ((p.x * 3) >> 1);
+      int ty = ((u_disp.y + p.y) & 511) * u_scale;
+      int sbgr1 = getSBGRfromRGBA(texelFetch(u_texture, ivec2((tx & 1023) * u_scale, ty), 0));
+      int sbgr2 = getSBGRfromRGBA(texelFetch(u_texture, ivec2(((tx + 1) & 1023) * u_scale, ty), 0));
+      ivec3 c = (p.x & 1) == 1
+        ? ivec3((sbgr1 >> 8) & 255, sbgr2 & 255, (sbgr2 >> 8) & 255)
+        : ivec3(sbgr1 & 255, (sbgr1 >> 8) & 255, sbgr2 & 255);
+      return vec3(c) / 256.0;
+    }
+
+    // position in 24-bit pixels, pixel centres at +0.5
+    vec2 fmvPos() {
+      return v_vramCoord - vec2(u_disp.xy);
+    }
+
+    // ---- 15-bit screen filters ----
+
+    // native 15-bit display pixel p (relative to the display start), clamped
+    // to the display area; the centre texel of its block in the scaled VRAM,
+    // the same texel vram16Bit() shows at quality 1
+    vec3 screen16(ivec2 p) {
+      p = clamp(p, ivec2(0), u_disp.zw - u_disp.xy);
+      ivec2 v = ivec2((u_disp.x + p.x) & 1023, (u_disp.y + p.y) & 511);
+      return texelFetch(u_texture, v * u_scale + (u_scale >> 1), 0).rgb;
+    }
+#endif
+
+#ifdef FMV_SMOOTH
+    // Smooth: bicubic over 4x4 decoded pixels, with Catmull-Rom (sharp) for
+    // luma and a cubic B-spline (soft) for chroma. MDEC stores chroma at half
+    // resolution in 8x8 blocks, so the softer chroma kernel hides the colour
+    // blocking while edges keep their detail.
+    vec4 catmullRom(float t) {
+      float t2 = t * t, t3 = t2 * t;
+      return vec4(-0.5 * t3 + t2 - 0.5 * t,
+                   1.5 * t3 - 2.5 * t2 + 1.0,
+                  -1.5 * t3 + 2.0 * t2 + 0.5 * t,
+                   0.5 * t3 - 0.5 * t2);
+    }
+    vec4 bSpline(float t) {
+      float t2 = t * t, t3 = t2 * t, u = 1.0 - t;
+      return vec4(u * u * u, 3.0 * t3 - 6.0 * t2 + 4.0, -3.0 * t3 + 3.0 * t2 + 3.0 * t + 1.0, t3) / 6.0;
+    }
+    vec4 fmvSmooth() {
+      vec2 t = fmvPos() - 0.5;
+      ivec2 i = ivec2(floor(t));
+      vec2 f = t - floor(t);
+      vec4 lx = catmullRom(f.x), ly = catmullRom(f.y);
+      vec4 cx = bSpline(f.x), cy = bSpline(f.y);
+      const vec3 Y = vec3(0.299, 0.587, 0.114);
+      float luma = 0.0;
+      vec3 chroma = vec3(0.0);
+      for (int y = 0; y < 4; ++y) {
+        for (int x = 0; x < 4; ++x) {
+          vec3 c = fmv24(i + ivec2(x - 1, y - 1));
+          float l = dot(c, Y);
+          luma += lx[x] * ly[y] * l;
+          chroma += cx[x] * cy[y] * (c - l);
+        }
+      }
+      return vec4(clamp(vec3(luma) + chroma, 0.0, 1.0), 1.0);
+    }
+#endif
+
+#ifdef SCREEN_SUPER_XBR
+    // Super-xBR: the multi-pass result covers the display area exactly
+    vec4 screenSuperXbr() {
+      vec2 size = vec2(u_disp.zw - u_disp.xy + ivec2(1));
+      return vec4(texture(u_screen, fmvPos() / size).rgb, 1.0);
+    }
+#endif
+
+#if defined(SCREEN_XBR) || defined(SCREEN_SUPER_XBR)
+    vec4 vram16Bit();
+#ifdef SCREEN_XBR
+    vec4 displayXbr(bool fmv);
+#endif
+
+    // above quality 1: the filtered pixel where the block and its eight
+    // neighbours are one colour each, the rendered pixel elsewhere. The
+    // filters read the neighbouring native pixels, and next to a block with
+    // detail its native pixel (the block centre) does not represent it, so
+    // e.g. magnified textures would get stray colours at texel edges.
+    vec4 screenHybrid(vec4 filtered) {
+      ivec2 p = ivec2(floor(fmvPos()));
+      ivec2 last = u_disp.zw - u_disp.xy;
+      for (int y = -1; y <= 1; ++y)
+        for (int x = -1; x <= 1; ++x)
+          if (texelFetch(u_screenMask, clamp(p + ivec2(x, y), ivec2(0), last), 0).a < 0.5) return vram16Bit();
+      return filtered;
+    }
+
+    vec4 screenFiltered() {
+#ifdef SCREEN_XBR
+      vec4 filtered = displayXbr(false);
+#else
+      vec4 filtered = screenSuperXbr();
+#endif
+      return u_screenHybrid ? screenHybrid(filtered) : filtered;
+    }
+#endif
+
+#if defined(FMV_XBR) || defined(SCREEN_XBR)
+    vec4 xbrDf(vec4 a, vec4 b) { return abs(a - b); }
+    vec4 xbrDiff(vec4 a, vec4 b) { return vec4(notEqual(a, b)); }
+    vec4 xbrEq(vec4 a, vec4 b) { return step(xbrDf(a, b), vec4(15.0)); }
+    vec4 xbrNeq(vec4 a, vec4 b) { return vec4(1.0) - xbrEq(a, b); }
+    vec4 xbrWd(vec4 a, vec4 b, vec4 c, vec4 d, vec4 e, vec4 f, vec4 g, vec4 h) {
+      return xbrDf(a, b) + xbrDf(a, c) + xbrDf(d, e) + xbrDf(d, f) + 4.0 * xbrDf(g, h);
+    }
+    // xBR-lv2 (Hyllian, MIT; licence with the texture filters above) on the
+    // display pixels: decoded 24-bit (FMV filter) or native 15-bit (screen
+    // filter). The blend width follows the display scale.
+    float fmvLuma(vec3 c) { return dot(c, vec3(14.352, 28.176, 5.472)); }
+    vec3 displayPixel(ivec2 p, bool fmv) { return fmv ? fmv24(p) : screen16(p); }
+    vec4 displayXbr(bool fmv) {
+      vec2 pos = fmvPos();
+      ivec2 q = ivec2(floor(pos));
+      vec2 fp = fract(pos);
+      float delta1 = clamp(abs(dFdx(pos.x)), 1.0 / 16.0, 1.0);
+
+#define XT(dx, dy) displayPixel(q + ivec2(dx, dy), fmv)
+      vec3 A1 = XT(-1, -2), B1 = XT(0, -2), C1 = XT(1, -2);
+      vec3 A  = XT(-1, -1), B  = XT(0, -1), C  = XT(1, -1);
+      vec3 D  = XT(-1,  0), E  = XT(0,  0), F  = XT(1,  0);
+      vec3 G  = XT(-1,  1), H  = XT(0,  1), I  = XT(1,  1);
+      vec3 G5 = XT(-1,  2), H5 = XT(0,  2), I5 = XT(1,  2);
+      vec3 A0 = XT(-2, -1), D0 = XT(-2, 0), G0 = XT(-2, 1);
+      vec3 C4 = XT( 2, -1), F4 = XT( 2, 0), I4 = XT( 2, 1);
+#undef XT
+
+      vec4 b  = vec4(fmvLuma(B), fmvLuma(D), fmvLuma(H), fmvLuma(F));
+      vec4 c  = vec4(fmvLuma(C), fmvLuma(A), fmvLuma(G), fmvLuma(I));
+      vec4 d  = b.yzwx;
+      vec4 e  = vec4(fmvLuma(E));
+      vec4 f  = b.wxyz;
+      vec4 g  = c.zwxy;
+      vec4 h  = b.zwxy;
+      vec4 i  = c.wxyz;
+      vec4 i4 = vec4(fmvLuma(I4), fmvLuma(C1), fmvLuma(A0), fmvLuma(G5));
+      vec4 i5 = vec4(fmvLuma(I5), fmvLuma(C4), fmvLuma(A1), fmvLuma(G0));
+      vec4 h5 = vec4(fmvLuma(H5), fmvLuma(F4), fmvLuma(B1), fmvLuma(D0));
+      vec4 f4 = h5.yzwx;
+
+      const vec4 Ao = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bo = vec4( 1.0,  1.0, -1.0, -1.0);
+      const vec4 Co = vec4( 1.5,  0.5, -0.5,  0.5);
+      const vec4 Ax = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 Bx = vec4( 0.5,  2.0, -0.5, -2.0);
+      const vec4 Cx = vec4( 1.0,  1.0, -0.5,  0.0);
+      const vec4 Ay = vec4( 1.0, -1.0, -1.0,  1.0);
+      const vec4 By = vec4( 2.0,  0.5, -2.0, -0.5);
+      const vec4 Cy = vec4( 2.0,  0.0, -1.0,  0.5);
+      const vec4 Ci = vec4(0.25);
+
+      vec4 delta   = vec4(delta1);
+      vec4 delta_l = vec4(0.5 * delta1, delta1, 0.5 * delta1, delta1);
+      vec4 delta_u = delta_l.yxwz;
+
+      vec4 fx   = Ao * fp.y + Bo * fp.x;
+      vec4 fx_l = Ax * fp.y + Bx * fp.x;
+      vec4 fx_u = Ay * fp.y + By * fp.x;
+
+      vec4 irlv0 = xbrDiff(e, f) * xbrDiff(e, h);
+      vec4 irlv1 = irlv0 * (xbrNeq(f, b) * xbrNeq(f, c) + xbrNeq(h, d) * xbrNeq(h, g)
+        + xbrEq(e, i) * (xbrNeq(f, f4) * xbrNeq(f, i4) + xbrNeq(h, h5) * xbrNeq(h, i5))
+        + xbrEq(e, g) + xbrEq(e, c));
+      vec4 irlv2l = xbrDiff(e, g) * xbrDiff(d, g);
+      vec4 irlv2u = xbrDiff(e, c) * xbrDiff(b, c);
+
+      vec4 fx45i = clamp((fx   + delta   - Co - Ci) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx45  = clamp((fx   + delta   - Co     ) / (2.0 * delta  ), 0.0, 1.0);
+      vec4 fx30  = clamp((fx_l + delta_l - Cx     ) / (2.0 * delta_l), 0.0, 1.0);
+      vec4 fx60  = clamp((fx_u + delta_u - Cy     ) / (2.0 * delta_u), 0.0, 1.0);
+
+      vec4 wd1 = xbrWd(e, c,  g, i, h5, f4, h, f);
+      vec4 wd2 = xbrWd(h, d, i5, f, i4,  b, e, i);
+
+      vec4 edri  = step(wd1, wd2) * irlv0;
+      vec4 edr   = step(wd1 + vec4(0.1), wd2) * step(vec4(0.5), irlv1);
+      vec4 edr_l = step(2.0 * xbrDf(f, g), xbrDf(h, c)) * irlv2l * edr;
+      vec4 edr_u = step(2.0 * xbrDf(h, c), xbrDf(f, g)) * irlv2u * edr;
+
+      fx45  = edr   * fx45;
+      fx30  = edr_l * fx30;
+      fx60  = edr_u * fx60;
+      fx45i = edri  * fx45i;
+
+      vec4 px = step(xbrDf(e, f), xbrDf(e, h));
+      vec4 maximos = max(max(fx30, fx60), max(fx45, fx45i));
+
+      vec3 res1 = E;
+      res1 = mix(res1, mix(H, F, px.x), maximos.x);
+      res1 = mix(res1, mix(B, D, px.z), maximos.z);
+      vec3 res2 = E;
+      res2 = mix(res2, mix(F, B, px.y), maximos.y);
+      res2 = mix(res2, mix(D, H, px.w), maximos.w);
+
+      vec3 d1 = abs(E - res1), d2 = abs(E - res2);
+      return vec4(mix(res1, res2, step(d1.r + d1.g + d1.b, d2.r + d2.g + d2.b)), 1.0);
+    }
+#endif
+
+    vec4 vram16Bit() {
+      return texelFetch(u_texture, ivec2(v_texcoord), 0);
+    }
+
+    vec4 vram8bit() {
+      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(v_texcoord.x) & 1;
+      int clutIndex = (sbgr >> (bit * 8)) & 0xff;
+
+      float v = float(clutIndex) / 255.0;
+      return vec4(v, v, v, 1.0); 
+    }
+
+    vec4 vram4bit() {
+      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
+      int sbgr = getSBGRfromRGBA(color);
+
+      int bit = int(v_texcoord.x) & 3;
+      int clutIndex = (sbgr >> (bit * 4)) & 0xf;
+
+      float v = float(clutIndex) / 15.0;
+      return vec4(v, v, v, 1.0); 
+    }
+
+    vec4 gpuState() {
+      ivec2 texel = ivec2(v_vramCoord).xy;
+
+      vec4 color = texelFetch(u_texture, ivec2(v_texcoord), 0);
+      float r = 0.0, g = 0.0, b = 0.0;
+      if (texel.x >= u_draw.x && texel.y >= u_draw.y && texel.x <= u_draw.z && texel.y <= u_draw.w) {
+        if (texel.x == u_draw.x || texel.x == u_draw.z) color.rgb = vec3(1.0, 0.0, 0.0);
+        if (texel.y == u_draw.y || texel.y == u_draw.w) color.rgb = vec3(1.0, 0.0, 0.0);
+      }
+      if (texel.x >= u_disp.x && texel.y >= u_disp.y && texel.x <= u_disp.z && texel.y <= u_disp.w) {
+        if (texel.x == u_disp.x || texel.x == u_disp.z) color.rgb = vec3(0.0, 0.0, 1.0);
+        if (texel.y == u_disp.y || texel.y == u_disp.w) color.rgb = vec3(0.0, 0.0, 1.0);
+      }
+      return color;
+    }
+
+    void main() {
+      vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
+
+      switch (u_mode) {
+        case 7: outColor = gpuState(); return;
+
+#if defined(FMV_SMOOTH)
+        case 1: color = fmvSmooth(); break;
+#elif defined(FMV_XBR)
+        case 1: color = displayXbr(true); break;
+#else
+        case 1: color = vram24Bit(); break;
+#endif
+#if defined(SCREEN_XBR) || defined(SCREEN_SUPER_XBR)
+        case 0: color = screenFiltered(); break;
+#else
+        case 0: color = vram16Bit(); break;
+#endif
+        case 6: color = vram16Bit(); break;
+        case 2: color = vram8bit(); break;
+        case 3: color = vram4bit(); break;
+      }
+
+      if (u_mode <= 1) {
+        vec4 displayColor = color + InterleavedGradientNoise();
+        outColor = u_tv_effect ? tv_effect(displayColor.rgb) : displayColor;
+      }
+      else {
+        outColor = color;
+      }
+    }
+  `,
+  };
+
+})

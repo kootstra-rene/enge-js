@@ -3,8 +3,7 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "server": "node server.js",
-    "test": "node --test"
+    "test": "curl -sk --compressed https://localhost/test/unit/enge:server | node -"
   },
   "engines": {
     "node": ">=18"

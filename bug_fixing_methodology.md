@@ -50,10 +50,10 @@ I then open a terminal, navigate to the project folder.
 
 I made a games folder and put some roms in there and a copy of scph1001.bin
 
-I then start a server with `node server.js`
+I then start the mdlr monitor with `./mdlr/tools/scripts/dev-restart.sh --root ../enge-js/code`, with the games folder set in its `endpoints.json`
 
 ```
-I have started a server for this project on localhost:8000 please use this when doing debugging
+I have started the mdlr monitor for this project on https://localhost please use this when doing debugging
 ```
 
 `I am trying to fix a bug when playing <insert game here> which I have added to the game launcher. I'm noticing <description>. Can you help me investigate?`

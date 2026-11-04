@@ -1498,9 +1498,12 @@ mdlr('enge:webgl2', ({ include }) => {
   window.nextPrimitive = nextPrimitive;
 
   window.renderer = new WebGLRenderer();
+  window.renderer.variant = 'webgl2';
 })
 
 mdlr('enge:webgl2:utils', ({ include }) => {
+
+  const shaders = include('enge:webgl2:shaders');
   /**
    * Creates and compiles a shader.
    *
@@ -1560,24 +1563,18 @@ mdlr('enge:webgl2:utils', ({ include }) => {
   };
 
   /**
-   * Creates a shader from the content of a script tag.
+   * Creates a shader from enge:webgl2:shaders.
    *
    * @param {!WebGLRenderingContext} gl The WebGL Context.
-   * @param {string} scriptId The id of the script tag.
+   * @param {string} scriptId The name of the shader.
    * @param {string} opt_shaderType. The type of shader to create.
-   *     If not passed in will use the type attribute from the
-   *     script tag.
    * @return {!WebGLShader} A shader.
    */
   function createShaderFromScript(gl, scriptId, opt_shaderType, defines = []) {
-    // look up the script tag by id.
-    var shaderScript = document.getElementById(scriptId);
-    if (!shaderScript) {
-      throw ("*** Error: unknown script element: " + scriptId);
+    var shaderSource = shaders[scriptId];
+    if (!shaderSource) {
+      throw ("*** Error: unknown shader: " + scriptId);
     }
-
-    // extract the contents of the script tag.
-    var shaderSource = shaderScript.text;
 
     // #define lines go right after the #version line, which must come first
     if (defines.length) {
@@ -1585,27 +1582,15 @@ mdlr('enge:webgl2:utils', ({ include }) => {
       shaderSource = shaderSource.slice(0, eol + 1) + defines.map(d => `#define ${d}\n`).join('') + shaderSource.slice(eol + 1);
     }
 
-    // If we didn't pass in a type, use the 'type' from
-    // the script tag.
-    if (!opt_shaderType) {
-      if (shaderScript.type == "x-shader/x-vertex") {
-        opt_shaderType = gl.VERTEX_SHADER;
-      } else if (shaderScript.type == "x-shader/x-fragment") {
-        opt_shaderType = gl.FRAGMENT_SHADER;
-      } else if (!opt_shaderType) {
-        throw ("*** Error: shader type not set");
-      }
-    }
-
     return compileShader(gl, shaderSource, opt_shaderType);
   };
 
   /**
-   * Creates a program from 2 script tags.
+   * Creates a program from 2 shaders in enge:webgl2:shaders.
    *
    * @param {!WebGLRenderingContext} gl The WebGL Context.
-   * @param {string} vertexShaderId The id of the vertex shader script tag.
-   * @param {string} fragmentShaderId The id of the fragment shader script tag.
+   * @param {string} vertexShaderId The name of the vertex shader.
+   * @param {string} fragmentShaderId The name of the fragment shader.
    * @return {!WebGLProgram} A program
    */
   function createProgramFromScripts(gl, vertexShaderId, fragmentShaderId, defines = []) {

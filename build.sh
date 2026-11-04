@@ -10,7 +10,7 @@ build_bundle() {
   trap 'rm -rf "$temp_dir"' EXIT INT TERM
 
   curl --insecure --fail --silent --show-error \
-    "$BUNDLER_URL/bundle/unit/$unit" \
+    "$BUNDLER_URL/bundle/$unit" \
     -o "$temp_dir/bundle.gz"
   gzip -t "$temp_dir/bundle.gz"
   gzip -dc "$temp_dir/bundle.gz" > "$temp_dir/bundle.js"
@@ -21,7 +21,9 @@ build_bundle() {
   rm -rf "$temp_dir"
 }
 
-build_bundle 'enge:psx:webgl2' docs/index-webgl2.js
-build_bundle 'enge:psx:webgl' docs/index.js
+build_bundle 'unit/enge:psx:webgl2' docs/index-webgl2.js
+build_bundle 'unit/enge:psx:webgl' docs/index.js
 
-build_bundle 'enge:psx:webgpu' docs/index-webgpu.js
+build_bundle 'unit/enge:psx:webgpu' docs/index-webgpu.js
+
+build_bundle 'web/enge:webgl2-app' docs/enge-webgl2-app.js

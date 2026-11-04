@@ -20,13 +20,7 @@ Same as with the BIOS drag and drop all the .bin and .cue files on the emulator 
 
 ## Hosting locally
 
-The included server is written in Node.js and serves the emulator, game files, generated catalogs, save states, and memory cards from one port. It requires Node.js 18 or newer and has no npm dependencies.
-
-```sh
-node server.js
-```
-
-The default URL is `https://<your-lan-ip>:8000/`. The server generates a self-signed certificate on first start and prints the detected LAN address. Your browser must trust that certificate for secure-context features such as AudioWorklet. To use plain HTTP instead, run `node server.js --http`. See [SERVER.md](./SERVER.md) for command-line options, catalog generation, range requests, and cloud endpoints.
+The emulator runs as a web app on the [mdlr](https://github.com/kootstra-rene/mdlr-dev) monitor, which also serves game files, generated catalogs, save states, and memory cards from the `enge:server` module. The monitor only accepts connections from its own machine unless you start it with `--http`, for devices such as an Xbox. See [SERVER.md](./SERVER.md) for setup, catalog generation, range requests, and cloud endpoints.
 
 ## Improving Graphics Quality
 
