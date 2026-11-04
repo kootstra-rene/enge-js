@@ -22,7 +22,8 @@ The monitor's `endpoints.json` holds the folders:
 {
   "/enge": {
     "module": "enge:server",
-    "options": { "docs": "../enge-js/docs", "games": "../enge-js/collection", "cloud": "../enge-js/cloud-data" }
+    "options": { "docs": "../enge-js/docs", "games": "../enge-js/collection", "cloud": "../enge-js/cloud-data" },
+    "http": ["/app/web/enge:webgl2-app", "/bundle/web/enge:webgl2-app"]
   }
 }
 ```
@@ -33,7 +34,11 @@ Then open https://localhost/app/web/enge:webgl2-app. The page and its Content-Se
 
 The emulator looks for the server on `/enge`, set by `serverBase` in `code/psx/index.js`, so keep that prefix in `endpoints.json`.
 
-The monitor only accepts connections from its own machine, so the emulator can't be reached from a phone or another computer.
+## Other devices
+
+By default the monitor only accepts connections from its own machine. For a device that won't accept a self-signed certificate, such as an Xbox, add `--http` to the monitor's flags and open `http://<your-ip>/psx`. Plain HTTP only reaches the app and `/enge`, as listed under `"http"` in `endpoints.json`.
+
+There is no login or encryption: anyone on the network can load the emulator, download your game and BIOS files, and overwrite your saves. Use it on a network you trust. Browsers don't offer AudioWorklet on plain HTTP, so audio uses the ScriptProcessorNode fallback.
 
 ## Game lists
 

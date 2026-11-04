@@ -20,7 +20,7 @@ Same as with the BIOS drag and drop all the .bin and .cue files on the emulator 
 
 ## Hosting locally
 
-The emulator runs as a web app on the [mdlr](https://github.com/kootstra-rene/mdlr-dev) monitor, which also serves game files, generated catalogs, save states, and memory cards from the `enge:server` module. The monitor only accepts connections from its own machine. See [SERVER.md](./SERVER.md) for setup, catalog generation, range requests, and cloud endpoints.
+The emulator runs as a web app on the [mdlr](https://github.com/kootstra-rene/mdlr-dev) monitor, which also serves game files, generated catalogs, save states, and memory cards from the `enge:server` module. The monitor only accepts connections from its own machine unless you start it with `--http`, for devices such as an Xbox. See [SERVER.md](./SERVER.md) for setup, catalog generation, range requests, and cloud endpoints.
 
 ## Improving Graphics Quality
 
