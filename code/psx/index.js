@@ -785,12 +785,16 @@ mdlr('enge:psx:index', ({ include }) => {
     };
     loadGameButton?.addEventListener('click', () => loadGameFromButton(loadGameButton, loadGameButton.dataset.url));
 
-    // Where the monitor serves enge:server, as set in its endpoints.json.
-    const serverBase = `${window.location.origin}/enge`;
+    // The web app is on the monitor, which serves enge:server on /enge as set in its
+    // endpoints.json. A page from docs/ has its server where it is: on the root with
+    // node server.js, and on /enge with the monitor.
+    const serverBase = document.querySelector('webgl2-app')
+      ? `${window.location.origin}/enge`
+      : new URL('.', window.location.href).href.replace(/\/$/, '');
     const cloudBase = serverBase;
     const gamesCsvUrl = `${serverBase}/games.csv`;
     const biosCsvUrl = `${serverBase}/bios.csv`;
-    // A list from before the server moved holds paths from the root of the old server.
+    // node server.js writes lists with paths from the root of the server.
     const catalogUrl = url => new URL(url.replace(/^\/+/, ''), `${serverBase}/`).href;
     const parseCsv = text => {
       const rows = [];
