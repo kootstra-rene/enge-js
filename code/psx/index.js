@@ -906,6 +906,9 @@ mdlr('enge:psx:index', ({ include }) => {
         }
       }
     };
+    // Card 1 keeps the plain ids, so a page with one set of buttons still works.
+    const memoryCardSuffix = slot => slot ? `-${slot + 1}` : '';
+
     const cloudRequest = (path, options = {}) => fetch(`${cloudBase}${path}`, {
       cache: 'no-store',
       ...options,
@@ -952,40 +955,44 @@ mdlr('enge:psx:index', ({ include }) => {
       }
     });
 
-    const cloudSaveMemoryCardButton = document.getElementById('cloud-save-memorycard');
-    cloudSaveMemoryCardButton?.addEventListener('click', async () => {
-      try {
-        const card = joy.devices[0].getMemoryCard?.();
-        if (!card) throw new Error('Memory card is unavailable');
-        await cloudRequest('/api/memorycard', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: card,
-        });
-        updateStateButton(cloudSaveMemoryCardButton, 'Cloud Saved');
-      }
-      catch (error) {
-        console.error('Unable to save memory card to cloud:', error);
-        updateStateButton(cloudSaveMemoryCardButton, 'Cloud Save Failed');
-        alert(`Unable to save memory card to cloud: ${error.message}`);
-      }
-    });
+    for (const slot of [0, 1]) {
+      const cloudPath = `/api/memorycard${memoryCardSuffix(slot)}`;
 
-    const cloudLoadMemoryCardButton = document.getElementById('cloud-load-memorycard');
-    cloudLoadMemoryCardButton?.addEventListener('click', async () => {
-      try {
-        const buffer = await (await cloudRequest('/api/memorycard')).arrayBuffer();
-        if (buffer.byteLength !== 128 * 1024) throw new Error('Cloud memory card must be exactly 128 KB');
-        joy.devices[0].setMemoryCard(new Uint8Array(buffer));
-        writeStorageStream('card1', buffer);
-        updateStateButton(cloudLoadMemoryCardButton, 'Cloud Card Loaded');
-      }
-      catch (error) {
-        console.error('Unable to load memory card from cloud:', error);
-        updateStateButton(cloudLoadMemoryCardButton, 'Cloud Load Failed');
-        alert(`Unable to load memory card from cloud: ${error.message}`);
-      }
-    });
+      const cloudSaveButton = document.getElementById(`cloud-save-memorycard${memoryCardSuffix(slot)}`);
+      cloudSaveButton?.addEventListener('click', async () => {
+        try {
+          const card = joy.devices[slot].getMemoryCard?.();
+          if (!card) throw new Error(`Memory card ${slot + 1} is unavailable`);
+          await cloudRequest(cloudPath, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: card,
+          });
+          updateStateButton(cloudSaveButton, 'Cloud Saved');
+        }
+        catch (error) {
+          console.error(`Unable to save memory card ${slot + 1} to cloud:`, error);
+          updateStateButton(cloudSaveButton, 'Cloud Save Failed');
+          alert(`Unable to save memory card ${slot + 1} to cloud: ${error.message}`);
+        }
+      });
+
+      const cloudLoadButton = document.getElementById(`cloud-load-memorycard${memoryCardSuffix(slot)}`);
+      cloudLoadButton?.addEventListener('click', async () => {
+        try {
+          const buffer = await (await cloudRequest(cloudPath)).arrayBuffer();
+          if (buffer.byteLength !== 128 * 1024) throw new Error('Cloud memory card must be exactly 128 KB');
+          joy.devices[slot].setMemoryCard(new Uint8Array(buffer));
+          writeStorageStream(`card${slot + 1}`, buffer);
+          updateStateButton(cloudLoadButton, 'Cloud Card Loaded');
+        }
+        catch (error) {
+          console.error(`Unable to load memory card ${slot + 1} from cloud:`, error);
+          updateStateButton(cloudLoadButton, 'Cloud Load Failed');
+          alert(`Unable to load memory card ${slot + 1} from cloud: ${error.message}`);
+        }
+      });
+    }
 
     const saveStateButton = document.getElementById('save-state');
     saveStateButton?.addEventListener('click', async () => {
@@ -1032,9 +1039,6 @@ mdlr('enge:psx:index', ({ include }) => {
         updateStateButton(downloadStateButton, 'Download Failed');
       }
     });
-
-    // Card 1 keeps the plain ids, so a page with one set of buttons still works.
-    const memoryCardSuffix = slot => slot ? `-${slot + 1}` : '';
 
     for (const slot of [0, 1]) {
       const button = document.getElementById(`download-memorycard${memoryCardSuffix(slot)}`);
@@ -1114,13 +1118,15 @@ mdlr('enge:psx:index', ({ include }) => {
     const menuButton = document.getElementById('menu-button');
     const controlMenu = document.getElementById('control-menu');
     const closeMenuButton = document.getElementById('close-menu');
+    // A page can give each group of settings its own list. Otherwise they share the menu's list.
+    const settingsList = group => document.querySelector(`[data-settings="${group}"]`) ?? controlMenu?.querySelector('.control-menu-list');
     if (emulatorVariant === 'webgl2') {
       const tvEffect = document.createElement('button');
       tvEffect.id = 'tv-effect';
       tvEffect.type = 'button';
       const tvEffectRow = document.createElement('li');
       tvEffectRow.append(tvEffect);
-      controlMenu?.querySelector('.control-menu-list')?.append(tvEffectRow);
+      settingsList('video')?.append(tvEffectRow);
       const updateTvEffect = () => {
         const enabled = settings.tvEffect !== false;
         tvEffect.textContent = `TV effect: ${enabled ? 'On' : 'Off'}`;
@@ -1138,7 +1144,7 @@ mdlr('enge:psx:index', ({ include }) => {
       ambilight.type = 'button';
       const ambilightRow = document.createElement('li');
       ambilightRow.append(ambilight);
-      controlMenu?.querySelector('.control-menu-list')?.append(ambilightRow);
+      settingsList('video')?.append(ambilightRow);
       const updateAmbilight = () => {
         const enabled = settings.ambilight !== false;
         ambilight.textContent = `Ambilight: ${enabled ? 'On' : 'Off'}`;
@@ -1160,7 +1166,7 @@ mdlr('enge:psx:index', ({ include }) => {
       fullRes.type = 'button';
       const fullResRow = document.createElement('li');
       fullResRow.append(fullRes);
-      controlMenu?.querySelector('.control-menu-list')?.append(fullResRow);
+      settingsList('video')?.append(fullResRow);
       const updateFullRes = () => {
         const enabled = settings.fullResTextures !== false;
         fullRes.textContent = `Full-res textures: ${enabled ? 'On' : 'Off'}`;
@@ -1183,7 +1189,7 @@ mdlr('enge:psx:index', ({ include }) => {
         button.type = 'button';
         const row = document.createElement('li');
         row.append(button);
-        controlMenu?.querySelector('.control-menu-list')?.append(row);
+        settingsList('video')?.append(row);
         const update = () => { button.textContent = `${label}: ${filterNames[settings[key] | 0] ?? filterNames[0]}`; };
         update();
         button.addEventListener('click', () => {
@@ -1201,7 +1207,7 @@ mdlr('enge:psx:index', ({ include }) => {
       fmvButton.type = 'button';
       const fmvRow = document.createElement('li');
       fmvRow.append(fmvButton);
-      controlMenu?.querySelector('.control-menu-list')?.append(fmvRow);
+      settingsList('video')?.append(fmvRow);
       const updateFmv = () => { fmvButton.textContent = `FMV filter: ${fmvNames[settings.fmvFilter | 0] ?? fmvNames[0]}`; };
       updateFmv();
       fmvButton.addEventListener('click', () => {
@@ -1219,7 +1225,7 @@ mdlr('enge:psx:index', ({ include }) => {
       screenButton.title = 'Upscales native-resolution content: the whole picture at Q1, sprites and 2D at higher quality';
       const screenRow = document.createElement('li');
       screenRow.append(screenButton);
-      controlMenu?.querySelector('.control-menu-list')?.append(screenRow);
+      settingsList('video')?.append(screenRow);
       const updateScreen = () => {
         const name = screenNames[settings.screenFilter | 0] ?? screenNames[0];
         screenButton.textContent = `Screen filter: ${name}`;
@@ -1236,7 +1242,7 @@ mdlr('enge:psx:index', ({ include }) => {
     controllerMode.type = 'button';
     const controllerRow = document.createElement('li');
     controllerRow.append(controllerMode);
-    controlMenu?.querySelector('.control-menu-list')?.append(controllerRow);
+    settingsList('controls')?.append(controllerRow);
     const updateControllerMode = () => {
       const analog = settings.controllerMode === 'analog';
       for (const device of joy.devices) device.setControllerMode(analog ? 'analog' : 'digital');

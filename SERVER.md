@@ -1,8 +1,8 @@
 # eNGE single-port Node server
 
-The repository includes a Node server that combines the three services needed for network play on one port:
+The repository includes an mdlr program, run with plain Node, that combines the three services needed for network play on one port:
 
-- emulator pages and generated assets from `docs/`
+- the emulator as a web app on `/`, and its other pages and generated assets from `docs/`
 - BIOS, CUE, BIN, and `games.csv` files from `games/`
 - save states and memory cards from `cloud-data/`
 
@@ -32,17 +32,29 @@ If `games/games.csv` does not exist, the server creates it from the CUE files un
 node server.js --port 8000 --docs ./docs --games ./games --cloud ./cloud-data
 ```
 
-Use `node server.js --http` to serve plain HTTP instead. To use an existing certificate, pass both `--tls-key path/to/key.pem` and `--tls-cert path/to/cert.pem`.
+The server only speaks HTTPS over HTTP/2. To use an existing certificate, pass both `--tls-key path/to/key.pem` and `--tls-cert path/to/cert.pem`.
 
 ## Features
 
-- CORS headers for browser clients.
+- No CORS headers: the emulator is served from the same origin, and other websites can't read or overwrite your saves.
 - Single byte-range responses (`206 Partial Content`) for large BIN/ISO files.
 - CUE files can reference BIN files in the same game directory.
 - Cloud endpoints for save states and 128 KiB memory cards:
   - `GET/PUT /api/state`
-  - `GET/PUT /api/memorycard`
+  - `GET/PUT /api/memorycard` for card 1
+  - `GET/PUT /api/memorycard-2` for card 2
   - `GET /api/status`
 - Request logging to the terminal.
 
 The server is intended for a trusted local network. It has no authentication and should not be exposed directly to the public internet.
+
+## Source
+
+`server.js` in the repository root is a generated bundle. The source is in `code/server/`, one mdlr module per concern, with specs next to the modules. Start the mdlr monitor with `--root` pointing at `code`, then:
+
+```sh
+./build.sh       # regenerates server.js and the bundles in docs/
+npm test         # runs the server specs on the monitor
+```
+
+The page on `/` and its Content-Security-Policy are in `code/server/server.js`. The policy has to match the exceptions the app has in the monitor's `csp.json`.

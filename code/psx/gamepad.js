@@ -267,7 +267,11 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   const getKeyboardMapping = event =>
     keyboard.get(event.keyCode) || keyboard.get(keyboardCodes.get(event.code));
 
+  // Keys pressed in a menu operate the menu, not the game.
+  const isInMenu = (e) => !!e.target.closest?.('[data-menu]');
+
   window.addEventListener("keydown", (e) => {
+    if (isInMenu(e)) return;
     if (['KeyI', 'KeyJ', 'KeyK', 'KeyL'].includes(e.code)) {
       e.preventDefault();
       analogKeys.add(e.code);
@@ -290,7 +294,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     const device = joy.devices[0];
 
     if (mapping !== undefined) {
-      e.preventDefault();
+      if (!isInMenu(e)) e.preventDefault();
       keyboardState[mapping.property] |= mapping.bits;
       device[mapping.property] |= mapping.bits;
       debugInput('keyup', { key: e.key, code: e.code, property: mapping.property, bits: `0x${mapping.bits.toString(16)}`, lo: device.lo, hi: device.hi });
