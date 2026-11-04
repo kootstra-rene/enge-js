@@ -3,7 +3,32 @@ mdlr('[test]enge:server:catalog', ({ include, test }) => {
   const fs = include('[node]fs/promises');
   const os = include('[node]os');
   const path = include('[node]path');
-  const { buildBiosCatalog, ensureCatalogs } = include('enge:server:catalog');
+  const { buildBiosCatalog, buildGamesCatalog, ensureCatalogs } = include('enge:server:catalog');
+
+  describe('ISO files', () => {
+    let root;
+
+    before(async () => {
+      root = await fs.mkdtemp(path.join(os.tmpdir(), 'enge-iso-'));
+      await fs.mkdir(path.join(root, 'Sheet'));
+      await fs.writeFile(path.join(root, 'Sheet', 'sheet.cue'), 'FILE "Disc.ISO" BINARY\n  TRACK 01 MODE2/2352\n');
+      await fs.writeFile(path.join(root, 'Sheet', 'disc.iso'), Buffer.alloc(2352));
+      await fs.mkdir(path.join(root, 'Two'));
+      await fs.writeFile(path.join(root, 'Two', 'Disc 1.iso'), Buffer.alloc(2352 * 2));
+      await fs.writeFile(path.join(root, 'Two', 'Disc 2.ISO'), Buffer.alloc(2352 * 3));
+      await fs.writeFile(path.join(root, 'cooked.iso'), Buffer.alloc(2048 * 4));
+      await fs.writeFile(path.join(root, 'empty.iso'), '');
+    });
+
+    after(async () => {
+      await fs.rm(root, { recursive: true, force: true });
+    });
+
+    it('should list raw images by their own name, without those a CUE sheet names', async () => {
+      expect(await buildGamesCatalog(root)).to.eql(
+        'name,url\nDisc 1,/Two/Disc%201.iso\nDisc 2,/Two/Disc%202.ISO\nSheet,/Sheet/sheet.cue\n');
+    });
+  });
 
   describe('catalogs', () => {
     let root;

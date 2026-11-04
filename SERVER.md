@@ -24,7 +24,7 @@ node server.js
 
 The default port is `8000`. HTTPS is enabled by default. The first start generates a self-signed certificate and private key under `.enge-certs/`, then prints the LAN URL it detected, for example `https://192.168.0.27:8000/`. The certificate includes the machine's current LAN IPv4 addresses. Browsers must trust the certificate for secure-context features such as AudioWorklet. If the LAN address changes, delete `.enge-certs/` to generate a certificate with the new address.
 
-If `games/games.csv` does not exist, the server creates it from the CUE files under `games/`. If `games/bios.csv` does not exist, it creates it from `scph*`, `bios.bin`, and `openbios.bin` files. Existing catalogs are never overwritten; the server reports whether each catalog was created or reused.
+If `games/games.csv` does not exist, the server creates it from the CUE and ISO files under `games/`. Delete the file and restart to pick up games you added later. An ISO is only listed if it holds raw 2352-byte sectors, and the server logs the ones it leaves out. If `games/bios.csv` does not exist, it creates it from `scph*`, `bios.bin`, and `openbios.bin` files. Existing catalogs are never overwritten; the server reports whether each catalog was created or reused.
 
 ## Options
 
