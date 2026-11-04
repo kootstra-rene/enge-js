@@ -785,10 +785,13 @@ mdlr('enge:psx:index', ({ include }) => {
     };
     loadGameButton?.addEventListener('click', () => loadGameFromButton(loadGameButton, loadGameButton.dataset.url));
 
-    const cloudBase = window.location.origin;
-    const gameListBase = window.location.origin;
-    const gamesCsvUrl = `${gameListBase}/games.csv`;
-    const biosCsvUrl = `${window.location.origin}/bios.csv`;
+    // Where the monitor serves enge:server, as set in its endpoints.json.
+    const serverBase = `${window.location.origin}/enge`;
+    const cloudBase = serverBase;
+    const gamesCsvUrl = `${serverBase}/games.csv`;
+    const biosCsvUrl = `${serverBase}/bios.csv`;
+    // A list from before the server moved holds paths from the root of the old server.
+    const catalogUrl = url => new URL(url.replace(/^\/+/, ''), `${serverBase}/`).href;
     const parseCsv = text => {
       const rows = [];
       let row = [];
@@ -848,7 +851,7 @@ mdlr('enge:psx:index', ({ include }) => {
             button.disabled = true;
             button.textContent = 'Loading...';
             try {
-              await loadBiosFromURL(new URL(biosFile.url, `${window.location.origin}/`).href);
+              await loadBiosFromURL(catalogUrl(biosFile.url));
               button.textContent = `${biosFile.name} Loaded`;
             } catch (error) {
               console.error(`Unable to load ${biosFile.name}:`, error);
@@ -888,7 +891,7 @@ mdlr('enge:psx:index', ({ include }) => {
           const button = document.createElement('button');
           button.type = 'button';
           button.textContent = game.name;
-          button.addEventListener('click', () => loadGameFromButton(button, new URL(game.url, `${gameListBase}/`).href, 'Game Loaded'));
+          button.addEventListener('click', () => loadGameFromButton(button, catalogUrl(game.url), 'Game Loaded'));
           const item = document.createElement('div');
           item.append(button);
           gameList.append(item);

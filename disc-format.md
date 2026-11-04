@@ -172,7 +172,7 @@ full subchannel can just look at non-zero Q residuals.
   adjacent blocks, so several blocks can be fetched in one range request. A small LRU of decoded
   blocks (e.g. 64 blocks ≈ 2.4 MB) is enough; key it on block offset so deduplicated blocks are
   cached once.
-- `server.js` already serves byte ranges.
+- `enge:server` already serves byte ranges.
 
 ## Tooling (planned)
 

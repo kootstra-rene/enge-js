@@ -26,7 +26,7 @@ mdlr('[test]enge:server:catalog', ({ include, test }) => {
 
     it('should list raw images by their own name, without those a CUE sheet names', async () => {
       expect(await buildGamesCatalog(root)).to.eql(
-        'name,url\nDisc 1,/Two/Disc%201.iso\nDisc 2,/Two/Disc%202.ISO\nSheet,/Sheet/sheet.cue\n');
+        'name,url\nDisc 1,Two/Disc%201.iso\nDisc 2,Two/Disc%202.ISO\nSheet,Sheet/sheet.cue\n');
     });
   });
 
@@ -47,13 +47,13 @@ mdlr('[test]enge:server:catalog', ({ include, test }) => {
     });
 
     it('should list the BIOS files', async () => {
-      expect(await buildBiosCatalog(root)).to.eql('name,url\nopenbios.bin,/openbios.bin\nscph1001.bin,/scph1001.bin\n');
+      expect(await buildBiosCatalog(root)).to.eql('name,url\nopenbios.bin,openbios.bin\nscph1001.bin,scph1001.bin\n');
     });
 
     it('should write the games list, quoting and encoding names', async () => {
       await ensureCatalogs(root);
       const games = await fs.readFile(path.join(root, 'games.csv'), 'utf8');
-      expect(games).to.eql('name,url\n"a, ""b""",/a%2C%20%22b%22.cue\nTekken 2,/Tekken%202/Tekken%202.cue\n');
+      expect(games).to.eql('name,url\n"a, ""b""",a%2C%20%22b%22.cue\nTekken 2,Tekken%202/Tekken%202.cue\n');
     });
 
     it('should keep a list that already exists', async () => {

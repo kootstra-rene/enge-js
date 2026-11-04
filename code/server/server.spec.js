@@ -4,8 +4,8 @@ mdlr('[test]enge:server', ({ include, test }) => {
   const http2 = include('[node]http2');
   const os = include('[node]os');
   const path = include('[node]path');
-  const { createServer } = include('enge:server');
-  const { createSelfSignedCertificate } = include('enge:server:cert');
+  const { decode } = include('core:router:url');
+  const { createRouter } = include('enge:server');
 
   const CARD_BYTES = 128 * 1024;
 
@@ -33,38 +33,31 @@ mdlr('[test]enge:server', ({ include, test }) => {
       root = await fsp.mkdtemp(path.join(os.tmpdir(), 'enge-server-'));
       const docs = path.join(root, 'docs');
       const games = path.join(root, 'games');
-      const pems = createSelfSignedCertificate();
       await fsp.mkdir(docs);
       await fsp.mkdir(path.join(games, 'Final #7 (100%)'), { recursive: true });
       await fsp.writeFile(path.join(docs, 'page.css'), 'body{}');
       await fsp.writeFile(path.join(games, 'scph1001.bin'), Buffer.alloc(8));
       await fsp.writeFile(path.join(games, 'Final #7 (100%)', 'disc.bin'), Buffer.from('0123456789'));
       await fsp.writeFile(path.join(root, 'secret.txt'), 'secret');
-      await fsp.writeFile(path.join(root, 'key.pem'), pems.privateKey);
-      await fsp.writeFile(path.join(root, 'cert.pem'), pems.certificate);
-      server = createServer({
-        docs,
-        games,
-        cloud: path.join(root, 'cloud'),
-        tlsKey: path.join(root, 'key.pem'),
-        tlsCert: path.join(root, 'cert.pem'),
+      const router = await createRouter({ docs, games, cloud: path.join(root, 'cloud') });
+      // What the monitor does with an endpoint's router.
+      server = http2.createServer();
+      server.on('stream', (stream, headers) => {
+        try {
+          router.match(decode(`http://m${headers[':path']}`, true), stream, headers)[0]();
+        } catch {
+          stream.respond({ ':status': 400 });
+          stream.end();
+        }
       });
       await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-      client = http2.connect(`https://127.0.0.1:${server.address().port}`, { rejectUnauthorized: false });
+      client = http2.connect(`http://127.0.0.1:${server.address().port}`);
     });
 
     after(async () => {
       client.close();
       await new Promise((resolve) => server.close(resolve));
       await fsp.rm(root, { recursive: true, force: true });
-    });
-
-    it('should serve the app with its policy on the root', async () => {
-      const { status, headers, body } = await request('GET', '/');
-      expect(status).to.eql(200);
-      expect(body.toString().includes('<webgl2-app>')).to.eql(true);
-      expect(body.toString().includes('name="viewport"')).to.eql(true);
-      expect(headers['content-security-policy'].includes(`script-src 'unsafe-eval'`)).to.eql(true);
     });
 
     it('should serve files from the emulator and the games folder', async () => {
@@ -113,7 +106,7 @@ mdlr('[test]enge:server', ({ include, test }) => {
 
     it('should generate the BIOS list', async () => {
       const { status, body } = await request('GET', '/bios.csv');
-      expect([status, body.toString()]).to.eql([200, 'name,url\nscph1001.bin,/scph1001.bin\n']);
+      expect([status, body.toString()]).to.eql([200, 'name,url\nscph1001.bin,scph1001.bin\n']);
     });
 
     it('should send no CORS headers, so other sites can not reach the saves', async () => {

@@ -10,8 +10,8 @@ mdlr('enge:server:catalog', ({ include }) => {
   const csvText = (entries) =>
     ['name,url', ...entries.map(({ name, url }) => `${csvField(name)},${csvField(url)}`)].join('\n') + '\n';
 
-  const httpPathFor = (relativePath) =>
-    `/${relativePath.split(path.sep).map(segment => encodeURIComponent(segment)).join('/')}`;
+  // Relative, because the lists are read from wherever the server is mounted.
+  const urlFor = (relativePath) => relativePath.split(path.sep).map(segment => encodeURIComponent(segment)).join('/');
 
   const byName = (left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
 
@@ -50,14 +50,14 @@ mdlr('enge:server:catalog', ({ include }) => {
       const relative = path.relative(gamesRoot, file);
       const parts = relative.split(path.sep);
       const name = parts.length > 1 ? parts[0] : path.basename(file, path.extname(file));
-      return { name, url: httpPathFor(relative) };
+      return { name, url: urlFor(relative) };
     });
     for (const file of files) {
       if (hasExtension(file, '.iso') && !named.has(file.toLowerCase())) {
         // The emulator only reads raw images. An ISO of 2048-byte sectors lacks what PlayStation discs need.
         const { size } = await fs.stat(file);
         if (size > 0 && size % RAW_SECTOR_BYTES === 0) {
-          entries.push({ name: path.basename(file, path.extname(file)), url: httpPathFor(path.relative(gamesRoot, file)) });
+          entries.push({ name: path.basename(file, path.extname(file)), url: urlFor(path.relative(gamesRoot, file)) });
         }
         else {
           console.warn(`not listing ${file}: it is not an image of raw ${RAW_SECTOR_BYTES}-byte sectors`);
@@ -76,7 +76,7 @@ mdlr('enge:server:catalog', ({ include }) => {
       const isBios = lower.startsWith('scph') || lower === 'bios.bin' || lower === 'openbios.bin';
       if (isBios && !seen.has(lower)) {
         seen.add(lower);
-        entries.push({ name: filename, url: httpPathFor(path.relative(gamesRoot, file)) });
+        entries.push({ name: filename, url: urlFor(path.relative(gamesRoot, file)) });
       }
     }
     return csvText(entries.sort(byName));

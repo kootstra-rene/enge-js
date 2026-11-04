@@ -27,7 +27,3 @@ build_bundle 'unit/enge:psx:webgl' docs/index.js
 build_bundle 'unit/enge:psx:webgpu' docs/index-webgpu.js
 
 build_bundle 'web/enge:webgl2-app' docs/enge-webgl2-app.js
-
-# The server is a program, so it is not in the folder it serves.
-build_bundle 'unit/enge:server:main' server.js
-printf '#!/usr/bin/env node\n%s\n' "$(cat server.js)" > server.js
