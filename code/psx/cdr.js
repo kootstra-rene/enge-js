@@ -1137,7 +1137,7 @@ mdlr('enge:psx:cdr', () => {
           case 0: return 0xE0 | irqEnable;
           case 1:
             if (cdDebug && (irq & 0x1f || debugResponseLogCount < 128)) {
-              cdLog('interrupt register read', { irq, status, results: results.length });
+              cdLog('interrupt register read', { status, irq, results: results.length });
               if (!irq) debugResponseLogCount++;
             }
             return irq;
