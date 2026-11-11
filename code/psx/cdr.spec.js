@@ -36,7 +36,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
         const end = psx.clock + cycles;
         for (let guard = 0; guard < 100000; guard++) {
           const due = events.filter(event => event.active && event.clock <= end);
-          if (!due.length) break;
+          if (!due.length) { break; }
           const next = due.reduce((a, b) => (b.clock < a.clock ? b : a));
           psx.clock = Math.max(psx.clock, next.clock);
           next.cb(next, psx.clock);
@@ -78,10 +78,10 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
   // Runs the emulated clock until the controller raises an interrupt, then reads
   // and acknowledges the response like the BIOS does.
   const response = (maxCycles = 2 * PSX_SPEED) => {
-    for (let spent = 0; !pendingInterrupt() && spent < maxCycles; spent += 0x1000) psx.run(0x1000);
+    for (let spent = 0; !pendingInterrupt() && spent < maxCycles; spent += 0x1000) { psx.run(0x1000); }
     const int = pendingInterrupt();
     const results = [];
-    while (cdr.rd08r1800() & 0x20) results.push(cdr.rd08r1801() & 0xFF);
+    while (cdr.rd08r1800() & 0x20) { results.push(cdr.rd08r1801() & 0xFF); }
     cdr.wr08r1800(1);
     cdr.wr08r1803(0x1F);
     cdr.wr08r1800(0);
@@ -107,7 +107,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
   };
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { search: '' }, localStorage: { getItem: () => null } });
     globalThis.PSX_SPEED = PSX_SPEED;
     globalThis.clearCodeCache = () => {};
@@ -121,8 +121,8 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
   after(async () => {
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 
@@ -264,7 +264,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
     const pendingGetStat = () => {
       cdr.wr08r1800(0);
       cdr.wr08r1801(0x01);
-      for (let spent = 0; !pendingInterrupt() && spent < 2 * PSX_SPEED; spent += 0x1000) psx.run(0x1000);
+      for (let spent = 0; !pendingInterrupt() && spent < 2 * PSX_SPEED; spent += 0x1000) { psx.run(0x1000); }
       expect(pendingInterrupt()).to.eql(3);
     };
 
@@ -445,7 +445,7 @@ mdlr('[test]enge:psx:cdr', ({ include, test }) => {
     // it is playing only from the status byte of the next acknowledgement.
     const streamXa = () => {
       const image = createDisc(0x00, 16);
-      for (let lba = 0; lba < 16; lba++) image.set([1, 0, 0x64, 0x00, 1, 0, 0x64, 0x00], lba * SECTOR_SIZE + 0x10);
+      for (let lba = 0; lba < 16; lba++) { image.set([1, 0, 0x64, 0x00, 1, 0, 0x64, 0x00], lba * SECTOR_SIZE + 0x10); }
       insert(image);
       expect(send(0x0E, 0xc8).int).to.eql(3);             // Setmode: double speed, XA-ADPCM, filter
       expect(send(0x0D, 1, 1).int).to.eql(3);             // Setfilter file 1 channel 1 (the disc has channel 0)

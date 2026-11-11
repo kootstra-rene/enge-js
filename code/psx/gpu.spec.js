@@ -33,7 +33,7 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
   };
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     globalThis.hex = (value, length) => (value >>> 0).toString(16).padStart(length || 8, '0');
@@ -44,8 +44,8 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
   after(async () => {
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 
@@ -233,7 +233,7 @@ mdlr('[test]enge:psx:gpu', ({ include, test }) => {
     };
     const busyFor = () => {
       const start = psx.clock;
-      while (!cmdReady() && psx.clock < start + 1e7) ++psx.clock;
+      while (!cmdReady() && psx.clock < start + 1e7) { ++psx.clock; }
       const cycles = psx.clock - start;
       psx.clock = start;
       return cycles;

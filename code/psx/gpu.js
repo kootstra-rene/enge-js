@@ -24,7 +24,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
   const notePolygonVertices = (packetId, cb, data) => {
     const per = 1 + ((packetId & 0x04) ? 1 : 0) + ((packetId & 0x10) ? 1 : 0);
     const count = (packetId & 0x08) ? 4 : 3;
-    for (let v = 0; v < count; ++v) cb(1 + v * per, data[1 + v * per]);
+    for (let v = 0; v < count; ++v) { cb(1 + v * per, data[1 + v * per]); }
   };
 
   // The psx gives the first pixel of a span the start u/v without interpolation, gpus sample at the pixel
@@ -42,7 +42,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
     const xyArea = (x2 - x1) * (y0 - y2) - (y2 - y1) * (x0 - x2);
     const uvArea = (u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0);
-    if (!xyArea || !uvArea) return;
+    if (!xyArea || !uvArea) { return; }
 
     const sign = Math.sign(xyArea);
     const dudx = sign * -((y1 - y0) * u2 + (y2 - y1) * u0 + (y0 - y2) * u1);
@@ -50,8 +50,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
     const dudy = sign * ((x1 - x0) * u2 + (x2 - x1) * u0 + (x0 - x2) * u1);
     const dvdy = sign * ((x1 - x0) * v2 + (x2 - x1) * v0 + (x0 - x2) * v1);
 
-    if ((dudx < 0 && dudy === 0) || (dudy < 0 && dudx === 0)) gpu.quadU = 1;
-    if ((dvdx < 0 && dvdy === 0) || (dvdy < 0 && dvdx === 0)) gpu.quadV = 1;
+    if ((dudx < 0 && dudy === 0) || (dudy < 0 && dudx === 0)) { gpu.quadU = 1; }
+    if ((dvdx < 0 && dvdy === 0) || (dvdy < 0 && dvdx === 0)) { gpu.quadV = 1; }
   }
 
   const renderTexture = (data, cb) => {
@@ -97,8 +97,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
   // the terminator is checked at the start of every vertex after the first one
   const isPolyLineTerminator = (packetId, index, value) => {
-    if (index < 2) return false;
-    if ((packetId & 0x10) && (index & 1)) return false;
+    if (index < 2) { return false; }
+    if ((packetId & 0x10) && (index & 1)) { return false; }
     return (value & 0xf000f000) === 0x50005000;
   }
 
@@ -121,7 +121,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
   const now = () => psx.clock;
   const queued = () => {
     let n = 0;
-    for (let i = 1; i < fifo.length; i += 2) if (fifo[i] + FIFO_LATENCY <= now()) ++n;
+    for (let i = 1; i < fifo.length; i += 2) { if (fifo[i] + FIFO_LATENCY <= now()) { ++n; } }
     return n;
   };
   const busy = () => fifo.length > 0 || drawingUntil > now();
@@ -162,16 +162,16 @@ mdlr('enge:psx:gpu', ({ include }) => {
     const bx = (b << 21) >> 21, by = (b << 5) >> 21;
     const cx = (c << 21) >> 21, cy = (c << 5) >> 21;
     // too large to draw: the GPU skips it
-    if (Math.max(ax, bx, cx) - Math.min(ax, bx, cx) >= MAX_WIDTH) return 0;
-    if (Math.max(ay, by, cy) - Math.min(ay, by, cy) >= MAX_HEIGHT) return 0;
+    if (Math.max(ax, bx, cx) - Math.min(ax, bx, cx) >= MAX_WIDTH) { return 0; }
+    if (Math.max(ay, by, cy) - Math.min(ay, by, cy) >= MAX_HEIGHT) { return 0; }
     const ox = gpu.drawOffsetX, oy = gpu.drawOffsetY;
     const x1 = clampX(ax + ox), y1 = clampY(ay + oy);
     const x2 = clampX(bx + ox), y2 = clampY(by + oy);
     const x3 = clampX(cx + ox), y3 = clampY(cy + oy);
     let pixels = Math.abs(((x1 * y2 + x2 * y3 + x3 * y1 - x1 * y3 - x2 * y1 - x3 * y2) / 2) | 0);
-    if (packetId & 0x04) pixels += pixels;
-    if (semiOrMask(packetId)) pixels += (pixels + 1) >> 1;
-    if (skipsField()) pixels >>= 1;
+    if (packetId & 0x04) { pixels += pixels; }
+    if (semiOrMask(packetId)) { pixels += (pixels + 1) >> 1; }
+    if (skipsField()) { pixels >>= 1; }
     return pixels;
   };
 
@@ -190,19 +190,19 @@ mdlr('enge:psx:gpu', ({ include }) => {
       switch ((gpu.status >>> 7) & 3) {
         case 0: perRow += width; break;
         case 1:
-          if (width > 128) perRow += (width >>> 2) * 8;
-          else if (width * height > 2048) perRow += (width >>> 2) * (4 * ((128 / width) | 0));
-          else perRow += width;
+          if (width > 128) { perRow += (width >>> 2) * 8; }
+          else if (width * height > 2048) { perRow += (width >>> 2) * (4 * ((128 / width) | 0)); }
+          else { perRow += width; }
           break;
         default:
-          if (width > 128) perRow += (width >>> 1) * 8;
-          else if (width * height > 1024) perRow += (width >>> 2) * (8 * ((128 / width) | 0));
-          else perRow += width;
+          if (width > 128) { perRow += (width >>> 1) * 8; }
+          else if (width * height > 1024) { perRow += (width >>> 2) * (8 * ((128 / width) | 0)); }
+          else { perRow += width; }
           break;
       }
     }
-    if (semiOrMask(packetId)) perRow += (width + 1) >>> 1;
-    if (skipsField()) height = Math.max(height >>> 1, 1);
+    if (semiOrMask(packetId)) { perRow += (width + 1) >>> 1; }
+    if (skipsField()) { height = Math.max(height >>> 1, 1); }
     return 16 + perRow * height;
   };
 
@@ -222,7 +222,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         const stride = 1 + textured + gouraud;
         ticks = POLY_SETUP[(quad << 2) | (gouraud << 1) | textured];
         ticks += triangleTicks(packetId, data[1], data[1 + stride], data[1 + 2 * stride]);
-        if (quad) ticks += triangleTicks(packetId, data[1 + stride], data[1 + 2 * stride], data[1 + 3 * stride]);
+        if (quad) { ticks += triangleTicks(packetId, data[1 + stride], data[1 + 2 * stride], data[1 + 3 * stride]); }
         break;
       }
       case 3: // rectangle
@@ -239,7 +239,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
   // a drawing command from DMA: the GPU starts it once the previous one is drawn
   const addRenderTime = cycles => {
-    if (!cycles) return;
+    if (!cycles) { return; }
     drawStart = Math.max(drawingUntil, now());
     drawingUntil = drawStart + cycles;
   };
@@ -248,16 +248,16 @@ mdlr('enge:psx:gpu', ({ include }) => {
   const sync = flush => {
     while (fifo.length) {
       const at = Math.max(fifo[1], drawingUntil);
-      if (!flush && at > now()) break;
+      if (!flush && at > now()) { break; }
       const word = fifo.shift(); fifo.shift();
       drawCycles = 0;
       renderCycles = 0;
       execute(word);
       drawingUntil = at + drawCycles + renderCycles;
-      if (drawCycles) lineUntil = drawingUntil;
-      if (renderCycles) drawStart = at;
+      if (drawCycles) { lineUntil = drawingUntil; }
+      if (renderCycles) { drawStart = at; }
     }
-    if (flush) drawingUntil = lineUntil = 0;
+    if (flush) { drawingUntil = lineUntil = 0; }
   };
   let allowTextureDisable = 0; // GP1(09h)
 
@@ -294,11 +294,11 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
       if (dmaIndex === gpu.packetSize) {
         var packetId = dmaBuffer[0] >>> 24;
-        if (pgxpState !== 1 && packetId >= 0x20 && packetId < 0x40 && pgxpOn() && pgxp.debug) pgxp.noteDirect((packetId & 0x08) ? 4 : 3);
+        if (pgxpState !== 1 && packetId >= 0x20 && packetId < 0x40 && pgxpOn() && pgxp.debug) { pgxp.noteDirect((packetId & 0x08) ? 4 : 3); }
         nextPrimitive();
         handlers[packetId].call(gpu, dmaBuffer);
-        if ((packetId & 0xe8) === 0x40) drawCycles += lineCycles(dmaBuffer[1], dmaBuffer[(packetId & 0x10) ? 3 : 2]);
-        else renderCycles += renderTime(packetId, dmaBuffer);
+        if ((packetId & 0xe8) === 0x40) { drawCycles += lineCycles(dmaBuffer[1], dmaBuffer[(packetId & 0x10) ? 3 : 2]); }
+        else { renderCycles += renderTime(packetId, dmaBuffer); }
         dmaIndex = 0;
         gpu.commandDone();
       }
@@ -397,8 +397,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
       let center = PAL ? 163 : 136;
       let vblankend = center - halfheight;
       let vblankbegin = center + halfheight;
-      if (vblankbegin > vsync) vblankbegin = vsync;
-      if (vblankend < 0) vblankend = 0;
+      if (vblankbegin > vsync) { vblankbegin = vsync; }
+      if (vblankend < 0) { vblankend = 0; }
 
       // the vertical blank as GP1(07h) sets it (and as the root counters
       // gate on it); the VBlank IRQ is raised as it starts
@@ -448,7 +448,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         }
         gpu.updated = false;
         // a display range without a vertical blank still interrupts once a frame
-        if (!gpu.vblankIrqRaised) cpu.raiseIrq(0x0001);
+        if (!gpu.vblankIrqRaised) { cpu.raiseIrq(0x0001); }
         gpu.vblankIrqRaised = false;
         gpu.hline = 0;
         ++gpu.frame;
@@ -473,7 +473,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         const high = gpu.img.buffer[gpu.img.index++] & 0xffff;
         gpu.result = (low | (high << 16)) >>> 0;
         gpu.transferTotal -= 2;
-        if (gpu.transferTotal <= 0) gpu.status &= ~0x08000000;
+        if (gpu.transferTotal <= 0) { gpu.status &= ~0x08000000; }
       }
       return gpu.result;
     },
@@ -490,8 +490,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
       const idle = !busy();
       const accepts = fifo.length === 0 && lineUntil <= now();
       let status = gpu.status & ~0x16000000;
-      if (!gpu.imageWrite && idle && !(dmaIndex > 0 && isPolyLine(dmaBuffer[0] >>> 24))) status |= 0x04000000;
-      if (!reading && accepts && gpu.dmaBlockReady()) status |= 0x10000000;
+      if (!gpu.imageWrite && idle && !(dmaIndex > 0 && isPolyLine(dmaBuffer[0] >>> 24))) { status |= 0x04000000; }
+      if (!reading && accepts && gpu.dmaBlockReady()) { status |= 0x10000000; }
       // bit 25 (DMA request) depends on the DMA direction: off 0, FIFO 1,
       // CPU to GP0 = bit 28, GPUREAD to CPU = bit 27
       let request = 0;
@@ -511,7 +511,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     // a DMA waiting for GPUSTAT.28: called once the current command is done
     dreqWaiter: null,
     commandDone: () => {
-      if (!gpu.dreqWaiter) return;
+      if (!gpu.dreqWaiter) { return; }
       const waiter = gpu.dreqWaiter;
       gpu.dreqWaiter = null;
       waiter();
@@ -520,7 +520,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     // GP0 from DMA and from the emulator itself: straight to the command
     // buffer, after the words the CPU queued
     wr32r1810: data => {
-      if (fifo.length) sync(true);
+      if (fifo.length) { sync(true); }
       renderCycles = 0;
       execute(data);
       addRenderTime(renderCycles);
@@ -533,7 +533,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     // GP0 written by the CPU
     cpuWriteGP0: data => {
       sync(false);
-      if (fifo.length >> 1 >= FIFO_SIZE) return; // full: the word is lost
+      if (fifo.length >> 1 >= FIFO_SIZE) { return; } // full: the word is lost
       fifo.push(data, now());
       sync(false);
     },
@@ -605,7 +605,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
           break;
         case 0x07: gpu.dispT = (data >> 0) & 0x3FF;
           gpu.dispB = (data >> 10) & 0x3FF;
-          if (gpu.dispB < gpu.dispT) gpu.dispB += 288;
+          if (gpu.dispB < gpu.dispT) { gpu.dispB += 288; }
           break;
         case 0x08:
           gpu.status &= 0xFF80FFFF;
@@ -632,7 +632,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       // GPUSTAT 15 only while GP1(09h) allows it
       if (bitfield !== undefined) {
         gpu.status = (gpu.status & ~0x1ff) | (bitfield & 0x1ff);
-        if (allowTextureDisable) gpu.status = (gpu.status & ~0x8000) | ((bitfield & 0x800) << 4);
+        if (allowTextureDisable) { gpu.status = (gpu.status & ~0x8000) | ((bitfield & 0x800) << 4); }
       }
 
       gpu.tx = ((gpu.status >>> 0) & 15) << 6;
@@ -652,7 +652,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
 
     // Interrupt request: sets GPUSTAT.24 and raises IRQ1 until GP1(02h)
     pckt1F: data => {
-      if (gpu.status & 0x01000000) return;
+      if (gpu.status & 0x01000000) { return; }
       gpu.status |= 0x01000000;
       cpu.raiseIrq(0x0002);
     },
@@ -850,7 +850,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
         dy = (dy & 0x1ff);
         sx = (sx & 0x3ff);
         sy = (sy & 0x1ff);
-        if (w * h) renderer.moveImage(sx, sy, dx, dy, w, h);
+        if (w * h) { renderer.moveImage(sx, sy, dx, dy, w, h); }
       }
     },
 
@@ -895,7 +895,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
       // bits 0-10 to GPUSTAT 0-10; texture disable (bit 11) to GPUSTAT 15 only
       // while GP1(09h) allows it
       gpu.status = (gpu.status & 0xffff7800) | (data[0] & 0x7ff);
-      if (allowTextureDisable) gpu.status |= (data[0] & 0x800) << 4;
+      if (allowTextureDisable) { gpu.status |= (data[0] & 0x800) << 4; }
       gpu.txflip = (data[0] >>> 12) & 1;
       gpu.tyflip = (data[0] >>> 13) & 1;
       gpu.updateTexturePage();
@@ -958,7 +958,7 @@ mdlr('enge:psx:gpu', ({ include }) => {
     },
 
     dmaTransferMode0200: function (addr, blck) {
-      if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) { return 0x10; }
       var transferSize = (blck >> 16) * (blck & 0xFFFF) << 1;
       // games can park code in VRAM and read it back, so this must invalidate
       clearCodeCache(addr, transferSize << 1);
@@ -999,8 +999,8 @@ mdlr('enge:psx:gpu', ({ include }) => {
     // to continue with, or the terminating link once done. Bits 0-1 of the
     // links are ignored; a list may loop forever, as on hardware.
     dmaLinkedListStep: function (addr, budget) {
-      if (fifo.length) sync(true);
-      if (dmaIndex !== 0) abort('not implemented')
+      if (fifo.length) { sync(true); }
+      if (dmaIndex !== 0) { abort('not implemented') }
 
       const data = dmaBuffer;
       let words = 0;
@@ -1037,10 +1037,10 @@ mdlr('enge:psx:gpu', ({ include }) => {
               const value = ram.getInt32(addr, true);
               addr += 4; --nitem; ++words;
 
-              if (isPolyLineTerminator(packetId, i, value)) break;
+              if (isPolyLineTerminator(packetId, i, value)) { break; }
               data[i] = value;
             }
-            if (nitem < 0) break; // a packet running past its node is dropped
+            if (nitem < 0) { break; } // a packet running past its node is dropped
             nextPrimitive();
             handlers[packetId].call(gpu, data, i);
             gpu.updated = true;
@@ -1052,26 +1052,26 @@ mdlr('enge:psx:gpu', ({ include }) => {
             let anyFrac = 0;
             for (var i = 0; i < packetSizes[packetId]; ++i) {
               data[i] = ram.getInt32(addr, true);
-              if (precise) anyFrac |= (dmaFrac[i] = pgxp.fracAt(addr, data[i]));
+              if (precise) { anyFrac |= (dmaFrac[i] = pgxp.fracAt(addr, data[i])); }
               addr += 4; --nitem;
               ++words;
             }
-            if (nitem < 0) break; // a packet running past its node is dropped
-            if (precise && pgxp.debug) notePolygonVertices(packetId, (i, word) => pgxp.noteVertex(packetAddr + 4 * i, word, dmaFrac[i]), data);
+            if (nitem < 0) { break; } // a packet running past its node is dropped
+            if (precise && pgxp.debug) { notePolygonVertices(packetId, (i, word) => pgxp.noteVertex(packetAddr + 4 * i, word, dmaFrac[i]), data); }
             nextPrimitive();
             gpu.pgxpFrac = anyFrac ? dmaFrac : null;
             handlers[packetId].call(gpu, data, 0);
             gpu.pgxpFrac = null;
-            if ((packetId & 0xe0) !== 0x40) addRenderTime(renderTime(packetId, data));
+            if ((packetId & 0xe0) !== 0x40) { addRenderTime(renderTime(packetId, data)); }
             gpu.updated = true;
           }
         }
-        if (header & 0x00800000) return { next: header & 0x00ffffff, words, done: true };
+        if (header & 0x00800000) { return { next: header & 0x00ffffff, words, done: true }; }
         node = header & 0x001ffffc;
         // the FIFO fills up once the GPU falls behind the walk: stop here
         // and go on when it has caught up (see dma.js gpuPaced). Walking
         // DMA_RUN_AHEAD cycles ahead keeps the steps (events) few.
-        if (drawStart > now() + words + DMA_RUN_AHEAD) break;
+        if (drawStart > now() + words + DMA_RUN_AHEAD) { break; }
       }
 
       return { next: node, words, done: false };
@@ -1084,19 +1084,19 @@ mdlr('enge:psx:gpu', ({ include }) => {
       for (;;) {
         const step = gpu.dmaLinkedListStep(addr, 0x100000 - total);
         total += step.words;
-        if (step.done || total >= 0x100000) return total;
+        if (step.done || total >= 0x100000) { return total; }
         addr = step.next;
       }
     },
 
     dmaLinkedListMode0002: function (addr, blck) {
-      if (!addr) return;
+      if (!addr) { return; }
       if ((addr & ~3) === 0) {
         //return (blck >> 16) * (blck & 0xFFFF);
         throw 43;
       }
-      if (blck >= 0x10000) abort('unexpected blck size');
-      if (blck === 0) blck = 0x10000;
+      if (blck >= 0x10000) { abort('unexpected blck size'); }
+      if (blck === 0) { blck = 0x10000; }
       addr = addr & 0x001fffff;
       let transferSize = blck;
 

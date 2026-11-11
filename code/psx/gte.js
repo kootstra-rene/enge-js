@@ -80,7 +80,7 @@ mdlr('enge:psx:gte', ({ include }) => {
   const chk = (n, value) => {
     if (value >= P43) { regs[0x3f] |= flag[31 - n]; }
     else if (value < -P43) { regs[0x3f] |= flag[28 - n]; }
-    else return value;
+    else { return value; }
     return value - Math.floor((value + P43) * (1.0 / P44)) * P44;
   };
 
@@ -101,8 +101,8 @@ mdlr('enge:psx:gte', ({ include }) => {
 
   // MAC0 is 32 bit: flag 16 (positive) / 15 (negative) overflow
   const setMac0 = (value) => {
-    if (value > 2147483647.0) regs[0x3f] |= flag[16];
-    else if (value < -2147483648.0) regs[0x3f] |= flag[15];
+    if (value > 2147483647.0) { regs[0x3f] |= flag[16]; }
+    else if (value < -2147483648.0) { regs[0x3f] |= flag[15]; }
     mac[0] = value | 0;
     return value;
   };
@@ -115,7 +115,7 @@ mdlr('enge:psx:gte', ({ include }) => {
       lzcr = 32;
     }
     else {
-      for (var idx = 31; (value & (1 << idx)) === 0 && idx >= 0; --idx);
+      for (var idx = 31; (value & (1 << idx)) === 0 && idx >= 0; --idx){ ; }
       lzcr = 31 - idx;
     }
   };
@@ -360,7 +360,7 @@ mdlr('enge:psx:gte', ({ include }) => {
     // even when sf=0, while the IR3 value saturates as usual
     setIr(1, mac[1], lm); setIr(2, mac[2], lm);
     const z12 = Math.floor(sum3 * (1.0 / 4096.0));
-    if (z12 < -0x8000 || z12 > 0x7fff) regs[0x3f] |= flag[22];
+    if (z12 < -0x8000 || z12 > 0x7fff) { regs[0x3f] |= flag[22]; }
     ir[3] = mac[3] < (lm ? 0 : -0x8000) ? (lm ? 0 : -0x8000) : mac[3] > 0x7fff ? 0x7fff : mac[3];
 
     // SZ3 = MAC3 SAR ((1-sf)*12), taken from the full 44 bit sum: with sf=0
@@ -527,17 +527,17 @@ mdlr('enge:psx:gte', ({ include }) => {
   // the run on the old value. When only one output differs, the register is
   // taken as its new high half with its old low half (low byte for 16 bits).
   const withLateWrites = (commandId, at, run) => {
-    if (at === undefined || !lateWrites.size) return run();
+    if (at === undefined || !lateWrites.size) { return run(); }
     const key = commandKey(commandId);
     const olds = [], mixes = [];
     for (const [reg, write] of lateWrites) {
       const n = at - write.at - 1;
       if (n < 0 || n > 3) { lateWrites.delete(reg); continue; }
       const letter = writeToUse[`${key}:${reg}`]?.[n];
-      if (letter === 'O') olds.push([reg, write.old]);
-      else if (letter === 'X') mixes.push([reg, write.old]);
+      if (letter === 'O') { olds.push([reg, write.old]); }
+      else if (letter === 'X') { mixes.push([reg, write.old]); }
     }
-    if (!olds.length && !mixes.length) return run();
+    if (!olds.length && !mixes.length) { return run(); }
 
     const putBack = list => list.map(([reg, old]) => {
       const now = gte.get(reg);
@@ -546,7 +546,7 @@ mdlr('enge:psx:gte', ({ include }) => {
     });
     const restore = restores => {
       for (const [reg, now, stale] of restores) {
-        if (gte.get(reg) === stale) setQuiet(reg, now);
+        if (gte.get(reg) === stale) { setQuiet(reg, now); }
       }
     };
 
@@ -568,7 +568,8 @@ mdlr('enge:psx:gte', ({ include }) => {
     const first = differ.indexOf(true);
     if (differ.indexOf(true, first + 1) >= 0) {
       outputUnits[first][2](fromOld[first]);
-    } else {
+    }
+    else {
       // a single output: it is computed from the low half of the old value
       // and the high half of the new one (the low byte, for a register that
       // differs only in its low half)
@@ -623,7 +624,7 @@ mdlr('enge:psx:gte', ({ include }) => {
     },
 
     set: (regId, data, at) => {
-      if (at !== undefined && lateRegs.has(regId)) lateWrites.set(regId, { at, old: gte.get(regId) });
+      if (at !== undefined && lateRegs.has(regId)) { lateWrites.set(regId, { at, old: gte.get(regId) }); }
       if (regId === 0x1e) { lzcsAt = at; lzcrBefore = lzcr; }
       setQuiet(regId, data);
     },

@@ -23,7 +23,8 @@ mdlr('enge:psx:index', ({ include }) => {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === 'visible') {
       hasFocus = true;
-    } else {
+    }
+    else {
       hasFocus = false;
       spu.silence();
     }
@@ -50,7 +51,7 @@ mdlr('enge:psx:index', ({ include }) => {
   const mainLoop = (stamp) => {
     const delta = stamp - context.timeStamp;
     context.timeStamp = stamp;
-    if (!running || !hasFocus || delta > 250) return;
+    if (!running || !hasFocus || delta > 250) { return; }
 
     context.realtime += delta;
 
@@ -61,7 +62,7 @@ mdlr('enge:psx:index', ({ include }) => {
     psx.setEvent(frameEvent, +totalCycles);
 
     let entry = getCacheEntry(cpu.pc);
-    if (!entry) return abort();
+    if (!entry) { return abort(); }
 
     handleGamePads();
 
@@ -192,7 +193,7 @@ mdlr('enge:psx:index', ({ include }) => {
 
   const loadCueFromURL = async cueURL => {
     const response = await fetch(cueURL);
-    if (!response.ok) throw new Error(`CUE request returned HTTP ${response.status}`);
+    if (!response.ok) { throw new Error(`CUE request returned HTTP ${response.status}`); }
     const cue = parseCue(await response.text(), cueURL);
     const image = await cdr.setCdImageURLs(cue.files.map(file => file.url));
     const fileBases = [];
@@ -230,7 +231,7 @@ mdlr('enge:psx:index', ({ include }) => {
     for (const cueFileEntry of cue.files) {
       const name = cueFileEntry.name.replace(/\\/g, '/').split('/').pop().toLowerCase();
       const selectedFile = filesByName.get(name);
-      if (!selectedFile) throw new Error(`CUE references missing BIN file: ${cueFileEntry.name}`);
+      if (!selectedFile) { throw new Error(`CUE references missing BIN file: ${cueFileEntry.name}`); }
       dataBuffers.push(await selectedFile.arrayBuffer());
     }
     const image = cdr.setCdImages(dataBuffers);
@@ -291,7 +292,7 @@ mdlr('enge:psx:index', ({ include }) => {
 
   const loadBiosFromURL = async url => {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`BIOS request returned HTTP ${response.status}`);
+    if (!response.ok) { throw new Error(`BIOS request returned HTTP ${response.status}`); }
     loadFileData(await response.arrayBuffer(), new URL(url, document.baseURI).href);
   };
 
@@ -306,7 +307,7 @@ mdlr('enge:psx:index', ({ include }) => {
   let biosBooted = false;
 
   const bootBiosIfReady = () => {
-    if (biosBooted || loadedBiosId === 'unloaded' || loadedGameId === 'unloaded') return;
+    if (biosBooted || loadedBiosId === 'unloaded' || loadedGameId === 'unloaded') { return; }
     bios();
     biosBooted = true;
     running = true;
@@ -318,13 +319,13 @@ mdlr('enge:psx:index', ({ include }) => {
 
   const updateStateStatus = text => {
     const status = document.getElementById('state-status');
-    if (status) status.textContent = text;
+    if (status) { status.textContent = text; }
   };
 
   const updateStateControls = () => {
     for (const id of ['save-state', 'load-state', 'download-state', 'upload-state', 'cloud-save-state', 'cloud-load-state']) {
       const button = document.getElementById(id);
-      if (button) button.disabled = !stateReady;
+      if (button) { button.disabled = !stateReady; }
     }
   };
 
@@ -376,7 +377,7 @@ mdlr('enge:psx:index', ({ include }) => {
   const base64ToBytes = value => {
     const binary = atob(value);
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; ++i) bytes[i] = binary.charCodeAt(i);
+    for (let i = 0; i < binary.length; ++i) { bytes[i] = binary.charCodeAt(i); }
     return bytes;
   };
 
@@ -384,27 +385,27 @@ mdlr('enge:psx:index', ({ include }) => {
     if (value === null || typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
       return value;
     }
-    if (typeof value === 'function' || value === undefined) return undefined;
+    if (typeof value === 'function' || value === undefined) { return undefined; }
     if (ArrayBuffer.isView(value)) {
       return {
         type: value.constructor.name,
         data: bytesToBase64(new Uint8Array(value.buffer, value.byteOffset, value.byteLength))
       };
     }
-    if (seen.has(value)) return undefined;
+    if (seen.has(value)) { return undefined; }
     seen.add(value);
-    if (Array.isArray(value)) return value.map(item => snapshotValue(item, seen));
+    if (Array.isArray(value)) { return value.map(item => snapshotValue(item, seen)); }
 
     const result = {};
     for (const [key, item] of Object.entries(value)) {
       const snapshot = snapshotValue(item, seen);
-      if (snapshot !== undefined) result[key] = snapshot;
+      if (snapshot !== undefined) { result[key] = snapshot; }
     }
     return result;
   };
 
   const restoreValue = (target, snapshot) => {
-    if (!target || !snapshot) return;
+    if (!target || !snapshot) { return; }
     if (ArrayBuffer.isView(target) && snapshot.type) {
       const bytes = base64ToBytes(snapshot.data);
       new Uint8Array(target.buffer, target.byteOffset, target.byteLength).set(bytes.subarray(0, target.byteLength));
@@ -415,7 +416,7 @@ mdlr('enge:psx:index', ({ include }) => {
       return;
     }
     for (const [key, value] of Object.entries(snapshot)) {
-      if (!(key in target) || typeof target[key] === 'function') continue;
+      if (!(key in target) || typeof target[key] === 'function') { continue; }
       if (value && value.type && ArrayBuffer.isView(target[key])) {
         restoreValue(target[key], value);
       }
@@ -429,13 +430,13 @@ mdlr('enge:psx:index', ({ include }) => {
   };
 
   const restoreSnapshot = snapshot => {
-    if (snapshot === null || typeof snapshot !== 'object') return snapshot;
+    if (snapshot === null || typeof snapshot !== 'object') { return snapshot; }
     if (snapshot.type && snapshot.data) {
       const bytes = base64ToBytes(snapshot.data);
       const Type = globalThis[snapshot.type];
       return Type ? new Type(bytes.buffer) : bytes;
     }
-    if (Array.isArray(snapshot)) return snapshot.map(restoreSnapshot);
+    if (Array.isArray(snapshot)) { return snapshot.map(restoreSnapshot); }
     return Object.fromEntries(Object.entries(snapshot).map(([key, value]) => [key, restoreSnapshot(value)]));
   };
 
@@ -480,7 +481,7 @@ mdlr('enge:psx:index', ({ include }) => {
         context: snapshotValue(context)
       };
       const encoded = JSON.stringify(state);
-      if (!persist) return encoded;
+      if (!persist) { return encoded; }
       return storedState(encoded);
     }
     finally {
@@ -495,10 +496,10 @@ mdlr('enge:psx:index', ({ include }) => {
     if (loadedBiosId === 'unloaded' || loadedGameId === 'unloaded') {
       throw new Error('PlayStation is not ready yet; wait for the BIOS and game to finish loading before loading a state');
     }
-    if (!encoded) return false;
+    if (!encoded) { return false; }
 
     const state = JSON.parse(encoded);
-    if (state.version !== 3) throw new Error('Save state was created by an incompatible emulator build');
+    if (state.version !== 3) { throw new Error('Save state was created by an incompatible emulator build'); }
     const expected = currentStateCompatibility();
     const actual = state.compatibility || {};
     for (const key of Object.keys(expected)) {
@@ -531,7 +532,7 @@ mdlr('enge:psx:index', ({ include }) => {
   };
 
   const updateStateButton = (button, text) => {
-    if (!button) return;
+    if (!button) { return; }
     const original = button.textContent;
     button.textContent = text;
     setTimeout(() => { button.textContent = original; }, 1200);
@@ -578,7 +579,7 @@ mdlr('enge:psx:index', ({ include }) => {
       var textSegmentOffset = view.getInt32(0x18, true);
       var fileContentLength = view.getInt32(0x1C, true);
       for (var i = 0; i < fileContentLength; ++i) {
-        if (0x800 + i >= arrayBuffer.byteLength) continue;
+        if (0x800 + i >= arrayBuffer.byteLength) { continue; }
         ram.setInt8(textSegmentOffset++ & 0x001fffff, view.getInt8(0x800 + i, true), true);
       }
 
@@ -637,20 +638,20 @@ mdlr('enge:psx:index', ({ include }) => {
 
       let i = 0;
       begin = i;
-      while ((i < lastLoc) && isDataSector(i)) ++i;
+      while ((i < lastLoc) && isDataSector(i)) { ++i; }
       end = i;
-      while ((i < lastLoc) && isEmptySector(i)) ++i;
+      while ((i < lastLoc) && isEmptySector(i)) { ++i; }
       tracks.push({ id: 1, begin, end, data: true });
 
       let id = 2;
       if (i < lastLoc) {
         begin = i;
         while (i < lastLoc) {
-          while ((i < lastLoc) && !isEmptySector(i)) ++i;
+          while ((i < lastLoc) && !isEmptySector(i)) { ++i; }
           end = i;
-          while ((i < lastLoc) && isEmptySector(i)) ++i;
+          while ((i < lastLoc) && isEmptySector(i)) { ++i; }
           lead = i;
-          if ((lead - end) < 75) continue;
+          if ((lead - end) < 75) { continue; }
           tracks.push({ id, begin, end, audio: true });
           begin = i;
           id++;
@@ -807,31 +808,35 @@ mdlr('enge:psx:index', ({ include }) => {
           if (quoted && text[index + 1] === '"') {
             field += '"';
             index += 1;
-          } else {
+          }
+          else {
             quoted = !quoted;
           }
-        } else if (character === ',' && !quoted) {
+        }
+        else if (character === ',' && !quoted) {
           row.push(field);
           field = '';
-        } else if ((character === '\n' || character === '\r') && !quoted) {
-          if (character === '\r' && text[index + 1] === '\n') index += 1;
+        }
+        else if ((character === '\n' || character === '\r') && !quoted) {
+          if (character === '\r' && text[index + 1] === '\n') { index += 1; }
           row.push(field);
-          if (row.some(value => value.trim())) rows.push(row);
+          if (row.some(value => value.trim())) { rows.push(row); }
           row = [];
           field = '';
-        } else {
+        }
+        else {
           field += character;
         }
       }
       if (field || row.length) {
         row.push(field);
-        if (row.some(value => value.trim())) rows.push(row);
+        if (row.some(value => value.trim())) { rows.push(row); }
       }
-      if (!rows.length) return [];
+      if (!rows.length) { return []; }
       const headers = rows.shift().map(value => value.trim().toLowerCase());
       const nameIndex = headers.indexOf('name');
       const urlIndex = headers.indexOf('url');
-      if (nameIndex < 0 || urlIndex < 0) throw new Error('games.csv must have name and url columns');
+      if (nameIndex < 0 || urlIndex < 0) { throw new Error('games.csv must have name and url columns'); }
       return rows.map(values => ({
         name: (values[nameIndex] || '').trim(),
         url: (values[urlIndex] || '').trim(),
@@ -840,11 +845,11 @@ mdlr('enge:psx:index', ({ include }) => {
     const loadBiosCatalog = async () => {
       const biosList = document.getElementById('bios-list');
       const biosListStatus = document.getElementById('bios-list-status');
-      if (!biosList || biosList.dataset.loaded === 'true') return;
+      if (!biosList || biosList.dataset.loaded === 'true') { return; }
       biosListStatus && (biosListStatus.textContent = 'Loading BIOS files...');
       try {
         const response = await fetch(biosCsvUrl, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        if (!response.ok) { throw new Error(`${response.status} ${response.statusText}`); }
         const bios = parseCsv(await response.text());
         biosList.replaceChildren();
         for (const biosFile of bios) {
@@ -884,11 +889,11 @@ mdlr('enge:psx:index', ({ include }) => {
     const loadGameCatalog = async () => {
       const gameList = document.getElementById('game-list');
       const gameListStatus = document.getElementById('game-list-status');
-      if (!gameList || gameList.dataset.loaded === 'true') return;
+      if (!gameList || gameList.dataset.loaded === 'true') { return; }
       gameListStatus && (gameListStatus.textContent = 'Loading games...');
       try {
         const response = await fetch(gamesCsvUrl, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        if (!response.ok) { throw new Error(`${response.status} ${response.statusText}`); }
         const games = parseCsv(await response.text());
         gameList.replaceChildren();
         for (const game of games) {
@@ -932,7 +937,7 @@ mdlr('enge:psx:index', ({ include }) => {
     cloudSaveStateButton?.addEventListener('click', async () => {
       try {
         const encoded = saveState(false);
-        if (!encoded) throw new Error('Save state is unavailable');
+        if (!encoded) { throw new Error('Save state is unavailable'); }
         await cloudRequest('/api/state', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -969,7 +974,7 @@ mdlr('enge:psx:index', ({ include }) => {
       cloudSaveButton?.addEventListener('click', async () => {
         try {
           const card = joy.devices[slot].getMemoryCard?.();
-          if (!card) throw new Error(`Memory card ${slot + 1} is unavailable`);
+          if (!card) { throw new Error(`Memory card ${slot + 1} is unavailable`); }
           await cloudRequest(cloudPath, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/octet-stream' },
@@ -988,7 +993,7 @@ mdlr('enge:psx:index', ({ include }) => {
       cloudLoadButton?.addEventListener('click', async () => {
         try {
           const buffer = await (await cloudRequest(cloudPath)).arrayBuffer();
-          if (buffer.byteLength !== 128 * 1024) throw new Error('Cloud memory card must be exactly 128 KB');
+          if (buffer.byteLength !== 128 * 1024) { throw new Error('Cloud memory card must be exactly 128 KB'); }
           joy.devices[slot].setMemoryCard(new Uint8Array(buffer));
           writeStorageStream(`card${slot + 1}`, buffer);
           updateStateButton(cloudLoadButton, 'Cloud Card Loaded');
@@ -1052,7 +1057,7 @@ mdlr('enge:psx:index', ({ include }) => {
       button?.addEventListener('click', () => {
         try {
           const card = joy.devices[slot].getMemoryCard?.();
-          if (!card) throw new Error(`Memory card ${slot + 1} is unavailable`);
+          if (!card) { throw new Error(`Memory card ${slot + 1} is unavailable`); }
           downloadFile(card, `enge-memory-card-${slot + 1}.mcr`, 'application/octet-stream');
           updateStateButton(button, 'Downloaded');
         }
@@ -1068,7 +1073,7 @@ mdlr('enge:psx:index', ({ include }) => {
     uploadStateButton?.addEventListener('click', () => uploadStateInput?.click());
     uploadStateInput?.addEventListener('change', () => {
       const file = uploadStateInput.files?.[0];
-      if (!file) return;
+      if (!file) { return; }
       file.text().then(async encoded => {
         loadState(encoded);
         await storedState(encoded);
@@ -1092,11 +1097,11 @@ mdlr('enge:psx:index', ({ include }) => {
     }
     uploadMemoryCardInput?.addEventListener('change', () => {
       const file = uploadMemoryCardInput.files?.[0];
-      if (!file) return;
+      if (!file) { return; }
       const slot = uploadMemoryCardSlot;
       const button = uploadMemoryCardButton(slot);
       file.arrayBuffer().then(buffer => {
-        if (buffer.byteLength !== 128 * 1024) throw new Error('Memory card must be exactly 128 KB');
+        if (buffer.byteLength !== 128 * 1024) { throw new Error('Memory card must be exactly 128 KB'); }
         joy.devices[slot].setMemoryCard(new Uint8Array(buffer));
         writeStorageStream(`card${slot + 1}`, buffer);
         updateStateButton(button, 'Card Loaded');
@@ -1112,7 +1117,7 @@ mdlr('enge:psx:index', ({ include }) => {
     changeDiscButton?.addEventListener('click', () => changeDiscInput?.click());
     changeDiscInput?.addEventListener('change', () => {
       const files = [...(changeDiscInput.files || [])];
-      if (!files.length) return;
+      if (!files.length) { return; }
       changeDisc(files).then(() => {
         updateStateButton(changeDiscButton, 'Disc Changed');
       }).catch(error => {
@@ -1159,7 +1164,7 @@ mdlr('enge:psx:index', ({ include }) => {
         // the renderer applies this on the next frame; hide it now as well so
         // the change shows while paused
         const canvas = document.getElementById('ambilight');
-        if (canvas) canvas.hidden = !enabled;
+        if (canvas) { canvas.hidden = !enabled; }
       };
       updateAmbilight();
       ambilight.addEventListener('click', () => {
@@ -1252,7 +1257,7 @@ mdlr('enge:psx:index', ({ include }) => {
     settingsList('controls')?.append(controllerRow);
     const updateControllerMode = () => {
       const analog = settings.controllerMode === 'analog';
-      for (const device of joy.devices) device.setControllerMode(analog ? 'analog' : 'digital');
+      for (const device of joy.devices) { device.setControllerMode(analog ? 'analog' : 'digital'); }
       controllerMode.textContent = analog ? 'Controller: Analog (DualShock)' : 'Controller: Digital';
       controllerMode.setAttribute('aria-pressed', String(analog));
     };
@@ -1266,13 +1271,13 @@ mdlr('enge:psx:index', ({ include }) => {
     stickHelp.textContent = 'Analog keyboard: arrows = left stick; I/J/K/L = right stick.';
     controllerRow.after(stickHelp);
     const closeMenu = () => {
-      if (!controlMenu) return;
+      if (!controlMenu) { return; }
       controlMenu.classList.remove('open');
       controlMenu.hidden = true;
       menuButton?.setAttribute('aria-expanded', 'false');
     };
     menuButton?.addEventListener('click', () => {
-      if (!controlMenu) return;
+      if (!controlMenu) { return; }
       controlMenu.hidden = false;
       controlMenu.classList.add('open');
       menuButton.setAttribute('aria-expanded', 'true');
@@ -1282,13 +1287,13 @@ mdlr('enge:psx:index', ({ include }) => {
     const networkMenu = document.getElementById('network-menu');
     const closeNetworkMenuButton = document.getElementById('close-network-menu');
     const closeNetworkMenu = () => {
-      if (!networkMenu) return;
+      if (!networkMenu) { return; }
       networkMenu.classList.remove('open');
       networkMenu.hidden = true;
       cloudButton?.setAttribute('aria-expanded', 'false');
     };
     cloudButton?.addEventListener('click', () => {
-      if (!networkMenu) return;
+      if (!networkMenu) { return; }
       networkMenu.hidden = false;
       networkMenu.classList.add('open');
       cloudButton.setAttribute('aria-expanded', 'true');
@@ -1304,11 +1309,11 @@ mdlr('enge:psx:index', ({ include }) => {
     });
     closeMenuButton?.addEventListener('click', closeMenu);
     controlMenu?.addEventListener('click', event => {
-      if (event.target === controlMenu) closeMenu();
+      if (event.target === controlMenu) { closeMenu(); }
     });
     closeNetworkMenuButton?.addEventListener('click', closeNetworkMenu);
     networkMenu?.addEventListener('click', event => {
-      if (event.target === networkMenu) closeNetworkMenu();
+      if (event.target === networkMenu) { closeNetworkMenu(); }
     });
 
     const fullscreenButton = document.getElementById('fullscreen');
@@ -1328,7 +1333,7 @@ mdlr('enge:psx:index', ({ include }) => {
         const pseudoFullscreen = document.documentElement.classList.contains('enge-pseudo-fullscreen');
         if (nativeFullscreen) {
           const exit = document.exitFullscreen || document.webkitExitFullscreen;
-          if (exit) await exit.call(document);
+          if (exit) { await exit.call(document); }
         }
         else if (pseudoFullscreen) {
           document.documentElement.classList.remove('enge-pseudo-fullscreen');
@@ -1384,21 +1389,21 @@ mdlr('enge:psx:index', ({ include }) => {
 
 
     window.addEventListener("keydown", e => {
-      if (e.key === 'F12') return; // allow developer tools
-      if (e.key === 'F11') return; // allow full screen
-      if (e.key === 'F5') return; // allow page refresh
+      if (e.key === 'F12') { return; } // allow developer tools
+      if (e.key === 'F11') { return; } // allow full screen
+      if (e.key === 'F5') { return; } // allow page refresh
     }, false);
 
     window.addEventListener("keyup", e => {
-      if (e.key === '1' && e.ctrlKey) renderer.setMode('disp');
-      if (e.key === '2' && e.ctrlKey) renderer.setMode('draw');
-      if (e.key === '3' && e.ctrlKey) renderer.setMode('clut8');
-      if (e.key === '4' && e.ctrlKey) renderer.setMode('clut4');
-      if (e.key === '0' && e.ctrlKey) renderer.setMode('page2');
+      if (e.key === '1' && e.ctrlKey) { renderer.setMode('disp'); }
+      if (e.key === '2' && e.ctrlKey) { renderer.setMode('draw'); }
+      if (e.key === '3' && e.ctrlKey) { renderer.setMode('clut8'); }
+      if (e.key === '4' && e.ctrlKey) { renderer.setMode('clut4'); }
+      if (e.key === '0' && e.ctrlKey) { renderer.setMode('page2'); }
 
-      if (e.key === 'F12') return; // allow developer tools
-      if (e.key === 'F11') return; // allow full screen
-      if (e.key === 'F5') return; // allow page refresh
+      if (e.key === 'F12') { return; } // allow developer tools
+      if (e.key === 'F11') { return; } // allow full screen
+      if (e.key === 'F5') { return; } // allow page refresh
     }, false);
 
     readStorageStream('bios', data => {

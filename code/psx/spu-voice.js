@@ -118,9 +118,10 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       e.step = ((decreasing !== invert) || (invert && exponential)) ? ~base : base;
       if (rate < 44) {
         e.step <<= (11 - (rate >> 2));
-      } else if (rate >= 48) {
+      }
+      else if (rate >= 48) {
         e.increment >>= ((rate >> 2) - 11);
-        if ((rate & mask) !== mask) e.increment = Math.max(e.increment, 1);
+        if ((rate & mask) !== mask) { e.increment = Math.max(e.increment, 1); }
       }
     };
     // one sample: the new level
@@ -130,12 +131,15 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       if (e.exponential) {
         if (e.decreasing) {
           step = (step * level) >> 15;
-        } else if (level >= 0x6000) {
+        }
+        else if (level >= 0x6000) {
           if (e.rate < 40) {
             step >>= 2;
-          } else if (e.rate >= 44) {
+          }
+          else if (e.rate >= 44) {
             increment >>= 2;
-          } else {
+          }
+          else {
             step >>= 1;
             increment >>= 1;
           }
@@ -143,11 +147,11 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       }
       e.counter += increment;
       e.stepped = (e.counter & 0x8000) !== 0;
-      if (!e.stepped) return level;
+      if (!e.stepped) { return level; }
       e.counter = 0;
       const next = level + step;
-      if (!e.decreasing) return Math.max(-0x8000, Math.min(0x7fff, next));
-      if (e.invert) return Math.max(-0x7fff, Math.min(0, next));
+      if (!e.decreasing) { return Math.max(-0x8000, Math.min(0x7fff, next)); }
+      if (e.invert) { return Math.max(-0x7fff, Math.min(0, next)); }
       return Math.max(0, next);
     };
     return e;
@@ -186,9 +190,9 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     adsrLevel = adsr.tick(adsrLevel);
     if (adsr.stepped) {
       switch (adsrState) {
-        case 1: if (adsrLevel >= 0x7fff) adsrPhase(2); break;
-        case 2: if ((adsrLevel >> 11) <= (regs[0x8] & 0xf)) adsrPhase(3); break;
-        case 4: if (adsrLevel <= 0) adsrState = 0; break;
+        case 1: if (adsrLevel >= 0x7fff) { adsrPhase(2); } break;
+        case 2: if ((adsrLevel >> 11) <= (regs[0x8] & 0xf)) { adsrPhase(3); } break;
+        case 4: if (adsrLevel <= 0) { adsrState = 0; } break;
       }
     }
     regs[0x0c] = adsrLevel;
@@ -206,7 +210,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
   // a voice volume register: fixed (bits 0-14, times two) or a sweep from
   // the current volume
   const setVolume = (data, current, sweep) => {
-    if (!(data & 0x8000)) return { level: ((data & 0x7fff) << 17) >> 16, sweeping: false };
+    if (!(data & 0x8000)) { return { level: ((data & 0x7fff) << 17) >> 16, sweeping: false }; }
     sweep.reset(data & 0x7f, 0x7f, (data & 0x2000) !== 0, (data & 0x4000) !== 0, (data & 0x1000) !== 0);
     return { level: current, sweeping: sweep.increment > 0 };
   };
@@ -278,8 +282,8 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
 
     setId(voiceId) {
       id = voiceId;
-      if (voiceId === 1) voice.capture = 0x0800;
-      if (voiceId === 3) voice.capture = 0x0c00;
+      if (voiceId === 1) { voice.capture = 0x0800; }
+      if (voiceId === 3) { voice.capture = 0x0c00; }
       return voice;
     },
 
@@ -292,14 +296,14 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       // was keyed off and its envelope reached 0: its address still moves,
       // ENDX still latches and the IRQ address still matches. Only a voice
       // never keyed on is skipped.
-      if (!started) return 0;
+      if (!started) { return 0; }
 
       // After a key-on the voice fetches the first block's header for three
       // samples, taking its loop start whatever the CPU wrote, and starts on
       // the fourth.
       if (startup) {
         --startup;
-        if (startup < 3 && (ram[blockAddress + 1] & 4)) repeatAddress = blockAddress;
+        if (startup < 3 && (ram[blockAddress + 1] & 4)) { repeatAddress = blockAddress; }
         return 0;
       }
 
@@ -311,7 +315,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
         const factor = Math.max(-0x8000, Math.min(0x7fff, previousVoiceOutput)) + 0x8000;
         step = ((step * factor) >> 15) & 0xffff;
       }
-      if (!hasSamples) decodeBlock(ram);
+      if (!hasSamples) { decodeBlock(ram); }
       pitchCounter += Math.min(step, 0x4000);
       if ((pitchCounter >>> 12) >= 28) {
         pitchCounter -= 28 << 12;
@@ -322,14 +326,14 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
       spu.checkIrq(voice);
 
       const sample = interpolate();
-      if (adsrState) mixADSR();
+      if (adsrState) { mixADSR(); }
       const enveloped = (sample * adsrLevel) >> 15;
       voice.lastVolume = enveloped;
 
       audio[0] = ((enveloped * volumeLeft) >> 15) / 0x8000;
       audio[1] = ((enveloped * volumeRight) >> 15) / 0x8000;
-      if (sweepingLeft) volumeLeft = sweepLeft.tick(volumeLeft);
-      if (sweepingRight) volumeRight = sweepRight.tick(volumeRight);
+      if (sweepingLeft) { volumeLeft = sweepLeft.tick(volumeLeft); }
+      if (sweepingRight) { volumeRight = sweepRight.tick(volumeRight); }
 
       return adsrState;
     },
@@ -378,7 +382,7 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
     },
 
     rd16(addr) {
-      if ((addr & 15) === 0xe) return (repeatAddress >>> 3) & 0xffff;
+      if ((addr & 15) === 0xe) { return (repeatAddress >>> 3) & 0xffff; }
       return regs[addr & 15];
     },
 
@@ -406,14 +410,14 @@ mdlr('enge:psx:spu-voice', ({ include }) => {
         case 0x8:
         case 0xa:
           // a new rate applies to the phase in progress
-          if (adsrState) adsrPhase(adsrState);
+          if (adsrState) { adsrPhase(adsrState); }
           break;
         // case 0xc:
         //   adsrLevel = data << 16;
         //   break;
         case 0xe:
           repeatAddress = data << 3;
-          if (started && adsrState) ignoreLoop = true;
+          if (started && adsrState) { ignoreLoop = true; }
           break;
       }
     }

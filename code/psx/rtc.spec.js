@@ -42,7 +42,7 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
         const end = psx.clock + cycles;
         for (;;) {
           const due = events.filter(e => e.active && e.clock <= end);
-          if (!due.length) break;
+          if (!due.length) { break; }
           const event = due.reduce((a, b) => (b.clock < a.clock ? b : a));
           psx.clock = Math.max(psx.clock, event.clock);
           event.cb(event, psx.clock);
@@ -70,17 +70,17 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
     return out;
   };
 
-  const lines = n => { for (let i = 0; i < n; ++i) psx.nextLine(); };
+  const lines = n => { for (let i = 0; i < n; ++i) { psx.nextLine(); } };
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     globalThis.PSX_SPEED = PSX_SPEED;
   });
 
   after(async () => {
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 
@@ -319,7 +319,7 @@ mdlr('[test]enge:psx:rtc', ({ include, test }) => {
       let count = 0;
       for (let i = 0; i < 20; ++i) {
         psx.advance(100);
-        if (cpu.istat & 0x40) ++count;
+        if (cpu.istat & 0x40) { ++count; }
         cpu.istat = 0;
       }
       expect(count).to.eql(20);

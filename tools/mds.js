@@ -16,12 +16,12 @@ mdlr('enge:tools:mds', ({ include }) => {
     if (wide) {
       for (let i = offset; i + 1 < bytes.length; i += 2) {
         const c = bytes[i] | (bytes[i + 1] << 8);
-        if (!c) break;
+        if (!c) { break; }
         text += String.fromCharCode(c);
       }
     }
     else {
-      for (let i = offset; i < bytes.length && bytes[i]; i++) text += String.fromCharCode(bytes[i]);
+      for (let i = offset; i < bytes.length && bytes[i]; i++) { text += String.fromCharCode(bytes[i]); }
     }
     return text;
   }
@@ -33,9 +33,9 @@ mdlr('enge:tools:mds', ({ include }) => {
       throw new Error('not an MDS file (signature not found)');
     }
     const version = `${bytes[0x10]}.${bytes[0x11]}`;
-    if (bytes[0x10] !== 1) throw new Error(`unsupported MDS version ${version}`);
+    if (bytes[0x10] !== 1) { throw new Error(`unsupported MDS version ${version}`); }
     const mediumType = dv.getUint16(0x12, true);
-    if (mediumType & 0x10) throw new Error('DVD images are not supported');
+    if (mediumType & 0x10) { throw new Error('DVD images are not supported'); }
 
     const sessionCount = dv.getUint16(0x14, true);
     const sessionsOffset = dv.getUint32(0x50, true);
@@ -53,12 +53,12 @@ mdlr('enge:tools:mds', ({ include }) => {
       for (let b = 0; b < blockCount; b++) {
         const to = tracksOffset + b * 80;
         const point = bytes[to + 4];
-        if (point < 1 || point > 99) continue; // skip A0/A1/A2 lead-in entries
+        if (point < 1 || point > 99) { continue; } // skip A0/A1/A2 lead-in entries
 
         const extraOffset = dv.getUint32(to + 12, true);
         const footerOffset = dv.getUint32(to + 52, true);
         const fileCount = dv.getUint32(to + 48, true);
-        if (fileCount > 1) throw new Error(`track ${point}: split image files are not supported`);
+        if (fileCount > 1) { throw new Error(`track ${point}: split image files are not supported`); }
 
         let filename = null;
         if (footerOffset) {
@@ -89,8 +89,8 @@ mdlr('enge:tools:mds', ({ include }) => {
   }
 
   function cueType(track, mainSize) {
-    if (track.mode === TRACK_AUDIO) return 'AUDIO';
-    if (track.mode === TRACK_MODE1) return `MODE1/${mainSize}`;
+    if (track.mode === TRACK_AUDIO) { return 'AUDIO'; }
+    if (track.mode === TRACK_MODE1) { return `MODE1/${mainSize}`; }
     return `MODE2/${mainSize}`;
   }
 
@@ -104,8 +104,8 @@ mdlr('enge:tools:mds', ({ include }) => {
     const descriptor = parse(mdsData);
     const mdf = mdfData instanceof Uint8Array ? mdfData : new Uint8Array(mdfData);
     const tracks = descriptor.sessions.flatMap(session => session.tracks);
-    if (!tracks.length) throw new Error('no tracks found in MDS');
-    if (descriptor.sessions.length > 1) throw new Error('multi-session images are not supported');
+    if (!tracks.length) { throw new Error('no tracks found in MDS'); }
+    if (descriptor.sessions.length > 1) { throw new Error('multi-session images are not supported'); }
 
     const mainSize = tracks[0].sectorSize - tracks[0].subchannelSize;
     if (tracks.some(track => track.sectorSize - track.subchannelSize !== mainSize)) {
@@ -120,7 +120,7 @@ mdlr('enge:tools:mds', ({ include }) => {
     const regions = [];
     for (const track of tracks) {
       const gapBytes = track.startOffset - fileEnd;
-      if (gapBytes < 0 || gapBytes % track.sectorSize) throw new Error(`track ${track.number}: unexpected start offset`);
+      if (gapBytes < 0 || gapBytes % track.sectorSize) { throw new Error(`track ${track.number}: unexpected start offset`); }
       const gapSectors = gapBytes / track.sectorSize;
       const count = gapSectors + track.length;
       if (track.startOffset + track.length * track.sectorSize > mdf.length) {

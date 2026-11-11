@@ -27,35 +27,35 @@ mdlr('enge:utils', ({ include }) => {
   }
 
   const settings = (() => {
-		const object = JSON.parse(localStorage.getItem('config') || '{}');
-		const defaults = { quality: 1, overscan: 0.00, tvEffect: true, ambilight: true, fullResTextures: true, textureFilter: 0, spriteFilter: 0, fmvFilter: 0, screenFilter: 0 };
+    const object = JSON.parse(localStorage.getItem('config') || '{}');
+    const defaults = { quality: 1, overscan: 0.00, tvEffect: true, ambilight: true, fullResTextures: true, textureFilter: 0, spriteFilter: 0, fmvFilter: 0, screenFilter: 0 };
 
-		return Object.assign(defaults, object);
-	})();
+    return Object.assign(defaults, object);
+  })();
 
 
-	settings.updateQuality = quality => {
-		const elem = document.getElementById('quality');
-		const select = document.getElementById('quality-select');
-		// the renderer sets maxQuality: 8 when it can render VRAM at 8x
-		const max = settings.maxQuality || 4;
-		if (quality === true) {
-			settings.quality <<= 1;
-			if (settings.quality > max) settings.quality = 1;
-		}
-		else if (quality !== undefined) {
-			settings.quality = Math.min(Number(quality) || 1, max);
-		}
-		if (quality !== undefined) {
-			localStorage.setItem('config', JSON.stringify(settings));
-		}
-		if (select) select.value = String(settings.quality);
-		if (elem) elem.innerText = `Q${settings.quality}`;
-	}
+  settings.updateQuality = quality => {
+    const elem = document.getElementById('quality');
+    const select = document.getElementById('quality-select');
+    // the renderer sets maxQuality: 8 when it can render VRAM at 8x
+    const max = settings.maxQuality || 4;
+    if (quality === true) {
+      settings.quality <<= 1;
+      if (settings.quality > max) { settings.quality = 1; }
+    }
+    else if (quality !== undefined) {
+      settings.quality = Math.min(Number(quality) || 1, max);
+    }
+    if (quality !== undefined) {
+      localStorage.setItem('config', JSON.stringify(settings));
+    }
+    if (select) { select.value = String(settings.quality); }
+    if (elem) { elem.innerText = `Q${settings.quality}`; }
+  }
 
   window.addEventListener('storage', () => {
-		const object = JSON.parse(localStorage.getItem('config') || '{}');
-		Object.assign(settings, object);
+    const object = JSON.parse(localStorage.getItem('config') || '{}');
+    Object.assign(settings, object);
   });
 
   return { log, hex, readStorageStream, writeStorageStream, settings };

@@ -47,7 +47,7 @@ mdlr('enge:psx:spu-reverb', ({ include }) => {
   const writeHandlers = new Map([
     [0x1d84, data => vLOUT = s16(data)],
     [0x1d86, data => vROUT = s16(data)],
-    [0x1da2, data => { const m = u16d8(data); if (m !== mBASE) bufferAddress = m; mBASE = m; }],
+    [0x1da2, data => { const m = u16d8(data); if (m !== mBASE) { bufferAddress = m; } mBASE = m; }],
     [0x1dc0, data => dAPF1 = u16d8(data)],
     [0x1dc2, data => dAPF2 = u16d8(data)],
     [0x1dc4, data => vIIR = s16(data)],

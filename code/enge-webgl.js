@@ -373,17 +373,17 @@ mdlr('enge:webgl', ({ include }) => {
     }
     // Cache palette STP classification while the CPU-side VRAM mirror is unchanged.
     getClutInfo(cl, tm) {
-      if (tm === 2) return 3;
+      if (tm === 2) { return 3; }
 
       const key = (tm << 16) | (cl & 0xffff);
       const cached = this.clutInfoCache.get(key);
-      if (cached !== undefined) return cached;
+      if (cached !== undefined) { return cached; }
 
       var cx = ((cl >>> 0) & 0x03f) * 16;
       var cy = ((cl >>> 6) & 0x1ff);
 
-      if (tm === 1) var len = 256;
-      if (tm === 0) var len = 16;
+      if (tm === 1) { var len = 256; }
+      if (tm === 0) { var len = 16; }
 
       var info = 0;
       var offs = 1024 * cy + cx;
@@ -403,19 +403,19 @@ mdlr('enge:webgl', ({ include }) => {
       return info;
     }
     outsideDrawArea(x1, y1, x2, y2, x3, y3) {
-      if ((x1 < this.drawAreaL) && (x2 < this.drawAreaL) && (x3 < this.drawAreaL)) return true;
-      if ((x1 > this.drawAreaR) && (x2 > this.drawAreaR) && (x3 > this.drawAreaR)) return true;
-      if ((y1 < this.drawAreaT) && (y2 < this.drawAreaT) && (y3 < this.drawAreaT)) return true;
-      if ((y1 > this.drawAreaB) && (y2 > this.drawAreaB) && (y3 > this.drawAreaB)) return true;
+      if ((x1 < this.drawAreaL) && (x2 < this.drawAreaL) && (x3 < this.drawAreaL)) { return true; }
+      if ((x1 > this.drawAreaR) && (x2 > this.drawAreaR) && (x3 > this.drawAreaR)) { return true; }
+      if ((y1 < this.drawAreaT) && (y2 < this.drawAreaT) && (y3 < this.drawAreaT)) { return true; }
+      if ((y1 > this.drawAreaB) && (y2 > this.drawAreaB) && (y3 > this.drawAreaB)) { return true; }
       return false;
     }
     largePrimitive(x1, y1, x2, y2, x3, y3) {
-      if (Math.abs(x1 - x2) > 1023) return true;
-      if (Math.abs(x2 - x3) > 1023) return true;
-      if (Math.abs(x3 - x1) > 1023) return true;
-      if (Math.abs(y1 - y2) > 511) return true;
-      if (Math.abs(y2 - y3) > 511) return true;
-      if (Math.abs(y3 - y1) > 511) return true;
+      if (Math.abs(x1 - x2) > 1023) { return true; }
+      if (Math.abs(x2 - x3) > 1023) { return true; }
+      if (Math.abs(x3 - x1) > 1023) { return true; }
+      if (Math.abs(y1 - y2) > 511) { return true; }
+      if (Math.abs(y2 - y3) > 511) { return true; }
+      if (Math.abs(y3 - y1) > 511) { return true; }
       return false;
     }
     setupWebGL(canvas) {
@@ -573,7 +573,7 @@ mdlr('enge:webgl', ({ include }) => {
           const width = columns * qwf;
           const height = rows * qhf;
           const size = width * height * 4;
-          if (!this.copyPixels || this.copyPixels.length < size) this.copyPixels = new Uint8Array(size);
+          if (!this.copyPixels || this.copyPixels.length < size) { this.copyPixels = new Uint8Array(size); }
           gl.readPixels(tileX * qwf, tileY * qhf, width, height, gl.RGBA, gl.UNSIGNED_BYTE, this.copyPixels);
           for (let j = 0; j < rows; ++j) {
             for (let i = 0; i < columns; ++i) {
@@ -686,7 +686,7 @@ mdlr('enge:webgl', ({ include }) => {
         && (src !== fragmentShaderTexture)
         && (src !== fragmentShader24bit)
         && (src !== vertexShaderDraw)
-        && (src !== fragmentShaderDraw)) return;
+        && (src !== fragmentShaderDraw)) { return; }
 
       var shader = gl.createShader(type);
       gl.shaderSource(shader, src);
@@ -761,7 +761,7 @@ mdlr('enge:webgl', ({ include }) => {
     createTexture(mode) {
       var gl = this.gl;
       var texture = gl.createTexture();
-      if (mode === undefined) mode = gl.NEAREST;
+      if (mode === undefined) { mode = gl.NEAREST; }
 
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
@@ -805,8 +805,9 @@ mdlr('enge:webgl', ({ include }) => {
           gl.scissor(this.drawAreaL * qwf, dat, (this.drawAreaR - this.drawAreaL + 1) * qwf, dah);
         }
 
-        else
+        else {
           gl.scissor(0, 0, 1024 * qwf, 512 * qhf);
+        }
 
         this.vertexClip = clip;
       }
@@ -848,7 +849,7 @@ mdlr('enge:webgl', ({ include }) => {
       this.vertexBuffer.reset();
     }
     setBlendMode(mode) {
-      if (this.renderMode === mode) return;
+      if (this.renderMode === mode) { return; }
       this.flushVertexBuffer(true);
       this.renderMode = mode;
 
@@ -902,8 +903,8 @@ mdlr('enge:webgl', ({ include }) => {
       var x2 = this.drawOffsetX + ((data[xy2] << 21) >> 21);
       var y2 = this.drawOffsetY + ((data[xy2] << 5) >> 21);
 
-      if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
-      if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+      if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) { return; }
+      if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) { return; }
 
       //   let map;
       //   map = this.getGteCoord(x1, y1); if (map) { x1 = map.x+this.drawOffsetX; y1 = map.y+this.drawOffsetY; }
@@ -946,11 +947,11 @@ mdlr('enge:webgl', ({ include }) => {
     }
     drawTriangle(data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
       this.seenRender = true;
-      if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
+      if ((data[0] & 0x82000000) === 0x80000000 >> 0) { return; } //WebGL2 improvement fix;
 
-      if ((data[0] & 0x05000000) === 0x05000000) data[c1] = (data[c1] & 0xff000000) | 0x00808080; //- raw-texture
-      if ((data[0] & 0x05000000) === 0x05000000) data[c2] = (data[c2] & 0xff000000) | 0x00808080; //- raw-texture
-      if ((data[0] & 0x05000000) === 0x05000000) data[c3] = (data[c3] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) { data[c1] = (data[c1] & 0xff000000) | 0x00808080; } //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) { data[c2] = (data[c2] & 0xff000000) | 0x00808080; } //- raw-texture
+      if ((data[0] & 0x05000000) === 0x05000000) { data[c3] = (data[c3] & 0xff000000) | 0x00808080; } //- raw-texture
 
       var x1 = this.drawOffsetX + ((data[xy1] << 21) >> 21);
       var y1 = this.drawOffsetY + ((data[xy1] << 5) >> 21);
@@ -967,8 +968,8 @@ mdlr('enge:webgl', ({ include }) => {
         x3 += (pgxpFrac[xy3] & 15) / 16; y3 += ((pgxpFrac[xy3] >> 4) & 15) / 16;
       }
 
-      if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
-      if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
+      if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) { return; }
+      if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) { return; }
 
       var textured = (data[0] & 0x04000000) === 0x04000000;
 
@@ -1016,8 +1017,8 @@ mdlr('enge:webgl', ({ include }) => {
     drawRectangle(data, tx, ty, cl) {
       this.seenRender = true;
 
-      if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
-      if ((data[0] & 0x05000000) === 0x05000000) data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
+      if ((data[0] & 0x82000000) === 0x80000000 >> 0) { return; } //WebGL2 improvement fix;
+      if ((data[0] & 0x05000000) === 0x05000000) { data[0] = (data[0] & 0xff000000) | 0x00808080; } //- raw-texture
 
 
       var x = this.drawOffsetX + ((data[1] << 21) >> 21);
@@ -1025,11 +1026,11 @@ mdlr('enge:webgl', ({ include }) => {
       var c = (data[0] & 0xfefefe);
       var w = (data[2] << 16) >> 16;
       var h = (data[2] >> 16);
-      if (!w || !h) return;
+      if (!w || !h) { return; }
 
       var showT1 = !this.outsideDrawArea(x + 0, y + 0, x + w - 1, y + 0, x + 0, y + h - 1);
       var showT2 = !this.outsideDrawArea(x + 0, y + h - 1, x + w - 1, y + 0, x + w - 1, y + h - 1);
-      if (!showT1 && !showT2) return;
+      if (!showT1 && !showT2) { return; }
 
       var textured = (data[0] & 0x04000000) === 0x04000000;
 
@@ -1160,7 +1161,7 @@ mdlr('enge:webgl', ({ include }) => {
       y = (y & 0x1ff);
       w = ((w & 0x3ff) + 15) & ~15;
       h = (h & 0x1ff);
-      if (!w || !h) return;
+      if (!w || !h) { return; }
 
       this.flushVertexBuffer(true);
       this.clearVRAM(x, y, w, h, c, false);
@@ -1376,7 +1377,6 @@ mdlr('enge:webgl', ({ include }) => {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
-  window.primitiveId = 0;
   window.nextPrimitive = nextPrimitive;
 
   window.renderer = new WebGLRenderer(document.getElementById('display'));

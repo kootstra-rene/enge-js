@@ -29,8 +29,8 @@ mdlr('enge:psx:test-asm', () => {
 
   const reg = text => {
     const name = text.trim().replace(/^\$/, '');
-    if (/^\d+$/.test(name) && +name < 32) return +name;
-    if (REG.has(name)) return REG.get(name);
+    if (/^\d+$/.test(name) && +name < 32) { return +name; }
+    if (REG.has(name)) { return REG.get(name); }
     throw new Error(`not a register: ${text}`);
   };
 
@@ -68,12 +68,12 @@ mdlr('enge:psx:test-asm', () => {
     const out = [];
     let depth = 0, current = '';
     for (const c of text) {
-      if (c === '(') ++depth;
-      if (c === ')') --depth;
+      if (c === '(') { ++depth; }
+      if (c === ')') { --depth; }
       if (c === ',' && depth === 0) { out.push(current.trim()); current = ''; }
-      else current += c;
+      else { current += c; }
     }
-    if (current.trim()) out.push(current.trim());
+    if (current.trim()) { out.push(current.trim()); }
     return out;
   };
 
@@ -93,11 +93,11 @@ mdlr('enge:psx:test-asm', () => {
       let line = raw.trim();
       let m;
       while ((m = /^([A-Za-z_.$][\w.$]*|\d+)\s*:/.exec(line))) {
-        if (/^\d+$/.test(m[1])) (locals[m[1]] ||= []).push(addr);
-        else labels[m[1]] = addr;
+        if (/^\d+$/.test(m[1])) { (locals[m[1]] ||= []).push(addr); }
+        else { labels[m[1]] = addr; }
         line = line.slice(m[0].length).trim();
       }
-      if (!line) continue;
+      if (!line) { continue; }
       const [, op, rest = ''] = /^(\S+)\s*(.*)$/.exec(line);
       const mnemonic = op.toLowerCase();
       const args = operands(rest);
@@ -110,7 +110,7 @@ mdlr('enge:psx:test-asm', () => {
       }
       if (mnemonic === '.space' || mnemonic === '.skip') {
         const n = Number(args[0]);
-        if (n & 3) throw new Error('.space must be a multiple of 4');
+        if (n & 3) { throw new Error('.space must be a multiple of 4'); }
         items.push({ addr: at, size: n >> 2, encode: () => new Array(n >> 2).fill(0) });
         addr += n;
         continue;
@@ -118,7 +118,7 @@ mdlr('enge:psx:test-asm', () => {
       if (mnemonic === '.align') {
         const a = 1 << Number(args[0]);
         const pad = ((addr + a - 1) & ~(a - 1)) - addr;
-        if (pad) items.push({ addr: at, size: pad >> 2, encode: () => new Array(pad >> 2).fill(0) });
+        if (pad) { items.push({ addr: at, size: pad >> 2, encode: () => new Array(pad >> 2).fill(0) }); }
         addr += pad;
         continue;
       }
@@ -127,7 +127,7 @@ mdlr('enge:psx:test-asm', () => {
         labels[args[0]] = consts[args[0]] = evaluate(args[1], labels, addr, locals);
         continue;
       }
-      if (mnemonic.startsWith('.')) continue;
+      if (mnemonic.startsWith('.')) { continue; }
 
       const size = sizeOf(mnemonic, args, consts);
       items.push({ addr: at, size, encode: value => encode(mnemonic, args, at, value, line, size) });
@@ -139,8 +139,8 @@ mdlr('enge:psx:test-asm', () => {
     for (const item of items) {
       const value = text => evaluate(text, labels, item.addr, locals);
       const out = item.encode(value);
-      if (out.length !== item.size) throw new Error(`internal size mismatch at ${item.addr.toString(16)}`);
-      for (const w of out) words.push(w >>> 0);
+      if (out.length !== item.size) { throw new Error(`internal size mismatch at ${item.addr.toString(16)}`); }
+      for (const w of out) { words.push(w >>> 0); }
     }
     return { words, labels, origin, end: origin + 4 * words.length };
   };
@@ -157,24 +157,24 @@ mdlr('enge:psx:test-asm', () => {
     }
     // sum of terms
     const terms = text.replace(/\s+/g, '').match(/[+-]?[^+-]+/g);
-    if (!terms) throw new Error(`bad expression: ${text}`);
+    if (!terms) { throw new Error(`bad expression: ${text}`); }
     let sum = 0;
     for (const term of terms) {
       const sign = term[0] === '-' ? -1 : 1;
       let body = term.replace(/^[+-]/, '');
       const not = body.startsWith('~');
-      if (not) body = body.slice(1);
+      if (not) { body = body.slice(1); }
       let v;
-      if (body.includes('*')) v = body.split('*').reduce((p, f) => p * evaluate(f, labels, here, locals), 1);
-      else if (/^(0x[0-9a-f]+|\d+)$/i.test(body)) v = Number(body);
-      else if (body === '.' && here !== undefined) v = here;
+      if (body.includes('*')) { v = body.split('*').reduce((p, f) => p * evaluate(f, labels, here, locals), 1); }
+      else if (/^(0x[0-9a-f]+|\d+)$/i.test(body)) { v = Number(body); }
+      else if (body === '.' && here !== undefined) { v = here; }
       else if ((m = /^(\d+)([fb])$/.exec(body)) && locals[m[1]]) {
         const defs = locals[m[1]];
         v = m[2] === 'f' ? defs.find(a => a > here) : defs.filter(a => a <= here).pop();
-        if (v === undefined) throw new Error(`no local label ${body}`);
+        if (v === undefined) { throw new Error(`no local label ${body}`); }
       }
-      else if (Object.prototype.hasOwnProperty.call(labels, body)) v = labels[body];
-      else throw new Error(`unknown symbol: ${body}`);
+      else if (Object.prototype.hasOwnProperty.call(labels, body)) { v = labels[body]; }
+      else { throw new Error(`unknown symbol: ${body}`); }
       sum += sign * v;
     }
     return sum;
@@ -187,7 +187,7 @@ mdlr('enge:psx:test-asm', () => {
       case 'la': return 2;
       case 'li': {
         const symbols = args[1].match(/(?<![\w$])[A-Za-z_][\w.$]*/g) || [];
-        if (!isConstant(args[1]) && !symbols.every(name => name in consts)) return 2;
+        if (!isConstant(args[1]) && !symbols.every(name => name in consts)) { return 2; }
         const v = evaluate(args[1], consts);
         return (v >= -0x8000 && v <= 0xffff) || (v & 0xffff) === 0 ? 1 : 2;
       }
@@ -200,33 +200,33 @@ mdlr('enge:psx:test-asm', () => {
 
   const parseMem = text => {
     const m = /^(.*)\((\$?\w+)\)$/.exec(text.trim());
-    if (!m) throw new Error(`not a memory operand: ${text}`);
+    if (!m) { throw new Error(`not a memory operand: ${text}`); }
     return { offset: m[1].trim() || '0', base: reg(m[2]) };
   };
 
   const copReg = text => {
     const t = text.trim().replace(/^\$/, '');
-    if (/^\d+$/.test(t)) return +t;
+    if (/^\d+$/.test(t)) { return +t; }
     throw new Error(`not a coprocessor register: ${text}`);
   };
 
   const encode = (mnemonic, args, pc, value, line, size = sizeOf(mnemonic, args)) => {
     const imm16 = (text) => {
       const v = value(text);
-      if (v < -0x8000 || v > 0xffff) throw new Error(`immediate out of range in "${line}"`);
+      if (v < -0x8000 || v > 0xffff) { throw new Error(`immediate out of range in "${line}"`); }
       return v & 0xffff;
     };
     const branch = text => {
       const target = value(text);
       const offset = (target - (pc + 4)) >> 2;
-      if (offset < -0x8000 || offset > 0x7fff) throw new Error(`branch out of range in "${line}"`);
+      if (offset < -0x8000 || offset > 0x7fff) { throw new Error(`branch out of range in "${line}"`); }
       return offset & 0xffff;
     };
 
     // two-operand shorthands: op rd, rt == op rd, rd, rt
     const threeOp = ['add', 'addu', 'sub', 'subu', 'and', 'or', 'xor', 'nor', 'slt', 'sltu', 'sll', 'srl', 'sra', 'sllv', 'srlv', 'srav'];
-    if ((threeOp.includes(mnemonic) || mnemonic in IMM) && args.length === 2) args = [args[0], ...args];
-    if (mnemonic === 'j' && /^\$/.test(args[0])) mnemonic = 'jr';
+    if ((threeOp.includes(mnemonic) || mnemonic in IMM) && args.length === 2) { args = [args[0], ...args]; }
+    if (mnemonic === 'j' && /^\$/.test(args[0])) { mnemonic = 'jr'; }
 
     if (mnemonic in FUNCT) {
       const f = FUNCT[mnemonic];
@@ -254,7 +254,7 @@ mdlr('enge:psx:test-asm', () => {
     if (mnemonic in IMM) {
       const v = value(args[2]);
       const ok = (mnemonic === 'andi' || mnemonic === 'ori' || mnemonic === 'xori') ? v >= 0 && v <= 0xffff : v >= -0x8000 && v <= 0xffff;
-      if (!ok) throw new Error(`immediate out of range in "${line}"`);
+      if (!ok) { throw new Error(`immediate out of range in "${line}"`); }
       return [I(IMM[mnemonic], reg(args[1]), reg(args[0]), v)];
     }
     if (mnemonic in MEM) {
@@ -262,8 +262,8 @@ mdlr('enge:psx:test-asm', () => {
       const rt = /^(lwc|swc)/.test(mnemonic) ? copReg(args[0]) : reg(args[0]);
       return [I(MEM[mnemonic], base, rt, imm16(offset))];
     }
-    if (mnemonic in REGIMM) return [I(0x01, reg(args[0]), REGIMM[mnemonic], branch(args[1]))];
-    if (mnemonic in GTE) return [((0x25 << 25) | GTE[mnemonic]) >>> 0];
+    if (mnemonic in REGIMM) { return [I(0x01, reg(args[0]), REGIMM[mnemonic], branch(args[1]))]; }
+    if (mnemonic in GTE) { return [((0x25 << 25) | GTE[mnemonic]) >>> 0]; }
 
     switch (mnemonic) {
       case 'lui': return [I(0x0f, 0, reg(args[0]), imm16(args[1]))];
@@ -286,8 +286,8 @@ mdlr('enge:psx:test-asm', () => {
         const v = value(args[1]) >>> 0;
         const s = (v << 0);
         if (size === 1) {
-          if (s >= -0x8000 && s <= 0x7fff) return [I(0x09, 0, rt, s)];
-          if (v <= 0xffff) return [I(0x0d, 0, rt, v)];
+          if (s >= -0x8000 && s <= 0x7fff) { return [I(0x09, 0, rt, s)]; }
+          if (v <= 0xffff) { return [I(0x0d, 0, rt, v)]; }
           return [I(0x0f, 0, rt, v >>> 16)];
         }
         return [I(0x0f, 0, rt, v >>> 16), I(0x0d, rt, rt, v & 0xffff)];

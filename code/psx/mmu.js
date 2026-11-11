@@ -4,7 +4,7 @@ mdlr('enge:psx:mmu', ({ include }) => {
 
   const irqDebug = new URLSearchParams(window.location.search).has('debug-cd');
   const irqLog = (...args) => {
-    if (irqDebug) console.debug('[IRQ]', ...args);
+    if (irqDebug) { console.debug('[IRQ]', ...args); }
   };
 
   const { dma } = include('enge:psx:dma');
@@ -265,12 +265,12 @@ mdlr('enge:psx:mmu', ({ include }) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map8[(addr | cpu.forceWriteBits) >>> 0] = data;
-      if (codeWords[addr >>> 2]) invalidateCodeWord(addr);
+      if (codeWords[addr >>> 2]) { invalidateCodeWord(addr); }
       return;
     }
     if ((base >= 0x01800000) && (base < 0x01802000)) {
       map8[base >>> 0] = data;
-      if (base >= 0x01801000) hwWrite8(base, data);
+      if (base >= 0x01801000) { hwWrite8(base, data); }
       return;
     }
     if ((base >= 0x01802000) && (base < 0x01803000)) {
@@ -326,12 +326,12 @@ mdlr('enge:psx:mmu', ({ include }) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map16[(addr | cpu.forceWriteBits) >>> 1] = data;
-      if (codeWords[addr >>> 2]) invalidateCodeWord(addr);
+      if (codeWords[addr >>> 2]) { invalidateCodeWord(addr); }
       return;
     }
     if ((base >= 0x01800000) && (base < 0x01802000)) {
       map16[base >>> 1] = data;
-      if (base >= 0x01801000) hwWrite16(base, data);
+      if (base >= 0x01801000) { hwWrite16(base, data); }
       return;
     }
     if ((base >= 0x01802000) && (base < 0x01803000)) {
@@ -389,12 +389,12 @@ mdlr('enge:psx:mmu', ({ include }) => {
     if (base < 0x00800000) {
       const addr = base & 0x001fffff;
       map[(addr | cpu.forceWriteBits) >>> 2] = data;
-      if (codeWords[addr >>> 2]) invalidateCodeWord(addr);
+      if (codeWords[addr >>> 2]) { invalidateCodeWord(addr); }
       return;
     }
     if ((base >= 0x01800000) && (base < 0x01802000)) {
       map[base >>> 2] = data;
-      if (base >= 0x01801000) hwWrite32(base, data);
+      if (base >= 0x01801000) { hwWrite32(base, data); }
       return;
     }
     if ((base >= 0x01802000) && (base < 0x01803000)) {

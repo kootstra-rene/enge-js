@@ -15,7 +15,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     return state.reg(state.rt);
   }
   const setReg = (nr, value) => {
-    if (nr) state.wreg = nr;
+    if (nr) { state.wreg = nr; }
     return (nr ? state.reg(nr) + ' = ' : '') + `${value};`;
   };
 
@@ -24,7 +24,7 @@ mdlr('enge:psx:rec', ({ include }) => {
   // (see compileInstruction), so the delay-slot instruction sees the OLD
   // register value, matching real R3000 behaviour.
   const setLoad = (nr, value) => {
-    if (!nr) return `${value};`;
+    if (!nr) { return `${value};`; }
     const tmp = `_ld${state.loadSeq++}`;
     state.newLoad = { reg: nr, tmp };
     return `const ${tmp} = ${value};`;
@@ -35,8 +35,8 @@ mdlr('enge:psx:rec', ({ include }) => {
   // previous instruction, or (first instruction of a block) from the load
   // deferred across the block boundary in _dr/_dv.
   const getLoadBase = (nr) => {
-    if (state.pendingLoad && state.pendingLoad.reg === nr) return state.pendingLoad.tmp;
-    if (state.first) return `(_dr === ${nr} ? _dv : ${state.reg(nr)})`;
+    if (state.pendingLoad && state.pendingLoad.reg === nr) { return state.pendingLoad.tmp; }
+    if (state.first) { return `(_dr === ${nr} ? _dv : ${state.reg(nr)})`; }
     return state.reg(nr);
   };
 
@@ -52,7 +52,7 @@ mdlr('enge:psx:rec', ({ include }) => {
   const pgxpNote = (kind, a) => pgxpDebug() ? `\npgxp.noteStore(${kind}, ${a}, 0x${hex(state.pc)});` : '';
   // store through a temporary address so the debug note can use it
   const pgxpStore = (kind, store) => {
-    if (!pgxpDebug()) return null;
+    if (!pgxpDebug()) { return null; }
     const a = `_pa${state.loadSeq++}`;
     return `const ${a} = ${getOF(state.opcode)};\n` + store(a) + pgxpNote(kind, a);
   };
@@ -62,9 +62,9 @@ mdlr('enge:psx:rec', ({ include }) => {
   // PGXP: `addu rd, rs, zero` / `or rd, rs, zero` (and the mirrored forms)
   // are register moves; carry the sub-pixel fraction along with the value.
   const pgxpMove = (rec) => {
-    if (!pgxpOn() || pgxpCpu() || !rec.rd) return '';
-    if (rec.rt === 0) return `\npgxp.move(${rec.rd}, ${rec.rs});`;
-    if (rec.rs === 0) return `\npgxp.move(${rec.rd}, ${rec.rt});`;
+    if (!pgxpOn() || pgxpCpu() || !rec.rd) { return ''; }
+    if (rec.rt === 0) { return `\npgxp.move(${rec.rd}, ${rec.rs});`; }
+    if (rec.rs === 0) { return `\npgxp.move(${rec.rd}, ${rec.rt});`; }
     return '';
   };
 
@@ -138,7 +138,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     '09': (rec, opc) => {
       const code = setReg(rec.rt, ((opc << 16) >> 16) + ' + ' + getRS());
       // addiu rt, rs, 0 is a register move
-      if (pgxpOn() && !pgxpCpu() && rec.rt && !(opc & 0xffff)) return code + `\npgxp.move(${rec.rt}, ${rec.rs});`;
+      if (pgxpOn() && !pgxpCpu() && rec.rt && !(opc & 0xffff)) { return code + `\npgxp.move(${rec.rt}, ${rec.rs});`; }
       return code;
     },
 
@@ -178,7 +178,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '21': (rec, opc) => {
-      if (pgxpOn()) return pgxpHalfLoad(rec, opc, a => `(memRead16(${a}) << 16) >> 16`);
+      if (pgxpOn()) { return pgxpHalfLoad(rec, opc, a => `(memRead16(${a}) << 16) >> 16`); }
       const code = setLoad(rec.rt, '(memRead16 (' + getOF(opc) + ') << 16) >> 16');
       return code;
     },
@@ -194,7 +194,7 @@ mdlr('enge:psx:rec', ({ include }) => {
         const a = `_pa${state.loadSeq++}`;
         const code = `const ${a} = ${getOF(opc)};\n` + setLoad(rec.rt, `memRead32(${a})`);
         const value = state.newLoad ? state.newLoad.tmp : null;
-        if (!value) return code;
+        if (!value) { return code; }
         return code + `\nif (pgxpMemFrac[${pgxpIndex(a)}] !== 0) pgxp.lw(${rec.rt}, ${a}, ${value});`;
       }
       const code = setLoad(rec.rt, 'memRead32(' + getOF(opc) + ')');
@@ -207,7 +207,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '25': (rec, opc) => {
-      if (pgxpOn()) return pgxpHalfLoad(rec, opc, a => `memRead16(${a}) & 0xffff`);
+      if (pgxpOn()) { return pgxpHalfLoad(rec, opc, a => `memRead16(${a}) & 0xffff`); }
       const code = setLoad(rec.rt, 'memRead16(' + getOF(opc) + ') & 0xffff');
       return code;
     },
@@ -219,7 +219,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '28': (rec, opc) => {
       const debug = pgxpStore(1, a => `memWrite8(${a}, ${getRT()});`);
-      if (debug) return debug;
+      if (debug) { return debug; }
       const code = setReg(0, 'memWrite8(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
@@ -234,14 +234,14 @@ mdlr('enge:psx:rec', ({ include }) => {
           `if (${c}) pgxp.sh(${rec.rt}, ${a}, ${getRT()}, ${w});` + pgxpNote(2, a);
       }
       const debug = pgxpStore(2, a => `memWrite16(${a}, ${getRT()});`);
-      if (debug) return debug;
+      if (debug) { return debug; }
       const code = setReg(0, 'memWrite16(' + getOF(opc) + ', ' + getRT() + ')');
       return code;
     },
 
     '2A': (rec, opc) => {
       const debug = pgxpStore(5, a => `cpu.swl(${rec.rt}, ${a});`);
-      if (debug) return debug;
+      if (debug) { return debug; }
       const code = setReg(0, 'cpu.swl(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
@@ -250,7 +250,7 @@ mdlr('enge:psx:rec', ({ include }) => {
       if (pgxpOn()) {
         // inline fast path: only call into pgxp when rt carries a fraction
         const a = `_pa${state.loadSeq++}`;
-        if (!rec.rt) return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, 0);` + pgxpNote(3, a);
+        if (!rec.rt) { return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, 0);` + pgxpNote(3, a); }
         return `const ${a} = ${getOF(opc)};\nmemWrite32(${a}, ${getRT()});\n` +
           `if (pgxpGprFrac[${rec.rt}] !== 0) pgxp.sw(${rec.rt}, ${a}, ${getRT()});` + pgxpNote(3, a);
       }
@@ -260,7 +260,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
     '2E': (rec, opc) => {
       const debug = pgxpStore(5, a => `cpu.swr(${rec.rt}, ${a});`);
-      if (debug) return debug;
+      if (debug) { return debug; }
       const code = setReg(0, 'cpu.swr(' + rec.rt + ', ' + getOF(opc) + ')');
       return code;
     },
@@ -276,13 +276,13 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     '3A': (rec, opc) => {
-      if (pgxpOn()) return (pgxpDebug() ? `pgxp.pc = 0x${hex(rec.pc)};\n` : '') + setReg(0, `pgxp.swc2(${rec.rt}, ${getOF(opc)})`);
+      if (pgxpOn()) { return (pgxpDebug() ? `pgxp.pc = 0x${hex(rec.pc)};\n` : '') + setReg(0, `pgxp.swc2(${rec.rt}, ${getOF(opc)})`); }
       const code = setReg(0, 'memWrite32(' + getOF(opc) + ', gte.get(' + rec.rt + '))');
       return code;
     },
 
     '40': (rec, opc) => {
-      if (opc === 0) return ''; // nop
+      if (opc === 0) { return ''; } // nop
       const code = setReg(rec.rd, getRT() + ' << ' + ((opc >> 6) & 0x1f));
       return code;
     },
@@ -472,7 +472,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     'A4': (rec, opc) => {
       // SR/CAUSE writes can unmask a pending interrupt: end the block so it is
       // taken right after this instruction.
-      if (rec.rd === 12 || rec.rd === 13) rec.sync = true;
+      if (rec.rd === 12 || rec.rd === 13) { rec.sync = true; }
       const code = setReg(0, 'cpu.setCtrl(' + rec.rd + ', ' + getRT() + ')');
       return code;
     },
@@ -484,7 +484,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     },
 
     'C0': (rec, opc) => {
-      if (pgxpOn()) return setLoad(rec.rt, `pgxp.mfc2(${rec.rt}, ${rec.rd})`);
+      if (pgxpOn()) { return setLoad(rec.rt, `pgxp.mfc2(${rec.rt}, ${rec.rd})`); }
       const code = setLoad(rec.rt, 'gte.get(' + rec.rd + ', ' + gteAt(rec) + ')');
       return code;
     },
@@ -523,7 +523,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     const a = `_pa${state.loadSeq++}`;
     const code = `const ${a} = ${getOF(opc)};\n` + setLoad(rec.rt, load(a));
     const value = state.newLoad ? state.newLoad.tmp : null;
-    if (!value) return code;
+    if (!value) { return code; }
     return code + `\nif (pgxpMemFrac[${pgxpIndex(a)}] !== 0) pgxp.lh(${rec.rt}, ${a}, ${value});`;
   }
 
@@ -540,14 +540,14 @@ mdlr('enge:psx:rec', ({ include }) => {
     const base = rec[key];
     rec[key] = (st, opc) => {
       const code = base(st, opc);
-      if (!pgxpCpu() || opc === 0) return code;
+      if (!pgxpCpu() || opc === 0) { return code; }
       const R = (r) => st.reg(r);
       let pre = '';
       switch (form) {
-        case 'r': if (st.rd) pre = `if ((pgxpGprFrac[${st.rs}] | pgxpGprFrac[${st.rt}]) !== 0) pgxp.alu(${kind}, ${st.rd}, ${st.rs}, ${st.rt}, ${R(st.rs)}, ${R(st.rt)}, 0);`; break;
-        case 'i': if (st.rt) pre = `if (pgxpGprFrac[${st.rs}] !== 0) pgxp.alu(${kind}, ${st.rt}, ${st.rs}, 0, ${R(st.rs)}, 0, ${(opc << 16) >> 16});`; break;
-        case 'u': if (st.rt) pre = `if (pgxpGprFrac[${st.rs}] !== 0) pgxp.alu(${kind}, ${st.rt}, ${st.rs}, 0, ${R(st.rs)}, 0, ${opc & 0xffff});`; break;
-        case 's': if (st.rd) pre = `if (pgxpGprFrac[${st.rt}] !== 0) pgxp.alu(${kind}, ${st.rd}, 0, ${st.rt}, 0, ${R(st.rt)}, ${(opc >> 6) & 0x1f});`; break;
+        case 'r': if (st.rd) { pre = `if ((pgxpGprFrac[${st.rs}] | pgxpGprFrac[${st.rt}]) !== 0) pgxp.alu(${kind}, ${st.rd}, ${st.rs}, ${st.rt}, ${R(st.rs)}, ${R(st.rt)}, 0);`; } break;
+        case 'i': if (st.rt) { pre = `if (pgxpGprFrac[${st.rs}] !== 0) pgxp.alu(${kind}, ${st.rt}, ${st.rs}, 0, ${R(st.rs)}, 0, ${(opc << 16) >> 16});`; } break;
+        case 'u': if (st.rt) { pre = `if (pgxpGprFrac[${st.rs}] !== 0) pgxp.alu(${kind}, ${st.rt}, ${st.rs}, 0, ${R(st.rs)}, 0, ${opc & 0xffff});`; } break;
+        case 's': if (st.rd) { pre = `if (pgxpGprFrac[${st.rt}] !== 0) pgxp.alu(${kind}, ${st.rd}, 0, ${st.rt}, 0, ${R(st.rt)}, ${(opc >> 6) & 0x1f});`; } break;
       }
       return pre ? pre + '\n' + code : code;
     };
@@ -772,14 +772,14 @@ mdlr('enge:psx:rec', ({ include }) => {
   const CODE_LINE_SIZE = 1 << CODE_LINE_SHIFT;
   const codeWords = new Uint8Array(RAM_SIZE >>> 2);
   const lineBlocks = new Array(RAM_SIZE >>> CODE_LINE_SHIFT);
-  for (let i = 0; i < lineBlocks.length; ++i) lineBlocks[i] = [];
+  for (let i = 0; i < lineBlocks.length; ++i) { lineBlocks[i] = []; }
 
   let recompiles = 0;
   let invalidations = 0;
 
   function registerBlock(entry, start, end) {
-    if (entry.end) unregisterBlock(entry);
-    if (end <= start) end = start + 4;
+    if (entry.end) { unregisterBlock(entry); }
+    if (end <= start) { end = start + 4; }
     entry.start = start;
     entry.end = end;
     const firstLine = start >>> CODE_LINE_SHIFT;
@@ -796,7 +796,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     for (let line = firstLine; line <= lastLine; ++line) {
       const list = lineBlocks[line];
       const index = list.indexOf(entry);
-      if (index >= 0) list.splice(index, 1);
+      if (index >= 0) { list.splice(index, 1); }
     }
     entry.start = entry.end = 0;
   }
@@ -810,7 +810,7 @@ mdlr('enge:psx:rec', ({ include }) => {
       for (const block of lineBlocks[line]) {
         const s = Math.max(block.start, start);
         const e = Math.min(block.end, end);
-        if (e > s) codeWords.fill(1, s >>> 2, e >>> 2);
+        if (e > s) { codeWords.fill(1, s >>> 2, e >>> 2); }
       }
     }
   }
@@ -824,9 +824,9 @@ mdlr('enge:psx:rec', ({ include }) => {
       const list = lineBlocks[line];
       for (let i = list.length - 1; i >= 0; --i) {
         const block = list[i];
-        if (block.start >= end || block.end <= start) continue;
-        if (block.start < lo) lo = block.start;
-        if (block.end > hi) hi = block.end;
+        if (block.start >= end || block.end <= start) { continue; }
+        if (block.start < lo) { lo = block.start; }
+        if (block.end > hi) { hi = block.end; }
         unregisterBlock(block);
         block.code = lazyCompile;
         ++invalidations;
@@ -843,7 +843,7 @@ mdlr('enge:psx:rec', ({ include }) => {
 
   function getCacheIndex(pc) {
     let ipc = pc & 0x01ffffff;
-    if (ipc < 0x800000) ipc &= 0x1fffff;
+    if (ipc < 0x800000) { ipc &= 0x1fffff; }
     return ipc;
   }
 
@@ -852,17 +852,17 @@ mdlr('enge:psx:rec', ({ include }) => {
     const ibase = getCacheIndex(addr) & ~3;
     const iend = getCacheIndex(addr) + size;
     if (ibase < RAM_SIZE) {
-      if (iend <= ibase) return;
+      if (iend <= ibase) { return; }
       invalidateRange(ibase, Math.min(iend, RAM_SIZE));
       // DMA addresses wrap around the 2MB RAM mirror
-      if (iend > RAM_SIZE) invalidateRange(0, Math.min(iend - RAM_SIZE, RAM_SIZE));
+      if (iend > RAM_SIZE) { invalidateRange(0, Math.min(iend - RAM_SIZE, RAM_SIZE)); }
     }
     else {
       // The BIOS is mapped above RAM and is not covered by codeWords, so its
       // blocks are reset explicitly. Entries are reset in place and never
       // deleted: compiled blocks hold direct references to their jump targets.
       for (const [pc, entry] of cached) {
-        if (pc >= ibase && pc < iend) entry.code = lazyCompile;
+        if (pc >= ibase && pc < iend) { entry.code = lazyCompile; }
       }
     }
     ++clears;
@@ -904,7 +904,7 @@ mdlr('enge:psx:rec', ({ include }) => {
     const renderCounter = renderer.fpsRenderCounter - prevFpsRenderCounter;
     prevFpsRenderCounter = renderer.fpsRenderCounter;
 
-    if (local) console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} rec:${recompiles} inv:${invalidations} ${context.counter - prevCounter}/${renderer.fpsCounter - prevFpsCounter}/${renderCounter}`);
+    if (local) { console.log(`${calls} ${(cyclesPerTrace / calls).toFixed(1)} ${clears} rec:${recompiles} inv:${invalidations} ${context.counter - prevCounter}/${renderer.fpsCounter - prevFpsCounter}/${renderCounter}`); }
     psx.setEvent(self, cyclesPerTrace);
     prevCounter = context.counter;
     prevFpsCounter = renderer.fpsCounter;
@@ -921,7 +921,7 @@ mdlr('enge:psx:rec', ({ include }) => {
   window.cached = cached;
 
   window.resetCacheEntry = entry => {
-    if (entry.end) unregisterBlock(entry);
+    if (entry.end) { unregisterBlock(entry); }
     entry.code = lazyCompile;
     return entry;
   }

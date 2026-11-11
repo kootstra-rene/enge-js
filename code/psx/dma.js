@@ -2,7 +2,7 @@ mdlr('enge:psx:dma', ({ include }) => {
 
   const dmaDebug = new URLSearchParams(window.location.search).has('debug-cd');
   const dmaLog = (...args) => {
-    if (dmaDebug) console.debug('[DMA]', ...args);
+    if (dmaDebug) { console.debug('[DMA]', ...args); }
   };
 
   let dpcr;
@@ -54,11 +54,11 @@ mdlr('enge:psx:dma', ({ include }) => {
   let pending = 0;
   const wr32r10f0 = data => {
     dpcr = data >>> 0;
-    if (!pending) return;
+    if (!pending) { return; }
     const starts = [[0, () => wr32r1088(r1088)], [1, () => wr32r1098(r1098)], [2, () => wr32r10a8(r10a8)],
       [3, () => wr32r10b8(r10b8)], [4, () => wr32r10c8(r10c8)], [6, () => wr32r10e8(r10e8)]];
     for (const [ch, start] of starts) {
-      if (!(pending & (1 << ch)) || !(dpcr & (8 << (ch << 2)))) continue;
+      if (!(pending & (1 << ch)) || !(dpcr & (8 << (ch << 2)))) { continue; }
       pending &= ~(1 << ch);
       start();
     }
@@ -67,7 +67,7 @@ mdlr('enge:psx:dma', ({ include }) => {
   const wr32r1088 = ctrl => {
     r1088 = ctrl;
     pending &= ~(1 << 0);
-    if (!(ctrl & 0x01000000)) return;
+    if (!(ctrl & 0x01000000)) { return; }
     if (dpcr & 0x00000008) {
       let transferSize = 10;
 
@@ -89,7 +89,7 @@ mdlr('enge:psx:dma', ({ include }) => {
   const wr32r1098 = ctrl => {
     r1098 = ctrl;
     pending &= ~(1 << 1);
-    if (!(ctrl & 0x01000000)) return;
+    if (!(ctrl & 0x01000000)) { return; }
     if (dpcr & 0x00000080) {
       let transferSize = 10;
 
@@ -138,7 +138,8 @@ mdlr('enge:psx:dma', ({ include }) => {
       r10a0n = step.next;
       linkedEnd = step.next;
       setEvent(eventDMA2, cycles);
-    } else {
+    }
+    else {
       r10a0 = step.next;
       setEvent(eventDMA2Linked, cycles);
     }
@@ -179,7 +180,7 @@ mdlr('enge:psx:dma', ({ include }) => {
       }
       return;
     }
-    if (running && (eventDMA2Linked.active || eventDMA2.active || gpu.dreqWaiter)) return;
+    if (running && (eventDMA2Linked.active || eventDMA2.active || gpu.dreqWaiter)) { return; }
     if (dpcr & 0x00000800) {
       let transferSize = 10;
 
@@ -209,7 +210,7 @@ mdlr('enge:psx:dma', ({ include }) => {
   const wr32r10b8 = ctrl => {
     r10b8 = ctrl;
     pending &= ~(1 << 3);
-    if (!(ctrl & 0x01000000)) return;
+    if (!(ctrl & 0x01000000)) { return; }
     if (dpcr & 0x00008000) {
       let transferSize = 10;
 
@@ -245,7 +246,7 @@ mdlr('enge:psx:dma', ({ include }) => {
   const wr32r10c8 = ctrl => {
     r10c8 = ctrl;
     pending &= ~(1 << 4);
-    if (!(ctrl & 0x01000000)) return;
+    if (!(ctrl & 0x01000000)) { return; }
     if (dpcr & 0x00080000) {
       let transferSize = 10;
 
@@ -273,9 +274,9 @@ mdlr('enge:psx:dma', ({ include }) => {
     // only b24, b28 and b30 are r/w, b1 (decrement) is always set
     r10e8 = (ctrl & 0x51000000) | 0x2;
     pending &= ~(1 << 6);
-    if (!(r10e8 & 0x01000000)) return;
+    if (!(r10e8 & 0x01000000)) { return; }
     // sync mode 0 (start immediately) also needs the manual start trigger
-    if (!((ctrl >> 9) & 3) && !(ctrl & 0x10000000)) return;
+    if (!((ctrl >> 9) & 3) && !(ctrl & 0x10000000)) { return; }
     if (dpcr & 0x08000000) {
       const transferSize = gpu.dmaLinkedListMode0002(r10e0, r10e4) || 10;
       r10e0n = r10e0; // MADR keeps the start address
@@ -315,7 +316,7 @@ mdlr('enge:psx:dma', ({ include }) => {
     wr16: (addr, data) => narrowWrite(addr, data & 0xffff, 0xffff << ((addr & 2) << 3), (addr & 2) << 3),
     wr32: (addr, data) => {
       const write = $wr32.get(addr & 0x3ffc);
-      if (write) write(data);
+      if (write) { write(data); }
     },
   };
 

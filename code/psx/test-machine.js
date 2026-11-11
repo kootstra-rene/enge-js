@@ -40,14 +40,14 @@ mdlr('enge:psx:test-machine', ({ include }) => {
       let o = 0;
       for (let j = 0; j < h; ++j) {
         const row = ((y + j) & 511) * 1024;
-        for (let i = 0; i < w; ++i) buffer[o++] = vram[row + ((x + i) & 1023)];
+        for (let i = 0; i < w; ++i) { buffer[o++] = vram[row + ((x + i) & 1023)]; }
       }
     };
     const paste = (x, y, w, h, buffer) => {
       let o = 0;
       for (let j = 0; j < h; ++j) {
         const row = ((y + j) & 511) * 1024;
-        for (let i = 0; i < w; ++i) vram[row + ((x + i) & 1023)] = buffer[o++];
+        for (let i = 0; i < w; ++i) { vram[row + ((x + i) & 1023)] = buffer[o++]; }
       }
     };
     return {
@@ -68,7 +68,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
         const y = (data[1] >> 16) & 0x1ff;
         const w = ((((data[2] << 16) >>> 16) & 0x3ff) + 15) & ~15;
         const h = (data[2] >> 16) & 0x1ff;
-        if (!w || !h) return;
+        if (!w || !h) { return; }
         const c = data[0] & 0xf8f8f8;
         const pixel = (((c >>> 19) & 0x1f) << 10) | (((c >>> 11) & 0x1f) << 5) | ((c >>> 3) & 0x1f);
         paste(x, y, w, h, new Uint16Array(w * h).fill(pixel));
@@ -100,7 +100,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
   let active = null;
 
   const createMachine = (options = {}) => {
-    if (active) active.dispose();
+    if (active) { active.dispose(); }
 
     // --- save the globals -------------------------------------------------
     const saved = new Map();
@@ -116,7 +116,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
       for (const [name, descriptor] of saved) {
         const current = Object.getOwnPropertyDescriptor(globalThis, name);
         if (!current || !descriptor.configurable) {
-          if (descriptor.writable && current && current.value !== descriptor.value) globalThis[name] = descriptor.value;
+          if (descriptor.writable && current && current.value !== descriptor.value) { globalThis[name] = descriptor.value; }
           continue;
         }
         if (current.value !== descriptor.value || current.get !== descriptor.get) {
@@ -129,7 +129,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
     // Without a browser, window is the global object, as it is in one.
     // A runner may provide a plain window object; keep its properties.
     if (typeof window === 'undefined' || window !== globalThis) {
-      if (typeof window !== 'undefined') Object.assign(globalThis, window);
+      if (typeof window !== 'undefined') { Object.assign(globalThis, window); }
       globalThis.window = globalThis;
     }
     if (typeof location === 'undefined') {
@@ -150,7 +150,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
         removeItem: key => store.delete(key),
       };
     }
-    if (typeof window.addEventListener !== 'function') window.addEventListener = noop;    globalThis.AudioContext = AudioContextStub;
+    if (typeof window.addEventListener !== 'function') { window.addEventListener = noop; }    globalThis.AudioContext = AudioContextStub;
     globalThis.AudioWorkletNode = undefined;
 
     // --- what enge:psx:index and the renderer provide --------------------
@@ -163,7 +163,7 @@ mdlr('enge:psx:test-machine', ({ include }) => {
       context: { timeStamp: 0, realtime: 0, emutime: 0, counter: 0 },
       // BIOS calls reach trace() at A0h/B0h/C0h; keep putchar output
       trace: (pc, fn) => {
-        if ((pc === 0xa0 && fn === 0x3c) || (pc === 0xb0 && fn === 0x3d)) tty.push(cpu.gpr[4] & 0xff);
+        if ((pc === 0xa0 && fn === 0x3c) || (pc === 0xb0 && fn === 0x3d)) { tty.push(cpu.gpr[4] & 0xff); }
       },
       renderer: options.renderer || createRenderer(),
       primitiveId: 0,
@@ -245,8 +245,8 @@ mdlr('enge:psx:test-machine', ({ include }) => {
         const $ = psx;
         while (entry.pc !== stop) {
           entry = entry.code($);
-          if ($.clock >= $.eventClock) entry = $.handleEvents(entry);
-          if (entry === vector || entry.pc === 0x40) entry = exception(entry);
+          if ($.clock >= $.eventClock) { entry = $.handleEvents(entry); }
+          if (entry === vector || entry.pc === 0x40) { entry = exception(entry); }
           if ($.clock > limit) {
             cpu.pc = entry.pc;
             throw new Error(`run: no return after ${cycles} cycles (pc ${hex(entry.pc)})`);
@@ -275,8 +275,8 @@ mdlr('enge:psx:test-machine', ({ include }) => {
         const $ = psx;
         while ($.clock < target) {
           entry = entry.code($);
-          if ($.clock >= $.eventClock) entry = $.handleEvents(entry);
-          if (entry === vector || entry.pc === 0x40) entry = exception(entry);
+          if ($.clock >= $.eventClock) { entry = $.handleEvents(entry); }
+          if (entry === vector || entry.pc === 0x40) { entry = exception(entry); }
         }
         cpu.pc = entry.pc;
         return m;
@@ -287,20 +287,20 @@ mdlr('enge:psx:test-machine', ({ include }) => {
       idleUntil(predicate, cycles = PSX_SPEED, step = 16) {
         const start = psx.clock;
         while (!predicate()) {
-          if (psx.clock - start > cycles) return -1;
+          if (psx.clock - start > cycles) { return -1; }
           m.idle(step);
         }
         return psx.clock - start;
       },
 
       dispose() {
-        if (active === m) active = null;
+        if (active === m) { active = null; }
         restore();
       },
     };
 
     const exception = entry => {
-      if (m.onException === null) return entry;
+      if (m.onException === null) { return entry; }
       const ex = { from: entry.pc, cause: cpu.getCtrl(13) >>> 0, epc: cpu.epc >>> 0, sr: cpu.sr >>> 0, badvaddr: cpu.getCtrl(8) >>> 0 };
       m.exceptions.push(ex);
       const resume = m.onException ? m.onException(ex) : undefined;

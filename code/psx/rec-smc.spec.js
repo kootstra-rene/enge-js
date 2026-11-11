@@ -20,7 +20,7 @@ mdlr('[test]enge:psx:rec-smc', ({ include, test }) => {
   // Same RAM path as memWrite32 in mmu.js.
   const store32 = (addr, data) => {
     map[addr >>> 2] = data;
-    if (codeWords[addr >>> 2]) invalidateCodeWord(addr);
+    if (codeWords[addr >>> 2]) { invalidateCodeWord(addr); }
   };
 
   const load = (addr, words) => words.forEach((word, i) => { map[(addr >>> 2) + i] = word; });
@@ -29,7 +29,7 @@ mdlr('[test]enge:psx:rec-smc', ({ include, test }) => {
   const run = (pc) => {
     let entry = getCacheEntry(pc);
     let target = entry.code(psx);
-    if (target === entry) target = entry.code(psx); // first call only compiled
+    if (target === entry) { target = entry.code(psx); } // first call only compiled
     return target;
   };
 
@@ -39,7 +39,7 @@ mdlr('[test]enge:psx:rec-smc', ({ include, test }) => {
   };
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { href: '', search: '' } });
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
     // same as hex() in code/utils.js: keeps only the last `length` digits
@@ -59,8 +59,8 @@ mdlr('[test]enge:psx:rec-smc', ({ include, test }) => {
   after(async () => {
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 

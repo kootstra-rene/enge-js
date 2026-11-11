@@ -56,12 +56,12 @@ mdlr('enge:psx:rtc', ({ include }) => {
       if (value >= 0x10000) {
         hitOverflow = true;
         value %= 0x10000;
-        if (value >= target) hitTarget = true;
+        if (value >= target) { hitTarget = true; }
       }
     }
 
-    if (hitTarget) r11x4[id] |= (1 << 11);
-    if (hitOverflow) r11x4[id] |= (1 << 12);
+    if (hitTarget) { r11x4[id] |= (1 << 11); }
+    if (hitOverflow) { r11x4[id] |= (1 << 12); }
 
     if ((hitTarget && (mode & 0x010)) || (hitOverflow && (mode & 0x020))) {
       // bit 6 clear = one-shot: only the first IRQ after a mode write is raised
@@ -144,13 +144,13 @@ mdlr('enge:psx:rtc', ({ include }) => {
 
   const gateEnd = (id) => {
     // sync mode 1 resets the counter at the end of the gate
-    if (syncKey(r11x4[id]) === 0x003) r11x0[id] = +0;
+    if (syncKey(r11x4[id]) === 0x003) { r11x0[id] = +0; }
   }
 
   const run = (id, cycles, gate) => {
     if (cycles > 0 && counting(id, gate)) {
       const ticks = +(cycles * rate(id));
-      if (ticks > 0) r11x0[id] = limitReached(id, ticks);
+      if (ticks > 0) { r11x0[id] = limitReached(id, ticks); }
     }
   }
 
@@ -159,7 +159,7 @@ mdlr('enge:psx:rtc', ({ include }) => {
   // at scanline boundaries and are handled in dot.complete.
   const sync = (id, clock = psx.clock) => {
     let t = +last[id];
-    if (clock <= t) return;
+    if (clock <= t) { return; }
 
     if (id === 0) {
       if (t < dot.dispHStart && dot.dispHStart <= clock) {
@@ -184,22 +184,22 @@ mdlr('enge:psx:rtc', ({ include }) => {
     due[id] = Infinity;
 
     const mode = r11x4[id];
-    if (!(mode & 0x030)) return;
-    if (!(mode & 0x040) && irqDone[id]) return;
+    if (!(mode & 0x030)) { return; }
+    if (!(mode & 0x040) && irqDone[id]) { return; }
 
     const t = +last[id];
     if (!counting(id, gateAt(id, t))) {
       // paused by the hblank gate: look again when it changes; other gates
       // only change at scanline boundaries
       if (id === 0) {
-        if (t < dot.dispHStart) due[0] = +dot.dispHStart;
-        else if (t < dot.dispHStop) due[0] = +dot.dispHStop;
+        if (t < dot.dispHStart) { due[0] = +dot.dispHStart; }
+        else if (t < dot.dispHStop) { due[0] = +dot.dispHStop; }
       }
       return;
     }
 
     const ticksPerCycle = rate(id);
-    if (!ticksPerCycle) return; // hblank source: ticks at scanline boundaries
+    if (!ticksPerCycle) { return; } // hblank source: ticks at scanline boundaries
 
     due[id] = t + Math.max(1.0, Math.ceil(ticksToIrq(id) / ticksPerCycle));
   }
@@ -291,8 +291,8 @@ mdlr('enge:psx:rtc', ({ include }) => {
       dot.scanLine = (dot.scanLine + 1) % linesPerFrame;
       dot.vblank = (dot.scanLine < gpu.dispT) || (dot.scanLine >= gpu.dispB);
 
-      if (!wasVBlank && dot.vblank) gateStart(1);
-      if (wasVBlank && !dot.vblank) gateEnd(1);
+      if (!wasVBlank && dot.vblank) { gateStart(1); }
+      if (wasVBlank && !dot.vblank) { gateEnd(1); }
 
       plan(0);
       plan(1);

@@ -36,7 +36,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
       settle: () => {
         for (let guard = 0; guard < 1000; ++guard) {
           const due = events.filter(e => e.active);
-          if (!due.length) return;
+          if (!due.length) { return; }
           const next = due.reduce((a, b) => (b.clock < a.clock ? b : a));
           psx.clock = Math.max(psx.clock, next.clock);
           next.cb(next, psx.clock);
@@ -63,7 +63,7 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
   };
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
@@ -74,8 +74,8 @@ mdlr('[test]enge:psx:dma', ({ include, test }) => {
   after(async () => {
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 

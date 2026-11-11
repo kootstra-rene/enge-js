@@ -2,7 +2,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
 
   const mdecDebug = new URLSearchParams(window.location.search).has('debug-mdec');
   const mdecLog = (...args) => {
-    if (mdecDebug) console.debug('[MDEC]', ...args);
+    if (mdecDebug) { console.debug('[MDEC]', ...args); }
   };
 
   // quantisation tables (command 2): 0-63 luminance, 64-127 colour, in zigzag order
@@ -57,7 +57,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
   const idct = (blk) => {
     let cols = 0;
     for (let x = 0; x < 8; ++x) {
-      if (!(blk[x] | blk[8 + x] | blk[16 + x] | blk[24 + x] | blk[32 + x] | blk[40 + x] | blk[48 + x] | blk[56 + x])) continue;
+      if (!(blk[x] | blk[8 + x] | blk[16 + x] | blk[24 + x] | blk[32 + x] | blk[40 + x] | blk[48 + x] | blk[56 + x])) { continue; }
       idctCols[cols++] = x;
 
       for (let y = 0; y < 8; ++y) {
@@ -102,7 +102,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
       rl = map16[(base++) & 0xfffff] & 0xffff;
 
       k += ((rl >>> 10) + 1);
-      if (k > 63) break;
+      if (k > 63) { break; }
 
       const ac = ((rl << 22) >> 22);
       if (q) {
@@ -218,7 +218,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
     // b31 data-out fifo empty, b29 command busy, b23-26 output format,
     // b16-18 current block, b0-15 parameter words remaining minus 1 (ffff = none)
     rd32r1824: () => {
-      if (!mdc.rlEnd) return mdc.r1824; // no decode command since reset
+      if (!mdc.rlEnd) { return mdc.r1824; } // no decode command since reset
 
       skipPadding();
       const words = (mdc.rlEnd - mdc.rl) >> 2;
@@ -227,7 +227,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
       // FFIX must not reset its movie column before the final output DMA completes.
       const busy = (mdc.r1820 >>> 29) === 1 &&
         (mdc.rl < mdc.rlEnd || mdc.rlQueue.length || mdc.event.active);
-      if (busy) status |= 0x20000000;
+      if (busy) { status |= 0x20000000; }
       return status;
     },
 
@@ -243,7 +243,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
     },
 
     dmaTransferMode0201: (addr, blck) => {
-      if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) { return 0x10; }
       addr = addr & 0x001fffff;
 
       const transferSize = (blck >>> 16) * (blck & 0xffff);
@@ -278,7 +278,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
 
         case 0x2:
           iqtab_init(addr, transferSize << 2);
-          if (mdc.r1820 !== 0x40000001) return abort();
+          if (mdc.r1820 !== 0x40000001) { return abort(); }
           break;
 
         case 0x3:
@@ -293,7 +293,7 @@ mdlr('enge:psx:mdec', ({ include }) => {
     },
 
     dmaTransferMode0200: (addr, blck) => {
-      if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) { return 0x10; }
 
       addr = addr & 0x001fffff;
       const numberOfWords = (blck >>> 16) * (blck & 0xffff);

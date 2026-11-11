@@ -3,8 +3,8 @@ mdlr('enge:psx:cdr', () => {
   const cdDebug = new URLSearchParams(window.location.search).has('debug-cd') ||
     window.localStorage.getItem('enge-debug-cdrom') === '1';
   const cdLog = (...args) => {
-    if (cdDebug) console.debug('[CDR]', ...args.map(value =>
-      typeof value === 'object' ? JSON.stringify(value) : value));
+    if (cdDebug) { console.debug('[CDR]', ...args.map(value =>
+      typeof value === 'object' ? JSON.stringify(value) : value)); }
   };
 
   let sectorData8 = new Int8Array(0);
@@ -38,9 +38,9 @@ mdlr('enge:psx:cdr', () => {
 
   // Cue files are laid out back to back; maps an LBA to [fileIndex, fileSector].
   const locateSector = (fileSectors, lba) => {
-    if (lba < 0) return null;
+    if (lba < 0) { return null; }
     for (let i = 0; i < fileSectors.length; ++i) {
-      if (lba < fileSectors[i]) return [i, lba];
+      if (lba < fileSectors[i]) { return [i, lba]; }
       lba -= fileSectors[i];
     }
     return null;
@@ -49,14 +49,14 @@ mdlr('enge:psx:cdr', () => {
   const touchRemoteChunk = (file, chunkIndex) => {
     const lru = remoteImage.lru;
     const index = lru.findIndex(entry => entry.file === file && entry.chunkIndex === chunkIndex);
-    if (index !== -1) lru.splice(index, 1);
+    if (index !== -1) { lru.splice(index, 1); }
     lru.push({ file, chunkIndex });
   };
 
   const fetchRemoteChunk = (file, fileIndex, chunkIndex) => {
     const cached = file.chunks.get(chunkIndex);
-    if (cached) return Promise.resolve(cached);
-    if (file.pending.has(chunkIndex)) return file.pending.get(chunkIndex);
+    if (cached) { return Promise.resolve(cached); }
+    if (file.pending.has(chunkIndex)) { return file.pending.get(chunkIndex); }
 
     const start = chunkIndex * remoteChunkSize;
     const end = Math.min(start + remoteChunkSize, file.size);
@@ -70,7 +70,7 @@ mdlr('enge:psx:cdr', () => {
       const data = new Uint8Array(await response.arrayBuffer());
       cdLog('HTTP range complete', { file: fileIndex, chunk: chunkIndex, bytes: data.byteLength });
       file.chunks.set(chunkIndex, data);
-      if (!remoteImage?.files.includes(file)) return data;
+      if (!remoteImage?.files.includes(file)) { return data; }
       touchRemoteChunk(file, chunkIndex);
       while (remoteImage.lru.length > remoteMaxChunks) {
         const oldest = remoteImage.lru.shift();
@@ -221,10 +221,10 @@ mdlr('enge:psx:cdr', () => {
 
   const rearmCmdEvent = () => {
     let next = Infinity;
-    if (ncmdctrl) next = cmdClock;
-    if (asyncCode && asyncClock < next) next = asyncClock;
-    if (next === Infinity) unsetEvent(eventCmd);
-    else setEvent(eventCmd, Math.max(0, next - psx.clock));
+    if (ncmdctrl) { next = cmdClock; }
+    if (asyncCode && asyncClock < next) { next = asyncClock; }
+    if (next === Infinity) { unsetEvent(eventCmd); }
+    else { setEvent(eventCmd, Math.max(0, next - psx.clock)); }
   };
 
   const scheduleAsync = (cycles, code) => {
@@ -318,7 +318,7 @@ mdlr('enge:psx:cdr', () => {
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x06;
         enqueueEvent(3, ackStatus);
-        if (setlocPending) currLoc = seekLoc;
+        if (setlocPending) { currLoc = seekLoc; }
         setlocPending = false;
         break;
 
@@ -554,7 +554,7 @@ mdlr('enge:psx:cdr', () => {
         setReadEvent(readCycles >>> 0);
         ncmdread = 0x1B;
         enqueueEvent(3, ackStatus);
-        if (setlocPending) currLoc = seekLoc;
+        if (setlocPending) { currLoc = seekLoc; }
         setlocPending = false;
         break;
 
@@ -577,7 +577,7 @@ mdlr('enge:psx:cdr', () => {
 
       default: abort(hex(currentCommand, 2));
     }
-    if (isCommand) resetparams();
+    if (isCommand) { resetparams(); }
     rearmCmdEvent();
   };
 
@@ -617,7 +617,7 @@ mdlr('enge:psx:cdr', () => {
           scheduleAsync(0x200, 0x99);
           return;
         }
-        if (handleReadFailure(self, readSector(currLoc))) return;
+        if (handleReadFailure(self, readSector(currLoc))) { return; }
         statusCode = (statusCode & ~0x60) | 0x82;
         if (mode & 0x04) {
           switch (loc % 75) {
@@ -659,7 +659,7 @@ mdlr('enge:psx:cdr', () => {
           ++debugReadSectors;
           logReadSector(currLoc, result);
         }
-        if (handleReadFailure(self, result)) return;
+        if (handleReadFailure(self, result)) { return; }
         // XA audio still counts as reading, even when no data IRQ reaches the CPU.
         statusCode = (statusCode & ~0xc0) | 0x22;
         if (result === READ_DATA) {
@@ -684,20 +684,20 @@ mdlr('enge:psx:cdr', () => {
 
   const openShell = () => {
     unsetEvent(eventShell);
-    if (shellOpen) return;
+    if (shellOpen) { return; }
     shellOpen = true;
     const busy = ncmdread !== 0 || asyncCode !== 0;
     stopReading();
     asyncCode = 0;
     // Spindle motor stops; reading, seeking and playing end.
     statusCode = (statusCode & ~0xE2) | 0x10;
-    if (busy) scheduleAsync(0x200, SHELL_OPENED);
-    else rearmCmdEvent();
+    if (busy) { scheduleAsync(0x200, SHELL_OPENED); }
+    else { rearmCmdEvent(); }
   };
 
   const closeShell = () => {
     unsetEvent(eventShell);
-    if (!shellOpen) return;
+    if (!shellOpen) { return; }
     shellOpen = false;
     // The shell open bit stays set until the next GetStat.
     statusCode |= 0x02;
@@ -721,7 +721,7 @@ mdlr('enge:psx:cdr', () => {
       hasDisc: sectorData8.length > 0,
       tracks: tracks.length
     });
-    if (data === 0x19) testSubcommand = params[0] || 0;
+    if (data === 0x19) { testSubcommand = params[0] || 0; }
     ackStatus = driveStatus();
     switch (data) {
       case 0x01:  //- CdlNop
@@ -784,7 +784,7 @@ mdlr('enge:psx:cdr', () => {
     const sub = byte(0x12);
     const xa = (mode & 0x40) && byte(0x0f) === 2 && (sub & 0x44) === 0x44;
     let fate = result === READ_MISSING ? 'missing' : result === READ_DATA ? 'data (INT1)' : 'xa played';
-    if (xa && (mode & 0x08) && (byte(0x10) !== (filterFile & 0xff) || byte(0x11) !== (filterChan & 0xff))) fate = 'xa skipped (filter)';
+    if (xa && (mode & 0x08) && (byte(0x10) !== (filterFile & 0xff) || byte(0x11) !== (filterChan & 0xff))) { fate = 'xa skipped (filter)'; }
     cdLog('read sector', {
       lba: readLoc - 150,
       msf: [((readLoc / 75 / 60) | 0), ((readLoc / 75) | 0) % 60, readLoc % 75].map(v => String(v).padStart(2, '0')).join(':'),
@@ -803,7 +803,7 @@ mdlr('enge:psx:cdr', () => {
     selectTrack(readLoc);
     if (remoteImage) {
       const location = locateSector(remoteImage.fileSectors, lba);
-      if (!location) return READ_MISSING;
+      if (!location) { return READ_MISSING; }
       const [fileIndex, fileSector] = location;
       const file = remoteImage.files[fileIndex];
       const byteOffset = fileSector * remoteSectorSize;
@@ -818,7 +818,7 @@ mdlr('enge:psx:cdr', () => {
           const read = { file, chunkIndex, done: false };
           fetchRemoteChunk(file, fileIndex, chunkIndex).then(() => {
             read.done = true;
-            if (remoteRead === read && ncmdread) setEvent(eventRead, 0);
+            if (remoteRead === read && ncmdread) { setEvent(eventRead, 0); }
           }, error => abort(error.message));
           remoteRead = read;
         }
@@ -839,9 +839,10 @@ mdlr('enge:psx:cdr', () => {
       sectorData8 = new Int8Array(remoteSector.buffer);
       sectorData16 = new Int16Array(remoteSector.buffer);
       sectorOffset = 0;
-    } else if (localImage) {
+    }
+    else if (localImage) {
       const location = locateSector(localImage.fileSectors, lba);
-      if (!location) return READ_MISSING;
+      if (!location) { return READ_MISSING; }
       const [fileIndex, fileSector] = location;
       const file = localImage.files[fileIndex];
       const byteOffset = fileSector * remoteSectorSize;
@@ -849,9 +850,10 @@ mdlr('enge:psx:cdr', () => {
       sectorData8 = new Int8Array(remoteSector.buffer);
       sectorData16 = new Int16Array(remoteSector.buffer);
       sectorOffset = 0;
-    } else {
+    }
+    else {
       const byteOffset = lba * 2352;
-      if (byteOffset < 0 || byteOffset + 2352 > sectorData8.length) return READ_MISSING;
+      if (byteOffset < 0 || byteOffset + 2352 > sectorData8.length) { return READ_MISSING; }
       sectorOffset = byteOffset;
     }
     headerRead = true;
@@ -878,7 +880,7 @@ mdlr('enge:psx:cdr', () => {
         const entries = [];
         for (let offset = 24; offset < 24 + 2048;) {
           const length = sectorData8[sectorOffset + offset] & 0xff;
-          if (!length) break;
+          if (!length) { break; }
           const nameLength = sectorData8[sectorOffset + offset + 32] & 0xff;
           const name = Array.from(sectorData8.slice(
             sectorOffset + offset + 33,
@@ -909,18 +911,18 @@ mdlr('enge:psx:cdr', () => {
     // Real-time audio sectors go to the ADPCM decoder and are never delivered to the CPU.
     if (mode & 0x40) {
       let sectorMode = sectorData8[sectorOffset + 0x0f];
-      if (sectorMode !== 2) return READ_DATA;
+      if (sectorMode !== 2) { return READ_DATA; }
 
       let sub = sectorData8[sectorOffset + 0x12];
-      if ((sub & 0x44) !== 0x44) return READ_DATA;
+      if ((sub & 0x44) !== 0x44) { return READ_DATA; }
 
       // the subheader bytes are unsigned (sectorData8 is signed)
       if (mode & 0x08) {
         let file = sectorData8[sectorOffset + 0x10] & 0xff;
-        if (file !== (filterFile & 0xff)) return READ_AUDIO;
+        if (file !== (filterFile & 0xff)) { return READ_AUDIO; }
 
         let chan = sectorData8[sectorOffset + 0x11] & 0xff;
-        if (chan !== (filterChan & 0xff)) return READ_AUDIO;
+        if (chan !== (filterChan & 0xff)) { return READ_AUDIO; }
       }
 
       let nfo = sectorData8[sectorOffset + 0x13];
@@ -1137,8 +1139,8 @@ mdlr('enge:psx:cdr', () => {
           case 0: return 0xE0 | irqEnable;
           case 1:
             if (cdDebug && (irq & 0x1f || debugResponseLogCount < 128)) {
-              cdLog('interrupt register read', { irq, status, results: results.length });
-              if (!irq) debugResponseLogCount++;
+              cdLog('interrupt register read', { status, irq, results: results.length });
+              if (!irq) { debugResponseLogCount++; }
             }
             return irq;
         };
@@ -1161,12 +1163,12 @@ mdlr('enge:psx:cdr', () => {
         switch (status & 3) {
           case 0:
             params.push(data);
-            if (params.length === 16) status &= ~0x10;
+            if (params.length === 16) { status &= ~0x10; }
             break;
           case 1:
             irqEnable = data;
             updateIrqLine();
-            if (cdDebug) cdLog('interrupt register select/write', { irqEnable, irq });
+            if (cdDebug) { cdLog('interrupt register select/write', { irqEnable, irq }); }
             break;
           case 2:
             volConfigCdLeft2SpuLeft = getCdVolume(data);
@@ -1213,7 +1215,7 @@ mdlr('enge:psx:cdr', () => {
         if (ncmdread === 0x03) {
           if (currTrack.audio) {
             // The next sector is late; hold the last frame instead of reading past the buffer.
-            if (playIndex > remoteSectorSize - 4) playIndex = remoteSectorSize - 4;
+            if (playIndex > remoteSectorSize - 4) { playIndex = remoteSectorSize - 4; }
             let offset = (sectorOffset + playIndex) >> 1;
             let sampleL = sectorData16[offset + 0] / 32768.0;
             let sampleR = sectorData16[offset + 1] / 32768.0;
@@ -1231,7 +1233,7 @@ mdlr('enge:psx:cdr', () => {
         }
         if ((mode & 0x40) && pcmmax >= 1) {
           // if due to timing issues we read beyond the buffer, repeat last samples to reduce clicks.
-          if (pcmidx >= (pcmmax - 1)) pcmidx = pcmmax - 1;
+          if (pcmidx >= (pcmmax - 1)) { pcmidx = pcmmax - 1; }
           let sampleL = pcm[pcmidx + 0];
           let sampleR = pcm[pcmidx + 1];
           let sL = sampleL * volCdLeft2SpuLeft + sampleR * volCdRight2SpuLeft;
@@ -1243,7 +1245,7 @@ mdlr('enge:psx:cdr', () => {
       },
 
       dmaTransferMode0000: (addr, blck) => {
-        if (!(addr & 0x007fffff)) return 0x10;
+        if (!(addr & 0x007fffff)) { return 0x10; }
 
         // DMA block counts are 32-bit words. Convert to bytes only for the
         // sector copy; return words so the DMA controller advances correctly.
@@ -1293,7 +1295,7 @@ mdlr('enge:psx:cdr', () => {
             const entries = [];
             for (let offset = 0; offset < 2048;) {
               const length = map8[ramStart + offset] & 0xff;
-              if (!length) break;
+              if (!length) { break; }
               const nameLength = map8[ramStart + offset + 32] & 0xff;
               const name = Array.from(map8.slice(
                 ramStart + offset + 33,
@@ -1321,8 +1323,8 @@ mdlr('enge:psx:cdr', () => {
 
       // delayCycles keeps the shell open a while longer so the game can notice it was open.
       closeShell: (delayCycles = 0) => {
-        if (delayCycles > 0 && shellOpen) setEvent(eventShell, delayCycles);
-        else closeShell();
+        if (delayCycles > 0 && shellOpen) { setEvent(eventShell, delayCycles); }
+        else { closeShell(); }
       },
 
       get shellOpen() {
@@ -1373,7 +1375,7 @@ mdlr('enge:psx:cdr', () => {
       }),
 
       setState: state => {
-        if (!state) return;
+        if (!state) { return; }
         headerRead = true; // a running game has read sectors
         status = state.status;
         statusCode = state.statusCode;

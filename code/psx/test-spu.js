@@ -101,11 +101,11 @@ mdlr('enge:psx:test-spu', ({ include }) => {
       s_readback: hw.alloc(Uint8Array, 4096),
       s_reverb_work: hw.alloc(Uint8Array, 0x3000),
 
-      spu_busy_wait: cycles => { const n = Math.trunc(cycles / 3); if (n) m.call(busy.spu_busy_wait, n); },
+      spu_busy_wait: cycles => { const n = Math.trunc(cycles / 3); if (n) { m.call(busy.spu_busy_wait, n); } },
       // for (volatile int i = 0; i < n; i++);
       volatile_loop: n => m.call(busy.volatile_loop, n),
       // a polling loop of at most `polls` reads; one read is a few cycles
-      poll: (polls, done) => { for (let i = 0; i < polls; ++i) { if (done()) return true; m.idle(4); } return done(); },
+      poll: (polls, done) => { for (let i = 0; i < polls; ++i) { if (done()) { return true; } m.idle(4); } return done(); },
       // an unbounded polling loop, bounded here by `cycles`
       wait: (done, cycles = 33868800) => m.idleUntil(done, cycles, 8) >= 0,
 
@@ -126,7 +126,7 @@ mdlr('enge:psx:test-spu', ({ include }) => {
         hw.DMA_CTRL[hw.DMA_SPU].CHCR = chcr;
         s.wait(() => (hw.DMA_CTRL[hw.DMA_SPU].CHCR & 0x01000000) === 0);
         // a write has landed once SPUSTAT bit 7 sets
-        if (!isRead) s.poll(65536, () => (hw.SPU_STATUS & 0x0080) !== 0);
+        if (!isRead) { s.poll(65536, () => (hw.SPU_STATUS & 0x0080) !== 0); }
         hw.SPU_CTRL = hw.SPU_CTRL & ~0x0030;
         s.volatile_loop(60);
       },
@@ -142,17 +142,18 @@ mdlr('enge:psx:test-spu', ({ include }) => {
         s.spu_dma_sync(spuAddr, hw.addressOf(src), bytes, 0);
       },
       spu_read_sync(spuAddr, dst, bytes) {
-        if (dst.address !== undefined) return s.spu_dma_sync(spuAddr, hw.addressOf(dst), bytes, 1);
+        if (dst.address !== undefined) { return s.spu_dma_sync(spuAddr, hw.addressOf(dst), bytes, 1); }
         const bounce = s.bounce(bytes);
         s.spu_dma_sync(spuAddr, hw.addressOf(bounce), bytes, 1);
         if (dst.buffer) {
           const out = new Uint8Array(dst.buffer, dst.byteOffset, dst.byteLength);
           out.set(bounce.subarray(0, Math.min(bytes, out.length)));
-        } else {
-          for (let i = 0; i < Math.min(bytes, dst.length); ++i) dst[i] = bounce[i];
+        }
+        else {
+          for (let i = 0; i < Math.min(bytes, dst.length); ++i) { dst[i] = bounce[i]; }
         }
       },
-      bounce: (() => { let buffer = null; return bytes => { if (!buffer || buffer.length < bytes) buffer = hw.alloc(Uint8Array, Math.max(bytes, 0x4000)); return buffer; }; })(),
+      bounce: (() => { let buffer = null; return bytes => { if (!buffer || buffer.length < bytes) { buffer = hw.alloc(Uint8Array, Math.max(bytes, 0x4000)); } return buffer; }; })(),
 
       spu_wait_status_bit11_flip() {
         s.wait(() => (hw.SPU_STATUS & 0x0800) !== 0);
@@ -200,8 +201,8 @@ mdlr('enge:psx:test-spu', ({ include }) => {
       // the capture ring by DMA.
       run_voice1_with_sample(sample64, pitch) {
         s.spu_reset_quiet();
-        for (let i = 0; i < 64; ++i) s.s_upload[i] = sample64[i];
-        for (let i = 64; i < 128; ++i) s.s_upload[i] = 0xaa;
+        for (let i = 0; i < 64; ++i) { s.s_upload[i] = sample64[i]; }
+        for (let i = 64; i < 128; ++i) { s.s_upload[i] = 0xaa; }
         s.spu_write_sync(SPU_UPLOAD_ADDR, s.s_upload, 128);
         hw.SPU_CTRL = 0x8000 | 0x4000;
         hw.SPU_VOL_MAIN_LEFT = 0x3fff; hw.SPU_VOL_MAIN_RIGHT = 0x3fff;
@@ -230,20 +231,20 @@ mdlr('enge:psx:test-spu', ({ include }) => {
         const a = cap;
         const warmupS = h.warmup >> 1, periodS = h.period >> 1, keptS = warmupS + periodS;
         const startS = Math.max(warmupS, SPU_ONSET_SKIP);
-        if (h.magic !== 0x544d4350) return 1;
-        if (keptS <= 0 || keptS > 512) return 1;
+        if (h.magic !== 0x544d4350) { return 1; }
+        if (keptS <= 0 || keptS > 512) { return 1; }
         let bestS = 0, bestBad = Infinity;
         for (let k = 0; k < 512; ++k) {
           const sh = (k & 1) ? -((k + 1) >> 1) : (k >> 1);
           let bad = 0;
-          for (let i = startS; i < keptS; ++i) if (a[(sh + i) & 511] !== g[i]) bad++;
+          for (let i = startS; i < keptS; ++i) { if (a[(sh + i) & 511] !== g[i]) { bad++; } }
           if (bad < bestBad) { bestBad = bad; bestS = sh; }
         }
         for (let i = startS; i < keptS; ++i) {
-          if (a[(bestS + i) & 511] !== g[i]) return i + 1;
+          if (a[(bestS + i) & 511] !== g[i]) { return i + 1; }
         }
         for (let i = keptS; i < 512; ++i) {
-          if (a[(bestS + i) & 511] !== a[(bestS + i - periodS) & 511]) return i + 1;
+          if (a[(bestS + i) & 511] !== a[(bestS + i - periodS) & 511]) { return i + 1; }
         }
         return 0;
       },

@@ -43,7 +43,7 @@ mdlr('enge:psx:cpu', ({ include }) => {
     // goes from inactive to active. Pulsed IRQs set the line and release it.
     setIrqLine: (mask, active) => {
       if (active) {
-        if (!(cpu.irqLines & mask)) cpu.raiseIrq(mask);
+        if (!(cpu.irqLines & mask)) { cpu.raiseIrq(mask); }
         cpu.irqLines |= mask;
       }
       else {
@@ -263,11 +263,11 @@ mdlr('enge:psx:cpu', ({ include }) => {
   };
 
   const cpuInterrupt = (entry) => {
-    if ((cpu.sr & 1) === 0) return entry;
+    if ((cpu.sr & 1) === 0) { return entry; }
 
     const software = cpu.cause & cpu.sr & 0x300;
     const hardware = (cpu.sr & 0x400) && (cpu.istat & cpu.imask);
-    if (!software && !hardware) return entry;
+    if (!software && !hardware) { return entry; }
 
     flushDeferredLoad();
     executeInterruptedGteCommand(entry.pc);
