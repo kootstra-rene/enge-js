@@ -902,9 +902,6 @@ mdlr('enge:webgl2', ({ include }) => {
   let $mode = 4;
   // samePacket is set for the second pass of a semi-transparent textured
   // primitive; it needs a new depth id but is still the same packet
-  // The id of the primitive being drawn, for the depth test; this renderer's own (it used to
-  // be a global, which another renderer module could reset when it loaded).
-  let primitiveId = 0;
   // primitive ids are vertex shorts used as depth; before one would exceed
   // 32767, draw what is queued and restart at 1 with a cleared depth buffer
   // (everything with an older id is then already in vram, so order holds)
@@ -1497,6 +1494,9 @@ mdlr('enge:webgl2', ({ include }) => {
   gl_bindFramebuffer(FRAMEBUFFER, null);
 
 
+  // The id of the primitive being drawn, for the depth test: a global, as enge:webgl2:utils
+  // (addVertex) reads it too. Only this renderer sets it.
+  window.primitiveId = 0;
   window.nextPrimitive = nextPrimitive;
 
   window.renderer = new WebGLRenderer();
