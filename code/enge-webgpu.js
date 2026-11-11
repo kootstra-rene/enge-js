@@ -997,7 +997,6 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       }
     }
   }
-  window.primitiveId = 0;
   window.nextPrimitive = () => {};
   window.renderer = new WebGPURenderer(document.getElementById("display"));
   return { ready: window.renderer.ready };

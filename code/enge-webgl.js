@@ -1376,7 +1376,6 @@ mdlr('enge:webgl', ({ include }) => {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
-  window.primitiveId = 0;
   window.nextPrimitive = nextPrimitive;
 
   window.renderer = new WebGLRenderer(document.getElementById('display'));
