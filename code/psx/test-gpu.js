@@ -105,7 +105,7 @@ mdlr('enge:psx:test-gpu', () => {
         g.sendGPUData(0xe6000000);
         g.sendGPUData(0xe1000400);
       },
-      rasterStreamPace: idx => { if ((idx & 7) === 0) pollWhile(() => (r32(GPU_STATUS) & 0x02000000) === 0); },
+      rasterStreamPace: idx => { if ((idx & 7) === 0) { pollWhile(() => (r32(GPU_STATUS) & 0x02000000) === 0); } },
       rasterFillRect(x, y, w, h, value) {
         g.waitGPU();
         w32(GPU_DATA, 0xa0000000);
@@ -136,7 +136,7 @@ mdlr('enge:psx:test-gpu', () => {
           pollWhile(() => (r32(GPU_STATUS) & 0x08000000) === 0);
           const word = r32(GPU_DATA);
           dst[i * 2] = word & 0xffff;
-          if (i * 2 + 1 < w) dst[i * 2 + 1] = word >>> 16;
+          if (i * 2 + 1 < w) { dst[i * 2 + 1] = word >>> 16; }
         }
         return dst;
       },
@@ -145,7 +145,7 @@ mdlr('enge:psx:test-gpu', () => {
       // primitives: one waitGPU() before the command, none between words
       send(...words) {
         g.waitGPU();
-        for (const word of words) w32(GPU_DATA, word >>> 0);
+        for (const word of words) { w32(GPU_DATA, word >>> 0); }
       },
       rasterFlatTri: (c, x0, y0, x1, y1, x2, y2) => g.send(0x20000000 | (c & 0xffffff), xy(x0, y0), xy(x1, y1), xy(x2, y2)),
       rasterFlatTriSemi: (c, x0, y0, x1, y1, x2, y2) => g.send(0x22000000 | (c & 0xffffff), xy(x0, y0), xy(x1, y1), xy(x2, y2)),

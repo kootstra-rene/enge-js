@@ -32,7 +32,7 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
   };
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { href: '', search: '' } });
     setSearch('?debug-stall');
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
@@ -50,11 +50,11 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
     // GPUSTAT reads back 0, so the loop below never ends
     globalThis.memRead32 = read32 = addr => { ++reads32; return addr === 0x01801814 ? 0 : map[(addr & 0x001fffff) >>> 2]; };
     globalThis.memWrite32 = (addr, data) => { map[(addr & 0x001fffff) >>> 2] = data; };
-    for (const name of ['memRead8', 'memRead16', 'memWrite8', 'memWrite16']) globalThis[name] = () => 0;
+    for (const name of ['memRead8', 'memRead16', 'memWrite8', 'memWrite16']) { globalThis[name] = () => 0; }
 
     ({ getCacheEntry: globalThis.getCacheEntry } = include('enge:psx:rec'));
     for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
-      if (window[name]) globalThis[name] = window[name];
+      if (window[name]) { globalThis[name] = window[name]; }
     }
     ({ stall } = include('enge:psx:stall'));
     warnings = [];
@@ -65,8 +65,8 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
     console.warn = savedWarn;
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 
@@ -124,12 +124,12 @@ mdlr('[test]enge:psx:stall', ({ include, test }) => {
     it('should list every hardware register access, however rare', async () => {
       // 30 RAM addresses read every frame, then one SPUSTAT read: the
       // register is listed although 24 rows of RAM are busier
-      for (let i = 0; i < 30; ++i) map[(0x3000 >>> 2) + i] = 0;
+      for (let i = 0; i < 30; ++i) { map[(0x3000 >>> 2) + i] = 0; }
       warnings = [];
       stall.capture();
       for (let f = 0; f < 30; ++f) {
-        for (let i = 0; i < 30; ++i) memRead32(0x3000 + 4 * i);
-        if (f === 0) memRead32(0x01801dac);
+        for (let i = 0; i < 30; ++i) { memRead32(0x3000 + 4 * i); }
+        if (f === 0) { memRead32(0x01801dac); }
         stall.block(getCacheEntry(0x1000));
         stall.endFrame();
       }

@@ -34,8 +34,8 @@ mdlr('enge:psx:stall', ({ include }) => {
   // masked (& 0x01ffffff) address -> CPU address as a game would write it
   const cpuAddress = (addr) => {
     addr >>>= 0;
-    if (addr < 0x00800000) return (0x80000000 | addr) >>> 0;
-    if (addr >= 0x01c00000 && addr < 0x01c80000) return (0xbfc00000 + (addr - 0x01c00000)) >>> 0;
+    if (addr < 0x00800000) { return (0x80000000 | addr) >>> 0; }
+    if (addr >= 0x01c00000 && addr < 0x01c80000) { return (0xbfc00000 + (addr - 0x01c00000)) >>> 0; }
     return (0x1e000000 + addr) >>> 0; // 0x01801070 -> 0x1f801070
   };
 
@@ -53,12 +53,12 @@ mdlr('enge:psx:stall', ({ include }) => {
   };
 
   const ioName = (addr) => {
-    if (addr < 0x00800000) return 'RAM';
-    if (addr >= 0x01800000 && addr < 0x01800400) return 'scratchpad';
-    if (addr >= 0x01c00000 && addr < 0x01c80000) return 'BIOS';
-    if (addr < 0x01801000 || addr >= 0x01802000) return '';
+    if (addr < 0x00800000) { return 'RAM'; }
+    if (addr >= 0x01800000 && addr < 0x01800400) { return 'scratchpad'; }
+    if (addr >= 0x01c00000 && addr < 0x01c80000) { return 'BIOS'; }
+    if (addr < 0x01801000 || addr >= 0x01802000) { return ''; }
     const reg = addr & 0x3fff;
-    if (IO_NAMES[reg]) return IO_NAMES[reg];
+    if (IO_NAMES[reg]) { return IO_NAMES[reg]; }
     if (reg >= 0x1080 && reg < 0x10f0) {
       const ch = (reg - 0x1080) >> 4;
       return `DMA${ch}_${['MADR', 'BCR', 'CHCR', '?'][(reg >> 2) & 3]} (${DMA_NAMES[ch]})`;
@@ -66,8 +66,8 @@ mdlr('enge:psx:stall', ({ include }) => {
     if (reg >= 0x1100 && reg < 0x1130) {
       return `TIMER${(reg - 0x1100) >> 4}_${['COUNT', 'MODE', 'TARGET', '?'][(reg >> 2) & 3]}`;
     }
-    if (reg >= 0x1c00 && reg < 0x1d80) return `SPU_VOICE${(reg - 0x1c00) >> 4}+${hex(reg & 15, 1)}`;
-    if (reg >= 0x1c00 && reg < 0x2000) return 'SPU';
+    if (reg >= 0x1c00 && reg < 0x1d80) { return `SPU_VOICE${(reg - 0x1c00) >> 4}+${hex(reg & 15, 1)}`; }
+    if (reg >= 0x1c00 && reg < 0x2000) { return 'SPU'; }
     return 'IO';
   };
 
@@ -103,24 +103,24 @@ mdlr('enge:psx:stall', ({ include }) => {
     const target = (pc + 4 + imm * 4) >>> 0;
     const R = (r) => REG[r];
 
-    if (w === 0) return { text: 'nop' };
+    if (w === 0) { return { text: 'nop' }; }
     switch (op) {
       case 0x00: {
         const m = SPECIAL[fn];
-        if (!m) break;
-        if (fn <= 0x03) return { text: `${m} ${R(rd)}, ${R(rt)}, ${sa}` };
-        if (fn <= 0x07) return { text: `${m} ${R(rd)}, ${R(rt)}, ${R(rs)}` };
-        if (fn === 0x08) return { text: `jr ${R(rs)}`, jump: true };
-        if (fn === 0x09) return { text: rd === 31 ? `jalr ${R(rs)}` : `jalr ${R(rd)}, ${R(rs)}`, jump: true };
-        if (fn === 0x0c || fn === 0x0d) return { text: `${m} 0x${((w >>> 6) & 0xfffff).toString(16)}`, jump: fn === 0x0c };
-        if (fn === 0x10 || fn === 0x12) return { text: `${m} ${R(rd)}` };
-        if (fn === 0x11 || fn === 0x13) return { text: `${m} ${R(rs)}` };
-        if (fn >= 0x18 && fn <= 0x1b) return { text: `${m} ${R(rs)}, ${R(rt)}` };
+        if (!m) { break; }
+        if (fn <= 0x03) { return { text: `${m} ${R(rd)}, ${R(rt)}, ${sa}` }; }
+        if (fn <= 0x07) { return { text: `${m} ${R(rd)}, ${R(rt)}, ${R(rs)}` }; }
+        if (fn === 0x08) { return { text: `jr ${R(rs)}`, jump: true }; }
+        if (fn === 0x09) { return { text: rd === 31 ? `jalr ${R(rs)}` : `jalr ${R(rd)}, ${R(rs)}`, jump: true }; }
+        if (fn === 0x0c || fn === 0x0d) { return { text: `${m} 0x${((w >>> 6) & 0xfffff).toString(16)}`, jump: fn === 0x0c }; }
+        if (fn === 0x10 || fn === 0x12) { return { text: `${m} ${R(rd)}` }; }
+        if (fn === 0x11 || fn === 0x13) { return { text: `${m} ${R(rs)}` }; }
+        if (fn >= 0x18 && fn <= 0x1b) { return { text: `${m} ${R(rs)}, ${R(rt)}` }; }
         return { text: `${m} ${R(rd)}, ${R(rs)}, ${R(rt)}` };
       }
       case 0x01: {
         const m = REGIMM[rt];
-        if (m) return { text: `${m} ${R(rs)}, 0x${hex(target)}`, branch: target };
+        if (m) { return { text: `${m} ${R(rs)}, 0x${hex(target)}`, branch: target }; }
         break;
       }
       case 0x02:
@@ -129,26 +129,26 @@ mdlr('enge:psx:stall', ({ include }) => {
         return { text: `${op === 2 ? 'j' : 'jal'} 0x${hex(t)}`, branch: t, jump: true };
       }
       case 0x04: case 0x05:
-        if (op === 0x04 && rs === 0 && rt === 0) return { text: `b 0x${hex(target)}`, branch: target, jump: true };
+        if (op === 0x04 && rs === 0 && rt === 0) { return { text: `b 0x${hex(target)}`, branch: target, jump: true }; }
         return { text: `${BRANCH[op]} ${R(rs)}, ${R(rt)}, 0x${hex(target)}`, branch: target };
       case 0x06: case 0x07:
         return { text: `${BRANCH[op]} ${R(rs)}, 0x${hex(target)}`, branch: target };
       case 0x0f:
         return { text: `lui ${R(rt)}, 0x${(w & 0xffff).toString(16)}` };
       case 0x10:
-        if (rs === 0x00) return { text: `mfc0 ${R(rt)}, ${COP0[rd] || '$' + rd}` };
-        if (rs === 0x04) return { text: `mtc0 ${R(rt)}, ${COP0[rd] || '$' + rd}` };
-        if (rs === 0x10 && fn === 0x10) return { text: 'rfe' };
+        if (rs === 0x00) { return { text: `mfc0 ${R(rt)}, ${COP0[rd] || '$' + rd}` }; }
+        if (rs === 0x04) { return { text: `mtc0 ${R(rt)}, ${COP0[rd] || '$' + rd}` }; }
+        if (rs === 0x10 && fn === 0x10) { return { text: 'rfe' }; }
         break;
       case 0x12:
         if (rs & 0x10) {
           const cmd = w & 0x01ffffff;
           return { text: `${GTE_CMD[cmd & 0x3f] || 'cop2'} 0x${cmd.toString(16)}` };
         }
-        if (rs === 0x00) return { text: `mfc2 ${R(rt)}, $${rd}` };
-        if (rs === 0x02) return { text: `cfc2 ${R(rt)}, $${rd}` };
-        if (rs === 0x04) return { text: `mtc2 ${R(rt)}, $${rd}` };
-        if (rs === 0x06) return { text: `ctc2 ${R(rt)}, $${rd}` };
+        if (rs === 0x00) { return { text: `mfc2 ${R(rt)}, $${rd}` }; }
+        if (rs === 0x02) { return { text: `cfc2 ${R(rt)}, $${rd}` }; }
+        if (rs === 0x04) { return { text: `mtc2 ${R(rt)}, $${rd}` }; }
+        if (rs === 0x06) { return { text: `ctc2 ${R(rt)}, $${rd}` }; }
         break;
       default:
         if (IMM[op]) {
@@ -183,9 +183,9 @@ mdlr('enge:psx:stall', ({ include }) => {
   const note = (table, addr, size, value) => {
     const key = (addr >>> 0) * 4 + (size >> 3); // keeps 8/16/32-bit accesses apart
     let e = table.get(key);
-    if (!e) table.set(key, e = { addr: addr >>> 0, size, count: 0, values: new Map() });
+    if (!e) { table.set(key, e = { addr: addr >>> 0, size, count: 0, values: new Map() }); }
     ++e.count;
-    if (e.values.size < MAX_VALUES || e.values.has(value)) e.values.set(value, (e.values.get(value) || 0) + 1);
+    if (e.values.size < MAX_VALUES || e.values.has(value)) { e.values.set(value, (e.values.get(value) || 0) + 1); }
   };
 
   const ACCESSORS = [['memRead8', 8, false], ['memRead16', 16, false], ['memRead32', 32, false],
@@ -195,7 +195,7 @@ mdlr('enge:psx:stall', ({ include }) => {
     original = {};
     for (const [name, size, store] of ACCESSORS) {
       const fn = original[name] = globalThis[name];
-      if (typeof fn !== 'function') continue;
+      if (typeof fn !== 'function') { continue; }
       globalThis[name] = store
         ? (addr, value) => { note(writes, addr, size, value >>> 0); return fn(addr, value); }
         : (addr) => { const value = fn(addr); note(reads, addr, size, value >>> 0); return value; };
@@ -207,7 +207,7 @@ mdlr('enge:psx:stall', ({ include }) => {
   };
 
   const stopCapture = () => {
-    for (const [name] of ACCESSORS) if (original && original[name]) globalThis[name] = original[name];
+    for (const [name] of ACCESSORS) { if (original && original[name]) { globalThis[name] = original[name]; } }
     original = null;
     capturing = 0;
   };
@@ -220,9 +220,9 @@ mdlr('enge:psx:stall', ({ include }) => {
     for (let a = pc; a < end; a += 4) {
       const word = map[a >>> 2] >>> 0;
       words.push([a, word]);
-      if (delaySlot) break;
+      if (delaySlot) { break; }
       const d = disasm(word, cpuAddress(a));
-      if (!entry.end && (d.branch !== undefined || d.jump)) delaySlot = true;
+      if (!entry.end && (d.branch !== undefined || d.jump)) { delaySlot = true; }
     }
     return words;
   };
@@ -239,7 +239,7 @@ mdlr('enge:psx:stall', ({ include }) => {
   const formatAccesses = (title, table) => {
     const all = [...table.values()].sort((a, b) => b.count - a.count);
     const rows = [...all.filter(e => isIo(e.addr)), ...all.filter(e => !isIo(e.addr)).slice(0, 24)];
-    if (!rows.length) return [`${title}: none`];
+    if (!rows.length) { return [`${title}: none`]; }
     return [`${title} (address, size, name, count/frame, values seen):`, ...rows.map(e =>
       `  0x${hex(cpuAddress(e.addr))}  ${String(e.size).padStart(2)}  ${ioName(e.addr).padEnd(22)} ${perFrame(e.count).padStart(7)}  ${formatValues(e)}`)];
   };
@@ -286,10 +286,12 @@ mdlr('enge:psx:stall', ({ include }) => {
     // called for every block the main loop runs (only when enabled)
     block: (entry) => {
       const e = frameBlocks.get(entry.pc);
-      if (e) ++e.count; else frameBlocks.set(entry.pc, { entry, count: 1 });
+      if (e) { ++e.count; }
+      else { frameBlocks.set(entry.pc, { entry, count: 1 }); }
       if (capturing) {
         const c = captureBlocks.get(entry.pc);
-        if (c) ++c.count; else captureBlocks.set(entry.pc, { entry, count: 1 });
+        if (c) { ++c.count; }
+        else { captureBlocks.set(entry.pc, { entry, count: 1 }); }
       }
     },
 
@@ -301,7 +303,7 @@ mdlr('enge:psx:stall', ({ include }) => {
           lastReport = buildReport();
           console.warn(lastReport);
           console.warn('[STALL] the report is also in window.stallReport; in DevTools: copy(stallReport)');
-          if (typeof window !== 'undefined') window.stallReport = lastReport;
+          if (typeof window !== 'undefined') { window.stallReport = lastReport; }
           reported = true;
           manual = false;
         }
@@ -310,15 +312,15 @@ mdlr('enge:psx:stall', ({ include }) => {
       }
 
       let fresh = 0;
-      for (const pc of frameBlocks.keys()) if (!watch.has(pc)) ++fresh;
+      for (const pc of frameBlocks.keys()) { if (!watch.has(pc)) { ++fresh; } }
 
       if (frameBlocks.size === 0) {
         // nothing ran this frame, keep the current state
       }
       else if (watch.size + fresh <= MAX_BLOCKS) {
-        for (const pc of frameBlocks.keys()) watch.add(pc);
+        for (const pc of frameBlocks.keys()) { watch.add(pc); }
         quietFrames = fresh ? 0 : quietFrames + 1;
-        if (fresh) reported = false; // the loop changed: a later stall gets its own report
+        if (fresh) { reported = false; } // the loop changed: a later stall gets its own report
       }
       else {
         watch = frameBlocks.size <= MAX_BLOCKS ? new Set(frameBlocks.keys()) : new Set();
@@ -328,14 +330,14 @@ mdlr('enge:psx:stall', ({ include }) => {
       lastFrameBlocks = frameBlocks.size;
       frameBlocks = new Map();
 
-      if (!reported && quietFrames >= STABLE_FRAMES && watch.size) startCapture();
+      if (!reported && quietFrames >= STABLE_FRAMES && watch.size) { startCapture(); }
     },
 
     report: () => lastReport,
 
     // record the next CAPTURE_FRAMES frames and report them, stalled or not
     capture: () => {
-      if (capturing) return 'already capturing';
+      if (capturing) { return 'already capturing'; }
       manual = true;
       frameBlocks = new Map();
       startCapture();

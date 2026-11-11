@@ -43,7 +43,7 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
         const start = psx.clock;
         for (let guard = 0; guard < 1000; ++guard) {
           const due = events.filter(e => e.active);
-          if (!due.length) break;
+          if (!due.length) { break; }
           const next = due.reduce((a, b) => (b.clock < a.clock ? b : a));
           psx.clock = Math.max(psx.clock, next.clock);
           next.cb(next, psx.clock);
@@ -64,11 +64,11 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
   // main RAM is map16 (16 bit words); put buffers at fixed addresses
   const RAM_BUF = 0x10000;
   const writeRam = (addr, bytes) => {
-    for (let i = 0; i < bytes.length; i += 2) map16[(addr + i) >>> 1] = bytes[i] | ((bytes[i + 1] || 0) << 8);
+    for (let i = 0; i < bytes.length; i += 2) { map16[(addr + i) >>> 1] = bytes[i] | ((bytes[i + 1] || 0) << 8); }
   };
   const readRam = (addr, length) => {
     const out = [];
-    for (let i = 0; i < length; ++i) out.push((map16[(addr + i) >>> 1] >> ((i & 1) * 8)) & 0xff);
+    for (let i = 0; i < length; ++i) { out.push((map16[(addr + i) >>> 1] >> ((i & 1) * 8)) & 0xff); }
     return out;
   };
   const bytesOf = text => [...text].map(c => c.charCodeAt(0));
@@ -88,7 +88,7 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
   const dmaWrite = (spuAddress, ramAddress, size, blockSize) => spuDma(TransferMode.DMAWrite, spuAddress, ramAddress, size, 0x01000201, blockSize);
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.clearCodeCache = () => {};
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
@@ -98,8 +98,8 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
   after(async () => {
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 
@@ -138,7 +138,7 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
       setTransferMode(TransferMode.Stop);
       write16(SPU_TRANSFER_ADDRESS, 0x1000 / 8);
       const bytes = bytesOf(TEST_STRING);
-      for (let i = 0; i < bytes.length; i += 2) write16(SPU_FIFO, bytes[i] | (bytes[i + 1] << 8));
+      for (let i = 0; i < bytes.length; i += 2) { write16(SPU_FIFO, bytes[i] | (bytes[i + 1] << 8)); }
       setTransferMode(TransferMode.ManualWrite);
       expect(read16(SPUSTAT) & (1 << 10)).to.eql(0);
     });
@@ -146,7 +146,7 @@ mdlr('[test]enge:psx:spu', ({ include, test }) => {
     it('should read what the FIFO wrote back by DMA', async () => {
       write16(SPU_TRANSFER_ADDRESS, 0x1000 / 8);
       const bytes = bytesOf(TEST_STRING);
-      for (let i = 0; i < bytes.length; i += 2) write16(SPU_FIFO, bytes[i] | (bytes[i + 1] << 8));
+      for (let i = 0; i < bytes.length; i += 2) { write16(SPU_FIFO, bytes[i] | (bytes[i + 1] << 8)); }
       writeRam(RAM_BUF, new Array(32).fill(0xcc));
       dmaRead(0x1000, RAM_BUF, TEST_STRING.length);
       expect(readRam(RAM_BUF, TEST_STRING.length)).to.eql(bytes);

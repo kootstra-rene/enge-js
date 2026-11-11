@@ -16,7 +16,7 @@ mdlr('enge:tools:unecm', ({ include }) => {
     ecc_f_lut[i] = j;
     ecc_b_lut[i ^ j] = i;
     let edc = i;
-    for (let k = 0; k < 8; k++) edc = (edc >>> 1) ^ (edc & 1 ? 0xD8018001 : 0);
+    for (let k = 0; k < 8; k++) { edc = (edc >>> 1) ^ (edc & 1 ? 0xD8018001 : 0); }
     edc_lut[i] = edc >>> 0;
   }
 
@@ -46,7 +46,7 @@ mdlr('enge:tools:unecm', ({ include }) => {
       for (let minor = 0; minor < minorCount; minor++) {
         const temp = sector[src + index];
         index += minorInc;
-        if (index >= size) index -= size;
+        if (index >= size) { index -= size; }
         ecc_a ^= temp;
         ecc_b ^= temp;
         ecc_a = ecc_f_lut[ecc_a];
@@ -102,26 +102,26 @@ mdlr('enge:tools:unecm', ({ include }) => {
     const inputSizes = [0, 0x803, 0x804, 0x918];
     let offset = 4;
     for (;;) {
-      if (offset >= input.length) throw uneof();
+      if (offset >= input.length) { throw uneof(); }
       let c = input[offset++];
       let bits = 5;
       const type = c & 3;
       let num = (c >> 2) & 0x1F;
       while (c & 0x80) {
-        if (offset >= input.length) throw uneof();
+        if (offset >= input.length) { throw uneof(); }
         c = input[offset++];
-        if (bits < 32) num = (num | ((c & 0x7F) << bits)) >>> 0;
+        if (bits < 32) { num = (num | ((c & 0x7F) << bits)) >>> 0; }
         bits += 7;
       }
-      if (num === 0xFFFFFFFF) break;
+      if (num === 0xFFFFFFFF) { break; }
       num++;
-      if (num >= 0x80000000) throw new Error('Corrupt ECM file!');
+      if (num >= 0x80000000) { throw new Error('Corrupt ECM file!'); }
       const size = type ? num * inputSizes[type] : num;
-      if (offset + size > input.length) throw uneof();
+      if (offset + size > input.length) { throw uneof(); }
       onBlock(type, num, offset);
       offset += size;
     }
-    if (offset + 4 > input.length) throw uneof();
+    if (offset + 4 > input.length) { throw uneof(); }
     return offset;
   }
 

@@ -8,11 +8,11 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   const analogKeys = new Set();
   const debugPad = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug-pad') === '1';
   const debugInput = (...args) => {
-    if (debugPad) console.log('[PAD]', ...args);
+    if (debugPad) { console.log('[PAD]', ...args); }
   };
 
   const setController = (type) => {
-    if (controller === type) return;
+    if (controller === type) { return; }
     controller = type;
 
     const elem = document.getElementById('gamepad');
@@ -26,7 +26,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   const buttonPressed = (b) => !!b?.pressed;
 
   const updateDevice = (pad, device) => {
-    if (!device) return;
+    if (!device) { return; }
 
     const {axes = [], buttons = []} = pad || {};
     const axis = (index) => axes[index] || 0;
@@ -44,8 +44,8 @@ mdlr('enge:psx:gamepad', ({ include }) => {
 
     if (buttonPressed(buttons[8])) { lo &= ~0x01 } // select
     if (buttonPressed(buttons[9])) { lo &= ~0x08 } // start
-    if (buttonPressed(buttons[10])) lo &= ~0x02; // L3
-    if (buttonPressed(buttons[11])) lo &= ~0x04; // R3
+    if (buttonPressed(buttons[10])) { lo &= ~0x02; } // L3
+    if (buttonPressed(buttons[11])) { lo &= ~0x04; } // R3
     device.lo = lo;
     const stickByte = value => Math.max(0, Math.min(255, Math.round(128 +
       (Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0) * 128)));
@@ -79,8 +79,8 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   };
 
   const setVirtualButton = (property, bit, pressed) => {
-    if (pressed) virtual[property] &= ~bit;
-    else virtual[property] |= bit;
+    if (pressed) { virtual[property] &= ~bit; }
+    else { virtual[property] |= bit; }
   };
 
   window.engeSetVirtualButton = setVirtualButton;
@@ -89,9 +89,9 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   const virtualButtons = new Map();
   const releaseVirtualPointer = event => {
     const pointerId = event.pointerId;
-    if (pointerId == null) return;
+    if (pointerId == null) { return; }
     const key = virtualPointers.get(pointerId);
-    if (!key) return;
+    if (!key) { return; }
     virtualPointers.delete(pointerId);
     const stillPressed = [...virtualPointers.values()].includes(key);
     if (!stillPressed) {
@@ -122,7 +122,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     button.addEventListener('pointerup', release);
     button.addEventListener('pointercancel', release);
     button.addEventListener('pointerleave', event => {
-      if (event.pointerType === 'mouse') release(event);
+      if (event.pointerType === 'mouse') { release(event); }
     });
     button.addEventListener('contextmenu', event => {
       event.preventDefault();
@@ -145,12 +145,12 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   const stickBits = { up: 16, down: 64, left: 128, right: 32 };
 
   const clearVirtualStick = () => {
-    if (stickKnob) stickKnob.style.transform = 'translate(0, 0)';
-    for (const bit of Object.values(stickBits)) setVirtualButton('lo', bit, false);
+    if (stickKnob) { stickKnob.style.transform = 'translate(0, 0)'; }
+    for (const bit of Object.values(stickBits)) { setVirtualButton('lo', bit, false); }
   };
 
   const updateVirtualStick = event => {
-    if (!stick || !stickKnob) return;
+    if (!stick || !stickKnob) { return; }
     const bounds = stick.getBoundingClientRect();
     const centerX = bounds.left + bounds.width / 2;
     const centerY = bounds.top + bounds.height / 2;
@@ -164,8 +164,8 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     }
     stickKnob.style.transform = `translate(${x}px, ${y}px)`;
 
-    for (const bit of Object.values(stickBits)) setVirtualButton('lo', bit, false);
-    if (distance < radius * 0.25) return;
+    for (const bit of Object.values(stickBits)) { setVirtualButton('lo', bit, false); }
+    if (distance < radius * 0.25) { return; }
     if (Math.abs(x) >= Math.abs(y)) {
       setVirtualButton('lo', x < 0 ? stickBits.left : stickBits.right, true);
     }
@@ -175,7 +175,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   };
 
   const releaseVirtualStick = event => {
-    if (stickPointerId !== null && event.pointerId != null && event.pointerId !== stickPointerId) return;
+    if (stickPointerId !== null && event.pointerId != null && event.pointerId !== stickPointerId) { return; }
     stickPointerId = null;
     clearVirtualStick();
   };
@@ -188,7 +188,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     updateVirtualStick(event);
   });
   stick?.addEventListener('pointermove', event => {
-    if (event.pointerId === stickPointerId) updateVirtualStick(event);
+    if (event.pointerId === stickPointerId) { updateVirtualStick(event); }
   });
   stick?.addEventListener('pointerup', releaseVirtualStick);
   stick?.addEventListener('pointercancel', releaseVirtualStick);
@@ -205,11 +205,11 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   });
 
   const enge_gamepad_update = () => {
-    if (!navigator.getGamepads) return;
+    if (!navigator.getGamepads) { return; }
 
     const pads = navigator.getGamepads();
     for (let index = 0; index < joypads.length; ++index) {
-      if (!joypads[index] && pads[index]) joypads[index] = pads[index];
+      if (!joypads[index] && pads[index]) { joypads[index] = pads[index]; }
     }
     const usedPadIndices = new Set();
     for (let index = 0; index < joypads.length; ++index) {
@@ -271,7 +271,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
   const isInMenu = (e) => !!e.target.closest?.('[data-menu]');
 
   window.addEventListener("keydown", (e) => {
-    if (isInMenu(e)) return;
+    if (isInMenu(e)) { return; }
     if (['KeyI', 'KeyJ', 'KeyK', 'KeyL'].includes(e.code)) {
       e.preventDefault();
       analogKeys.add(e.code);
@@ -294,7 +294,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     const device = joy.devices[0];
 
     if (mapping !== undefined) {
-      if (!isInMenu(e)) e.preventDefault();
+      if (!isInMenu(e)) { e.preventDefault(); }
       keyboardState[mapping.property] |= mapping.bits;
       device[mapping.property] |= mapping.bits;
       debugInput('keyup', { key: e.key, code: e.code, property: mapping.property, bits: `0x${mapping.bits.toString(16)}`, lo: device.lo, hi: device.hi });
@@ -305,7 +305,7 @@ mdlr('enge:psx:gamepad', ({ include }) => {
     const index = e.gamepad.index < joypads.length
       ? e.gamepad.index
       : joypads.findIndex(pad => !pad);
-    if (index >= 0) joypads[index] = e.gamepad;
+    if (index >= 0) { joypads[index] = e.gamepad; }
     document.getElementById('gamepad')?.classList.add('connected')
   });
 

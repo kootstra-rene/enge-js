@@ -102,13 +102,13 @@ mdlr('enge:psx:pgxp', ({ include }) => {
 
   const miss = (reason, pc) => {
     let m = stats.misses.get(reason);
-    if (!m) stats.misses.set(reason, m = { count: 0, pcs: new Map() });
+    if (!m) { stats.misses.set(reason, m = { count: 0, pcs: new Map() }); }
     ++m.count;
-    if (pc !== undefined) m.pcs.set(pc, (m.pcs.get(pc) || 0) + 1);
+    if (pc !== undefined) { m.pcs.set(pc, (m.pcs.get(pc) || 0) + 1); }
   };
 
   const report = () => {
-    if (!stats.vertices && !stats.direct) return;
+    if (!stats.vertices && !stats.direct) { return; }
     const pct = stats.vertices ? (100 * stats.precise / stats.vertices).toFixed(1) : '0.0';
     const parts = [...stats.misses.entries()].sort((a, b) => b[1].count - a[1].count).map(([reason, m]) => {
       const pcs = [...m.pcs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
@@ -139,12 +139,12 @@ mdlr('enge:psx:pgxp', ({ include }) => {
     // after LW rt, (addr) loaded value: carry the word's fraction into rt
     lw: (rt, addr, value) => {
       const index = shadowIndex(addr);
-      if (rt && memRaw[index] === value) setGpr(rt, value, memFrac[index]);
+      if (rt && memRaw[index] === value) { setGpr(rt, value, memFrac[index]); }
     },
 
     // after SW rt, (addr) stored value: carry rt's fraction into memory
     sw: (rt, addr, value) => {
-      if (gprRaw[rt] === value) setMem(addr, value, gprFrac[rt]);
+      if (gprRaw[rt] === value) { setMem(addr, value, gprFrac[rt]); }
     },
 
     // SWC2 rt, (addr): store a GTE register with its fraction
@@ -152,7 +152,7 @@ mdlr('enge:psx:pgxp', ({ include }) => {
       const value = gte.get(rt);
       memWrite32(addr, value);
       setMem(addr, value, isSxy(rt) ? gte.frac(rt) | VALID : 0);
-      if (debug) pgxp.noteStore(STORE_SWC2, addr, pgxp.pc);
+      if (debug) { pgxp.noteStore(STORE_SWC2, addr, pgxp.pc); }
     },
 
     // LWC2 into SXY: called after gte.set(reg, value) when the word has a fraction
@@ -168,7 +168,7 @@ mdlr('enge:psx:pgxp', ({ include }) => {
     // LH/LHU rt, (addr): called after the load (value = the loaded, extended
     // halfword) when the word has a fraction; that half becomes rt's x half
     lh: (rt, addr, value) => {
-      if (!rt) return;
+      if (!rt) { return; }
       const f = memFracAt(shadowIndex(addr), wordOf(addr));
       setGpr(rt, value, (addr & 2) ? toLow(f) : lowF(f));
     },
@@ -190,7 +190,7 @@ mdlr('enge:psx:pgxp', ({ include }) => {
     // combined (or/addu), anything else drops it (integer fallback).
     cpu: cpuMode,
     alu: (kind, rd, rs, rt, a, b, imm) => {
-      if (!rd) return;
+      if (!rd) { return; }
       const fa = gprFracOf(rs, a), fb = gprFracOf(rt, b);
       let r, f;
       switch (kind) {
@@ -230,8 +230,8 @@ mdlr('enge:psx:pgxp', ({ include }) => {
       if (frac) { ++stats.precise; return; }
       const index = (addr & 0x001fffff) >>> 2;
       const kind = lastKind[index];
-      if (!kind) return miss('never stored by the CPU (e.g. loaded by DMA)');
-      if (lastVal[index] !== value) return miss('changed after the last CPU store (DMA or an untracked path)');
+      if (!kind) { return miss('never stored by the CPU (e.g. loaded by DMA)'); }
+      if (lastVal[index] !== value) { return miss('changed after the last CPU store (DMA or an untracked path)'); }
       const pc = lastPc[index];
       switch (kind) {
         case STORE_SB: return miss('written with SB', pc);
@@ -251,13 +251,13 @@ mdlr('enge:psx:pgxp', ({ include }) => {
     // by the load delay; the fraction only applies while gpr[rt] === value)
     mfc2: (rt, rd) => {
       const value = gte.get(rd);
-      if (rt) setGpr(rt, value, isSxy(rd) ? gte.frac(rd) | VALID : 0);
+      if (rt) { setGpr(rt, value, isSxy(rd) ? gte.frac(rd) | VALID : 0); }
       return value;
     },
 
     // register move (ADDU/OR with r0): copy the fraction along
     move: (rd, rs) => {
-      if (rd) setGpr(rd, gprRaw[rs], gprFrac[rs]);
+      if (rd) { setGpr(rd, gprRaw[rs], gprFrac[rs]); }
     },
 
     // GPU: fraction for a packet word read from RAM at addr (& 0x1fffff)

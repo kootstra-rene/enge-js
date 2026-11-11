@@ -18,7 +18,7 @@ mdlr('enge:psx:test-hw', () => {
         enumerable: true,
         get: () => {
           const v = read(addr);
-          if (mask === null) return signed ? v | 0 : v >>> 0;
+          if (mask === null) { return signed ? v | 0 : v >>> 0; }
           return signed ? (v << (32 - bits)) >> (32 - bits) : v & mask;
         },
         set: v => write(addr, v),
@@ -26,7 +26,7 @@ mdlr('enge:psx:test-hw', () => {
     };
     const struct = (base, fields) => {
       const obj = {};
-      for (const [name, offset, bits, signed] of fields) reg(obj, name, base + offset, bits, signed);
+      for (const [name, offset, bits, signed] of fields) { reg(obj, name, base + offset, bits, signed); }
       return obj;
     };
 
@@ -78,7 +78,7 @@ mdlr('enge:psx:test-hw', () => {
       ['SPU_REVERB_ADDR', 0x1f801da2], ['SPU_IRQ_ADDR', 0x1f801da4], ['SPU_RAM_DTA', 0x1f801da6], ['SPU_RAM_DATA', 0x1f801da8],
       ['SPU_CTRL', 0x1f801daa], ['SPU_RAM_DTC', 0x1f801dac], ['SPU_STATUS', 0x1f801dae],
       ['SPU_VOL_CD_LEFT', 0x1f801db0], ['SPU_VOL_CD_RIGHT', 0x1f801db2], ['SPU_VOL_EXT_LEFT', 0x1f801db4], ['SPU_VOL_EXT_RIGHT', 0x1f801db6],
-    ]) reg(hw, name, addr, 16);
+    ]) { reg(hw, name, addr, 16); }
     // VOLX (current volume) per voice, signed: 1F801E00h + 4 * n
     hw.VOLXL = n => { const v = m.read16(0x1f801e00 + 4 * n); return (v << 16) >> 16; };
     hw.VOLXR = n => { const v = m.read16(0x1f801e02 + 4 * n); return (v << 16) >> 16; };

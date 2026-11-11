@@ -14,21 +14,21 @@ mdlr('enge:psx:test-window', () => {
   const isBrowser = () => typeof history !== 'undefined' && typeof history.replaceState === 'function';
 
   const setSearch = (search) => {
-    if (isBrowser()) history.replaceState(history.state, '', location.pathname + search + location.hash);
-    else window.location.search = search;
+    if (isBrowser()) { history.replaceState(history.state, '', location.pathname + search + location.hash); }
+    else { window.location.search = search; }
   };
 
   const stubWindow = (stubs) => {
     const created = typeof window === 'undefined';
-    if (created) globalThis.window = {};
+    if (created) { globalThis.window = {}; }
     const added = Object.keys(stubs).filter(name => !window[name]);
-    for (const name of added) window[name] = stubs[name];
+    for (const name of added) { window[name] = stubs[name]; }
     const search = window.location?.search;
 
     return () => {
-      if (window.location && window.location.search !== search) setSearch(search);
-      for (const name of added) delete window[name];
-      if (created) delete globalThis.window;
+      if (window.location && window.location.search !== search) { setSearch(search); }
+      for (const name of added) { delete window[name]; }
+      if (created) { delete globalThis.window; }
     };
   };
 

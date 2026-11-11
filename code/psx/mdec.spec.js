@@ -56,7 +56,7 @@ mdlr('[test]enge:psx:mdec', ({ include, test }) => {
   };
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { search: '' } });
     globalThis.PSX_SPEED = 44100 * 768;
     globalThis.clearCodeCache = () => {};
@@ -67,8 +67,8 @@ mdlr('[test]enge:psx:mdec', ({ include, test }) => {
   after(async () => {
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 

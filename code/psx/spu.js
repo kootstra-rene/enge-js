@@ -66,10 +66,10 @@ mdlr('enge:psx:spu', ({ include }) => {
       const outR = output.numberOfChannels > 1 ? output.getChannelData(1) : outL;
       const step = SAMPLE_RATE / context.sampleRate;
       outL.fill(0);
-      if (outR !== outL) outR.fill(0);
+      if (outR !== outL) { outR.fill(0); }
 
       if (!fallbackPlaying) {
-        if (fallbackQueuedFrames < FALLBACK_PREBUFFER_FRAMES) return;
+        if (fallbackQueuedFrames < FALLBACK_PREBUFFER_FRAMES) { return; }
         fallbackPlaying = true;
         fallbackFrac = 0;
         pullFallbackSample();
@@ -98,7 +98,7 @@ mdlr('enge:psx:spu', ({ include }) => {
       }
     };
     fallbackNode.connect(gainNode);
-    for (const message of pendingChunks) queueFallbackChunk(message);
+    for (const message of pendingChunks) { queueFallbackChunk(message); }
     pendingChunks = [];
   };
 
@@ -112,11 +112,13 @@ mdlr('enge:psx:spu', ({ include }) => {
     const message = { left, right };
     if (outputPort) {
       outputPort.postMessage(message, [left.buffer, right.buffer]);
-    } else if (fallbackNode) {
+    }
+    else if (fallbackNode) {
       queueFallbackChunk(message);
-    } else {
+    }
+    else {
       pendingChunks.push(message);
-      if (pendingChunks.length > MAX_PENDING_CHUNKS) pendingChunks.shift();
+      if (pendingChunks.length > MAX_PENDING_CHUNKS) { pendingChunks.shift(); }
     }
     newChunk();
   }
@@ -138,7 +140,7 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     // autoplay policy: the context may start suspended until a user gesture
     const resume = () => {
-      if (context.state !== 'suspended') return;
+      if (context.state !== 'suspended') { return; }
       context.resume().catch(() => { });
     };
     resume();
@@ -168,7 +170,8 @@ mdlr('enge:psx:spu', ({ include }) => {
           console.error('spu: unable to start ScriptProcessorNode fallback', fallbackError);
         }
       });
-    } else {
+    }
+    else {
       try {
         startScriptProcessor(context, gainNode);
       } catch (error) {
@@ -181,7 +184,7 @@ mdlr('enge:psx:spu', ({ include }) => {
 
   psx.addEvent(0, (self) => {
     psx.updateEvent(self, 768); // 1 sample
-    if (!left || !right) return;
+    if (!left || !right) { return; }
 
     SPUSTAT &= ~(0x003F);
     SPUSTAT |= (SPUSTATm & 0x003F);
@@ -198,7 +201,7 @@ mdlr('enge:psx:spu', ({ include }) => {
     // for three samples and starts its envelope on the fourth).
     if (keyOnPending && !(totalSamples & 1) && totalSamples >= keyOnWrittenAt + 2) {
       for (let i = 0; i < 24; ++i) {
-        if (!(keyOnPending & (1 << i))) continue;
+        if (!(keyOnPending & (1 << i))) { continue; }
         voices[i].keyOn();
         spu.ENDX &= ~(1 << i);
       }
@@ -213,8 +216,8 @@ mdlr('enge:psx:spu', ({ include }) => {
       previousVoiceOutput = voice.lastVolume;
       // voices 1 and 3 write their enveloped sample, before the voice
       // volume, to a capture buffer every sample
-      if (voice.capture) view.setInt16(voice.capture + captureIndex, voice.lastVolume, true);
-      if (!active) continue;
+      if (voice.capture) { view.setInt16(voice.capture + captureIndex, voice.lastVolume, true); }
+      if (!active) { continue; }
 
       l += audio[0];
       r += audio[1];
@@ -257,7 +260,7 @@ mdlr('enge:psx:spu', ({ include }) => {
 
     left[writeIndex] = l;//Math.max(Math.min(l, 1.0), -1.0);
     right[writeIndex] = r;//Math.max(Math.min(r, 1.0), -1.0);
-    if (++writeIndex === CHUNK_FRAMES) flushChunk();
+    if (++writeIndex === CHUNK_FRAMES) { flushChunk(); }
 
     if (captureIndex === 0x000) {
       SPUSTAT &= ~0x0800;
@@ -357,12 +360,12 @@ mdlr('enge:psx:spu', ({ include }) => {
           keyOnWrittenAt = totalSamples;
           break
         case 0x1d8c: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue;
+          if ((data & (1 << i)) === 0) { continue; }
           voices[i].keyOff()
         }
           break
         case 0x1d8e: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue;
+          if ((data & (1 << i)) === 0) { continue; }
           voices[16 + i].keyOff()
         }
           break
@@ -375,12 +378,12 @@ mdlr('enge:psx:spu', ({ include }) => {
         }
           break
         case 0x1d94: for (let i = 0; i < 16; ++i) {
-          if ((data & (1 << i)) === 0) continue;
+          if ((data & (1 << i)) === 0) { continue; }
           voices[i].noiseOn()
         }
           break
         case 0x1d96: for (let i = 0; i < 8; ++i) {
-          if ((data & (1 << i)) === 0) continue;
+          if ((data & (1 << i)) === 0) { continue; }
           voices[16 + i].noiseOn()
         }
           break
@@ -474,7 +477,7 @@ mdlr('enge:psx:spu', ({ include }) => {
     },
 
     dmaTransferMode0200: (addr, blck) => {
-      if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) { return 0x10; }
 
       let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
       clearCodeCache(addr, transferSize);
@@ -492,7 +495,7 @@ mdlr('enge:psx:spu', ({ include }) => {
     },
 
     dmaTransferMode0201: (addr, blck) => {
-      if (!(addr & 0x007fffff)) return 0x10;
+      if (!(addr & 0x007fffff)) { return 0x10; }
 
       let transferSize = ((blck >> 16) * (blck & 0xFFFF) * 4) >>> 0;
 
@@ -510,7 +513,7 @@ mdlr('enge:psx:spu', ({ include }) => {
     },
 
     checkIrq: voice => {
-      if ((SPUCNT & 0x8040) !== 0x8040) return;
+      if ((SPUCNT & 0x8040) !== 0x8040) { return; }
 
       const captureIndex = (totalSamples % 0x200) << 1;
 

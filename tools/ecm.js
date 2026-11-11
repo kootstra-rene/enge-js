@@ -14,7 +14,7 @@ mdlr('enge:tools:ecm', ({ include }) => {
     ecc_f_lut[i] = j;
     ecc_b_lut[i ^ j] = i;
     let edc = i;
-    for (let k = 0; k < 8; k++) edc = (edc >>> 1) ^ (edc & 1 ? 0xD8018001 : 0);
+    for (let k = 0; k < 8; k++) { edc = (edc >>> 1) ^ (edc & 1 ? 0xD8018001 : 0); }
     edc_lut[i] = edc >>> 0;
   }
 
@@ -37,14 +37,14 @@ mdlr('enge:tools:ecm', ({ include }) => {
       for (let minor = 0; minor < minorCount; minor++) {
         const temp = (zeroAddress && index < 4) ? 0 : data[src + index];
         index += minorInc;
-        if (index >= size) index -= size;
+        if (index >= size) { index -= size; }
         ecc_a ^= temp;
         ecc_b ^= temp;
         ecc_a = ecc_f_lut[ecc_a];
       }
       ecc_a = ecc_b_lut[ecc_f_lut[ecc_a] ^ ecc_b];
-      if (data[dest + major] !== ecc_a) return false;
-      if (data[dest + major + majorCount] !== (ecc_a ^ ecc_b)) return false;
+      if (data[dest + major] !== ecc_a) { return false; }
+      if (data[dest + major + majorCount] !== (ecc_a ^ ecc_b)) { return false; }
     }
     return true;
   }
@@ -76,10 +76,10 @@ mdlr('enge:tools:ecm', ({ include }) => {
         canBeType1 = false;
       }
       for (let i = 0x01; canBeType1 && i <= 0x0A; i++) {
-        if (data[s + i] !== 0xFF) canBeType1 = false;
+        if (data[s + i] !== 0xFF) { canBeType1 = false; }
       }
       for (let i = 0x814; canBeType1 && i <= 0x81B; i++) {
-        if (data[s + i] !== 0x00) canBeType1 = false;
+        if (data[s + i] !== 0x00) { canBeType1 = false; }
       }
     }
     // Check for mode 2
@@ -91,21 +91,21 @@ mdlr('enge:tools:ecm', ({ include }) => {
     ) {
       canBeType2 = false;
       canBeType3 = false;
-      if (!canBeType1) return 0;
+      if (!canBeType1) { return 0; }
     }
     // Check EDC
     let edc = edcComputeBlock(0, data, s, 0x808);
-    if (canBeType2 && !edcMatches(data, s + 0x808, edc)) canBeType2 = false;
+    if (canBeType2 && !edcMatches(data, s + 0x808, edc)) { canBeType2 = false; }
     edc = edcComputeBlock(edc, data, s + 0x808, 8);
-    if (canBeType1 && !edcMatches(data, s + 0x810, edc)) canBeType1 = false;
+    if (canBeType1 && !edcMatches(data, s + 0x810, edc)) { canBeType1 = false; }
     edc = edcComputeBlock(edc, data, s + 0x810, 0x10C);
-    if (canBeType3 && !edcMatches(data, s + 0x91C, edc)) canBeType3 = false;
+    if (canBeType3 && !edcMatches(data, s + 0x91C, edc)) { canBeType3 = false; }
     // Check ECC
-    if (canBeType1 && !eccCheck(data, s, false, s + 0x81C)) canBeType1 = false;
-    if (canBeType2 && !eccCheck(data, s - 0x10, true, s + 0x80C)) canBeType2 = false;
-    if (canBeType1) return 1;
-    if (canBeType2) return 2;
-    if (canBeType3) return 3;
+    if (canBeType1 && !eccCheck(data, s, false, s + 0x81C)) { canBeType1 = false; }
+    if (canBeType2 && !eccCheck(data, s - 0x10, true, s + 0x80C)) { canBeType2 = false; }
+    if (canBeType1) { return 1; }
+    if (canBeType2) { return 2; }
+    if (canBeType3) { return 3; }
     return 0;
   }
 
@@ -114,7 +114,7 @@ mdlr('enge:tools:ecm', ({ include }) => {
     let buffer = new Uint8Array(capacity);
     let length = 0;
     const reserve = size => {
-      if (length + size <= buffer.length) return;
+      if (length + size <= buffer.length) { return; }
       const grown = new Uint8Array(Math.max(buffer.length * 2, length + size));
       grown.set(buffer.subarray(0, length));
       buffer = grown;
@@ -180,7 +180,7 @@ mdlr('enge:tools:ecm', ({ include }) => {
       const avail = input.length - pos;
       const detectType = avail < 2336 ? 0 : checkType(input, pos, avail >= 2352);
       if (detectType !== curType) {
-        if (curTypeCount) flush(out, input, curType, curTypeCount, curTypeStart);
+        if (curTypeCount) { flush(out, input, curType, curTypeCount, curTypeStart); }
         curType = detectType;
         curTypeStart = pos;
         curTypeCount = 1;
@@ -190,7 +190,7 @@ mdlr('enge:tools:ecm', ({ include }) => {
       }
       pos += stride[curType];
     }
-    if (curTypeCount) flush(out, input, curType, curTypeCount, curTypeStart);
+    if (curTypeCount) { flush(out, input, curType, curTypeCount, curTypeStart); }
 
     // End-of-records indicator
     writeTypeCount(out, 0, 0);

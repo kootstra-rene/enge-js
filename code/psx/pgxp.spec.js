@@ -30,7 +30,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
   // OFX/OFY carry the fraction; H = 0 makes the projection term zero, so
   // SX2 = OFX / 10000h and SY2 = OFY / 10000h.
   const projectPoint = () => {
-    for (let r = 0; r < 64; ++r) gte.set(r, 0);
+    for (let r = 0; r < 64; ++r) { gte.set(r, 0); }
     gte.set(0x27, 1000);                       // TRZ, gives a non-zero SZ3
     gte.set(0x38, (100 << 16) + 0x4000);       // OFX = 100.25
     gte.set(0x39, (50 << 16) + 0xc000);        // OFY = 50.75
@@ -45,7 +45,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     cpu.gpr[RA] = 0x8000;
     const entry = getCacheEntry(pc);
     let target = entry.code(psx);
-    if (target === entry) target = entry.code(psx); // first call only compiled
+    if (target === entry) { target = entry.code(psx); } // first call only compiled
     return entry;
   };
 
@@ -60,7 +60,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
   let restoreWindow;
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     restoreWindow = stubWindow({ location: { href: '', search: '' } });
     setSearch('?pgxp');
     globalThis.abort = message => { throw new Error(`abort: ${message}`); };
@@ -89,7 +89,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     ({ getCacheEntry: globalThis.getCacheEntry } = freshRec());
     // compiled blocks use the code-invalidation globals rec.js publishes on window
     for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
-      if (window[name]) globalThis[name] = window[name];
+      if (window[name]) { globalThis[name] = window[name]; }
     }
 
     globalThis.renderer = gpuRenderer = new Proxy({
@@ -105,8 +105,8 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
   after(async () => {
     restoreWindow();
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 
@@ -119,7 +119,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     });
 
     it('should keep sixteenths of a pixel (half a pixel at the 8x render scale)', async () => {
-      for (let r = 0; r < 64; ++r) gte.set(r, 0);
+      for (let r = 0; r < 64; ++r) { gte.set(r, 0); }
       gte.set(0x27, 1000);
       gte.set(0x38, (100 << 16) + 0x1000);     // OFX = 100.0625
       gte.set(0x39, (50 << 16) + 0xf000);      // OFY = 50.9375
@@ -129,7 +129,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     });
 
     it('should round negative coordinates down, with the fraction above them', async () => {
-      for (let r = 0; r < 64; ++r) gte.set(r, 0);
+      for (let r = 0; r < 64; ++r) { gte.set(r, 0); }
       gte.set(0x27, 1000);
       gte.set(0x38, -(100 << 16) - 0x4000);    // OFX = -100.25 = -101 + 12/16
       gte.set(0x39, (50 << 16) + 0x8000);      // OFY = 50.5
@@ -307,12 +307,12 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     const use = () => { globalThis.pgxp = cpuPgxp; globalThis.getCacheEntry = cpuGetCacheEntry; };
 
     before(async () => {
-      for (const name of names) saved[name] = globalThis[name];
+      for (const name of names) { saved[name] = globalThis[name]; }
       setSearch('?pgxp=cpu');
       ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = freshPgxp());
       ({ getCacheEntry: globalThis.getCacheEntry } = freshRec());
       for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
-        if (window[name]) globalThis[name] = window[name];
+        if (window[name]) { globalThis[name] = window[name]; }
       }
       cpuPgxp = globalThis.pgxp;
       cpuGetCacheEntry = globalThis.getCacheEntry;
@@ -320,7 +320,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
 
     after(async () => {
       setSearch('?pgxp');
-      for (const name of names) globalThis[name] = saved[name];
+      for (const name of names) { globalThis[name] = saved[name]; }
     });
 
     // project, then run the program with t0 = buffer and store the result word (t4) at t0+4
@@ -405,12 +405,12 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
     const drawList = (base) => { gpu.dmaTransferMode0401(base, 0); pgxp.report(); return window.pgxpStats || ''; };
 
     before(async () => {
-      for (const name of names) saved[name] = globalThis[name];
+      for (const name of names) { saved[name] = globalThis[name]; }
       setSearch('?pgxp&debug-pgxp');
       ({ pgxp: globalThis.pgxp, pgxpMemFrac: globalThis.pgxpMemFrac, pgxpGprFrac: globalThis.pgxpGprFrac } = freshPgxp());
       ({ getCacheEntry: globalThis.getCacheEntry } = freshRec());
       for (const name of ['fastCache', 'invalidateCache', 'codeWords', 'invalidateCodeWord']) {
-        if (window[name]) globalThis[name] = window[name];
+        if (window[name]) { globalThis[name] = window[name]; }
       }
       debugPgxp = globalThis.pgxp;
       debugGetCacheEntry = globalThis.getCacheEntry;
@@ -422,7 +422,7 @@ mdlr('[test]enge:psx:pgxp', ({ include, test }) => {
       console.log = savedLog;
       setSearch('?pgxp');
       delete window.pgxpStats;
-      for (const name of names) globalThis[name] = saved[name];
+      for (const name of names) { globalThis[name] = saved[name]; }
     });
 
     it('should count precise vertices and name the store that wrote the others', async () => {

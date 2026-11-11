@@ -46,26 +46,26 @@ mdlr('enge:webgl2', ({ include }) => {
     = [gl.blendColor, gl.blendFuncSeparate, gl.blendEquationSeparate, gl.enable, gl.disable, gl.getUniformLocation, gl.texSubImage2D, gl.bindFramebuffer, gl.framebufferTexture2D, gl.blitFramebuffer, gl.enableVertexAttribArray, gl.getAttribLocation, gl.vertexAttribPointer, gl.bindTexture, gl.texImage2D, gl.createFramebuffer].map(a => a.bind(gl));
 
   const largePrimitive = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
-    if (Math.abs(x1 - x2) > 1023) return true;
-    if (Math.abs(x2 - x3) > 1023) return true;
-    if (Math.abs(x3 - x1) > 1023) return true;
-    if (Math.abs(x4 - x2) > 1023) return true;
-    if (Math.abs(x4 - x3) > 1023) return true;
-    if (Math.abs(y1 - y2) > 511) return true;
-    if (Math.abs(y2 - y3) > 511) return true;
-    if (Math.abs(y3 - y1) > 511) return true;
-    if (Math.abs(y4 - y2) > 511) return true;
-    if (Math.abs(y4 - y3) > 511) return true;
+    if (Math.abs(x1 - x2) > 1023) { return true; }
+    if (Math.abs(x2 - x3) > 1023) { return true; }
+    if (Math.abs(x3 - x1) > 1023) { return true; }
+    if (Math.abs(x4 - x2) > 1023) { return true; }
+    if (Math.abs(x4 - x3) > 1023) { return true; }
+    if (Math.abs(y1 - y2) > 511) { return true; }
+    if (Math.abs(y2 - y3) > 511) { return true; }
+    if (Math.abs(y3 - y1) > 511) { return true; }
+    if (Math.abs(y4 - y2) > 511) { return true; }
+    if (Math.abs(y4 - y3) > 511) { return true; }
     return false;
   }
 
   // conservative: only rejects primitives whose vertices are all beyond one
   // edge of the draw area; partially visible ones are clipped by the scissor
   const outsideDrawArea = (x1, y1, x2, y2, x3, y3, x4 = x3, y4 = y3) => {
-    if ((x1 < $gpu.daL) && (x2 < $gpu.daL) && (x3 < $gpu.daL) && (x4 < $gpu.daL)) return true;
-    if ((x1 > $gpu.daR) && (x2 > $gpu.daR) && (x3 > $gpu.daR) && (x4 > $gpu.daR)) return true;
-    if ((y1 < $gpu.daT) && (y2 < $gpu.daT) && (y3 < $gpu.daT) && (y4 < $gpu.daT)) return true;
-    if ((y1 > $gpu.daB) && (y2 > $gpu.daB) && (y3 > $gpu.daB) && (y4 > $gpu.daB)) return true;
+    if ((x1 < $gpu.daL) && (x2 < $gpu.daL) && (x3 < $gpu.daL) && (x4 < $gpu.daL)) { return true; }
+    if ((x1 > $gpu.daR) && (x2 > $gpu.daR) && (x3 > $gpu.daR) && (x4 > $gpu.daR)) { return true; }
+    if ((y1 < $gpu.daT) && (y2 < $gpu.daT) && (y3 < $gpu.daT) && (y4 < $gpu.daT)) { return true; }
+    if ((y1 > $gpu.daB) && (y2 > $gpu.daB) && (y3 > $gpu.daB) && (y4 > $gpu.daB)) { return true; }
     return false;
   }
 
@@ -98,10 +98,10 @@ mdlr('enge:webgl2', ({ include }) => {
     for (let k = 0; k < count; ++k) {
       const word = data[2 + k * per];
       const u = (word & 255) + gpu.quadU, v = ((word >>> 8) & 255) + gpu.quadV;
-      if (u < umin) umin = u;
-      if (u > umax) umax = u;
-      if (v < vmin) vmin = v;
-      if (v > vmax) vmax = v;
+      if (u < umin) { umin = u; }
+      if (u > umax) { umax = u; }
+      if (v < vmin) { vmin = v; }
+      if (v > vmax) { vmax = v; }
     }
     uvLimits[0] = umin;
     uvLimits[1] = vmin;
@@ -138,19 +138,19 @@ mdlr('enge:webgl2', ({ include }) => {
     let l = Math.min(x1, x2, x3, x4), r = Math.max(x1, x2, x3, x4);
     let t = Math.min(y1, y2, y3, y4), b = Math.max(y1, y2, y3, y4);
     // drawing is clipped to the draw area, which lies inside VRAM
-    if (l < $gpu.clipL) l = $gpu.clipL;
-    if (t < $gpu.clipT) t = $gpu.clipT;
-    if (r > $gpu.clipR) r = $gpu.clipR;
-    if (b > $gpu.clipB) b = $gpu.clipB;
-    if (r < l || b < t) return;
-    if (l < pktL) pktL = l;
-    if (t < pktT) pktT = t;
-    if (r > pktR) pktR = r;
-    if (b > pktB) pktB = b;
+    if (l < $gpu.clipL) { l = $gpu.clipL; }
+    if (t < $gpu.clipT) { t = $gpu.clipT; }
+    if (r > $gpu.clipR) { r = $gpu.clipR; }
+    if (b > $gpu.clipB) { b = $gpu.clipB; }
+    if (r < l || b < t) { return; }
+    if (l < pktL) { pktL = l; }
+    if (t < pktT) { pktT = t; }
+    if (r > pktR) { pktR = r; }
+    if (b > pktB) { pktB = b; }
   }
 
   const commitPacketArea = () => {
-    if (pktR < pktL || pktB < pktT) return;
+    if (pktR < pktL || pktB < pktT) { return; }
     const cl = Math.max(0, pktL) >> CELL_SHIFT, cr = Math.min(1023, pktR) >> CELL_SHIFT;
     const ct = Math.max(0, pktT) >> CELL_SHIFT, cb = Math.min(511, pktB) >> CELL_SHIFT;
     for (let cy = ct; cy <= cb; ++cy) {
@@ -172,7 +172,7 @@ mdlr('enge:webgl2', ({ include }) => {
     for (let cy = cy0; cy <= cy1; ++cy) {
       const row = (cy & (GRID_H - 1)) * GRID_W;
       for (let cx = cx0; cx <= cx1; ++cx) {
-        if (dirtyCells[row + (cx & (GRID_W - 1))]) return true;
+        if (dirtyCells[row + (cx & (GRID_W - 1))]) { return true; }
       }
     }
     return false;
@@ -207,7 +207,7 @@ mdlr('enge:webgl2', ({ include }) => {
         if (dirtyCells[row + gx]) {
           dirtyCells[row + gx] = 0;
           --dirtyCount;
-          if (runStart < 0) runStart = gx;
+          if (runStart < 0) { runStart = gx; }
           runEnd = gx;
         }
         else if (runStart >= 0) {
@@ -215,7 +215,7 @@ mdlr('enge:webgl2', ({ include }) => {
           runStart = -1;
         }
       }
-      if (runStart >= 0) blitCells(runStart, runEnd + 1, gy);
+      if (runStart >= 0) { blitCells(runStart, runEnd + 1, gy); }
     }
   }
 
@@ -223,7 +223,7 @@ mdlr('enge:webgl2', ({ include }) => {
   // anything outside 0..255 (wrapping) or an active texture window means the
   // whole page can be sampled
   const syncTextureSource = (cl, u0, u1, v0, v1) => {
-    if (!dirtyCount) return;
+    if (!dirtyCount) { return; }
 
     const status = gpu.status;
     if (u0 < 0 || u1 > 255 || (gpu.twin & 0x000000ff)) { u0 = 0; u1 = 255; }
@@ -241,15 +241,15 @@ mdlr('enge:webgl2', ({ include }) => {
 
     const pageDirty = regionDirty(tx, ty, tw, th);
     const clutDirty = indexed && regionDirty(cx, cy, cw, 1);
-    if (!pageDirty && !clutDirty) return;
+    if (!pageDirty && !clutDirty) { return; }
 
     // queued primitives may be what wrote the dirty cells
     flushVertexBuffer();
 
     gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
     gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-    if (pageDirty) syncRegion(tx, ty, tw, th);
-    if (clutDirty) syncRegion(cx, cy, cw, 1);
+    if (pageDirty) { syncRegion(tx, ty, tw, th); }
+    if (clutDirty) { syncRegion(cx, cy, cw, 1); }
     gl_bindFramebuffer(DRAW_FRAMEBUFFER, null);
     gl_bindFramebuffer(READ_FRAMEBUFFER, null);
   }
@@ -295,7 +295,7 @@ mdlr('enge:webgl2', ({ include }) => {
         // pixel shader variants by check mask and the filters in use (see
         // getRendererProgram); the unfiltered ones are made up front
         this.rendererPrograms = new Map();
-        for (const buffer of this.buffers) buffer.setStride(filtersActive ? 36 : 28);
+        for (const buffer of this.buffers) { buffer.setStride(filtersActive ? 36 : 28); }
         this.programRenderer = getRendererProgram(this, false, 0, 0);
         this.programRendererCheckMask = getRendererProgram(this, true, 0, 0);
         this.programMaskDepth = createProgramMaskDepth();
@@ -364,7 +364,7 @@ mdlr('enge:webgl2', ({ include }) => {
       invalidateMaskDepth();
 
       const mask = (gpu.status >>> 11) & 3;
-      if (mask) return this.moveImageMasked(sx, sy, dx, dy, w, h, mask);
+      if (mask) { return this.moveImageMasked(sx, sy, dx, dy, w, h, mask); }
 
       // blit from vram -> vramShadow
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
@@ -391,7 +391,7 @@ mdlr('enge:webgl2', ({ include }) => {
     moveImageMasked(sx, sy, dx, dy, w, h, mask) {
       w = Math.min(w, 1024 - sx, 1024 - dx);
       h = Math.min(h, 512 - sy, 512 - dy);
-      if (w <= 0 || h <= 0) return;
+      if (w <= 0 || h <= 0) { return; }
 
       gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
       gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
@@ -453,7 +453,7 @@ mdlr('enge:webgl2', ({ include }) => {
       if (mask & 2) {
         gl_bindFramebuffer(READ_FRAMEBUFFER, fb_vram);
         gl_bindFramebuffer(DRAW_FRAMEBUFFER, fb_vramShadow);
-        for (const [, , vx, vy, pw, ph] of pieces) syncRegion(vx, vy, pw, ph);
+        for (const [, , vx, vy, pw, ph] of pieces) { syncRegion(vx, vy, pw, ph); }
       }
 
       // convert to RGBA while drawing them into vram at 4x, then copy to
@@ -531,8 +531,8 @@ mdlr('enge:webgl2', ({ include }) => {
       var y1 = $gpu.daY + ((data[xy1] << 5) >> 21);
       var x2 = $gpu.daX + ((data[xy2] << 21) >> 21);
       var y2 = $gpu.daY + ((data[xy2] << 5) >> 21);
-      if (outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
-      if (largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+      if (outsideDrawArea(x1, y1, x2, y2, x1, y1)) { return; }
+      if (largePrimitive(x1, y1, x2, y2, x1, y1)) { return; }
 
       c1 = getColor(data, c1);
       c2 = getColor(data, c2);
@@ -540,7 +540,7 @@ mdlr('enge:webgl2', ({ include }) => {
       touchArea(x1, y1, x2, y2, x1 + 1, y1 + 1, x2 + 1, y2 + 1);
 
       const vertexBuffer = getVertexBuffer(renderer, data);
-      if (filtersActive) vertexBuffer.setPrimitive(0, 0, 0, 0, 0);
+      if (filtersActive) { vertexBuffer.setPrimitive(0, 0, 0, 0, 0); }
 
       var w = Math.abs(x1 - x2);
       var h = Math.abs(y1 - y2);
@@ -593,8 +593,8 @@ mdlr('enge:webgl2', ({ include }) => {
       const x3 = $gpu.daX + ((data[xy3] << 21) >> 21);
       const y3 = $gpu.daY + ((data[xy3] << 5) >> 21);
 
-      if (outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
-      if (largePrimitive(x1, y1, x2, y2, x3, y3)) return;
+      if (outsideDrawArea(x1, y1, x2, y2, x3, y3)) { return; }
+      if (largePrimitive(x1, y1, x2, y2, x3, y3)) { return; }
 
       c1 = getColor(data, c1);
       c2 = getColor(data, c2);
@@ -621,7 +621,7 @@ mdlr('enge:webgl2', ({ include }) => {
         polygonUVLimits(data);
         buffer.setPrimitive(0, uvLimits[0], uvLimits[1], uvLimits[2], uvLimits[3]);
       }
-      else if (filtersActive) buffer.setPrimitive(0, 0, 0, 0, 0);
+      else if (filtersActive) { buffer.setPrimitive(0, 0, 0, 0, 0); }
 
       // PGXP: add the 1/16-pixel fraction carried from the GTE (polygons only)
       const pgxpFrac = gpu.pgxpFrac;
@@ -643,10 +643,10 @@ mdlr('enge:webgl2', ({ include }) => {
       var c = getColor(data, 0, true);
       var w = (data[2] << 16) >> 16;
       var h = (data[2] >> 16);
-      if (!w || !h) return;
+      if (!w || !h) { return; }
 
-      if (outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) return;
-      if (largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) return;
+      if (outsideDrawArea(x, y, x + w, y, x, y + h, x + w, y + h)) { return; }
+      if (largePrimitive(x, y, x + w, y, x, y + h, x + w, y + h)) { return; }
 
       var tl = tx + 0;
       var tr = tx + w;
@@ -674,8 +674,8 @@ mdlr('enge:webgl2', ({ include }) => {
       const vertexBuffer = getVertexBuffer(renderer, data);
 
       var buffer = vertexBuffer;
-      if (filtersActive) buffer.setPrimitive(VERTEX_SPRITE,
-        Math.min(tl, tr), Math.min(tt, tb), Math.max(tl, tr) - 1, Math.max(tt, tb) - 1);
+      if (filtersActive) { buffer.setPrimitive(VERTEX_SPRITE,
+        Math.min(tl, tr), Math.min(tt, tb), Math.max(tl, tr) - 1, Math.max(tt, tb) - 1); }
       buffer.addVertex(x + 0, y + 0, tl, tt, c, cl);
       buffer.addVertex(x + w, y + 0, tr, tt, c, cl);
       buffer.addVertex(x + 0, y + h, tl, tb, c, cl);
@@ -694,7 +694,7 @@ mdlr('enge:webgl2', ({ include }) => {
       var w = (data[2] << 16) >>> 16;
       var h = (data[2] << 0) >>> 16;
       var c = (data[0] & 0x00f8f8f8);
-      if (!w && !h) return;
+      if (!w && !h) { return; }
 
       x = (x & 0x3f0);
       y = (y & 0x1ff);
@@ -755,10 +755,10 @@ mdlr('enge:webgl2', ({ include }) => {
         ++this.fpsRenderCounter;
         this.seenRender = false;
       }
-      else return;
+      else { return; }
 
 
-      if (desiredScale() !== scale) changeRenderScale(desiredScale());
+      if (desiredScale() !== scale) { changeRenderScale(desiredScale()); }
       latchFilters(this);
 
       this.programDisplay = getDisplayProgram(this, settings.fmvFilter | 0, screenFilterActive(0) ? settings.screenFilter | 0 : 0);
@@ -815,9 +815,9 @@ mdlr('enge:webgl2', ({ include }) => {
     const w1 = Math.min(w, 1024 - x), w2 = w - w1;
     const h1 = Math.min(h, 512 - y), h2 = h - h1;
     const pieces = [[0, 0, x, y, w1, h1]];
-    if (w2 > 0) pieces.push([w1, 0, 0, y, w2, h1]);
-    if (h2 > 0) pieces.push([0, h1, x, 0, w1, h2]);
-    if (w2 > 0 && h2 > 0) pieces.push([w1, h1, 0, 0, w2, h2]);
+    if (w2 > 0) { pieces.push([w1, 0, 0, y, w2, h1]); }
+    if (h2 > 0) { pieces.push([0, h1, x, 0, w1, h2]); }
+    if (w2 > 0 && h2 > 0) { pieces.push([w1, h1, 0, 0, w2, h2]); }
     return pieces;
   }
 
@@ -826,7 +826,7 @@ mdlr('enge:webgl2', ({ include }) => {
   // both are written, so the shadow stays in sync for the dirty-cell tracking
   const fillColor = new Float32Array(4);
   function clearRect(c, x, y, w, h) {
-    if (w <= 0 || h <= 0) return;
+    if (w <= 0 || h <= 0) { return; }
     fillColor[0] = ((c >>> 0) & 0xff) / 255;
     fillColor[1] = ((c >>> 8) & 0xff) / 255;
     fillColor[2] = ((c >>> 16) & 0xff) / 255;
@@ -914,7 +914,7 @@ mdlr('enge:webgl2', ({ include }) => {
       flushVertexBuffer();
       flushDepth();
     }
-    if (!samePacket) commitPacketArea();
+    if (!samePacket) { commitPacketArea(); }
   }
   const getVertexBuffer = (renderer, data) => {
     updateMaskMode();
@@ -929,15 +929,15 @@ mdlr('enge:webgl2', ({ include }) => {
       // check mask: an earlier pixel with bit 15 must block later ones, so
       // draw strictly in submission order: opaque primitives forwards, and a
       // flush whenever the stream switches between opaque and semi-transparent
-      if (mode === 4) mode = 5;
-      if (mode !== $lastMode) flushVertexBuffer();
+      if (mode === 4) { mode = 5; }
+      if (mode !== $lastMode) { flushVertexBuffer(); }
       ensureMaskDepth();
     }
     $lastMode = mode;
 
     const buffer = renderer.buffers[mode];
     // callers add at most 6 vertices (a rectangle or a line)
-    if (!buffer.canHold(6)) flushVertexBuffer();
+    if (!buffer.canHold(6)) { flushVertexBuffer(); }
     return buffer;
   }
 
@@ -952,14 +952,14 @@ mdlr('enge:webgl2', ({ include }) => {
   // is drawn with the old ones first
   const latchFilters = renderer => {
     const tf = settings.textureFilter | 0, sf = settings.spriteFilter | 0;
-    if (tf === textureFilter && sf === spriteFilter) return;
-    for (let mode = 0; mode < 6; ++mode) flushBuffer(renderer.buffers[mode], Math.min(mode, 4));
+    if (tf === textureFilter && sf === spriteFilter) { return; }
+    for (let mode = 0; mode < 6; ++mode) { flushBuffer(renderer.buffers[mode], Math.min(mode, 4)); }
     textureFilter = tf;
     spriteFilter = sf;
     const active = !!(tf | sf);
     if (active !== filtersActive) {
       filtersActive = active;
-      for (const buffer of renderer.buffers) buffer.setStride(active ? 36 : 28);
+      for (const buffer of renderer.buffers) { buffer.setStride(active ? 36 : 28); }
     }
   }
 
@@ -978,10 +978,10 @@ mdlr('enge:webgl2', ({ include }) => {
 
   const updateMaskMode = () => {
     const mask = (gpu.status >>> 11) & 3;
-    if (mask === $maskMode) return;
+    if (mask === $maskMode) { return; }
     flushVertexBuffer();
     // leaving check mask: drop the depth marks so masked pixels can be drawn
-    if (($maskMode & 2) && !(mask & 2)) flushDepth();
+    if (($maskMode & 2) && !(mask & 2)) { flushDepth(); }
     $maskMode = mask;
   }
 
@@ -991,7 +991,7 @@ mdlr('enge:webgl2', ({ include }) => {
   }
 
   const ensureMaskDepth = () => {
-    if (maskDepthValid) return;
+    if (maskDepthValid) { return; }
     flushVertexBuffer();
     flushDepth();
 
@@ -1061,9 +1061,9 @@ mdlr('enge:webgl2', ({ include }) => {
   const ensureScreenTextures = (w, h, wanted) => {
     const max = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), maxViewport[0], maxViewport[1]);
     let levels = wanted;
-    while (levels > 1 && (Math.max(w, h) << levels) > max) --levels;
-    if (screenTextures && screenTextures.w === w && screenTextures.h === h && screenTextures.levels === levels) return screenTextures;
-    if (screenTextures) for (const t of screenTextures.list) gl.deleteTexture(t);
+    while (levels > 1 && (Math.max(w, h) << levels) > max) { --levels; }
+    if (screenTextures && screenTextures.w === w && screenTextures.h === h && screenTextures.levels === levels) { return screenTextures; }
+    if (screenTextures) { for (const t of screenTextures.list) { gl.deleteTexture(t); } }
     const make = (tw, th) => {
       const t = createAndBindTexture();
       gl.texParameteri(TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -1183,13 +1183,13 @@ mdlr('enge:webgl2', ({ include }) => {
   const updateAmbilight = () => {
     const target = ambilight.canvas;
     const enabled = settings.ambilight !== false;
-    if (target.hidden === enabled) target.hidden = !enabled;
+    if (target.hidden === enabled) { target.hidden = !enabled; }
 
     if (!enabled) {
-      if (target.width || target.height) target.width = target.height = 0;
+      if (target.width || target.height) { target.width = target.height = 0; }
       return;
     }
-    if (!canvas.width || !canvas.height) return;
+    if (!canvas.width || !canvas.height) { return; }
     if (target.width !== canvas.width || target.height !== canvas.height) {
       target.width = canvas.width;
       target.height = canvas.height;
@@ -1214,7 +1214,7 @@ mdlr('enge:webgl2', ({ include }) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     for (const [name, size, type, normalized, offset] of attributes) {
       const pos = gl_getAttribLocation(program, name);
-      if (pos < 0) continue;
+      if (pos < 0) { continue; }
       gl_enableVertexAttribArray(pos);
       gl_vertexAttribPointer(pos, size, type, normalized, stride, offset);
     }
@@ -1225,7 +1225,7 @@ mdlr('enge:webgl2', ({ include }) => {
     let program = renderer.displayPrograms.get(key);
     if (!program) {
       const defines = [[null, 'FMV_SMOOTH', 'FMV_XBR'][fmvFilter], [null, 'SCREEN_XBR', 'SCREEN_SUPER_XBR'][screenFilter]].filter(Boolean);
-      if (defines.length) defines.push('DISPLAY_FILTERS');
+      if (defines.length) { defines.push('DISPLAY_FILTERS'); }
       program = createProgramDisplay(renderer.displayBuffer, defines);
       renderer.displayPrograms.set(key, program);
       setScaleUniforms(program);
@@ -1264,10 +1264,10 @@ mdlr('enge:webgl2', ({ include }) => {
     let program = renderer.rendererPrograms.get(key);
     if (!program) {
       const defines = new Set([`VRAM_SCALE_SHIFT ${scaleShift}`]);
-      if (checkMask) defines.add('CHECK_MASK');
+      if (checkMask) { defines.add('CHECK_MASK'); }
       for (const f of [textureFilter, spriteFilter]) {
         const d = filterDefine(f);
-        if (d) defines.add('TEXTURE_FILTERS').add(d);
+        if (d) { defines.add('TEXTURE_FILTERS').add(d); }
       }
       program = createProgramRenderer(renderer.renderBuffer, [...defines]);
       renderer.rendererPrograms.set(key, program);
@@ -1321,13 +1321,13 @@ mdlr('enge:webgl2', ({ include }) => {
     gl.useProgram(program);
     const s = gl_getUniformLocation(program, 'u_scale');
     const shift = gl_getUniformLocation(program, 'u_scaleShift');
-    if (s) gl.uniform1i(s, scale);
-    if (shift) gl.uniform1i(shift, scaleShift);
+    if (s) { gl.uniform1i(s, scale); }
+    if (shift) { gl.uniform1i(shift, scaleShift); }
   }
   const applyScaleUniforms = renderer => {
-    for (const program of renderer.rendererPrograms.values()) setScaleUniforms(program);
+    for (const program of renderer.rendererPrograms.values()) { setScaleUniforms(program); }
     setScaleUniforms(renderer.programUpload);
-    for (const program of renderer.displayPrograms.values()) setScaleUniforms(program);
+    for (const program of renderer.displayPrograms.values()) { setScaleUniforms(program); }
     setScaleUniforms(renderer.programSuperXbr);
   }
 
@@ -1396,7 +1396,7 @@ mdlr('enge:webgl2', ({ include }) => {
   // maxQuality is not saved with the settings: it belongs to this GPU
   const setMaxQuality = max => {
     Object.defineProperty(settings, 'maxQuality', { value: max, writable: true, enumerable: false, configurable: true });
-    if (settings.quality > max) settings.quality = max;
+    if (settings.quality > max) { settings.quality = max; }
     settings.updateQuality?.();
   }
   const disallow8x = () => {
@@ -1433,7 +1433,7 @@ mdlr('enge:webgl2', ({ include }) => {
     ok = ok && gl.checkFramebufferStatus(FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE && gl.getError() === gl.NO_ERROR;
     gl_bindFramebuffer(FRAMEBUFFER, null);
     gl.deleteFramebuffer(fb);
-    if (ok) return { color, depth, shadow };
+    if (ok) { return { color, depth, shadow }; }
     gl.deleteTexture(color); gl.deleteTexture(depth); gl.deleteTexture(shadow);
     return null;
   }
@@ -1463,7 +1463,7 @@ mdlr('enge:webgl2', ({ include }) => {
   const changeRenderScale = n => {
     flushVertexBuffer();
     const t = createVramTextures(n);
-    if (!t) { if (n === 8) disallow8x(); return; }
+    if (!t) { if (n === 8) { disallow8x(); } return; }
 
     const tmp = gl_createFramebuffer();
     gl_bindFramebuffer(DRAW_FRAMEBUFFER, tmp);

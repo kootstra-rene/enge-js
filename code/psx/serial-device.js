@@ -100,17 +100,17 @@ mdlr('enge:psx:serial-device', ({ include }) => {
     sendReceiveByte: byte => {
       const index = received.length;
       if (dualShock && index === 2) {
-        if (mode === 0x43 && (byte === 0 || byte === 1)) config = byte === 1;
-        if (commandConfig && mode === 0x44 && (byte === 0 || byte === 1)) analog = byte === 1;
+        if (mode === 0x43 && (byte === 0 || byte === 1)) { config = byte === 1; }
+        if (commandConfig && mode === 0x44 && (byte === 0 || byte === 1)) { analog = byte === 1; }
         if (commandConfig && mode === 0x46) {
           response.splice(2, 4, ...(byte === 0 ? [1, 2, 0, 10] : byte === 1 ? [1, 1, 1, 20] : [0, 0, 0, 0]));
         }
-        if (commandConfig && mode === 0x4c) response[3] = byte === 0 ? 4 : byte === 1 ? 7 : 0;
+        if (commandConfig && mode === 0x4c) { response[3] = byte === 0 ? 4 : byte === 1 ? 7 : 0; }
       }
       if (dualShock && commandConfig && mode === 0x4d && index >= 2 && index < 8) {
         rumbleMap[index - 2] = byte;
       }
-      if (response.length <= 0) console.log(`#${id}: reading unexpected in mode $${hex(mode, 2)}`);
+      if (response.length <= 0) { console.log(`#${id}: reading unexpected in mode $${hex(mode, 2)}`); }
       let data = response.shift() || 0;
 
       if (mode === 0x52) {
@@ -167,7 +167,8 @@ mdlr('enge:psx:serial-device', ({ include }) => {
                 memory.set(writeBuffer, addr * 128);
                 memoryCardFlag &= ~0x08;
                 localStorage.setItem(`card${id + 1}`, encode(memory));
-              } else {
+              }
+              else {
                 memoryCardFlag |= 0x04;
               }
               break;

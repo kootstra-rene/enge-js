@@ -38,7 +38,7 @@ mdlr('enge:psx:core', ({ include }) => {
   }
 
   psx.unsetEvent = (event) => {
-    if (!event.active) return;
+    if (!event.active) { return; }
 
     const index = events.findIndex(a => a.id === event.id);
     if (index !== -1) {
@@ -77,7 +77,7 @@ mdlr('enge:psx:core', ({ include }) => {
     let eventClock = Number.MAX_SAFE_INTEGER;
 
     for (let event of events) {
-      if (!event.active) continue;
+      if (!event.active) { continue; }
 
       if (psx.clock >= event.clock) {
         event.cb(event, psx.clock);
@@ -108,7 +108,7 @@ mdlr('enge:psx:core', ({ include }) => {
   });
 
   psx.setState = state => {
-    if (!state) return;
+    if (!state) { return; }
     psx.clock = state.clock;
     psx.eventClock = state.eventClock;
     lastId = state.lastId;
@@ -118,7 +118,7 @@ mdlr('enge:psx:core', ({ include }) => {
     inactiveEvents.length = 0;
     for (const saved of state.events || []) {
       const event = allEvents.find(candidate => candidate.id === saved.id);
-      if (!event) continue;
+      if (!event) { continue; }
       event.clock = saved.clock;
       event.start = saved.start;
       event.active = saved.active;

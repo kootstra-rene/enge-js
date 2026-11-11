@@ -61,7 +61,7 @@ mdlr('enge:psx:spu-worklet', () => {
         const frames = outL.length;
 
         if (!this.playing) {
-          if (this.queued < this.prebuffer) return true;  // outputs are zeroed
+          if (this.queued < this.prebuffer) { return true; }  // outputs are zeroed
           this.playing = true;
           this.frac = 0;
           this.pull();

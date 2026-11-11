@@ -73,8 +73,8 @@ mdlr('enge:psx:serial', ({ include }) => {
           }
           setResult(0xff, false);
           command = data & 0xff;
-          if (command === 0x81) device.init();
-          if (command === 0x01) device.init();
+          if (command === 0x81) { device.init(); }
+          if (command === 0x01) { device.init(); }
           break;
 
         case 0x01:
@@ -100,7 +100,7 @@ mdlr('enge:psx:serial', ({ include }) => {
     },
 
     wr16r1048: (data) => {
-      if (data !== 0xd) abort(hex(data, 4));
+      if (data !== 0xd) { abort(hex(data, 4)); }
     },
 
     wr16r104a: function (data) {
@@ -127,7 +127,7 @@ mdlr('enge:psx:serial', ({ include }) => {
     },
 
     wr16r104e: function (data) {
-      if (data !== 0x88) abort(`invalid JOY_BAUD: $${hex(data, 4)}`);
+      if (data !== 0x88) { abort(`invalid JOY_BAUD: $${hex(data, 4)}`); }
       baud = data & 0xffff;
     }
   }

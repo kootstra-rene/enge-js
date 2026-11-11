@@ -17,7 +17,7 @@ mdlr('[test]enge:psx:cpu', ({ include, test }) => {
   let cpu, cpuException, cpuInterrupt;
 
   before(async () => {
-    for (const name of globalNames) savedGlobals[name] = globalThis[name];
+    for (const name of globalNames) { savedGlobals[name] = globalThis[name]; }
     globalThis.vector = vector;
     globalThis.psx = { clock: 0, eventClock: 0 };
     globalThis.map = new Int32Array(0x4000);
@@ -26,8 +26,8 @@ mdlr('[test]enge:psx:cpu', ({ include, test }) => {
 
   after(async () => {
     for (const name of globalNames) {
-      if (savedGlobals[name] === undefined) delete globalThis[name];
-      else globalThis[name] = savedGlobals[name];
+      if (savedGlobals[name] === undefined) { delete globalThis[name]; }
+      else { globalThis[name] = savedGlobals[name]; }
     }
   });
 

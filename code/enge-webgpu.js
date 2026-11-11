@@ -131,12 +131,13 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       this.ready = this.initialize();
     }
     async initialize() {
-      if (!navigator.gpu)
+      if (!navigator.gpu) {
         throw new Error(
           "WebGPU is unavailable. Open this page in a WebGPU-capable browser on localhost or HTTPS.",
         );
+      }
       const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) throw new Error("No WebGPU adapter is available.");
+      if (!adapter) { throw new Error("No WebGPU adapter is available."); }
       this.device = await adapter.requestDevice();
       const d = this.device;
       this.context = this.canvas.getContext("webgpu");
@@ -171,8 +172,9 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       const errors = (await module.getCompilationInfo()).messages.filter(
         (m) => m.type === "error",
       );
-      if (errors.length)
+      if (errors.length) {
         throw new Error(errors.map((m) => m.message).join("\n"));
+      }
       const drawLayout=d.createBindGroupLayout({entries:[
         {binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'float'}},
         {binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage',hasDynamicOffset:true}},
@@ -187,10 +189,10 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
           dstFactor,
           operation,
         });
-        if (mode === 0) blend = component("src-alpha", "src-alpha");
-        if (mode === 1) blend = component("one", "one");
-        if (mode === 2) blend = component("one", "one", "reverse-subtract");
-        if (mode === 3) blend = component("one-minus-src-alpha", "one");
+        if (mode === 0) { blend = component("src-alpha", "src-alpha"); }
+        if (mode === 1) { blend = component("one", "one"); }
+        if (mode === 2) { blend = component("one", "one", "reverse-subtract"); }
+        if (mode === 3) { blend = component("one-minus-src-alpha", "one"); }
         this.pipelines.push(
           d.createRenderPipeline({
             layout: pipelineLayout,
@@ -233,13 +235,13 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       }
     }
     needsTextureSync(data) {
-      if (!this.dirty) return false;
+      if (!this.dirty) { return false; }
 
       const [left, top, right, bottom] = this.dirty;
       const overlapsWrapped = (start, size, min, max, limit) => {
         start = ((start % limit) + limit) % limit;
         const end = start + size;
-        if (end <= limit) return start < max && end > min;
+        if (end <= limit) { return start < max && end > min; }
         return (start < max && limit > min) || (end - limit > min && max > 0);
       };
       const overlapsVram = (x, y, width, height) =>
@@ -248,7 +250,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
 
       for (let i = 0; i < data.length; i += 6) {
         const depth = (data[i] >>> 24) & 7;
-        if (depth === 3) continue;
+        if (depth === 3) { continue; }
 
         const page = data[i + 4];
         const window = data[i + 5];
@@ -258,21 +260,21 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         );
         const textureY = (page >>> 16) + (window >>> 24);
         const textureWidth = Math.ceil(256 / divisor) + 1;
-        if (overlapsVram(textureX, textureY, textureWidth, 256)) return true;
+        if (overlapsVram(textureX, textureY, textureWidth, 256)) { return true; }
 
         if (depth < 2) {
           const clut = data[i + 3];
           const clutX = clut & 0xffff;
           const clutY = clut >>> 16;
           const clutWidth = depth === 0 ? 16 : 256;
-          if (overlapsVram(clutX, clutY, clutWidth, 1)) return true;
+          if (overlapsVram(clutX, clutY, clutWidth, 1)) { return true; }
         }
       }
 
       return false;
     }
     flushVertexBuffer(clip = true) {
-      if (!this.vertexBuffer.index) return;
+      if (!this.vertexBuffer.index) { return; }
       const d = this.device;
       const mode = this.renderMode & 15;
       const data = this.vertexBuffer.view();
@@ -302,7 +304,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         });
       }
       // Give each pending draw a distinct slot until its command list is submitted.
-      if((this.drawSlot||0)>=256)this.submitDrawing();
+      if((this.drawSlot||0)>=256){ this.submitDrawing(); }
       const offset=(this.drawSlot||0)*this.vertexBuffer.byteLength;
       this.drawSlot=(this.drawSlot||0)+1;
       d.queue.writeBuffer(this.gpuVertices, offset, data);
@@ -310,11 +312,12 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         group = this.drawGroups[mode];
       const encoder = this.drawingEncoder ||= d.createCommandEncoder();
       let textured = false;
-      for (let i = 0; i < data.length; i += 6)
+      for (let i = 0; i < data.length; i += 6) {
         if (((data[i] >>> 24) & 7) !== 3) {
           textured = true;
           break;
         }
+      }
       // Untextured primitives never sample VRAM; snapshot only when it is read.
       if (textured && this.dirty) {
         if (this.needsTextureSync(data)) {
@@ -398,10 +401,12 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
     storeImage(img) {
       this.flushVertexBuffer(true);
       this.submitDrawing();
-      for (let j = 0; j < img.h; j++)
-        for (let i = 0; i < img.w; i++)
+      for (let j = 0; j < img.h; j++) {
+        for (let i = 0; i < img.w; i++) {
           this.vram[((img.y + j) & 511) * 1024 + ((img.x + i) & 1023)] =
             img.buffer[j * img.w + i];
+        }
+      }
       for (let j = 0; j < img.h; ) {
         const y = (img.y + j) & 511,
           h = Math.min(img.h - j, 512 - y);
@@ -409,7 +414,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
           const x = (img.x + i) & 1023,
             w = Math.min(img.w - i, 1024 - x);
           const pixels = new Uint8Array(w * h * quality * quality * 4);
-          for (let row = 0; row < h * quality; row++)
+          for (let row = 0; row < h * quality; row++) {
             for (let col = 0; col < w * quality; col++) {
               const value =
                 this.vram[
@@ -423,6 +428,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
               pixels[n + 2] = Math.round((((value >> 10) & 31) * 255) / 32);
               pixels[n + 3] = value & 32768 ? 255 : 0;
             }
+          }
           this.device.queue.writeTexture(
             { texture: this.target, origin: [x * quality, y * quality] },
             pixels,
@@ -460,7 +466,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
           this.device.queue.submit([encoder.finish()]);
           await staging.mapAsync(GPUMapMode.READ);
           const bytes = new Uint8Array(staging.getMappedRange());
-          for (let j = 0; j < rows; j++)
+          for (let j = 0; j < rows; j++) {
             for (let i = 0; i < columns; i++) {
               const n =
                 (j * quality + (quality >> 1)) * pitch +
@@ -471,6 +477,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
               buffer[(row + j) * w + column + i] =
                 r | (g << 5) | (b << 10) | (bytes[n + 3] >= 128 ? 32768 : 0);
             }
+          }
           staging.unmap();
           staging.destroy();
           column += columns;
@@ -480,10 +487,12 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       return buffer;
     }
     loadImage(x, y, w, h, buffer) {
-      for (let j = 0; j < h; j++)
-        for (let i = 0; i < w; i++)
+      for (let j = 0; j < h; j++) {
+        for (let i = 0; i < w; i++) {
           buffer[j * w + i] =
             this.vram[((y + j) & 511) * 1024 + ((x + i) & 1023)];
+        }
+      }
     }
     getVramState() {
       return new Uint16Array(this.vram);
@@ -496,10 +505,12 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       this.submitDrawing();
       const words = new Uint16Array(w * h);
       this.loadImage(sx, sy, w, h, words);
-      for (let j = 0; j < h; j++)
-        for (let i = 0; i < w; i++)
+      for (let j = 0; j < h; j++) {
+        for (let i = 0; i < w; i++) {
           this.vram[((dy + j) & 511) * 1024 + ((dx + i) & 1023)] =
             words[j * w + i];
+        }
+      }
       const d = this.device,
         temp = d.createTexture({
           size: [w * quality, h * quality],
@@ -544,7 +555,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         w = r - x;
         h = b - y;
       }
-      if (w <= 0 || h <= 0) return;
+      if (w <= 0 || h <= 0) { return; }
       const value =
         ((color >> 3) & 31) |
         (((color >> 11) & 31) << 5) |
@@ -583,20 +594,20 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
     }
     onVBlankEnd() {}
     onVBlankBegin() {
-      if (this.error) return;
+      if (this.error) { return; }
       this.flushVertexBuffer(true);
       this.submitDrawing();
       let area =
         this.displaymode === 2
           ? gpu.getDisplayArea()
           : { x: 0, y: 0, w: 1024, h: 512 };
-      if (!area.w || !area.h) return;
+      if (!area.w || !area.h) { return; }
       const is24 = !!(gpu.status & (1 << 21)),
         d = this.device;
       const width = area.w * (is24 ? 1 : quality),
         height = area.h * (is24 ? 1 : quality);
-      if (this.canvas.width !== width) this.canvas.width = width;
-      if (this.canvas.height !== height) this.canvas.height = height;
+      if (this.canvas.width !== width) { this.canvas.width = width; }
+      if (this.canvas.height !== height) { this.canvas.height = height; }
       if (!this.displayParams) {
         this.displayParams = d.createBuffer({
           size: 32,
@@ -643,27 +654,31 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       pass.end();
       d.queue.submit([encoder.finish()]);
       this.fpsCounter++;
-      if (this.seenRender) this.fpsRenderCounter++;
+      if (this.seenRender) { this.fpsRenderCounter++; }
       this.seenRender = false;
     }
     outsideDrawArea(x1, y1, x2, y2, x3, y3) {
-      if (x1 < this.drawAreaL && x2 < this.drawAreaL && x3 < this.drawAreaL)
+      if (x1 < this.drawAreaL && x2 < this.drawAreaL && x3 < this.drawAreaL) {
         return true;
-      if (x1 > this.drawAreaR && x2 > this.drawAreaR && x3 > this.drawAreaR)
+      }
+      if (x1 > this.drawAreaR && x2 > this.drawAreaR && x3 > this.drawAreaR) {
         return true;
-      if (y1 < this.drawAreaT && y2 < this.drawAreaT && y3 < this.drawAreaT)
+      }
+      if (y1 < this.drawAreaT && y2 < this.drawAreaT && y3 < this.drawAreaT) {
         return true;
-      if (y1 > this.drawAreaB && y2 > this.drawAreaB && y3 > this.drawAreaB)
+      }
+      if (y1 > this.drawAreaB && y2 > this.drawAreaB && y3 > this.drawAreaB) {
         return true;
+      }
       return false;
     }
     largePrimitive(x1, y1, x2, y2, x3, y3) {
-      if (Math.abs(x1 - x2) > 1023) return true;
-      if (Math.abs(x2 - x3) > 1023) return true;
-      if (Math.abs(x3 - x1) > 1023) return true;
-      if (Math.abs(y1 - y2) > 511) return true;
-      if (Math.abs(y2 - y3) > 511) return true;
-      if (Math.abs(y3 - y1) > 511) return true;
+      if (Math.abs(x1 - x2) > 1023) { return true; }
+      if (Math.abs(x2 - x3) > 1023) { return true; }
+      if (Math.abs(x3 - x1) > 1023) { return true; }
+      if (Math.abs(y1 - y2) > 511) { return true; }
+      if (Math.abs(y2 - y3) > 511) { return true; }
+      if (Math.abs(y3 - y1) > 511) { return true; }
       return false;
     }
     getVertexBuffer(cnt, pid) {
@@ -685,8 +700,8 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       var x2 = this.drawOffsetX + ((data[xy2] << 21) >> 21);
       var y2 = this.drawOffsetY + ((data[xy2] << 5) >> 21);
 
-      if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) return;
-      if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) return;
+      if (this.outsideDrawArea(x1, y1, x2, y2, x1, y1)) { return; }
+      if (this.largePrimitive(x1, y1, x2, y2, x1, y1)) { return; }
 
       //   let map;
       //   map = this.getGteCoord(x1, y1); if (map) { x1 = map.x+this.drawOffsetX; y1 = map.y+this.drawOffsetY; }
@@ -705,7 +720,8 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
           buffer.addVertex(x2, y2 + 0, data[c2]);
           buffer.addVertex(x2, y2 + 1, data[c2]);
           buffer.addVertex(x1, y1 + 1, data[c1]);
-        } else {
+        }
+        else {
           buffer.addVertex(x1 + 0, y1, data[c1]);
           buffer.addVertex(x1 + 1, y1, data[c1]);
           buffer.addVertex(x2 + 1, y2, data[c2]);
@@ -714,7 +730,8 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
           buffer.addVertex(x2 + 0, y2, data[c2]);
           buffer.addVertex(x1 + 0, y1, data[c1]);
         }
-      } else {
+      }
+      else {
         buffer.addVertex(x2 + 0, y2 + 0, data[c2]);
         buffer.addVertex(x2 + 1, y2 + 0, data[c2]);
         buffer.addVertex(x2 + 0, y2 + 1, data[c2]);
@@ -726,14 +743,17 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
     }
     drawTriangle(data, c1, xy1, c2, xy2, c3, xy3, tx, ty, uv1, uv2, uv3, cl) {
       this.seenRender = true;
-      if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
+      if ((data[0] & 0x82000000) === 0x80000000 >> 0) { return; } //WebGL2 improvement fix;
 
-      if ((data[0] & 0x05000000) === 0x05000000)
+      if ((data[0] & 0x05000000) === 0x05000000) {
         data[c1] = (data[c1] & 0xff000000) | 0x00808080; //- raw-texture
-      if ((data[0] & 0x05000000) === 0x05000000)
+      }
+      if ((data[0] & 0x05000000) === 0x05000000) {
         data[c2] = (data[c2] & 0xff000000) | 0x00808080; //- raw-texture
-      if ((data[0] & 0x05000000) === 0x05000000)
+      }
+      if ((data[0] & 0x05000000) === 0x05000000) {
         data[c3] = (data[c3] & 0xff000000) | 0x00808080; //- raw-texture
+      }
 
       var x1 = this.drawOffsetX + ((data[xy1] << 21) >> 21);
       var y1 = this.drawOffsetY + ((data[xy1] << 5) >> 21);
@@ -742,8 +762,8 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
       var x3 = this.drawOffsetX + ((data[xy3] << 21) >> 21);
       var y3 = this.drawOffsetY + ((data[xy3] << 5) >> 21);
 
-      if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) return;
-      if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) return;
+      if (this.outsideDrawArea(x1, y1, x2, y2, x3, y3)) { return; }
+      if (this.largePrimitive(x1, y1, x2, y2, x3, y3)) { return; }
 
       var textured = (data[0] & 0x04000000) === 0x04000000;
 
@@ -845,16 +865,17 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
     drawRectangle(data, tx, ty, cl) {
       this.seenRender = true;
 
-      if ((data[0] & 0x82000000) === 0x80000000 >> 0) return; //WebGL2 improvement fix;
-      if ((data[0] & 0x05000000) === 0x05000000)
+      if ((data[0] & 0x82000000) === 0x80000000 >> 0) { return; } //WebGL2 improvement fix;
+      if ((data[0] & 0x05000000) === 0x05000000) {
         data[0] = (data[0] & 0xff000000) | 0x00808080; //- raw-texture
+      }
 
       var x = this.drawOffsetX + ((data[1] << 21) >> 21);
       var y = this.drawOffsetY + ((data[1] << 5) >> 21);
       var c = data[0] & 0xfefefe;
       var w = (data[2] << 16) >> 16;
       var h = data[2] >> 16;
-      if (!w || !h) return;
+      if (!w || !h) { return; }
 
       var showT1 = !this.outsideDrawArea(
         x + 0,
@@ -872,7 +893,7 @@ fn byte(x:u32,y:u32)->f32 {return f32((word(x/2u,y)>>((x&1u)*8u))&255u)/255.0;}
         x + w - 1,
         y + h - 1,
       );
-      if (!showT1 && !showT2) return;
+      if (!showT1 && !showT2) { return; }
 
       var textured = (data[0] & 0x04000000) === 0x04000000;
 
