@@ -1,6 +1,6 @@
 mdlr('enge:utils', ({ include }) => {
 
-  const Base64 = include('base64');
+  const Base64 = include('core:base64');
 
   function readStorageStream(item, handler) {
     const base64text = localStorage.getItem(item);
