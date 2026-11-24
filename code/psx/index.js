@@ -788,8 +788,9 @@ mdlr('enge:psx:index', ({ include }) => {
 
     // The web app is on the monitor, which serves enge:server on /enge as set in its
     // endpoints.json. A page from docs/ has its server where it is: on the root with
-    // node server.js, and on /enge with the monitor.
-    const serverBase = document.querySelector('webgl2-app')
+    // node server.js, and on /enge with the monitor. mdlr names the app's element after its
+    // whole module id, [web]enge:webgl2-app.
+    const serverBase = document.querySelector('enge-webgl2-app')
       ? `${window.location.origin}/enge`
       : new URL('.', window.location.href).href.replace(/\/$/, '');
     const cloudBase = serverBase;
